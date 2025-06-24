@@ -4,6 +4,17 @@ on:
   pull_request:
     branches: [main, dev]
 
+env:
+  CONFIG_DIR: ./scripts/configs
+  SETUP_PY: ./scripts/configs
+  SRC_DIR: ./src/quaos
+  TEST_DIR: ./tests
+  PYTEST_INI: ./scripts/configs/pytest.ini
+  COVERAGE_REPORT_XML: ./docs/tests_results/coverage_report.xml
+  COVERAGE_REPORT_HTML: ./docs/tests_results/coverage_html_report
+  COVERAGE_REPORT_JUNIT: ./docs/tests_results/junit.xml
+  PYTHON_VERSION: "3.11"
+
 jobs:
   set-runner:
     runs-on: ubuntu-latest
@@ -34,19 +45,19 @@ jobs:
       - name: Set up environment
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r ./configs/requirements.txt
+          python -m pip install ${{ env.SETUP_PY }}
 
       - name: Flake8
         continue-on-error: true
         run: |
           pip install flake8
-          flake8 ./quaos
+          flake8 ${{ env.SRC_DIR }}
 
   testing:
     needs: [set-runner, linting]
@@ -58,19 +69,19 @@ jobs:
       - name: Set up environment
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r ./configs/requirements.txt
+          python -m pip install ${{ env.SETUP_PY }}
 
       - name: Pytest (No Benchmarking)
         run: |
           pip install pytest pytest-cov
-          cd ./configs
-          pytest --override-ini "pytest.ini=./configs/pytest.ini"
+          cd ${{ env.CONFIG_DIR }}
+          pytest --override-ini "pytest.ini=${{ env.PYTEST_INI }}" --cov=${{ env.SRC_DIR }} --cov-report=xml:${{ env.COVERAGE_REPORT_XML }} --cov-report=html:${{ env.COVERAGE_REPORT_HTML }} --junitxml=${{ env.COVERAGE_REPORT_JUNIT }} --disable-warnings -vv
           cd ..
 
       - name: Upload coverage reports to Codecov
@@ -78,4 +89,4 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           with:
-          file: ./docs/tests_results/coverage_report.xml
+          file: ${{ env.COVERAGE_REPORT_XML }}

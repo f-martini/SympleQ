@@ -4,9 +4,8 @@ permissions:
   contents: write
 
 on:
-  push:
-    branches:
-      - main
+  pull_request:
+    branches: [main, dev]
 
 jobs:
   tag:

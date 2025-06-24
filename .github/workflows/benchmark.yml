@@ -4,6 +4,13 @@ on:
   pull_request:
     branches: [main, dev]
 
+env:
+  SETUP_PY: ./scripts/configs
+  BENCHMARK_OUTPUT: benchmark.json
+  PROFILING_OUTPUT: profile.out
+  SIMULATION_SCRIPT: ./scripts/experiments/BFQ_Simulation.py
+  PYTHON_VERSION: "3.11"
+
 jobs:
   set-runner:
     runs-on: ubuntu-latest
@@ -34,13 +41,13 @@ jobs:
       - name: Set up environment
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r ./configs/requirements.txt
+          python -m pip install ${{ env.SETUP_PY }}
 
       - name: Run benchmarks
         run: |
@@ -64,20 +71,20 @@ jobs:
       - name: Set up environment
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r ./configs/requirements.txt
+          python -m pip install ${{ env.SETUP_PY }}
 
       - name: Run profiling with cProfile
         run: |
-          python -m cProfile -o profile.out ./scripts/experiments/BFQ_Simulation.py
+          python -m cProfile -o ${{ env.PROFILING_OUTPUT }} ${{ env.SIMULATION_SCRIPT }}
 
       - name: Upload profiling results
         uses: actions/upload-artifact@v4
         with:
           name: profiling-results
-          path: profile.out
+          path: ${{ env.PROFILING_OUTPUT }}
