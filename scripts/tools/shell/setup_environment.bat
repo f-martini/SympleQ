@@ -1,13 +1,15 @@
 @echo off
 
+REM Change the working directory to the script's
+REM directory and load environment variables
 cd /d %~dp0
-cd ../..
+call env.bat
+cd %PROJECT_ROOT%
 
 REM Initializing virtual environment...
-
-if not exist venv (
-    echo Creating virtual environment venv...
-    python -m venv venv
+if not exist %SRC_VENV% (
+    echo Creating virtual environment %SRC_VENV%...
+    python -m venv %SRC_VENV%
 )
 
 if not exist "configs/requirements.txt" (
@@ -18,11 +20,8 @@ if not exist "configs/requirements.txt" (
     call deactivate
 )
 
-
 REM Generating unversioned folders...
-
-set "folders=data data/profiling scripts/personal"
-
+set "folders=scripts/personal"
 for %%F in (%folders%) do (
     if not exist "%%F" (
         mkdir "%%F"
@@ -30,9 +29,7 @@ for %%F in (%folders%) do (
     )
 )
 
-
 REM Writing unversioned .env file...
-
 if not exist "./configs/.env" (
     echo GITHUB_TOKEN="undefined" > ./configs/.env
 )

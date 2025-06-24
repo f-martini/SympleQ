@@ -1,26 +1,29 @@
 @echo off
 
+REM Change the working directory to the script's
+REM directory and load environment variables
 cd /d %~dp0
-cd ../../..
+call env.bat
+cd %PROJECT_ROOT%
 
 REM Check if the virtual environment exists
-if not exist "venv" (
+if not exist "%SRC_VENV%" (
     echo Virtual environment not found.
     exit /b 1
 )
 
 echo Activating virtual environment...
-call venv/Scripts/activate
+call %SRC_VENV%/Scripts/activate
 
-if not exist "./configs/requirements/dev_requirements.txt" (
-    echo dev_requirements.txt not found.
+if not exist "%DEV_REQUIREMENTS%" (
+    echo %DEV_REQUIREMENTS% not found.
     exit /b 1
 )
 
-echo Installing requirements from dev_requirements.txt...
-call pip install -r ./configs/requirements/dev_requirements.txt >nul 2>&1
+echo Installing requirements from %DEV_REQUIREMENTS%...
+call pip install -r %DEV_REQUIREMENTS% >nul 2>&1
 
 echo Clearing Jupyter notebooks...
-call python ./scripts/tools/python/clear_notebooks.py
+call python %CLEAR_NOTEBOOKS_SCRIPT%
 
 echo Done!

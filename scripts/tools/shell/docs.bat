@@ -1,25 +1,27 @@
 @echo off
 
+REM Change the working directory to the script's
+REM directory and load environment variables
 cd /d %~dp0
-cd ../../docs
+call env.bat
+cd %PROJECT_ROOT%
 
-if not exist doc_venv (
-    echo Creating virtual environment doc_venv...
-    python -m venv doc_venv
+if not exist %DOC_VENV% (
+    echo Creating virtual environment in %DOC_VENV%...
+    python -m venv %DOC_VENV%
 )
 
-call doc_venv\Scripts\activate
-pip install -r doc_requirements.txt
+call %DOC_VENV%\Scripts\activate
+pip install -r %DOC_REQUIREMENTS%
+pip install -r %SRC_REQUIREMENTS%
 
-pip install -r ../configs/requirements.txt
+rmdir /s /q %DOC_AUTOSUMMARY%
 
-rmdir /s /q "index/_autosummary/"
-
-sphinx-build -E -b html . _build/html
+sphinx-build -E -b html %DOC_ROOT% %DOC_BUILD_DIR%
 
 if %errorlevel% neq 0 (
     echo Sphinx build failed
     exit /b %errorlevel%
 )
 
-start "" "%cd%\_build\html\index.html"
+start "" "%DOC_INDEX%"

@@ -1,7 +1,10 @@
 @echo off
 
+REM Change the working directory to the script's
+REM directory and load environment variables
 cd /d %~dp0
-cd ../../..
+call env.bat
+cd %PROJECT_ROOT%
 
 if not exist "venv" (
     echo Virtual environment not found.
