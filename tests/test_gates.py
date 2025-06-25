@@ -1,6 +1,7 @@
 import sys
 sys.path.append("./")
 from quaos.circuits import Gate, SUM, SWAP, Hadamard, PHASE, CNOT
+from quaos.circuits.utils import is_symplectic
 from quaos.paulis import PauliSum, PauliString
 import numpy as np
 
@@ -75,20 +76,31 @@ class TestGates():
         pass
 
     def test_group_homomorphism(self):
-        gate = SUM(0, 1, 2)
-        for x0 in range(2):
-            for z0 in range(2):
-                for x1 in range(2):
-                    for z1 in range(2):
-                        for x0p in range(2):
-                            for z0p in range(2):
-                                for x1p in range(2):
-                                    for z1p in range(2):
-                                        p1 = PauliSum([f'x{x0}z{z0} x{x1}z{z1}'], dimensions=[2, 2])
-                                        p2 = PauliSum([f'x{x0p}z{z0p} x{x1p}z{z1p}'], dimensions=[2, 2])
-                                        err0 = 'In: \n' + p1.__str__() + '\n' + p2.__str__()
-                                        err = 'Out: \n' + (gate.act(p1) * gate.act(p2)).__str__() + '\n' + gate.act(p1 * p2).__str__()
-                                        assert gate.act(p1) * gate.act(p2) == gate.act(p1 * p2), err0 + err
+        # Tests all gates and all combinations of two pauli strings for the group homomorphism property:
+        # gate.act(p1) * gate.act(p2) == gate.act(p1 * p2)
+
+        gates = [SUM(0, 1, 2), SUM(0, 1, 2), SWAP(0, 1, 2), Hadamard(0, 2), Hadamard(1, 2), PHASE(0, 2), PHASE(1, 2)]
+        for gate in gates:
+            for x0 in range(2):
+                for z0 in range(2):
+                    for x1 in range(2):
+                        for z1 in range(2):
+                            for x0p in range(2):
+                                for z0p in range(2):
+                                    for x1p in range(2):
+                                        for z1p in range(2):
+                                            p1 = PauliSum([f'x{x0}z{z0} x{x1}z{z1}'], dimensions=[2, 2])
+                                            p2 = PauliSum([f'x{x0p}z{z0p} x{x1p}z{z1p}'], dimensions=[2, 2])
+                                            err0 = 'In: \n' + p1.__str__() + '\n' + p2.__str__()
+                                            err = 'Out: \n' + (gate.act(p1) * gate.act(p2)).__str__() + '\n' + gate.act(p1 * p2).__str__()
+                                            assert gate.act(p1) * gate.act(p2) == gate.act(p1 * p2), err0 + err + '\n'
+
+    def test_is_symplectic(self):
+
+        # Tests if the symplectic matrix of the gate is symplectic
+        gates = [SUM(0, 1, 2), SWAP(0, 1, 2), Hadamard(0, 2), Hadamard(1, 2), PHASE(0, 2), PHASE(1, 2)]
+        for gate in gates:
+            assert is_symplectic(gate.symplectic), f"Gate {gate.name} is not symplectic"
 
 
 if __name__ == "__main__":
@@ -138,34 +150,55 @@ if __name__ == "__main__":
     # print(ps3, '->', swap_gate.act(ps3))
     # print(ps4, '->', swap_gate.act(ps4))
                 # test pauli_sums
-    d = 2
-    for i in range(10):
-        ps_list_in = []
-        ps_list_out_correct = []
-        ps_phase_out_correct = []
-        for j in range(10):
-            r1 = np.random.randint(0, d)
-            r2 = np.random.randint(0, d)
-            s1 = np.random.randint(0, d)
-            s2 = np.random.randint(0, d)
+    # d = 2
+    # for i in range(10):
+    #     ps_list_in = []
+    #     ps_list_out_correct = []
+    #     ps_phase_out_correct = []
+    #     for j in range(10):
+    #         r1 = np.random.randint(0, d)
+    #         r2 = np.random.randint(0, d)
+    #         s1 = np.random.randint(0, d)
+    #         s2 = np.random.randint(0, d)
 
-            input_str = f"x{r1}z{s1} x{r2}z{s2}"
-            output_str_correct = f"x{r1}z{(s1 - s2) % d} x{(r2 + r1) % d}z{s2}"
-            print(input_str, '->', output_str_correct)
+    #         input_str = f"x{r1}z{s1} x{r2}z{s2}"
+    #         output_str_correct = f"x{r1}z{(s1 - s2) % d} x{(r2 + r1) % d}z{s2}"
+    #         print(input_str, '->', output_str_correct)
 
-            input_ps = PauliString(input_str, dimensions=[d, d])
-            output_ps_correct = PauliString(output_str_correct, dimensions=[d, d])
-            ps_list_in.append(input_ps)
-            ps_list_out_correct.append(output_ps_correct)
-            ps_phase_out_correct.append((r1 * s2) % d)
+    #         input_ps = PauliString(input_str, dimensions=[d, d])
+    #         output_ps_correct = PauliString(output_str_correct, dimensions=[d, d])
+    #         ps_list_in.append(input_ps)
+    #         ps_list_out_correct.append(output_ps_correct)
+    #         ps_phase_out_correct.append((r1 * s2) % d)
 
-        input_psum = PauliSum(ps_list_in, dimensions=[d, d], standardise=False)
-        output_psum_correct = PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d], standardise=False)
+    #     input_psum = PauliSum(ps_list_in, dimensions=[d, d], standardise=False)
+    #     output_psum_correct = PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d], standardise=False)
         
-        # print(input_psum)
-        print('correct: \n')
-        print(output_psum_correct)
-        output_psum = SUM(0, 1, d).act(input_psum)
-        print('output: \n')
-        print(output_psum)
-        assert output_psum == output_psum_correct  # , ('\n' + output_psum.__str__() + '\n' + PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d]).__str__())
+    #     # print(input_psum)
+    #     print('correct: \n')
+    #     print(output_psum_correct)
+    #     output_psum = SUM(0, 1, d).act(input_psum)
+    #     print('output: \n')
+    #     print(output_psum)
+    #     assert output_psum == output_psum_correct  # , ('\n' + output_psum.__str__() + '\n' + PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d]).__str__())
+
+
+    cnot = SUM(0, 1, 2)
+    print(cnot.symplectic)
+    p1 = PauliSum([f'x{0}z{0} x{0}z{1}'], dimensions=[2, 2])
+    p2 = PauliSum([f'x{0}z{0} x{1}z{0}'], dimensions=[2, 2])
+
+
+    # U_cnot = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]])
+
+    # x = PauliSum(['x1z0'], dimensions=[2]).matrix_form().toarray()
+    # z = PauliSum(['x0z1'], dimensions=[2]).matrix_form().toarray()
+    # basis = [np.kron(x, x), np.kron(x, z), np.kron(z, x), np.kron(z, z)]
+        
+    # # for b in basis:
+    # #     print(np.round(b, 2), '\n -> \n', np.round(U_cnot @ b @ U_cnot, 2))
+
+    # # print(np.round(np.kron(x, z), 2))
+    # print(np.round(np.kron(x@z, x@z), 2))
+    # print('\n = \n')
+    # print(np.round(U_cnot @ np.kron(x, z) @ U_cnot, 2))
