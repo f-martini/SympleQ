@@ -24,6 +24,6 @@ echo Installing requirements from %DEV_REQUIREMENTS%...
 call pip install -r %DEV_REQUIREMENTS% >nul 2>&1
 
 echo Clearing Jupyter notebooks...
-call python %CLEAR_NOTEBOOKS_SCRIPT%
+call python %CLEAR_NOTEBOOKS_SCRIPT% %NOTEBOOKS_ROOT_DIR%
 
 echo Done!

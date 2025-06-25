@@ -3,13 +3,8 @@ import os
 import nbformat
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
-NOTEBOOKS_DIR = [
-    ROOT_DIR / 'scripts' / 'examples',
-    ROOT_DIR / 'scripts' / 'experiments',
-    ROOT_DIR / 'scripts' / 'tools',
-    ROOT_DIR / 'docs',
-]
+ROOT_DIR = Path()
+NOTEBOOKS_DIR = []
 
 
 def clear_notebook_output(nb_path: str) -> None:
@@ -42,6 +37,19 @@ def find_ipynb_files(dirs: list[Path]) -> list[str]:
 
 
 if __name__ == "__main__":
+
+    if len(sys.argv) > 1:
+        ROOT_DIR = Path(sys.argv[1]).resolve()
+    else:
+        raise ValueError("Missing ROOT_DIR argument.")
+
+    NOTEBOOKS_DIR = [
+        ROOT_DIR / 'scripts' / 'examples',
+        ROOT_DIR / 'scripts' / 'experiments',
+        ROOT_DIR / 'scripts' / 'tools',
+        ROOT_DIR / 'docs',
+    ]
+
     for notebooks_root in NOTEBOOKS_DIR:
         ipynb_files = find_ipynb_files([notebooks_root])
         for notebook in ipynb_files:

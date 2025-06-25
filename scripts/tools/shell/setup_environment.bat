@@ -12,16 +12,16 @@ if not exist %SRC_VENV% (
     python -m venv %SRC_VENV%
 )
 
-if not exist "configs/requirements.txt" (
+if not exist "%SRC_REQUIREMENTS%" (
     echo requirements.txt not found.
 ) else (
-    call venv/Scripts/activate
-    call pip install -r ./configs/requirements.txt
+    call %SRC_VENV%/Scripts/activate
+    call python -m pip install -e %PYTHON_PY_SETUP%
     call deactivate
 )
 
 REM Generating unversioned folders...
-set "folders=scripts/personal"
+set "folders=%PERSONAL_FOLDER%"
 for %%F in (%folders%) do (
     if not exist "%%F" (
         mkdir "%%F"
@@ -29,8 +29,8 @@ for %%F in (%folders%) do (
     )
 )
 
-REM Writing unversioned .env file...
-if not exist "./configs/.env" (
-    echo GITHUB_TOKEN="undefined" > ./configs/.env
-)
-echo "Please fill the .env file with the required secrets if not already done."
+REM Writing unversioned files...
+REM if not exist "./configs/.env" (
+REM    echo GITHUB_TOKEN="undefined" > ./configs/.env
+REM )
+REM echo "Please fill the .env file with the required secrets if not already done."

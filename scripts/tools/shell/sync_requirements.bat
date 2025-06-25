@@ -6,21 +6,21 @@ cd /d %~dp0
 call env.bat
 cd %PROJECT_ROOT%
 
-if not exist "venv" (
+if not exist "%SRC_VENV%" (
     echo Virtual environment not found.
     exit /b 1
 )
 
-if not exist "./configs/requirements.txt" (
+if not exist "%SRC_REQUIREMENTS%" (
     echo requirements.txt not found.
     exit /b 1
 )
 
-call venv/Scripts/activate
-call pip freeze > ./configs/current_requirements.txt
-call python scripts/python/tools/sync_requirements.py  --r ./configs/requirements.txt
+call %SRC_VENV%/Scripts/activate
+call pip freeze > %CONFIGS_ROOT%/current_requirements.txt
+call python %SYNC_REQUIREMENTS_SCRIPT% --r %SRC_REQUIREMENTS%
 
-cd configs
-move /y updated_requirements.txt requirements.txt
+cd %CONFIGS_ROOT%
+move updated_requirements.txt requirements.txt
 del current_requirements.txt
 echo Requirements have been synced and updated.

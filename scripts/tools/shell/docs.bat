@@ -15,7 +15,7 @@ call %DOC_VENV%\Scripts\activate
 pip install -r %DOC_REQUIREMENTS%
 pip install -r %SRC_REQUIREMENTS%
 
-rmdir /s /q %DOC_AUTOSUMMARY%
+rmdir /s /q "%DOC_AUTOSUMMARY%"
 
 sphinx-build -E -b html %DOC_ROOT% %DOC_BUILD_DIR%
 
