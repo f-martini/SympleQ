@@ -2,7 +2,6 @@ from quaos.gates import GateOperation
 import numpy as np
 from qiskit import QuantumCircuit
 from quaos.paulis import PauliSum, PauliString, Pauli
-
 # TODO: Replace GateOperation with Gate in quaos.circuits
 
 

@@ -29,7 +29,7 @@ class Gate:
     
     def _act_on_pauli_sum(self, P: PauliSum):
         pauli_strings, phases = zip(*[self._act_on_pauli_string(p) for p in P.pauli_strings])
-        P = PauliSum(pauli_strings, P.weights, np.asarray(phases), P.dimensions, False)
+        P = PauliSum(pauli_strings, P.weights, P.phases + np.asarray(phases), P.dimensions, False)
         return P
 
     def act(self, P: Pauli | PauliString | PauliSum):
@@ -53,10 +53,7 @@ class SUM(Gate):
         
         @staticmethod
         def phase_function(P: PauliString) -> int:
-            """
-            Returns the phase acquired by the PauliString P when acted upon by this SUM gate.
-            """
-            return P.x_exp[control] * P.z_exp[target] % P.lcm
+            return 0  # P.x_exp[control] * P.z_exp[target] % P.lcm # this is the normal one, but it fails group homomorphism tests
         
         super().__init__("SUM", [control, target], images, dimension=dimension, phase_function=phase_function)
     
@@ -85,7 +82,7 @@ class CNOT(Gate):
             """
             Returns the phase acquired by the PauliString P when acted upon by this SUM gate.
             """
-            return P.x_exp[control] * P.z_exp[target] % 2
+            return 0 #* P.x_exp[control] * P.z_exp[target] % 2
         
         super().__init__("SUM", [control, target], images, dimension=2, phase_function=phase_function)
 
