@@ -16,16 +16,16 @@
     "editor.defaultFormatter": "ms-vscode.cpptools"
   },
   "cSpell.import": [
-    "${workspaceFolder}/configs/cspell.json"
+    "${workspaceFolder}/scripts/configs/cspell.json"
   ],
   "esbonio.server.pythonPath": "${workspaceFolder}/docs/doc_venv/Scripts/python",
   "esbonio.sphinx.confDir": "${workspaceFolder}/docs",
   "esbonio.sphinx.buildDir": "${workspaceFolder}/docs/_build",
   "autopep8.args": [
-    "--config=${workspaceFolder}/configs/setup.cfg"
+    "--config=${workspaceFolder}/scripts/configs/setup.cfg"
   ],
 "flake8.args": [
-    "--config=${workspaceFolder}/configs/setup.cfg",
+    "--config=${workspaceFolder}/scripts/configs/setup.cfg",
     "--ignore=W293, E501"
 ],
 "python.analysis.typeCheckingMode": "basic",

@@ -27,3 +27,4 @@ echo Clearing Jupyter notebooks...
 call python %CLEAR_NOTEBOOKS_SCRIPT% %NOTEBOOKS_ROOT_DIR%
 
 echo Done!
+call deactivate

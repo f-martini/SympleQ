@@ -401,7 +401,7 @@ if __name__ == "__main__":
     root_path = Path(__file__).parent.parent
     print(root_path)
     sys.path.append(str(root_path))
-    from hamiltonian import random_pauli_hamiltonian
+    # from .hamiltonian import random_pauli_hamiltonian
     import random
     random.seed(27)
 
@@ -455,4 +455,3 @@ if __name__ == "__main__":
     # ps2, c = cancel_X(ps, 0, 5, c, 5)
 
     # print(ps2)
-

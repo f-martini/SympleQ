@@ -25,3 +25,4 @@ if %errorlevel% neq 0 (
 )
 
 start "" "%DOC_INDEX%"
+call deactivate

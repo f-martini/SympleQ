@@ -23,3 +23,4 @@ cd "$CONFIGS_ROOT"
 mv -f updated_requirements.txt requirements.txt
 rm -f current_requirements.txt
 echo "Requirements have been synced and updated."
+deactivate

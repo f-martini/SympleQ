@@ -24,3 +24,6 @@ cd %CONFIGS_ROOT%
 move updated_requirements.txt requirements.txt
 del current_requirements.txt
 echo Requirements have been synced and updated.
+
+cd %PROJECT_ROOT%
+call deactivate

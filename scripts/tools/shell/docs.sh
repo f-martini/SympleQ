@@ -24,3 +24,4 @@ fi
 
 # Open the built documentation index in the default browser
 xdg-open "$DOC_INDEX" 2>/dev/null || open "$DOC_INDEX" 2>/dev/null || echo "Docs built at $DOC_INDEX"
+deactivate

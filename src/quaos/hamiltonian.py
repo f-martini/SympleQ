@@ -329,7 +329,6 @@ if __name__ == "__main__":
     # for h in conditioned_hams:
     #     print(h)
 
-
     ps = ['x1z0 x1z0',
           'x1z0 x0z1',
           'x1z0 x0z0',
