@@ -47,6 +47,29 @@ class Gate:
         else:
             raise TypeError(f"Unsupported type {type(P)} for Gate.act. Expected Pauli, PauliString or PauliSum.")
 
+    def acquired_phase(self, P: PauliString) -> int:
+        """
+        Returns the phase acquired by the PauliString P when acted upon by this gate.
+
+        See PHYSICAL REVIEW A 71, 042315 (2005)
+
+        ha = phase_function(P)
+        """
+
+        U = np.zeros((2 * self.n_qudits, 2 * self.n_qudits), dtype=int)
+        U[self.n_qudits:, :self.n_qudits] = np.eye(self.n_qudits, dtype=int)
+
+        C = self.symplectic
+        a = P.symplectic()
+        # V_diag(C^TUC)
+        p1 = np.dot(np.diag(C.T @ U @ C), a)
+        # a^T P_upps(C^TUC) a a^T P_diag(C^TUC) a
+        ctuc = C.T @ U @ C
+        p_part = 2 * np.triu(ctuc) - np.diag(np.diag(ctuc))
+        p2 = np.dot(np.dot(a.T, p_part), a)
+        #
+        return (p1 + p2) % P.lcm
+
 
 class SUM(Gate):
     def __init__(self, control, target, dimension):
@@ -68,10 +91,10 @@ class SUM(Gate):
 
 class SWAP(Gate):
     def __init__(self, index1, index2, dimension):
-        images = [np.array([0, 1, 0, 0]),  # image of X0:  X0 -> X0 X1
-                  np.array([1, 0, 0, 0]),  # image of X1:  X1 -> X1
-                  np.array([0, 0, 0, 1]),  # image of Z0:  Z0 -> Z0
-                  np.array([0, 0, 1, 0])  # image of Z1:  Z1 -> Z0^-1 Z1
+        images = [np.array([0, 1, 0, 0]),  # image of X0:  X0 -> X1
+                  np.array([1, 0, 0, 0]),  # image of X1:  X1 -> X0
+                  np.array([0, 0, 0, 1]),  # image of Z0:  Z0 -> Z2
+                  np.array([0, 0, 1, 0])   # image of Z1:  Z1 -> Z0
                   ]
 
         super().__init__("SWAP", [index1, index2], images, dimension=dimension, phase_function=lambda P: 0)

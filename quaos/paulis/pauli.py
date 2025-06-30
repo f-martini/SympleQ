@@ -4,6 +4,7 @@ from typing import Any
 
 
 def get_sanitized_x_exp(x_exp: int | np.integer | None) -> int:
+
     if x_exp is None:
         return 0
 
@@ -73,6 +74,16 @@ class Pauli:
                          dimension=self.dimension)
         else:
             raise Exception(f"Cannot multiply Pauli with type {type(A)}")
+
+    def __pow__(self, power: int) -> Pauli:
+        if not isinstance(power, int):
+            raise TypeError("Power must be an integer.")
+        if power < 0:
+            raise ValueError("Power must be non-negative.")
+
+        return Pauli(x_exp=(self.x_exp * power) % self.dimension,
+                     z_exp=(self.z_exp * power) % self.dimension,
+                     dimension=self.dimension)
 
     def __str__(self) -> str:
         return f'x{self.x_exp}z{self.z_exp}'

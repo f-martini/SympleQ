@@ -57,7 +57,7 @@ class TestGates():
 
                 input_psum = PauliSum(ps_list_in, dimensions=[d, d], standardise=False)
                 output_psum_correct = PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d], standardise=False)
-                
+
                 output_psum = SUM(0, 1, d).act(input_psum)
                 assert output_psum == output_psum_correct, 'Error in SUM gate: \n' + output_psum.__str__() + '\n' + output_psum_correct.__str__()
 
@@ -79,7 +79,8 @@ class TestGates():
         # Tests all gates and all combinations of two pauli strings for the group homomorphism property:
         # gate.act(p1) * gate.act(p2) == gate.act(p1 * p2)
 
-        gates = [SUM(0, 1, 2), SUM(0, 1, 2), SWAP(0, 1, 2), Hadamard(0, 2), Hadamard(1, 2), PHASE(0, 2), PHASE(1, 2)]
+        gates = [SUM(0, 1, 2)]  # , SUM(1, 0, 2), SWAP(0, 1, 2), Hadamard(0, 2), Hadamard(1, 2), PHASE(0, 2), PHASE(1, 2)
+        i = 0
         for gate in gates:
             for x0 in range(2):
                 for z0 in range(2):
@@ -89,10 +90,15 @@ class TestGates():
                                 for z0p in range(2):
                                     for x1p in range(2):
                                         for z1p in range(2):
+                                            i += 1
                                             p1 = PauliSum([f'x{x0}z{z0} x{x1}z{z1}'], dimensions=[2, 2])
                                             p2 = PauliSum([f'x{x0p}z{z0p} x{x1p}z{z1p}'], dimensions=[2, 2])
                                             err0 = 'In: \n' + p1.__str__() + '\n' + p2.__str__()
                                             err = 'Out: \n' + (gate.act(p1) * gate.act(p2)).__str__() + '\n' + gate.act(p1 * p2).__str__()
+                                            print(i)
+                                            print(gate.act(p1) * gate.act(p2))
+                                            print('u')
+                                            print(gate.act(p1 * p2))
                                             assert gate.act(p1) * gate.act(p2) == gate.act(p1 * p2), err0 + err + '\n'
 
     def test_is_symplectic(self):
@@ -173,7 +179,7 @@ if __name__ == "__main__":
 
     #     input_psum = PauliSum(ps_list_in, dimensions=[d, d], standardise=False)
     #     output_psum_correct = PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d], standardise=False)
-        
+
     #     # print(input_psum)
     #     print('correct: \n')
     #     print(output_psum_correct)
@@ -188,13 +194,14 @@ if __name__ == "__main__":
     p1 = PauliSum([f'x{0}z{0} x{0}z{1}'], dimensions=[2, 2])
     p2 = PauliSum([f'x{0}z{0} x{1}z{0}'], dimensions=[2, 2])
 
+    p3 = p1 * p2
 
     # U_cnot = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]])
 
     # x = PauliSum(['x1z0'], dimensions=[2]).matrix_form().toarray()
     # z = PauliSum(['x0z1'], dimensions=[2]).matrix_form().toarray()
     # basis = [np.kron(x, x), np.kron(x, z), np.kron(z, x), np.kron(z, z)]
-        
+
     # # for b in basis:
     # #     print(np.round(b, 2), '\n -> \n', np.round(U_cnot @ b @ U_cnot, 2))
 

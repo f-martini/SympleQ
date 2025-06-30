@@ -75,6 +75,10 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
             coeff = np.random.normal(0, 1) + 1j * np.random.normal(0, 1)
         elif mode == 'uniform' or mode == 'one':
             coeff = 1 + 0 * 1j
+        elif mode[0:7] == 'randint':
+            # mode is 'randint2', 'randint3', etc.
+            d = int(mode[7:])
+            coeff = np.random.randint(1, d+1)
 
         if (not np.array_equal(x_exp, x_exp_H)) and (not np.array_equal(z_exp, z_exp_H)):
             # random string not Hermitian, add conjugate pair
