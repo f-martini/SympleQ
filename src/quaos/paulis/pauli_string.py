@@ -12,8 +12,8 @@ class PauliString:
 
     def __init__(self,
                  x_exp: list[int] | np.ndarray | str,
-                 z_exp: list[int] | np.ndarray | None = None,
-                 dimensions: list[int] | np.ndarray | None = None):
+                 z_exp: list[int] | np.ndarray,
+                 dimensions: list[int] | np.ndarray | int = 2):
 
         if isinstance(x_exp, str):
             if z_exp is not None:
@@ -25,8 +25,8 @@ class PauliString:
             z_exp = np.array(z_exp)
             x_exp = np.array(x_exp)
 
-        if dimensions is None:
-            self.dimensions = (max(max(self.x_exp), max(self.z_exp)) + 1) * np.ones(len(self.x_exp))
+        if type(dimensions) is int:
+            self.dimensions = dimensions * np.ones(len(x_exp), dtype=int)
         else:
             self.dimensions = np.asarray(dimensions)
 
@@ -57,6 +57,13 @@ class PauliString:
     def from_pauli(cls, pauli: Pauli) -> PauliString:
         return PauliString(x_exp=[pauli.x_exp], z_exp=[pauli.z_exp], dimensions=[pauli.dimension])
 
+    @classmethod
+    def from_string(cls, pauli_str: str, dimensions) -> PauliString:
+        xz_exponents = re.split('x|z', pauli_str)[1:]
+        z_exp = np.array(xz_exponents[1::2], dtype=int)
+        x_exp = np.array(xz_exponents[0::2], dtype=int)
+        return cls(x_exp=x_exp, z_exp=z_exp, dimensions=dimensions)
+
     def __repr__(self) -> str:
         return f"Pauli(x_exp={self.x_exp}, z_exp={self.z_exp}, dimensions={self.dimensions})"
 
@@ -73,9 +80,9 @@ class PauliString:
         return PauliString(new_x_exp, new_z_exp, new_dims)
 
     def __rmatmul__(self, A: Pauli) -> PauliString:
-        return PauliString(x_exp=self.x_exp + [A.x_exp],
-                           z_exp=self.z_exp + [A.z_exp],
-                           dimensions=self.dimensions + [A.dimension])
+        return PauliString(x_exp=np.concatenate(self.x_exp, np.array([A.x_exp])),
+                           z_exp=np.concatenate(self.z_exp, np.array([A.z_exp])),
+                           dimensions=np.concatenate(self.dimensions, np.array([A.dimension])))
 
     def __mul__(self, A: PauliString) -> PauliString:
         if isinstance(A, PauliString):
@@ -164,11 +171,18 @@ class PauliString:
 
     def acquired_phase(self, other_pauli: PauliString) -> int:
         # phases acquired when multiplying two Pauli strings
-        phi = 1.  # / self.dimensions
-        phase = 0
-        for i in range(self.n_qudits()):
-            phase += phi * (self.x_exp[i] * other_pauli.z_exp[i] + self.z_exp[i] * other_pauli.x_exp[i])
-        return phase % self.lcm
+        # phi = 1.  # / self.dimensions
+        # phase = 0
+        # for i in range(self.n_qudits()):
+        #     phase += phi * (self.x_exp[i] * other_pauli.z_exp[i] + self.z_exp[i] * other_pauli.x_exp[i])
+        # return phase % self.lcm
+
+        # identity on lower diagonal of U
+        U = np.zeros((2 * self.n_qudits(), 2 * self.n_qudits()), dtype=int)
+        U[self.n_qudits():, :self.n_qudits()] = np.eye(self.n_qudits(), dtype=int)
+        a = self.symplectic()
+        b = other_pauli.symplectic()
+        return (b.T @ U @ a) % self.lcm
 
     def _replace_symplectic(self, symplectic: np.ndarray, qudit_indices: list[int]) -> PauliString:
         x_exp_replace = symplectic[0:len(qudit_indices)]

@@ -102,7 +102,7 @@ class PauliSum:
             elif isinstance(p, str):
                 if dimensions is None:
                     raise SyntaxError("Input of strings into PauliSum requires explicit dimensions input")
-                sanitised_pauli_list.append(PauliString(p, dimensions=dimensions))
+                sanitised_pauli_list.append(PauliString.from_string(p, dimensions=dimensions))
             else:
                 raise TypeError("Pauli list must be a list of PauliString or Pauli objects or strings")
 
@@ -321,7 +321,7 @@ class PauliSum:
 
     def __mul__(self, A: PauliOrScalarType) -> 'PauliSum':
         """
-        Operator multiplication on two SymplecticPauli objects or multiplication of weights by constant
+        Operator multiplication on two PauliSum objects or multiplication of weights by constant
         """
 
         if isinstance(A, (int, float)):
@@ -330,7 +330,6 @@ class PauliSum:
             return self * PauliSum.from_pauli_strings(A)
         elif not isinstance(A, PauliSum):
             raise ValueError("Multiplication only supported with SymplecticPauli objects or scalar")
-        # TODO: Add support for scalar multiplication
 
         new_p_sum = []
         new_weights = []
