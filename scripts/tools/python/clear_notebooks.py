@@ -12,6 +12,12 @@ def clear_notebook_output(nb_path: str) -> None:
         nb = nbformat.read(f, as_version=nbformat.NO_CONVERT)
 
     changed = False
+
+    # Clear notebook-level metadata
+    if nb.get('metadata'):
+        nb['metadata'] = {}
+        changed = True
+
     for cell in nb.cells:
         if cell.cell_type == 'code':
             if cell.get('outputs'):
@@ -20,6 +26,11 @@ def clear_notebook_output(nb_path: str) -> None:
             if cell.get('execution_count') is not None:
                 cell['execution_count'] = None
                 changed = True
+                # Clear cell-level metadata
+        if cell.get('metadata'):
+            cell['metadata'] = {}
+            changed = True
+
     if changed:
         with open(nb_path, 'w', encoding='utf-8') as f:
             nbformat.write(nb, f)

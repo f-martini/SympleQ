@@ -8,7 +8,7 @@
                 "command": "${workspaceFolder}/scripts/tools/shell/docs.bat",
             },
             "linux": {
-                "command": "${workspaceFolder}/scripts/tools/shell/docs.sh",
+                "command": "bash ${workspaceFolder}/scripts/tools/shell/docs.sh",
             },
             "osx": {
                 "command": "echo Automatic docs build not supported on macOS."
@@ -26,7 +26,7 @@
                 "command": "${workspaceFolder}/scripts/tools/shell/sync_requirements.bat",
             },
             "linux": {
-                "command": "${workspaceFolder}/scripts/tools/shell/sync_requirements.sh",
+                "command": "bash ${workspaceFolder}/scripts/tools/shell/sync_requirements.sh",
             },
             "osx": {
                 "command": "echo Automatic requirements version syncronization not supported on macOS."
@@ -44,7 +44,7 @@
                 "command": "${workspaceFolder}/scripts/tools/shell/setup_environment.bat",
             },
             "linux": {
-                "command": "${workspaceFolder}/scripts/tools/shell/setup_environment.sh",
+                "command": "bash ${workspaceFolder}/scripts/tools/shell/setup_environment.sh",
             },
             "osx": {
                 "command": "echo Automatic environment setup not supported on macOS."
@@ -62,7 +62,7 @@
                 "command": "${workspaceFolder}/scripts/tools/shell/clear_ipynb.bat",
             },
             "linux": {
-                "command": "${workspaceFolder}/scripts/tools/shell/clear_ipynb.sh",
+                "command": "bash ${workspaceFolder}/scripts/tools/shell/clear_ipynb.sh",
             },
             "osx": {
                 "command": "echo Automatic notebooks content clearing not supported on macOS."

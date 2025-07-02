@@ -8,14 +8,14 @@ cd "$PROJECT_ROOT"
 # Initializing virtual environment...
 if [ ! -d "$SRC_VENV" ]; then
     echo "Creating virtual environment $SRC_VENV..."
-    python -m venv "$SRC_VENV"
+    python3 -m venv "$SRC_VENV"
 fi
 
 if [ ! -f "$SRC_REQUIREMENTS" ]; then
     echo "requirements.txt not found."
 else
     source "$SRC_VENV/bin/activate"
-    python -m pip install -e "$PYTHON_PY_SETUP"
+    python3 -m pip install -e "$PYTHON_PY_SETUP"
     deactivate
 fi
 

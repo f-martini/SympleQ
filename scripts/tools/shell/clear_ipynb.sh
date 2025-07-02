@@ -23,7 +23,7 @@ echo "Installing requirements from $DEV_REQUIREMENTS..."
 pip install -r "$DEV_REQUIREMENTS" > /dev/null 2>&1
 
 echo "Clearing Jupyter notebooks..."
-python "$CLEAR_NOTEBOOKS_SCRIPT" "$NOTEBOOKS_ROOT_DIR"
+python3 "$CLEAR_NOTEBOOKS_SCRIPT" "$NOTEBOOKS_ROOT_DIR"
 
 echo "Done!"
 deactivate

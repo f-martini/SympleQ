@@ -17,7 +17,7 @@ fi
 
 source "$SRC_VENV/bin/activate"
 pip freeze > "$CONFIGS_ROOT/current_requirements.txt"
-python "$SYNC_REQUIREMENTS_SCRIPT" --r "$SRC_REQUIREMENTS"
+python3 "$SYNC_REQUIREMENTS_SCRIPT" --r "$SRC_REQUIREMENTS"
 
 cd "$CONFIGS_ROOT"
 mv -f updated_requirements.txt requirements.txt
