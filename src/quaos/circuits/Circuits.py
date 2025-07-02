@@ -1,13 +1,12 @@
 from typing import overload
-from quaos.gates import GateOperation
+from quaos.circuits.Gates import Gate
 import numpy as np
 from qiskit import QuantumCircuit
 from quaos.paulis import PauliSum, PauliString, Pauli
-# TODO: Replace GateOperation with Gate in quaos.circuits
 
 
 class Circuit:
-    def __init__(self, dimensions: list[int] | np.ndarray, gates: list[GateOperation] | None = None):
+    def __init__(self, dimensions: list[int] | np.ndarray, gates: list[Gate] | None = None):
         """
         Initialize the Circuit with gates, indexes, and targets.
 
@@ -29,7 +28,7 @@ class Circuit:
         self.gates = gates
         self.indexes = [gate.qudit_indices for gate in gates]  # indexes accessible at the Circuit level
 
-    def add_gate(self, gate: GateOperation | list[GateOperation]):
+    def add_gate(self, gate: Gate | list[Gate]):
         """
         Appends a gate to qudit index with specified target (if relevant)
 
@@ -86,10 +85,10 @@ class Circuit:
                 return False
         return True
 
-    def __getitem__(self, index: int) -> GateOperation:
+    def __getitem__(self, index: int) -> Gate:
         return self.gates[index]
 
-    def __setitem__(self, index: int, value: GateOperation):
+    def __setitem__(self, index: int, value: Gate):
         self.gates[index] = value
         self.indexes[index] = value.qudit_indices
 

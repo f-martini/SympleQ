@@ -419,7 +419,7 @@ class PauliSum:
                 to_delete.append(i)
         self._delete_qudits(to_delete)
 
-    def symplectic_matrix(self) -> np.ndarray:
+    def symplectic(self) -> np.ndarray:
         symplectic = np.zeros([self.n_paulis(), 2 * self.n_qudits()])
         for i, p in enumerate(self.pauli_strings):
             symplectic[i, :] = p.symplectic()

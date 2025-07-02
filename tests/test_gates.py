@@ -10,11 +10,11 @@ class TestGates():
 
     @staticmethod
     def states(dim):
-        ps1 = PauliString('x1z0 x0z0', dimensions=[dim, dim])
-        ps2 = PauliString('x0z0 x0z1', dimensions=[dim, dim])
-        ps3 = PauliString('x1z0 x1z0', dimensions=[dim, dim])
-        ps4 = PauliString('x0z1 x0z1', dimensions=[dim, dim])
-        ps5 = PauliString('x1z1 x0z0', dimensions=[dim, dim])
+        ps1 = PauliString.from_string('x1z0 x0z0', dimensions=[dim, dim])
+        ps2 = PauliString.from_string('x0z0 x0z1', dimensions=[dim, dim])
+        ps3 = PauliString.from_string('x1z0 x1z0', dimensions=[dim, dim])
+        ps4 = PauliString.from_string('x0z1 x0z1', dimensions=[dim, dim])
+        ps5 = PauliString.from_string('x1z1 x0z0', dimensions=[dim, dim])
         p_sum = PauliSum(['x1z0 x0z0 x1z1', 'x0z0 x0z1 x1z0', 'x1z1 x1z0 x0z0'], dimensions=[dim, dim, dim])
         return ps1, ps2, ps3, ps4, ps5, p_sum
 
@@ -31,9 +31,9 @@ class TestGates():
                 input_str = f"x{r1}z{s1} x{r2}z{s2}"
                 output_str_correct = f"x{r1}z{(s1 - s2) % d} x{(r2 + r1) % d}z{s2}"
 
-                input_ps = PauliString(input_str, dimensions=[d, d])
+                input_ps = PauliString.from_string(input_str, dimensions=[d, d])
                 output_ps = SUM(0, 1, d).act(input_ps)
-                assert output_ps == PauliString(output_str_correct, dimensions=[d, d]), 'Error in SUM gate'
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in SUM gate'
 
             # test pauli_sums
             for i in range(10):
@@ -49,8 +49,8 @@ class TestGates():
                     input_str = f"x{r1}z{s1} x{r2}z{s2}"
                     output_str_correct = f"x{r1}z{(s1 - s2) % d} x{(r2 + r1) % d}z{s2}"
 
-                    input_ps = PauliString(input_str, dimensions=[d, d])
-                    output_ps_correct = PauliString(output_str_correct, dimensions=[d, d])
+                    input_ps = PauliString.from_string(input_str, dimensions=[d, d])
+                    output_ps_correct = PauliString.from_string(output_str_correct, dimensions=[d, d])
                     ps_list_in.append(input_ps)
                     ps_list_out_correct.append(output_ps_correct)
                     ps_phase_out_correct.append((r1 * s2) % d)
@@ -93,13 +93,15 @@ class TestGates():
                                             i += 1
                                             p1 = PauliSum([f'x{x0}z{z0} x{x1}z{z1}'], dimensions=[2, 2])
                                             p2 = PauliSum([f'x{x0p}z{z0p} x{x1p}z{z1p}'], dimensions=[2, 2])
-                                            err0 = 'In: \n' + p1.__str__() + '\n' + p2.__str__()
-                                            err = 'Out: \n' + (gate.act(p1) * gate.act(p2)).__str__() + '\n' + gate.act(p1 * p2).__str__()
+                                            # err0 = 'In: \n' + p1.__str__() + '\n' + p2.__str__()
+                                            # err = 'Out: \n' + (gate.act(p1) * gate.act(p2)).__str__() + '\n' + gate.act(p1 * p2).__str__()
                                             print(i)
-                                            print(gate.act(p1) * gate.act(p2))
-                                            print('u')
-                                            print(gate.act(p1 * p2))
-                                            assert gate.act(p1) * gate.act(p2) == gate.act(p1 * p2), err0 + err + '\n'
+                                            # print(gate.act(p1) * gate.act(p2))
+                                            # print('u')
+                                            # print(gate.act(p1 * p2))
+                                            print(p1)
+                                            print(p2)
+                                            assert gate.act(p1) * gate.act(p2) == gate.act(p1 * p2)#, err0 + err + '\n'
 
     def test_is_symplectic(self):
 
@@ -189,12 +191,12 @@ if __name__ == "__main__":
     #     assert output_psum == output_psum_correct  # , ('\n' + output_psum.__str__() + '\n' + PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d]).__str__())
 
 
-    cnot = SUM(0, 1, 2)
-    print(cnot.symplectic)
-    p1 = PauliSum([f'x{0}z{0} x{0}z{1}'], dimensions=[2, 2])
-    p2 = PauliSum([f'x{0}z{0} x{1}z{0}'], dimensions=[2, 2])
+    # cnot = SUM(0, 1, 2)
+    # print(cnot.symplectic)
+    # p1 = PauliSum([f'x{0}z{0} x{0}z{1}'], dimensions=[2, 2])
+    # p2 = PauliSum([f'x{0}z{0} x{1}z{0}'], dimensions=[2, 2])
 
-    p3 = p1 * p2
+    # p3 = p1 * p2
 
     # U_cnot = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]])
 
@@ -209,3 +211,47 @@ if __name__ == "__main__":
     # print(np.round(np.kron(x@z, x@z), 2))
     # print('\n = \n')
     # print(np.round(U_cnot @ np.kron(x, z) @ U_cnot, 2))
+
+    dim = 2
+    phase_mod = 2 * dim
+    gate = SUM(0, 1, dim)
+    i = 0
+    for x0 in range(dim):
+        for z0 in range(dim):
+            for x1 in range(dim):
+                for z1 in range(dim):
+                    for x0p in range(dim):
+                        for z0p in range(dim):
+                            for x1p in range(dim):
+                                for z1p in range(dim):
+
+                                    i += 1
+                                    p1 = PauliString.from_string(f'x{x0}z{z0} x{x1}z{z1}', dimensions=[dim, dim])
+                                    p2 = PauliString.from_string(f'x{x0p}z{z0p} x{x1p}z{z1p}', dimensions=[dim, dim])
+
+                                    p3 = p1 * p2
+
+                                    C = gate.symplectic
+
+                                    nq = 2
+                                    U = np.zeros((2 * nq, 2 * nq), dtype=int)
+                                    U[nq:, :nq] = np.eye(nq, dtype=int)
+
+                                    a1 = p1.symplectic()
+                                    a2 = p2.symplectic()
+                                    a3 = p3.symplectic()
+
+                                    multiplicative_phase = (2 * (C @ a1) @ U @ (C @ a2))%phase_mod
+
+                                    phase1 = - np.diag(C.T @ U @ C) @ a1 + 2 * a1 @ np.tril(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
+                                    phase2 = - np.diag(C.T @ U @ C) @ a2 + 2 * a2 @ np.tril(C.T @ U @ C) @ a2 - a2 @ np.diag(np.diag(C.T @ U @ C)) @ a2
+                                    phase3 = - np.diag(C.T @ U @ C) @ a3 + 2 * a3 @ np.tril(C.T @ U @ C) @ a3 - a3 @ np.diag(np.diag(C.T @ U @ C)) @ a3
+                                    phase1 += gate.phase_function(p1)
+                                    phase2 += gate.phase_function(p2)
+                                    phase3 += gate.phase_function(p3)
+
+                                    print(i, phase1, phase2, multiplicative_phase, phase3)
+                                    assert ((phase1 + phase2)%phase_mod + multiplicative_phase)%phase_mod == phase3%phase_mod
+    print('Done')
+    # c = TestGates()
+    # c.test_group_homomorphism()
