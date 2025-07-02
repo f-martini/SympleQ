@@ -4,8 +4,8 @@ permissions:
   contents: write
 
 on:
-  pull_request:
-    branches: [main, dev]
+  push:
+    branches: [dev]
 
 jobs:
   tag:
@@ -22,74 +22,98 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-      - name: Get latest SemVer tag
-        id: get_tag
+      - name: Find merged PR for this commit
+        id: find_pr
         run: |
-          tag=$(git describe --tags `git rev-list --tags --max-count=1` 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $tag"
-          echo "tag=$tag" >> $GITHUB_OUTPUT
-
-      - name: Determine next version
-        id: next_version
-        run: |
-          tag="${{ steps.get_tag.outputs.tag }}"
-          if [ "$tag" = "v0.0.0" ]; then
-            # No tags exist, use initial commit hash
-            range="$(git rev-list --max-parents=0 HEAD)..HEAD"
-          else
-            range="$tag..HEAD"
+          pr=$(gh pr list --state merged --search ${{ github.sha }} --json number --jq '.[0].number')
+          if [ -z "$pr" ] || [ "$pr" = "null" ]; then
+          echo "No merged PR found for this commit."
+          exit 1
           fi
+          echo "pr_number=$pr" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get PR body
+        id: pr_body
+        run: |
+          body=$(gh pr view ${{ steps.find_pr.outputs.pr_number }} --json body --jq '.body')
+          echo "pr_body<<EOF" >> $GITHUB_OUTPUT
+          echo "$body" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get latest SemVer tag on dev
+        id: get_dev_tag
+        run: |
+          git fetch --all --tags
+          tag=$(git describe --tags $(git rev-list --tags --remotes=origin/dev --max-count=1) 2>/dev/null || echo "v0.0.0")
+          echo "Latest dev tag: $tag"
+          echo "dev_tag=$tag" >> $GITHUB_OUTPUT
+
+      - name: Determine bump from PR body or default to patch
+        id: pr_bump
+        run: |
+          body="${{ steps.pr_body.outputs.pr_body }}"
+          bump=""
+          if echo "$body" | grep -iq '\[x\] *Major'; then
+            bump="major"
+          elif echo "$body" | grep -iq '\[x\] *Minor'; then
+            bump="minor"
+          elif echo "$body" | grep -iq '\[x\] *Patch'; then
+            bump="patch"
+          else
+            bump="commits"
+          fi
+          echo "Bump determined: $bump"
+          echo "bump=$bump" >> $GITHUB_OUTPUT
+
+      - name: Handle tagging logic
+        id: tag_logic
+        run: |
+          # Semver bump for PRs into dev, based on PR body or commits
+          tag="${{ steps.get_dev_tag.outputs.dev_tag }}"
           version=${tag#v}
-          IFS='.' read -r major minor patch <<< "$version"
+          IFS='.' read -r major minor patch extra <<< "$version"
+          bump="${{ steps.pr_bump.outputs.bump }}"
 
-          # Get commit messages since last tag or from first commit
-          commits=$(git log $range --pretty=format:%s)
-
-          bump="patch"  # default
-          for msg in $commits; do
-            if [[ "$msg" == *"BREAKING CHANGE"* ]]; then
-              bump="major"
-              break
-            elif [[ "$msg" == feat:* && "$bump" != "major" ]]; then
-              bump="minor"
-            elif [[ "$msg" == fix:* && "$bump" == "patch" ]]; then
-              bump="patch"
-            fi
-          done
-
-          # Bump version
           if [ "$bump" = "major" ]; then
-            major=$((major + 1))
-            minor=0
-            patch=0
+              major=$((major + 1))
+              minor=0
+              patch=0
+              extra=0
           elif [ "$bump" = "minor" ]; then
-            minor=$((minor + 1))
-            patch=0
+              minor=$((minor + 1))
+              patch=0
+              extra=0
+          elif [ "$bump" = "patch" ]; then
+              patch=$((patch + 1))
+              extra=0
+          fi
+          next_version="v$major.$minor.$patch"
+
+          # Count only commits on dev since last tag
+          if [ "$bump" = "commits" ]; then
+              if [ "$tag" = "v0.0.0" ]; then
+                commit_count=$(git rev-list --count origin/dev)
+              else
+                commit_count=$(git rev-list --count $tag..origin/dev)
+              fi
+              commit_count=$((commit_count + extra))
           else
-            patch=$((patch + 1))
+              commit_count=0
           fi
 
-          echo "next_version=v$major.$minor.$patch"
-          echo "next_version=v$major.$minor.$patch" >> $GITHUB_OUTPUT
-
-      - name: Count commits
-        id: count
-        run: |
-          count=$(git rev-list --count HEAD)
-          echo "commit_count=$count"
-          echo "commit_count=$count" >> $GITHUB_OUTPUT
-
-      - name: Compose full version tag
-        id: full_tag
-        run: |
-          tag="${{ steps.next_version.outputs.next_version }}.${{ steps.count.outputs.commit_count }}"
-          echo "Full tag: $tag"
-          echo "full_tag=$tag" >> $GITHUB_OUTPUT
+          full_tag="$next_version.$commit_count"
+          echo "final_tag=$full_tag" >> $GITHUB_OUTPUT
+          echo "copy_tag=false" >> $GITHUB_OUTPUT
 
       - name: Create and push tag
+        if: steps.tag_logic.outputs.copy_tag == 'true' || steps.tag_logic.outputs.copy_tag == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
-          git tag ${{ steps.full_tag.outputs.full_tag }}
-          git push origin ${{ steps.full_tag.outputs.full_tag }}
+          git tag ${{ steps.tag_logic.outputs.final_tag }}
+          git push origin ${{ steps.tag_logic.outputs.final_tag }}
