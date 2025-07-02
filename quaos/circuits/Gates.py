@@ -120,7 +120,7 @@ class CNOT(Gate):
             """
             Returns the phase acquired by the PauliString P when acted upon by this SUM gate.
             """
-            return P.x_exp[control] * P.z_exp[target] % 2
+            return int(P.x_exp[control] * P.z_exp[target] % 2)
 
         super().__init__("SUM", [control, target], images, dimension=2, phase_function=phase_function)
 
