@@ -21,7 +21,7 @@ class Gate:
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
         local_symplectic = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])
-        acquired_phase = self.phase_function(P)
+        acquired_phase = self.acquired_phase(P)
 
         local_symplectic = (self.symplectic @ local_symplectic) % self.dimension
         P = P._replace_symplectic(local_symplectic, self.qudit_indices)
@@ -53,7 +53,7 @@ class Gate:
 
         See PHYSICAL REVIEW A 71, 042315 (2005)
 
-        ha = phase_function(P)
+        ha = phase_function(P) - treated separately in the act method
         """
 
         U = np.zeros((2 * self.n_qudits, 2 * self.n_qudits), dtype=int)
@@ -65,10 +65,17 @@ class Gate:
         p1 = np.dot(np.diag(C.T @ U @ C), a)
         # a^T P_upps(C^TUC) a a^T P_diag(C^TUC) a
         ctuc = C.T @ U @ C
-        p_part = 2 * np.triu(ctuc) - np.diag(np.diag(ctuc))
+        p_part = np.triu(ctuc) - np.diag(np.diag(ctuc))
         p2 = np.dot(np.dot(a.T, p_part), a)
         #
-        return (p1 + p2) % P.lcm
+        print(p1, p2)
+        return (self.phase_function(P) - p1 + p2) % P.lcm
+
+    def copy(self) -> 'Gate':
+        """
+        Returns a copy of the gate.
+        """
+        return Gate(self.name, self.qudit_indices.copy(), self.images.copy(), self.dimension, self.phase_function)
 
 
 class SUM(Gate):
