@@ -1,24 +1,27 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-cd "$(dirname "$0")/../../docs"
+# Change to the script's directory and load environment variables
+cd "$(dirname "$0")"
+source env.sh
+cd "$PROJECT_ROOT"
 
-if [ ! -d "doc_venv" ]; then
-    echo "Creating virtual environment doc_venv..."
-    python3 -m venv doc_venv
+if [ ! -d "$DOC_VENV" ]; then
+    echo "Creating virtual environment in $DOC_VENV..."
+    python -m venv "$DOC_VENV"
 fi
 
-source doc_venv/bin/activate
-pip install -r doc_requirements.txt
+source "$DOC_VENV/bin/activate"
+pip install -r "$DOC_REQUIREMENTS"
+pip install -r "$SRC_REQUIREMENTS"
 
-pip install -r ../configs/requirements.txt
+rm -rf "$DOC_AUTOSUMMARY"
 
-rm -rf "index/_autosummary/"
-
-sphinx-build -E -b html . _build/html
-
+sphinx-build -E -b html "$DOC_ROOT" "$DOC_BUILD_DIR"
 if [ $? -ne 0 ]; then
     echo "Sphinx build failed"
-    exit 1
+    exit $?
 fi
 
-xdg-open _build/html/index.html || open _build/html/index.html
+# Open the built documentation index in the default browser
+xdg-open "$DOC_INDEX" 2>/dev/null || open "$DOC_INDEX" 2>/dev/null || echo "Docs built at $DOC_INDEX"
+deactivate

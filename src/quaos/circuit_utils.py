@@ -1,5 +1,5 @@
-from gates import Circuit, SUM as CX, PHASE as S, Hadamard as H, GateOperation
-from paulis import Pauli, PauliSum
+from .gates import Circuit, SUM as CX, PHASE as S, Hadamard as H, GateOperation
+from .paulis import Pauli, PauliSum
 import numpy as np
 from numpy.typing import NDArray
 import sympy as sym
@@ -225,7 +225,7 @@ def random_clifford(depth: int, dimensions: list[int] | np.ndarray) -> Circuit:
 
 
 if __name__ == "__main__":
-    from hamiltonian import random_pauli_hamiltonian
+    from .hamiltonian import random_pauli_hamiltonian
     initial_pauli = ['x0z0 x0z1', 'x1z1 x1z0']
     goal_pauli = ['x1z1 x1z1', 'x1z1 x0z1']
     initial_pauli = PauliSum(initial_pauli, dimensions=[2, 2])
