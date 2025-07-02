@@ -1,23 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
+# Change to the script's directory and load environment variables
 cd "$(dirname "$0")"
-cd ../../..
+source env.sh
+cd "$PROJECT_ROOT"
 
-if [ ! -d "venv" ]; then
+if [ ! -d "$SRC_VENV" ]; then
     echo "Virtual environment not found."
     exit 1
 fi
 
-if [ ! -f "./configs/requirements.txt" ]; then
+if [ ! -f "$SRC_REQUIREMENTS" ]; then
     echo "requirements.txt not found."
     exit 1
 fi
 
-source venv/bin/activate
-pip freeze > ./configs/current_requirements.txt
-python scripts/python/tools/sync_requirements.py --r ./configs/requirements.txt
+source "$SRC_VENV/bin/activate"
+pip freeze > "$CONFIGS_ROOT/current_requirements.txt"
+python "$SYNC_REQUIREMENTS_SCRIPT" --r "$SRC_REQUIREMENTS"
 
-cd configs
+cd "$CONFIGS_ROOT"
 mv -f updated_requirements.txt requirements.txt
 rm -f current_requirements.txt
 echo "Requirements have been synced and updated."
+deactivate
