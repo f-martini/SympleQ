@@ -81,6 +81,8 @@ class TestGates():
 
         gates = [SUM(0, 1, 2)]  # , SUM(1, 0, 2), SWAP(0, 1, 2), Hadamard(0, 2), Hadamard(1, 2), PHASE(0, 2), PHASE(1, 2)
         i = 0
+
+        # test all for dim = 2
         for gate in gates:
             for x0 in range(2):
                 for z0 in range(2):
@@ -214,7 +216,7 @@ if __name__ == "__main__":
 
     dim = 2
     phase_mod = 2 * dim
-    gate = SWAP(0, 1, dim) #SUM(0, 1, dim)  #
+    gate = SWAP(0, 1, dim) # SUM(0, 1, dim)  #
     i = 0
     for x0 in range(dim):
         for z0 in range(dim):
@@ -257,9 +259,9 @@ if __name__ == "__main__":
                                     phase1 = - np.diag(C.T @ U @ C) @ a1  + 2 * a1 @ np.triu(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
                                     phase2 = - np.diag(C.T @ U @ C) @ a2  + 2 * a2 @ np.triu(C.T @ U @ C) @ a2 - a2 @ np.diag(np.diag(C.T @ U @ C)) @ a2
                                     phase3 = p3_phase - np.diag(C.T @ U @ C) @ a3  # + 2 * a3 @ np.triu(C.T @ U @ C) @ a3 - a3 @ np.diag(np.diag(C.T @ U @ C)) @ a3
-                                    phase1 += 0 * gate.phase_function(p1)
-                                    phase2 += 0 * gate.phase_function(p2)
-                                    phase3 += 0 * gate.phase_function(p3)
+                                    # phase1 += 0 * gate.phase_function(p1)
+                                    # phase2 += 0 * gate.phase_function(p2)
+                                    # phase3 += 0 * gate.phase_function(p3)
 
                                     # print(i, phase1, phase2, multiplicative_phase, phase3)
 
@@ -269,7 +271,7 @@ if __name__ == "__main__":
     print('Done')
 
 
-    gate = Hadamard(0, 2)
+    gate = PHASE(0, 2)
     i = 0
     for x0 in range(dim):
         for z0 in range(dim):
@@ -283,6 +285,7 @@ if __name__ == "__main__":
                     p3 = p1 * p2
 
                     C = gate.symplectic
+                    h = gate.phase_vector
 
                     nq = 1
                     U = np.zeros((2 * nq, 2 * nq), dtype=int)
@@ -303,16 +306,11 @@ if __name__ == "__main__":
                     assert np.all((C @ a1 + C @ a2) % dim == C @ a3 % dim)
                     assert np.all((C @ a1 + C @ a2) % dim == gate.act(p3).symplectic())
 
-                    phase1 = - np.diag(C.T @ U @ C) @ a1  + 2 * a1 @ np.triu(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
-                    phase2 = - np.diag(C.T @ U @ C) @ a2  + 2 * a2 @ np.triu(C.T @ U @ C) @ a2 - a2 @ np.diag(np.diag(C.T @ U @ C)) @ a2
-                    phase3 = p3_phase - np.diag(C.T @ U @ C) @ a3 + 2 * a3 @ np.triu(C.T @ U @ C) @ a3 - a3 @ np.diag(np.diag(C.T @ U @ C)) @ a3
-                    # phase1 += 2 * gate.phase_function(p1)
-                    # phase2 += 2 * gate.phase_function(p2)
-                    # phase3 += 2 * gate.phase_function(p3)
+                    phase1 = np.dot(h, a1) - np.diag(C.T @ U @ C) @ a1  + 2 * a1 @ np.triu(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
+                    phase2 = np.dot(h, a2) - np.diag(C.T @ U @ C) @ a2  + 2 * a2 @ np.triu(C.T @ U @ C) @ a2 - a2 @ np.diag(np.diag(C.T @ U @ C)) @ a2
+                    phase3 = np.dot(h, a3) + p3_phase - np.diag(C.T @ U @ C) @ a3 + 2 * a3 @ np.triu(C.T @ U @ C) @ a3 - a3 @ np.diag(np.diag(C.T @ U @ C)) @ a3
 
-                    print(i, phase1, phase2, multiplicative_phase, phase3)
-
-                    # assert p3_phase == multiplicative_phase
+                    print(i, phase1, phase2, multiplicative_phase, p3_phase, phase3)
                     assert ((phase1 + phase2) + multiplicative_phase) % phase_mod == phase3 % phase_mod, (p1.__str__(), p2.__str__(), p3.__str__())
 
     print('Done')

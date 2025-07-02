@@ -1,6 +1,5 @@
 import numpy as np
 from quaos.paulis import PauliString, PauliSum, Pauli
-from typing import Callable
 
 
 class Gate:
@@ -9,7 +8,7 @@ class Gate:
                  qudit_indices: list[int],
                  images: list[np.ndarray],
                  dimension: int,
-                 phase_function: Callable):
+                 phase_vector: np.ndarray | list[int]):
 
         self.dimension = dimension
         self.name = name
@@ -17,7 +16,7 @@ class Gate:
         self.images = images
         self.n_qudits = len(qudit_indices)
         self.symplectic = np.stack([v % dimension for v in images]).T
-        self.phase_function = phase_function
+        self.phase_vector = phase_vector
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
         local_symplectic = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])
@@ -60,7 +59,8 @@ class Gate:
         U[self.n_qudits:, :self.n_qudits] = np.eye(self.n_qudits, dtype=int)
 
         C = self.symplectic
-        a = P.symplectic()
+        h = self.phase_vector
+        a = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])  # local symplectic
         # V_diag(C^TUC)
         p1 = np.dot(np.diag(C.T @ U @ C), a)
         # a^T P_upps(C^TUC) a a^T P_diag(C^TUC) a
@@ -68,13 +68,14 @@ class Gate:
         p_part = 2 * np.tril(ctuc) - np.diag(np.diag(ctuc))
         p2 = np.dot(np.dot(a.T, p_part), a)
         #
-        return (self.phase_function(P) - p1 + p2) % P.lcm
+
+        return (np.dot(h, a) - p1 + p2) % P.lcm
 
     def copy(self) -> 'Gate':
         """
         Returns a copy of the gate.
         """
-        return Gate(self.name, self.qudit_indices.copy(), self.images.copy(), self.dimension, self.phase_function)
+        return Gate(self.name, self.qudit_indices.copy(), self.images.copy(), self.dimension, self.phase_vector.copy())
 
 
 class SUM(Gate):
@@ -85,14 +86,9 @@ class SUM(Gate):
                   np.array([0, 0, -1, 1])  # image of Z1:  Z1 -> Z0^-1 Z1
                   ]
 
-        @staticmethod
-        def phase_function(P: PauliString) -> int:
-            """
-            Returns the phase acquired by the PauliString P when acted upon by this SUM gate.
-            """
-            return P.x_exp[control] * P.z_exp[target] % P.lcm
+        phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
-        super().__init__("SUM", [control, target], images, dimension=dimension, phase_function=phase_function)
+        super().__init__("SUM", [control, target], images, dimension=dimension, phase_vector=phase_vector)
 
 
 class SWAP(Gate):
@@ -103,7 +99,9 @@ class SWAP(Gate):
                   np.array([0, 0, 1, 0])   # image of Z1:  Z1 -> Z0
                   ]
 
-        super().__init__("SWAP", [index1, index2], images, dimension=dimension, phase_function=lambda P: 0)
+        phase_vector = np.array([0, 0, 0, 0], dtype=int)
+
+        super().__init__("SWAP", [index1, index2], images, dimension=dimension, phase_vector=phase_vector)
 
 
 class CNOT(Gate):
@@ -114,14 +112,9 @@ class CNOT(Gate):
                   np.array([0, 0, -1, 1])  # image of Z1:  Z1 -> Z0^-1 Z1
                   ]
 
-        @staticmethod
-        def phase_function(P: PauliString) -> int:
-            """
-            Returns the phase acquired by the PauliString P when acted upon by this SUM gate.
-            """
-            return int(P.x_exp[control] * P.z_exp[target] % 2)
+        phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
-        super().__init__("SUM", [control, target], images, dimension=2, phase_function=phase_function)
+        super().__init__("SUM", [control, target], images, dimension=2, phase_vector=phase_vector)
 
 
 class Hadamard(Gate):
@@ -135,15 +128,10 @@ class Hadamard(Gate):
                       np.array([1, 0]),  # image of Z:  Z -> X
                       ]
 
-        @staticmethod
-        def phase_function(P: PauliString) -> int:
-            """
-            Returns the phase acquired by the PauliString P when acted upon by this Hadamard gate.
-            """
-            return P.x_exp[index] * P.z_exp[index] % P.lcm
+        phase_vector = np.array([0, 0], dtype=int)
 
         name = "H" if not inverse else "Hdag"
-        super().__init__(name, [index], images, dimension=dimension, phase_function=phase_function)
+        super().__init__(name, [index], images, dimension=dimension, phase_vector=phase_vector)
 
 
 class PHASE(Gate):
@@ -153,12 +141,6 @@ class PHASE(Gate):
                   np.array([0, 1]),  # image of Z:  Z -> Z
                   ]
 
-        @staticmethod
-        def phase_function(P: PauliString) -> int:
-            """
-            Returns the phase acquired by the PauliString P when acted upon by this Hadamard gate.
-            """
-            r = P.x_exp[index]
-            return r * (r - 1) // 2
+        phase_vector = np.array([1, 0], dtype=int)
 
-        super().__init__("S", [index], images, dimension=dimension, phase_function=phase_function)
+        super().__init__("S", [index], images, dimension=dimension, phase_vector=phase_vector)
