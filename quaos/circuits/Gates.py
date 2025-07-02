@@ -65,10 +65,9 @@ class Gate:
         p1 = np.dot(np.diag(C.T @ U @ C), a)
         # a^T P_upps(C^TUC) a a^T P_diag(C^TUC) a
         ctuc = C.T @ U @ C
-        p_part = np.triu(ctuc) - np.diag(np.diag(ctuc))
+        p_part = 2 * np.tril(ctuc) - np.diag(np.diag(ctuc))
         p2 = np.dot(np.dot(a.T, p_part), a)
         #
-        print(p1, p2)
         return (self.phase_function(P) - p1 + p2) % P.lcm
 
     def copy(self) -> 'Gate':
@@ -120,7 +119,7 @@ class CNOT(Gate):
             """
             Returns the phase acquired by the PauliString P when acted upon by this SUM gate.
             """
-            return P.x_exp[control] * P.z_exp[target] % 2
+            return int(P.x_exp[control] * P.z_exp[target] % 2)
 
         super().__init__("SUM", [control, target], images, dimension=2, phase_function=phase_function)
 

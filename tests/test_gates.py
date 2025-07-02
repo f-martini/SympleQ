@@ -214,7 +214,7 @@ if __name__ == "__main__":
 
     dim = 2
     phase_mod = 2 * dim
-    gate = SUM(0, 1, dim)
+    gate = SWAP(0, 1, dim) #SUM(0, 1, dim)  #
     i = 0
     for x0 in range(dim):
         for z0 in range(dim):
@@ -241,17 +241,80 @@ if __name__ == "__main__":
                                     a2 = p2.symplectic()
                                     a3 = p3.symplectic()
 
-                                    multiplicative_phase = (2 * (C @ a1) @ U @ (C @ a2))%phase_mod
+                                    multiplicative_phase = (2 * (C @ a1) @ U @ (C @ a2)) % phase_mod
+                                    p3_phase = (2 * a1 @ U @  a2) % phase_mod
 
-                                    phase1 = - np.diag(C.T @ U @ C) @ a1 + 2 * a1 @ np.tril(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
-                                    phase2 = - np.diag(C.T @ U @ C) @ a2 + 2 * a2 @ np.tril(C.T @ U @ C) @ a2 - a2 @ np.diag(np.diag(C.T @ U @ C)) @ a2
-                                    phase3 = - np.diag(C.T @ U @ C) @ a3 + 2 * a3 @ np.tril(C.T @ U @ C) @ a3 - a3 @ np.diag(np.diag(C.T @ U @ C)) @ a3
-                                    phase1 += gate.phase_function(p1)
-                                    phase2 += gate.phase_function(p2)
-                                    phase3 += gate.phase_function(p3)
+                                    # check actions of gates on symplectic
+                                    assert np.all(C @ a1 % dim == gate.act(p1).symplectic())
+                                    assert np.all(C @ a2 % dim == gate.act(p2).symplectic())
+                                    assert np.all(C @ a3 % dim == gate.act(p3).symplectic())
+                                    assert np.all((gate.act(p1) * gate.act(p2)).symplectic() == gate.act(p3).symplectic())
+                                    assert np.all((C @ a1 + C @ a2) % dim == C @ a3 % dim)
+                                    assert np.all((C @ a1 + C @ a2) % dim == gate.act(p3).symplectic())
 
-                                    print(i, phase1, phase2, multiplicative_phase, phase3)
-                                    assert ((phase1 + phase2)%phase_mod + multiplicative_phase)%phase_mod == phase3%phase_mod
+                                    # check acquired phases
+
+                                    phase1 = - np.diag(C.T @ U @ C) @ a1  + 2 * a1 @ np.triu(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
+                                    phase2 = - np.diag(C.T @ U @ C) @ a2  + 2 * a2 @ np.triu(C.T @ U @ C) @ a2 - a2 @ np.diag(np.diag(C.T @ U @ C)) @ a2
+                                    phase3 = p3_phase - np.diag(C.T @ U @ C) @ a3  # + 2 * a3 @ np.triu(C.T @ U @ C) @ a3 - a3 @ np.diag(np.diag(C.T @ U @ C)) @ a3
+                                    phase1 += 0 * gate.phase_function(p1)
+                                    phase2 += 0 * gate.phase_function(p2)
+                                    phase3 += 0 * gate.phase_function(p3)
+
+                                    # print(i, phase1, phase2, multiplicative_phase, phase3)
+
+                                    # print(gate.phase_function(p1) + gate.phase_function(p2), gate.phase_function(p3))
+                                    assert p3_phase == multiplicative_phase
+                                    assert ((phase1 + phase2) + multiplicative_phase) % phase_mod == phase3 % phase_mod, (p1.__str__(), p2.__str__(), p3.__str__())
+    print('Done')
+
+
+    gate = Hadamard(0, 2)
+    i = 0
+    for x0 in range(dim):
+        for z0 in range(dim):
+            for x1 in range(dim):
+                for z1 in range(dim):
+
+                    i += 1
+                    p1 = PauliString.from_string(f'x{x0}z{z0}', dimensions=[dim])
+                    p2 = PauliString.from_string(f'x{x1}z{z1}', dimensions=[dim])
+
+                    p3 = p1 * p2
+
+                    C = gate.symplectic
+
+                    nq = 1
+                    U = np.zeros((2 * nq, 2 * nq), dtype=int)
+                    U[nq:, :nq] = np.eye(nq, dtype=int)
+
+                    a1 = p1.symplectic()
+                    a2 = p2.symplectic()
+                    a3 = p3.symplectic()
+
+                    multiplicative_phase = (2 * (C @ a1).T @ U @ (C @ a2)) % phase_mod
+                    p3_phase = (2 * a1.T @ U @  a2) % phase_mod
+
+                    # check actions of gates on symplectic
+                    assert np.all(C @ a1 % dim == gate.act(p1).symplectic())
+                    assert np.all(C @ a2 % dim == gate.act(p2).symplectic())
+                    assert np.all(C @ a3 % dim == gate.act(p3).symplectic())
+                    assert np.all((gate.act(p1) * gate.act(p2)).symplectic() == gate.act(p3).symplectic())
+                    assert np.all((C @ a1 + C @ a2) % dim == C @ a3 % dim)
+                    assert np.all((C @ a1 + C @ a2) % dim == gate.act(p3).symplectic())
+
+                    phase1 = - np.diag(C.T @ U @ C) @ a1  + 2 * a1 @ np.triu(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
+                    phase2 = - np.diag(C.T @ U @ C) @ a2  + 2 * a2 @ np.triu(C.T @ U @ C) @ a2 - a2 @ np.diag(np.diag(C.T @ U @ C)) @ a2
+                    phase3 = p3_phase - np.diag(C.T @ U @ C) @ a3 + 2 * a3 @ np.triu(C.T @ U @ C) @ a3 - a3 @ np.diag(np.diag(C.T @ U @ C)) @ a3
+                    # phase1 += 2 * gate.phase_function(p1)
+                    # phase2 += 2 * gate.phase_function(p2)
+                    # phase3 += 2 * gate.phase_function(p3)
+
+                    print(i, phase1, phase2, multiplicative_phase, phase3)
+
+                    # assert p3_phase == multiplicative_phase
+                    assert ((phase1 + phase2) + multiplicative_phase) % phase_mod == phase3 % phase_mod, (p1.__str__(), p2.__str__(), p3.__str__())
+
     print('Done')
     # c = TestGates()
     # c.test_group_homomorphism()

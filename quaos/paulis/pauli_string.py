@@ -182,8 +182,8 @@ class PauliString:
         U[self.n_qudits():, :self.n_qudits()] = np.eye(self.n_qudits(), dtype=int)
         a = self.symplectic()
         b = other_pauli.symplectic()
-        return (b.T @ U @ a) % self.lcm
-
+        return (2 * b.T @ U @ a) % (2 * self.lcm)
+    
     def _replace_symplectic(self, symplectic: np.ndarray, qudit_indices: list[int]) -> PauliString:
         x_exp_replace = symplectic[0:len(qudit_indices)]
         z_exp_replace = symplectic[len(qudit_indices):2 * len(qudit_indices)]
