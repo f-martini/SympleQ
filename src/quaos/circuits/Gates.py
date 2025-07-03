@@ -1,5 +1,6 @@
 import numpy as np
 from quaos.paulis import PauliString, PauliSum, Pauli
+from typing import overload
 
 
 class Gate:
@@ -35,6 +36,18 @@ class Gate:
             phases.append(phase)
 
         return PauliSum(pauli_strings, P.weights, np.asarray(phases), P.dimensions, False)
+
+    @overload
+    def act(self, P: Pauli) -> Pauli:
+        ...
+
+    @overload
+    def act(self, P: PauliString) -> PauliString:
+        ...
+
+    @overload
+    def act(self, P: PauliSum) -> PauliSum:
+        ...
 
     def act(self, P: Pauli | PauliString | PauliSum):
         if isinstance(P, Pauli):
