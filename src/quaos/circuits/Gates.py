@@ -20,6 +20,8 @@ class Gate:
         self.phase_vector = phase_vector
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
+        if np.all(self.dimension != P.dimensions[self.qudit_indices]):
+            raise ValueError("Gate and PauliString have different dimensions.")
         local_symplectic = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])
         acquired_phase = self.acquired_phase(P)
 
@@ -27,18 +29,18 @@ class Gate:
         P = P._replace_symplectic(local_symplectic, self.qudit_indices)
         return P, acquired_phase
 
-    def _act_on_pauli_sum(self, P: PauliSum) -> PauliSum:
+    def _act_on_pauli_sum(self, pauli_sum: PauliSum) -> PauliSum:
         pauli_strings: list[PauliString] = []
         phases: list[int] = []
-        for p in P.pauli_strings:
+        for i, p in enumerate(pauli_sum.pauli_strings):
             ps, phase = self._act_on_pauli_string(p)
             pauli_strings.append(ps)
-            phases.append(phase)
+            phases.append(pauli_sum.phases[i] + phase)
 
-        return PauliSum(pauli_strings, P.weights, np.asarray(phases), P.dimensions, False)
+        return PauliSum(pauli_strings, pauli_sum.weights, np.asarray(phases), pauli_sum.dimensions, False)
 
     @overload
-    def act(self, P: Pauli) -> Pauli:
+    def act(self, P: Pauli) -> PauliSum:
         ...
 
     @overload
@@ -78,11 +80,11 @@ class Gate:
         p1 = np.dot(np.diag(C.T @ U @ C), a)
         # a^T P_upps(C^TUC) a a^T P_diag(C^TUC) a
         ctuc = C.T @ U @ C
-        p_part = 2 * np.tril(ctuc) - np.diag(np.diag(ctuc))
-        p2 = np.dot(np.dot(a.T, p_part), a)
+        p_part = 2 * np.triu(ctuc) - np.diag(np.diag(ctuc))
+        p2 = np.dot(a.T, np.dot(p_part, a))
         #
 
-        return (np.dot(h, a) - p1 + p2) % P.lcm
+        return (np.dot(h, a) - p1 + p2) % (2 * P.lcm)
 
     def copy(self) -> 'Gate':
         """
@@ -154,6 +156,6 @@ class PHASE(Gate):
                   np.array([0, 1]),  # image of Z:  Z -> Z
                   ]
 
-        phase_vector = np.array([1, 0], dtype=int)
+        phase_vector = np.array([dimension + 1, 0], dtype=int)
 
         super().__init__("S", [index], images, dimension=dimension, phase_vector=phase_vector)

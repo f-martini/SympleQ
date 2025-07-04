@@ -170,20 +170,20 @@ class PauliString:
         return self
 
     def acquired_phase(self, other_pauli: PauliString) -> int:
-        # phases acquired when multiplying two Pauli strings
-        # phi = 1.  # / self.dimensions
+        # phases acquired when multiplying two Pauli strings self * other_pauli
+        # phi = 2.  # / self.dimensions
         # phase = 0
         # for i in range(self.n_qudits()):
         #     phase += phi * (self.x_exp[i] * other_pauli.z_exp[i] + self.z_exp[i] * other_pauli.x_exp[i])
-        # return phase % self.lcm
+        # return phase % (self.lcm)
 
         # identity on lower diagonal of U
         U = np.zeros((2 * self.n_qudits(), 2 * self.n_qudits()), dtype=int)
         U[self.n_qudits():, :self.n_qudits()] = np.eye(self.n_qudits(), dtype=int)
         a = self.symplectic()
         b = other_pauli.symplectic()
-        return (2 * b.T @ U @ a) % (2 * self.lcm)
-    
+        return int(2 * a.T @ U @ b) % (2 * self.lcm)
+
     def _replace_symplectic(self, symplectic: np.ndarray, qudit_indices: list[int]) -> PauliString:
         x_exp_replace = symplectic[0:len(qudit_indices)]
         z_exp_replace = symplectic[len(qudit_indices):2 * len(qudit_indices)]

@@ -32,7 +32,7 @@ def is_symplectic(symplectic: np.ndarray, dimension: int = 2) -> bool:
     """
     Check if the gate is symplectic, i.e., it preserves the symplectic structure of the Pauli group.
     """
-    
+
     n_q = symplectic.shape[0] // 2
 
     id = np.eye(n_q, dtype=int)
@@ -43,7 +43,3 @@ def is_symplectic(symplectic: np.ndarray, dimension: int = 2) -> bool:
     return bool(np.all(J == symplectic.T @ J @ symplectic % dimension))
 
 
-if __name__ == "__main__":
-    # Example usage
-    symplectic_matrix = np.array([[1, 1, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 1, 1]])
-    print(is_symplectic(symplectic_matrix))

@@ -53,7 +53,7 @@ class PauliSum:
         self.weights = np.asarray(sanitized_weights, dtype=np.complex128)
         self.dimensions = sanitized_dimensions
         self.lcm = np.lcm.reduce(self.dimensions)
-        self.phases = np.asarray(sanitized_phases, dtype=int) % self.lcm
+        self.phases = np.asarray(sanitized_phases, dtype=int) % (2 * self.lcm)
 
         self._set_exponents()
 
@@ -178,7 +178,7 @@ class PauliSum:
         new_weights = np.zeros(self.n_paulis(), dtype=np.complex128)
         for i in range(self.n_paulis()):
             phase = self.phases[i]
-            omega = np.exp(2 * np.pi * 1j * phase / self.lcm)
+            omega = np.exp(2 * np.pi * 1j * phase / (2 * self.lcm))
             new_weights[i] = self.weights[i] * omega
         self.phases = np.zeros(self.n_paulis(), dtype=int)
         self.weights = new_weights
@@ -339,7 +339,7 @@ class PauliSum:
                 new_p_sum.append(self.pauli_strings[i] * A.pauli_strings[j])
                 new_weights.append(self.weights[i] * A.weights[j])
                 acquired_phase = self.pauli_strings[i].acquired_phase(A.pauli_strings[j])
-                new_phases.append((self.phases[i] + A.phases[j] + acquired_phase) % self.lcm)
+                new_phases.append((self.phases[i] + A.phases[j] + acquired_phase) % (2 * self.lcm))
         output_pauli = PauliSum(new_p_sum, new_weights, new_phases, self.dimensions, False)
 
         return output_pauli
@@ -560,7 +560,7 @@ class PauliSum:
                     h_next = self.xz_mat(dim, X, Z)
 
                     h = scipy.sparse.kron(h, h_next, format="csr")
-                list_of_pauli_matrices.append(np.exp(phase * 2 * np.pi * 1j / self.lcm) * self.weights[i] * h)
+                list_of_pauli_matrices.append(np.exp(phase * 2 * np.pi * 1j / (2 * self.lcm)) * self.weights[i] * h)
             m = sum(list_of_pauli_matrices)
 
         return m
@@ -574,11 +574,11 @@ class PauliSum:
             else:
                 raise ValueError(f"pauli_index must be int, list, or np.ndarray, not {type(pauli_index)}")
             for i in pauli_index:
-                self.phases[i] = (self.phases[i] + phases) % self.lcm
+                self.phases[i] = (self.phases[i] + phases) % (2 * self.lcm)
         else:
             if len(phases) != self.n_paulis():
                 raise ValueError(f"Number of phases ({len(phases)}) must be equal to number of Paulis ({self.n_paulis()})")
-            new_phase = (np.array(self.phases) + np.array(phases)) % self.lcm
+            new_phase = (np.array(self.phases) + np.array(phases)) % (2 * self.lcm)
         self.phases = new_phase
 
     def reorder(self, order: list[int]):

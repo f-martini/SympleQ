@@ -8,7 +8,7 @@ module_dir = os.path.join(test_dir, "..")
 sys.path.append(module_dir)
 sys.path.append(test_dir)
 from quaos.symplectic import PauliSum, PauliString, Pauli, Xnd, Ynd, Znd
-
+# TODO: merge useful bits from here with pauli_test (rename test_paulis for consistency) and delete this file
 
 class TestSymplectic:
 
