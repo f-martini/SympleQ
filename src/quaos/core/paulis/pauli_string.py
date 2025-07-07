@@ -4,7 +4,7 @@ import numpy as np
 import functools
 import re
 from .pauli import Pauli
-from quaos.core.prime_Functions_Andrew import bases_to_int
+from .bases_manipulation import bases_to_int
 
 
 @functools.total_ordering

@@ -1,8 +1,8 @@
 import numpy as np
 import itertools
 import random
-from quaos.paulis import PauliSum, PauliString
-from quaos.gates import Circuit, Hadamard as H, SUM as CX, PHASE as S
+from quaos.core.paulis import PauliSum, PauliString
+from quaos.core.circuits import Circuit, Hadamard as H, SUM as CX, PHASE as S
 
 
 def ground_state(P):
@@ -70,7 +70,7 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
             omega = np.exp(2 * np.pi * 1j / qudit_dims[j])
             phase_factor *= omega**(r * s)
 
-        pauli_strings.append(PauliString(pauli_str.strip(), dimensions=qudit_dims))
+        pauli_strings.append(PauliString.from_string(pauli_str.strip(), dimensions=qudit_dims))
         if mode == 'rand' or mode == 'random':
             coeff = np.random.normal(0, 1) + 1j * np.random.normal(0, 1)
         elif mode == 'uniform' or mode == 'one':
@@ -78,13 +78,13 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
         elif mode[0:7] == 'randint':
             # mode is 'randint2', 'randint3', etc.
             d = int(mode[7:])
-            coeff = np.random.randint(1, d+1)
+            coeff = np.random.randint(1, d + 1)
 
         if (not np.array_equal(x_exp, x_exp_H)) and (not np.array_equal(z_exp, z_exp_H)):
             # random string not Hermitian, add conjugate pair
             coefficients.append(coeff)
             coefficients.append(np.conj(coeff) * phase_factor)
-            pauli_strings.append(PauliString(pauli_str_H.strip(), dimensions=qudit_dims))
+            pauli_strings.append(PauliString.from_string(pauli_str_H.strip(), dimensions=qudit_dims))
         else:
             coefficients.append(coeff.real)
 
@@ -287,7 +287,7 @@ def pauli_reduce(hamiltonian: PauliSum) -> tuple[PauliSum, list[PauliSum], Circu
             list_of_phases += np.arange(h_red.dimensions[i]).tolist()
             n_sectors *= h_red.dimensions[i]
 
-    n_symmetries = len(list_of_z_symmetries)
+    _ = len(list_of_z_symmetries)
     all_phases = [list(bits) for bits in itertools.product(list_of_phases)]
     # z symmetries can simply alter the phase of the Paulis
     conditioned_hamiltonians = []
@@ -301,7 +301,8 @@ def pauli_reduce(hamiltonian: PauliSum) -> tuple[PauliSum, list[PauliSum], Circu
             phase_factor[list_of_z_symmetries[i][1]] += all_phases[sector]
         conditioned_hamiltonian.phases += phase_factor
         conditioned_hamiltonian.phases = conditioned_hamiltonian.phases % conditioned_hamiltonian.lcm
-        conditioned_hamiltonian.delete_qudits(list(z_symmetric_qudits))
+        # TODO: evaluate if it is correct to set _delete_qudits as internal methods
+        conditioned_hamiltonian._delete_qudits(list(z_symmetric_qudits))
         conditioned_hamiltonian.combine_equivalent_paulis()
         conditioned_hamiltonians.append(conditioned_hamiltonian)
     return h_red, conditioned_hamiltonians, C, all_phases

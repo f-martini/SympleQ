@@ -1,24 +1,35 @@
-from .Gates import SUM as CX, PHASE as S, Hadamard as H
-from .Circuits import Circuit
+from .gates import SUM as CX, PHASE as S, Hadamard as H
+from .circuits import Circuit
 from .utils import solve_modular_linear
 from quaos.core.paulis import PauliString, PauliSum
 
 
 def add_phase(xz_pauli_sum: PauliSum, qudit_index: int, qudit_index_2: int, phase_key: str) -> Circuit:
     """
-    Uses phase key to alter phase of a pauli sum based on the qudit index 2 pauli.
+    Uses phase key to alter the phase of a Pauli sum based on the Pauli operator at qudit index 2.
 
-    Acts like identity on qudit index 1.
-    Assumes pauli_sum has the form:
-    qudit_index_1  | qudit_index_2
-        X        |      *
-        Z        |      *
+    Acts as the identity on qudit index 1.
 
-    key = S -> same phase D -> different phase
-    order IXZY
+    Assumes ``pauli_sum`` has the form:
 
-    e.g 'SDSD' keeps the same phase for all but X and Y paulis on qudit index 2.
+    .. list-table::
+       :header-rows: 1
 
+       * - qudit_index_1
+         - qudit_index_2
+       * - X
+         - *
+       * - Z
+         - *
+
+    The ``phase_key`` is a string where:
+    - ``S`` means "same phase"
+    - ``D`` means "different phase"
+
+    The order is IXZY.
+
+    Example:
+        ``'SDSD'`` keeps the same phase for all but X and Y Paulis on qudit index 2.
     """
 
     if xz_pauli_sum.dimensions[qudit_index] != 2 or xz_pauli_sum.dimensions[qudit_index] != 2:
