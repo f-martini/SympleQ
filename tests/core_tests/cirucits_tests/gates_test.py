@@ -1,8 +1,6 @@
-import sys
-sys.path.append("./")
-from quaos.circuits import Gate, SUM, SWAP, Hadamard, PHASE, CNOT
-from quaos.circuits.utils import is_symplectic
-from quaos.paulis import PauliSum, PauliString
+from quaos.core.circuits import SUM, SWAP, Hadamard, PHASE
+from quaos.core.circuits.utils import is_symplectic
+from quaos.core.paulis import PauliSum, PauliString
 import numpy as np
 
 
@@ -110,12 +108,8 @@ class TestGates():
                 output_psum = SWAP(0, 1, d).act(input_psum)
                 assert output_psum == output_psum_correct, 'Error in SUM gate: \n' + input_psum.__str__() + '\n' + output_psum.__str__() + '\n' + output_psum_correct.__str__()
 
-
-
-
     def test_Hadamard(self):
         pass
-
 
     def test_PHASE(self):
         pass

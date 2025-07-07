@@ -1,5 +1,5 @@
 import numpy as np
-from quaos.paulis import PauliString, PauliSum, Pauli
+from quaos.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
 
 

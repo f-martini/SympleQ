@@ -7,6 +7,7 @@ current_file_path = Path(__file__).parent
 dependencies_path = current_file_path / 'requirements.txt'
 dependencies = [line.strip() for line in open(dependencies_path) if line.strip() and not line.startswith('#')]
 
+
 def get_version():
     try:
         version = subprocess.check_output(
@@ -17,6 +18,7 @@ def get_version():
         return version
     except Exception:
         return "0.0.0.0"
+
 
 setup(
     name='quaos',

@@ -1,8 +1,8 @@
 from typing import overload
-from quaos.circuits.Gates import Gate
 import numpy as np
 from qiskit import QuantumCircuit
-from quaos.paulis import PauliSum, PauliString, Pauli
+from .gates import Gate
+from quaos.core.paulis import PauliSum, PauliString, Pauli
 
 
 class Circuit:
