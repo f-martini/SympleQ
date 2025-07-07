@@ -41,5 +41,3 @@ def is_symplectic(symplectic: np.ndarray, dimension: int = 2) -> bool:
     J[:n_q, n_q:] = id
 
     return bool(np.all(J == symplectic.T @ J @ symplectic % dimension))
-
-

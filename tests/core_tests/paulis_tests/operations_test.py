@@ -1,15 +1,11 @@
-"""
-Tests of Pauli operations such as multiplication, addition and tensor product
-"""
-import sys
-sys.path.append("./")
-from quaos.circuits import Gate, SUM, SWAP, Hadamard, PHASE, CNOT
-from quaos.circuits.utils import is_symplectic
-from quaos.paulis import PauliSum, PauliString, Pauli
+from quaos.core.paulis import PauliSum, PauliString, Pauli
 import numpy as np
 
 
 class TestOperations():
+    """
+    Tests of Pauli operations such as multiplication, addition and tensor product
+    """
 
     def random_pauli_string(self, dim):
         r1 = np.random.randint(0, dim)
@@ -175,5 +171,3 @@ class TestOperations():
                 assert random_pauli_sum[1] == p_string2, 'Error in PauliSum indexing (second PauliString)'
                 assert random_pauli_sum[0, 0] == p_string1[0], 'Error in PauliSum indexing (first PauliString, first Pauli)'
                 assert random_pauli_sum[0, 1] == p_string1[1], 'Error in PauliSum indexing (first PauliString, second Pauli)'
-
-

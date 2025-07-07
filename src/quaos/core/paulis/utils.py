@@ -259,12 +259,12 @@ def find_symplectic_maps(H, H_prime, d, max_solutions=1000):
     A = np.zeros((n * k, num_vars), dtype=int)
     b = H_prime.flatten()
 
-    for i in range(n):       # row index of H, H'
-        for j in range(k):   # column index of H'
-            row_idx = i * k + j
-            for l in range(k):  # column index of H, row index of M^T
-                col_idx = j * k + l  # since M^T[j, l] = M[l, j]
-                A[row_idx, col_idx] = H[i, l]
+    for H_row in range(n):       # row index of H, H'
+        for H_col in range(k):   # column index of H'
+            row_idx = H_row * k + H_col
+            for idx in range(k):  # column index of H, row index of M^T
+                col_idx = H_col * k + idx  # since M^T[H_col, idx] = M[idx, H_col]
+                A[row_idx, col_idx] = H[H_row, idx]
 
     raw_solutions = solve_mod_d(A, b, d, max_solutions)
     Ms = [sol.reshape((k, k)).T for sol in raw_solutions]  # Transpose back to M

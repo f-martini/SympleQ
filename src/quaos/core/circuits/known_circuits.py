@@ -1,7 +1,7 @@
-from quaos.gates import SUM as CX, PHASE as S, Hadamard as H
-from quaos.circuits import Circuit
-from quaos.paulis import PauliString, PauliSum
-from quaos.circuits.utils import solve_modular_linear
+from .Gates import SUM as CX, PHASE as S, Hadamard as H
+from .Circuits import Circuit
+from .utils import solve_modular_linear
+from quaos.core.paulis import PauliString, PauliSum
 
 
 def add_phase(xz_pauli_sum: PauliSum, qudit_index: int, qudit_index_2: int, phase_key: str) -> Circuit:
@@ -11,8 +11,8 @@ def add_phase(xz_pauli_sum: PauliSum, qudit_index: int, qudit_index_2: int, phas
     Acts like identity on qudit index 1.
     Assumes pauli_sum has the form:
     qudit_index_1  | qudit_index_2
-          X        |      *
-          Z        |      *
+        X        |      *
+        Z        |      *
 
     key = S -> same phase D -> different phase
     order IXZY
@@ -104,7 +104,7 @@ def ensure_zx_components(pauli_sum: PauliSum, pauli_index_x: int, pauli_index_z:
     Assumes anti-commutation between pauli_index_x and pauli_index_z.
     brings pauli_sum to the form:
 
-                    target_qubit
+    target_qubit
     pauli_index_x |  xr1zs1
     pauli_index_z |  xr2zs2
     where r1 and s2 are always non-zero
