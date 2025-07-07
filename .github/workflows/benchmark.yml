@@ -8,7 +8,7 @@ env:
   SETUP_PY: ./scripts/configs
   BENCHMARK_OUTPUT: benchmark.json
   PROFILING_OUTPUT: profile.out
-  SIMULATION_SCRIPT: ./scripts/experiments/BFQ_Simulation.py
+  SIMULATION_SCRIPT: ./scripts/tools/python/profiling_script.py
   PYTHON_VERSION: "3.11"
 
 jobs:
