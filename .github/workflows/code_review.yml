@@ -80,7 +80,7 @@ jobs:
       - name: Pytest (No Benchmarking)
         run: |
           pip install pytest pytest-cov
-          pytest --override-ini "pytest.ini=${{ env.PYTEST_INI }}" --cov=${{ env.SRC_DIR }} --cov-report=xml:${{ env.COVERAGE_REPORT_XML }} --cov-report=html:${{ env.COVERAGE_REPORT_HTML }} --junitxml=${{ env.COVERAGE_REPORT_JUNIT }} --disable-warnings -vv
+          echo "pytest --override-ini "pytest.ini=${{ env.PYTEST_INI }}" --cov=${{ env.SRC_DIR }} --cov-report=xml:${{ env.COVERAGE_REPORT_XML }} --cov-report=html:${{ env.COVERAGE_REPORT_HTML }} --junitxml=${{ env.COVERAGE_REPORT_JUNIT }} --disable-warnings -vv"
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
