@@ -129,4 +129,3 @@ class TestSymplectic:
                                          standardise=False)
         assert ps[[0, 2], [0, 2]] == PauliSum(['x2z0 x1z1', 'x2z0 x2z0'], weights=[1, 0.5], phases=[0, 1], dimensions=[3, 3],
                                               standardise=False)
-

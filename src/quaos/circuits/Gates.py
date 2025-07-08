@@ -1,6 +1,7 @@
 import numpy as np
 from quaos.paulis import PauliString, PauliSum, Pauli
 from typing import overload
+from quaos.circuits.target import find_map_to_target_pauli_sum
 
 
 class Gate:
@@ -159,3 +160,15 @@ class PHASE(Gate):
         phase_vector = np.array([dimension + 1, 0], dtype=int)
 
         super().__init__("S", [index], images, dimension=dimension, phase_vector=phase_vector)
+
+
+class ArbitraryGate(Gate):
+    """Represents an arbitrary gate defined by a PauliSum input and target."""
+    def __init__(self, name: str, input_pauli_sum: PauliSum, target_pauli_sum: PauliSum):
+        # uses target.find_map_to_target_pauli_sum to obtain images and phase_vector
+        images, phase_vector, qudit_indices, dimension = find_map_to_target_pauli_sum(input_pauli_sum, target_pauli_sum)
+        super().__init__(name, qudit_indices, images, dimension, phase_vector)
+
+    def __repr__(self):
+        return f"ArbitraryGate(name={self.name}, qudit_indices={self.qudit_indices}, " \
+               f"dimension={self.dimension}, phase_vector={self.phase_vector})"

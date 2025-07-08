@@ -25,6 +25,7 @@ class TestGates():
             ps, r1, r2, s1, s2 = self.random_pauli_string(dim)
             element_list.append((r1, r2, s1, s2))
             while (r1, r2, s1, s2) in element_list:
+                print('Duplicate PauliString found, generating new one...')
                 ps, r1, r2, s1, s2 = self.random_pauli_string(dim)
             ps_list.append(ps)
         return PauliSum(ps_list, dimensions=[dim, dim], standardise=True)
@@ -272,15 +273,19 @@ if __name__ == "__main__":
 
     tst = TestGates()
     d = 2
-    input_ps = tst.random_pauli_sum(d, n_paulis=4)
+    input_ps = tst.random_pauli_sum(d, n_paulis=6)
 
-    for i in range(100):
+    # for i in range(100):
 
-        target_ps = tst.random_pauli_sum(d, n_paulis=4)
-        if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()) and input_ps != target_ps:
-            gate = ArbitraryGate('ArbGate', input_ps, target_ps)
-            output_ps = gate.act(input_ps)
-            print(target_ps)
-            print(output_ps)
-
+    #     target_ps = tst.random_pauli_sum(d, n_paulis=6)
+    #     if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()) and input_ps != target_ps:
+    #         gate = ArbitraryGate('ArbGate', input_ps, target_ps)
+    #         output_ps = gate.act(input_ps)
+    #         output_ps.phases = target_ps.phases  # we dont compare about these for now
+    #         target_ps.standardise()
+    #         output_ps.standardise()
+    #         print(target_ps.symplectic())
+    #         print(output_ps.symplectic())
+    #         print('Equal:', output_ps == target_ps)
+    print(input_ps.symplectic())
     print('done')
