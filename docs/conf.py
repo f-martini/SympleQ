@@ -4,8 +4,8 @@ import os
 # -- Project information -----------------------------------------------------
 
 project = 'QuAOS'
-copyright = '2025, R.S.'
-author = 'R.S.'
+copyright = '2025, QuAOS-Lab'
+author = 'QuAOS-Lab'
 
 # -- General configuration ---------------------------------------------------
 
@@ -13,13 +13,13 @@ html_logo = "_static/logo.svg"
 html_favicon = "_static/logo.svg"
 
 extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
     'sphinx_rtd_theme',
     'sphinx_copybutton',
     "sphinx_immaterial.task_lists",
     'sphinx.ext.duration',
     'sphinx.ext.doctest',
-    'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
     'sphinx.ext.autosummary',
     'sphinx_autodoc_typehints',
 ]
@@ -60,4 +60,5 @@ html_theme_options = {
     'titles_only': False
 }
 
-sys.path.insert(0, os.path.abspath('..'))
+# Required for autosummary to generate the project doc
+sys.path.insert(0, os.path.abspath('../src'))

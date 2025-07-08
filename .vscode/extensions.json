@@ -1,8 +1,6 @@
 {
     "recommendations": [
-        // Version Controll
         "github.vscode-github-actions",
-        // Python/Jupyter
         "ms-python.autopep8",
         "ms-python.debugpy",
         "ms-python.flake8",
@@ -15,25 +13,21 @@
         "ms-toolsai.vscode-jupyter-slideshow",
         "donjayamanne.vscode-default-python-kernel",
         "ms-toolsai.datawrangler",
-        // C/C++
         "ms-vscode.cmake-tools",
         "ms-vscode.cpptools",
         "ms-vscode.cpptools-extension-pack",
         "ms-vscode.cpptools-themes",
         "vadimcn.vscode-lldb",
         "twxs.cmake",
-        // Docs
         "swyddfa.esbonio",
         "yzhang.markdown-all-in-one",
-        "lextudio.restructuredtext",        
-        // Utils
+        "lextudio.restructuredtext",
         "mechatroner.rainbow-csv",
         "pkief.material-icon-theme",
         "esbenp.prettier-vscode",
         "sanaajani.taskrunnercode",
         "streetsidesoftware.code-spell-checker",
         "igordvlpr.open-in-browser",
-        // AI
         "codeium.codeium",
         "github.copilot",
         "github.copilot-chat",
