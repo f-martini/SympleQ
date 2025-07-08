@@ -214,13 +214,13 @@ class PauliString:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> PauliString:
+    def __getitem__(self, key: slice | np.ndarray | list) -> PauliString:
         ...
 
-    def __getitem__(self, key: int | slice) -> 'PauliString | Pauli':
+    def __getitem__(self, key: int | slice | np.ndarray | list) -> 'PauliString | Pauli':
         if isinstance(key, int):
             return self.get_paulis()[key]
-        elif isinstance(key, slice):
+        elif isinstance(key, slice) or isinstance(key, np.ndarray) or isinstance(key, list):
             return PauliString(x_exp=self.x_exp[key], z_exp=self.z_exp[key], dimensions=self.dimensions[key])
         else:
             raise ValueError(f"Cannot get item with key {key}. Key must be an int or a slice.")

@@ -27,7 +27,7 @@ class PauliSum:
         TODO: Remove self.xz_mat - should be in a utils module
         TODO: Add stack method to concatenate additional strings or sums (could use utils concatenate)
 
-        Constructor for SymplecticPauli class.
+        Constructor for PauliSum class.
 
         Parameters
         ----------
@@ -74,7 +74,7 @@ class PauliSum:
 
     def _set_exponents(self):
         x_exp = np.zeros((len(self.pauli_strings), len(self.dimensions)))  # we can always index [pauli #, qudit #]
-        z_exp = np.zeros((len(self.pauli_strings), len(self.dimensions)))  # we can always index [pauli #, qudit #]
+        z_exp = np.zeros((len(self.pauli_strings), len(self.dimensions)))
 
         for i, p in enumerate(self.pauli_strings):
             x_exp[i, :] = p.x_exp
@@ -192,7 +192,7 @@ class PauliSum:
         ...
 
     @overload
-    def __getitem__(self, key: slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] | tuple[slice, list[int]] | tuple[slice, np.ndarray]) -> 'PauliSum':
+    def __getitem__(self, key: slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] | tuple[slice, list[int]] | tuple[slice, np.ndarray] | tuple[list[int], int] | tuple[np.ndarray, int] | tuple[np.ndarray, slice] | tuple[np.ndarray, list[int]] | tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, list[int]] | tuple[list[int], list[int]] | tuple[list[int], np.ndarray]) -> 'PauliSum':
         ...
 
     def __getitem__(self, key):
@@ -222,8 +222,8 @@ class PauliSum:
                     return PauliSum(pauli_strings, self.weights[key[0]], self.phases[key[0]], self.dimensions[key[1]], False)
             if isinstance(key[0], list) or isinstance(key[0], np.ndarray):
                 if isinstance(key[1], int):
-                    return self.get_subspace(key[0], [key[1]])
-                return self.get_subspace(key[0], key[1])
+                    return self.get_subspace([key[1]], key[0])
+                return self.get_subspace(key[1], key[0])
         else:
             raise TypeError(f"Key must be int or slice, not {type(key)}")
 

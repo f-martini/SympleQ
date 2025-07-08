@@ -18,13 +18,15 @@ class TestGates():
 
     def random_pauli_sum(self, dim, n_paulis=10):
         # Generates a random PauliSum with n_paulis random PauliStrings of dimension dim
+        #
         ps_list = []
+        element_list = [(0, 0, 0, 0)]  # to keep track of already generated PauliStrings. Avoids identity and duplicates
         for _ in range(n_paulis):
-            r1 = np.random.randint(0, dim)
-            r2 = np.random.randint(0, dim)
-            s1 = np.random.randint(0, dim)
-            s2 = np.random.randint(0, dim)
-            ps_list.append(PauliString.from_string(f'x{r1}z{s1} x{r2}z{s2}', dimensions=[dim, dim]))
+            ps, r1, r2, s1, s2 = self.random_pauli_string(dim)
+            element_list.append((r1, r2, s1, s2))
+            while (r1, r2, s1, s2) in element_list:
+                ps, r1, r2, s1, s2 = self.random_pauli_string(dim)
+            ps_list.append(ps)
         return PauliSum(ps_list, dimensions=[dim, dim], standardise=True)
 
     def random_pauli_string(self, dim):
@@ -135,7 +137,7 @@ class TestGates():
 
             for i in range(100):
                 input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
-                output_str_correct = f"x{(-s1)%d}z{r1} x{r2}z{s2}"
+                output_str_correct = f"x{(-s1) % d}z{r1} x{r2}z{s2}"
 
                 output_ps = gate.act(input_ps)
                 assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in Hadamard gate 0'
@@ -143,7 +145,7 @@ class TestGates():
             gate = Hadamard(1, d, inverse=True)  # Hadamard on qudit 1
             for i in range(100):
                 input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
-                output_str_correct = f"x{r1}z{s1} x{(-s2)%d}z{r2}"
+                output_str_correct = f"x{r1}z{s1} x{(-s2) % d}z{r2}"
 
                 output_ps = gate.act(input_ps)
                 assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in Hadamard gate 1'
@@ -156,7 +158,7 @@ class TestGates():
                 ps_phase_out_correct = []
                 for j in range(10):
                     input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
-                    output_str_correct = f"x{(-s1)%d}z{r1} x{r2}z{s2}"
+                    output_str_correct = f"x{(-s1) % d}z{r1} x{r2}z{s2}"
 
                     ps_list_in.append(input_ps)
                     ps_list_out_correct.append(PauliString.from_string(output_str_correct, dimensions=[d, d]))
@@ -223,7 +225,6 @@ class TestGates():
     #                 output_ps = gate.act(input_ps)
     #                 assert output_ps == target_ps, 'Error in Arbitrary gate: \n' + input_ps.__str__() + '\n' + output_ps.__str__() + '\n' + target_ps.__str__()
 
-
     def test_group_homomorphism(self):
         # Tests all gates and all combinations of two pauli strings for the group homomorphism property:
         # gate.act(p1) * gate.act(p2) == gate.act(p1 * p2)
@@ -269,114 +270,12 @@ class TestGates():
 
 if __name__ == "__main__":
 
-    # dim = 2
-    # phase_mod = 2 * dim
-    # gate = SWAP(0, 1, dim)  # SUM(0, 1, dim)  #
-    # i = 0
-    # for x0 in range(dim):
-    #     for z0 in range(dim):
-    #         for x1 in range(dim):
-    #             for z1 in range(dim):
-    #                 for x0p in range(dim):
-    #                     for z0p in range(dim):
-    #                         for x1p in range(dim):
-    #                             for z1p in range(dim):
-
-    #                                 i += 1
-    #                                 p1 = PauliString.from_string(f'x{x0}z{z0} x{x1}z{z1}', dimensions=[dim, dim])
-    #                                 p2 = PauliString.from_string(f'x{x0p}z{z0p} x{x1p}z{z1p}', dimensions=[dim, dim])
-
-    #                                 p3 = p1 * p2
-
-    #                                 C = gate.symplectic
-
-    #                                 nq = 2
-    #                                 U = np.zeros((2 * nq, 2 * nq), dtype=int)
-    #                                 U[nq:, :nq] = np.eye(nq, dtype=int)
-
-    #                                 a1 = p1.symplectic()
-    #                                 a2 = p2.symplectic()
-    #                                 a3 = p3.symplectic()
-
-    #                                 multiplicative_phase = (2 * (C @ a1) @ U @ (C @ a2)) % phase_mod
-    #                                 p3_phase = (2 * a1 @ U @  a2) % phase_mod
-
-    #                                 # check actions of gates on symplectic
-    #                                 assert np.all(C @ a1 % dim == gate.act(p1).symplectic())
-    #                                 assert np.all(C @ a2 % dim == gate.act(p2).symplectic())
-    #                                 assert np.all(C @ a3 % dim == gate.act(p3).symplectic())
-    #                                 assert np.all((gate.act(p1) * gate.act(p2)).symplectic() == gate.act(p3).symplectic())
-    #                                 assert np.all((C @ a1 + C @ a2) % dim == C @ a3 % dim)
-    #                                 assert np.all((C @ a1 + C @ a2) % dim == gate.act(p3).symplectic())
-
-    #                                 # check acquired phases
-
-    #                                 phase1 = - np.diag(C.T @ U @ C) @ a1  + 2 * a1 @ np.triu(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
-    #                                 phase2 = - np.diag(C.T @ U @ C) @ a2  + 2 * a2 @ np.triu(C.T @ U @ C) @ a2 - a2 @ np.diag(np.diag(C.T @ U @ C)) @ a2
-    #                                 phase3 = p3_phase - np.diag(C.T @ U @ C) @ a3  # + 2 * a3 @ np.triu(C.T @ U @ C) @ a3 - a3 @ np.diag(np.diag(C.T @ U @ C)) @ a3
-    #                                 # phase1 += 0 * gate.phase_function(p1)
-    #                                 # phase2 += 0 * gate.phase_function(p2)
-    #                                 # phase3 += 0 * gate.phase_function(p3)
-
-    #                                 # print(i, phase1, phase2, multiplicative_phase, phase3)
-
-    #                                 # print(gate.phase_function(p1) + gate.phase_function(p2), gate.phase_function(p3))
-    #                                 assert p3_phase == multiplicative_phase
-    #                                 assert ((phase1 + phase2) + multiplicative_phase) % phase_mod == phase3 % phase_mod, (p1.__str__(), p2.__str__(), p3.__str__())
-    # print('Done')
-
-    # dim = 2
-    # phase_mod = 2 * dim
-    # gate = Hadamard(0, dim)
-    # i = 0
-    # for x0 in range(dim):
-    #     for z0 in range(dim):
-    #         for x1 in range(dim):
-    #             for z1 in range(dim):
-
-    #                 i += 1
-    #                 p1 = PauliString([x0], [z0], dimensions=[dim])
-    #                 p2 = PauliString([x0], [z0], dimensions=[dim])
-
-    #                 p3 = p1 * p2
-
-    #                 C = gate.symplectic
-    #                 h = gate.phase_vector
-
-    #                 nq = 1
-    #                 U = np.zeros((2 * nq, 2 * nq), dtype=int)
-    #                 U[nq:, :nq] = np.eye(nq, dtype=int)
-
-    #                 a1 = p1.symplectic()
-    #                 a2 = p2.symplectic()
-    #                 a3 = p3.symplectic()
-
-    #                 multiplicative_phase = (2 * (C @ a1).T @ U @ (C @ a2)) % phase_mod
-    #                 p3_phase = (2 * a1.T @ U @  a2) % phase_mod
-
-    #                 # check actions of gates on symplectic
-    #                 # print(C @ a1 % dim, gate.act(p1).symplectic())
-    #                 assert np.all(C @ a1 % dim == gate.act(p1).symplectic()), (C @ a1 % dim, gate.act(p1).symplectic())
-    #                 assert np.all(C @ a2 % dim == gate.act(p2).symplectic()), (p2.__str__(), (C @ a2) % dim, gate.act(p2).symplectic())
-    #                 assert np.all(C @ a3 % dim == gate.act(p3).symplectic()), (p3, a3, gate.act(p3).symplectic())
-    #                 assert np.all((gate.act(p1) * gate.act(p2)).symplectic() == gate.act(p3).symplectic())
-    #                 assert np.all((C @ a1 + C @ a2) % dim == C @ a3 % dim)
-    #                 assert np.all((C @ a1 + C @ a2) % dim == gate.act(p3).symplectic())
-
-    #                 phase1 = np.dot(h, a1) - np.diag(C.T @ U @ C) @ a1 + 2 * a1 @ np.triu(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
-    #                 phase2 = np.dot(h, a2) - np.diag(C.T @ U @ C) @ a2 + 2 * a2 @ np.triu(C.T @ U @ C) @ a2 - a2 @ np.diag(np.diag(C.T @ U @ C)) @ a2
-    #                 phase3 = np.dot(h, a3) + p3_phase - np.diag(C.T @ U @ C) @ a3 + 2 * a3 @ np.triu(C.T @ U @ C) @ a3 - a3 @ np.diag(np.diag(C.T @ U @ C)) @ a3
-
-    #                 print(i, phase1, phase2, multiplicative_phase, p3_phase, phase3)
-    #                 assert ((phase1 + phase2) + multiplicative_phase) % phase_mod == phase3 % phase_mod, (p1.__str__(), p2.__str__(), p3.__str__())
-
-
-    # print('Done')
     tst = TestGates()
     d = 2
     input_ps = tst.random_pauli_sum(d, n_paulis=4)
 
     for i in range(100):
+
         target_ps = tst.random_pauli_sum(d, n_paulis=4)
         if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()) and input_ps != target_ps:
             gate = ArbitraryGate('ArbGate', input_ps, target_ps)

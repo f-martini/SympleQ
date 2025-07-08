@@ -54,7 +54,7 @@ class TestSymplectic:
         assert p1 * p1 == Pauli.from_string('x2z0', dimension=dims)
         assert p1 * p2 * p3 == Pauli.from_string('x2z2', dimension=dims)
 
-    def test_paulistring_construction(self):
+    def test_pauli_string_construction(self):
         dims = [3, 3]
         x1x1 = PauliString.from_string('x1z0 x1z0', dimensions=dims)
         x1x1_2 = PauliString([1, 1], [0, 0], dims)
@@ -112,17 +112,21 @@ class TestSymplectic:
         assert left == right
 
     def test_pauli_sum_indexing(self):
-        dims = [3, 3]
-        ps = PauliSum(['x2z0 x2z0', 'x2z0 x2z0', 'x2z0 x2z1', 'x2z0 x2z1'],
+        dims = [3, 3, 3]
+        ps = PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z0 x0z0', 'x2z0 x2z1 x2z0', 'x2z0 x2z1 x1z1'],
                       weights=[1, 1, 0.5, 0.5],
                       phases=[0, 0, 1, 1],
                       dimensions=dims, standardise=False)
 
-        assert ps[0] == PauliString.from_string('x2z0 x2z0', dimensions=dims)
-        assert ps[1] == PauliString.from_string('x2z0 x2z0', dimensions=dims)
-        assert ps[2] == PauliString.from_string('x2z0 x2z1', dimensions=dims)
-        assert ps[3] == PauliString.from_string('x2z0 x2z1', dimensions=dims)
-        assert ps[0:2] == PauliSum(['x2z0 x2z0', 'x2z0 x2z0'], dimensions=dims, standardise=False)
-        assert ps[[0, 3]] == PauliSum(['x2z0 x2z0', 'x2z0 x2z1'], weights=[1, 0.5], phases=[0, 1], dimensions=dims, standardise=False)
-
+        assert ps[0] == PauliString.from_string('x2z0 x2z0 x1z1', dimensions=dims)
+        assert ps[1] == PauliString.from_string('x2z0 x2z0 x0z0', dimensions=dims)
+        assert ps[2] == PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)
+        assert ps[3] == PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)
+        assert ps[0:2] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z0 x0z0'], dimensions=dims, standardise=False)
+        assert ps[[0, 3]] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z1 x1z1'], weights=[1, 0.5], phases=[0, 1], dimensions=dims,
+                                      standardise=False)
+        assert ps[[0, 2], 1] == PauliSum(['x2z0', 'x2z1'], weights=[1, 0.5], phases=[0, 1], dimensions=[3],
+                                         standardise=False)
+        assert ps[[0, 2], [0, 2]] == PauliSum(['x2z0 x1z1', 'x2z0 x2z0'], weights=[1, 0.5], phases=[0, 1], dimensions=[3, 3],
+                                              standardise=False)
 
