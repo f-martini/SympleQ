@@ -59,6 +59,21 @@ class Pauli:
 
     @classmethod
     def from_string(cls, pauli_str: str, dimension: int = 2) -> Pauli:
+        """
+        Create a Pauli object from a string representation.
+
+        Args:
+            pauli_str (str): String representation of the Pauli operator,
+                expected to contain the x and z exponents at specific positions, e.g. "x1z0".
+            dimension (int, optional): The dimension of the Pauli operator.
+                Defaults to 2.
+
+        Returns:
+            Pauli: An instance of the Pauli class constructed from the given string.
+
+        Raises:
+            ValueError: If the input string does not have the expected format or cannot be parsed.
+        """
         return cls(x_exp=int(pauli_str[1]), z_exp=int(pauli_str[3]), dimension=dimension)
 
     def __mul__(self, A: str | Pauli) -> Pauli:
