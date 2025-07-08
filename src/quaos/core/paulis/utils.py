@@ -1,4 +1,3 @@
-
 from typing import Any
 import numpy as np
 import re
@@ -237,21 +236,15 @@ def find_symplectic_maps(H, H_prime, d, max_solutions=1000):
     H M^T = H' (mod d), where H and H' are given matrices, M^T is the transpose
     of M, and d is the modulus. Only symplectic matrices M are returned.
 
-    Parameters:
-    H : np.ndarray
-        The left-hand side matrix in the equation, with shape (n, k).
-    H_prime : np.ndarray
-        The right-hand side matrix in the equation, with the same shape as H.
-    d : int
-        The modulus for the equation.
-    max_solutions : int, optional
-        The maximum number of solutions to return. Default is 1000.
+    Args:
+        H (np.ndarray): The left-hand side matrix in the equation, with shape (n, k).
+        H_prime (np.ndarray): The right-hand side matrix in the equation, with the same shape as H.
+        d (int): The modulus for the equation.
+        max_solutions (int, optional): The maximum number of solutions to return. Default is 1000.
 
     Returns:
-    List[np.ndarray]
-        A list of symplectic matrices M that satisfy the equation.
+        List[np.ndarray]: A list of symplectic matrices M that satisfy the equation.
     """
-
     n, k = H.shape
     assert H_prime.shape == (n, k)
     num_vars = k * k  # because M is k x k, and we are solving for M^T
@@ -259,12 +252,12 @@ def find_symplectic_maps(H, H_prime, d, max_solutions=1000):
     A = np.zeros((n * k, num_vars), dtype=int)
     b = H_prime.flatten()
 
-    for i in range(n):       # row index of H, H'
-        for j in range(k):   # column index of H'
-            row_idx = i * k + j
-            for l in range(k):  # column index of H, row index of M^T
-                col_idx = j * k + l  # since M^T[j, l] = M[l, j]
-                A[row_idx, col_idx] = H[i, l]
+    for H_row in range(n):       # row index of H, H'
+        for H_col in range(k):   # column index of H'
+            row_idx = H_row * k + H_col
+            for idx in range(k):  # column index of H, row index of M^T
+                col_idx = H_col * k + idx  # since M^T[H_col, idx] = M[idx, H_col]
+                A[row_idx, col_idx] = H[H_row, idx]
 
     raw_solutions = solve_mod_d(A, b, d, max_solutions)
     Ms = [sol.reshape((k, k)).T for sol in raw_solutions]  # Transpose back to M

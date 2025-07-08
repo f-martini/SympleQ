@@ -1,6 +1,8 @@
 {
+  "editor.renderWhitespace": "all",
   "jupyter.notebookFileRoot": "${workspaceFolder}",
   "task.autoDetect": "off",
+  "restructuredtext.linter.disabledLinters": ["doc8", "rstcheck"],
   "flake8.severity": {
     "C": "Information",
     "E": "Warning",
@@ -24,18 +26,18 @@
   "autopep8.args": [
     "--config=${workspaceFolder}/scripts/configs/setup.cfg"
   ],
-"flake8.args": [
+  "flake8.args": [
     "--config=${workspaceFolder}/scripts/configs/setup.cfg",
     "--ignore=W293, E501"
-],
-"python.analysis.typeCheckingMode": "basic",
-"python.testing.pytestArgs": [
-    "tests"
-],
-"python.testing.unittestEnabled": false,
-"python.testing.pytestEnabled": true,
-"editor.rulers": [
-    120,
   ],
-"files.trimTrailingWhitespace": true
+  "python.analysis.typeCheckingMode": "basic",
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "editor.rulers": [
+    120
+  ],
+  "files.trimTrailingWhitespace": true,
 }

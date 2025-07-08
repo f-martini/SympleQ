@@ -27,5 +27,5 @@ def pauli_string_to_quspin(pauli_string):
 
     where 'op' is 'xx', 'yy', 'zz', 'x', 'y', 'z' or 'I' or even larger n-body terms like 'xyzz...zzy...'
     """
-    L = pauli_string.n_qudits()
+    _ = pauli_string.n_qudits()
     raise NotImplementedError()

@@ -1,5 +1,5 @@
 import numpy as np
-from quaos.paulis import PauliSum
+from quaos.core.paulis import PauliSum
 
 
 def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):

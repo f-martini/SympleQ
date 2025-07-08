@@ -1,6 +1,6 @@
-from quaos.circuits import SUM, SWAP, Hadamard, PHASE, ArbitraryGate
-from quaos.circuits.utils import is_symplectic
-from quaos.paulis import PauliSum, PauliString
+from quaos.core.circuits import SUM, SWAP, Hadamard, PHASE
+from quaos.core.circuits.utils import is_symplectic
+from quaos.core.paulis import PauliSum, PauliString
 import numpy as np
 
 
