@@ -18,7 +18,7 @@ class PauliSum:
     """
     def __init__(self,
                  pauli_list: PauliStringDerivedType,
-                 weights: list[float | complex] | np.ndarray | float | complex | None = None,
+                 weights: list[float | complex] | np.ndarray | None = None,
                  phases: list[float] | np.ndarray | None = None,
                  dimensions: list[int] | np.ndarray | None = None,
                  standardise: bool = True):
@@ -188,19 +188,24 @@ class PauliSum:
         ...
 
     @overload
-    def __getitem__(self, key: int | tuple[int, slice]) -> PauliString:
+    def __getitem__(self, key: int | tuple[int, slice] | tuple[int, list[int]]) -> PauliString:
         ...
 
     @overload
-    def __getitem__(self, key: slice | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int]) -> 'PauliSum':
+    def __getitem__(self, key: slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] | tuple[slice, list[int]] | tuple[slice, np.ndarray]) -> 'PauliSum':
         ...
 
     def __getitem__(self, key):
-        # TODO: enable list for either input
+        # TODO: tidy
         if isinstance(key, int):
             return self.pauli_strings[key]
         elif isinstance(key, slice):
             return PauliSum(self.pauli_strings[key], self.weights[key], self.phases[key], self.dimensions, False)
+        elif isinstance(key, np.ndarray) or isinstance(key, list):
+            new_pauli_strings = [self.pauli_strings[i] for i in key]
+            new_weights = np.array([self.weights[i] for i in key])
+            new_phases = np.array([self.phases[i] for i in key])
+            return PauliSum(new_pauli_strings, new_weights, new_phases, self.dimensions, False)
         elif isinstance(key, tuple):
             if len(key) != 2:
                 raise ValueError("Tuple key must be of length 2")
@@ -213,6 +218,12 @@ class PauliSum:
                     return PauliSum(pauli_strings, self.weights[key[0]], self.phases[key[0]], np.asarray([self.dimensions[key[1]]]), False)
                 elif isinstance(key[1], slice):
                     return PauliSum(pauli_strings, self.weights[key[0]], self.phases[key[0]], self.dimensions[key[1]], False)
+                elif isinstance(key[1], list) or isinstance(key[1], np.ndarray):
+                    return PauliSum(pauli_strings, self.weights[key[0]], self.phases[key[0]], self.dimensions[key[1]], False)
+            if isinstance(key[0], list) or isinstance(key[0], np.ndarray):
+                if isinstance(key[1], int):
+                    return self.get_subspace(key[0], [key[1]])
+                return self.get_subspace(key[0], key[1])
         else:
             raise TypeError(f"Key must be int or slice, not {type(key)}")
 
@@ -517,7 +528,7 @@ class PauliSum:
             p_string += f'{self.weights[i]}' + ' ' * n_spaces + '|' + qudit_string + f'| {self.phases[i]} \n'
         return p_string
 
-    def get_subspace(self, qudit_indices: list[int], pauli_indices: list | None = None):
+    def get_subspace(self, qudit_indices: list[int] | np.ndarray, pauli_indices: list[int] | np.ndarray | None = None):
         """
         Get the subspace of the PauliSum corresponding to the qudit indices for the given Paulis
         Not strictly a subspace if we restrict the Pauli indices, so we could rename but this is still quite clear
