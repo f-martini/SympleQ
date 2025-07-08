@@ -1,6 +1,4 @@
-import sys
-sys.path.append("./")
-from quaos.circuits import Gate, SUM, SWAP, Hadamard, PHASE, CNOT, ArbitraryGate
+from quaos.circuits import SUM, SWAP, Hadamard, PHASE, ArbitraryGate
 from quaos.circuits.utils import is_symplectic
 from quaos.paulis import PauliSum, PauliString
 import numpy as np
