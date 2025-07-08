@@ -1,6 +1,6 @@
 import sys
 sys.path.append("./")
-from quaos.circuits import Gate, SUM, SWAP, Hadamard, PHASE, CNOT
+from quaos.circuits import Gate, SUM, SWAP, Hadamard, PHASE, CNOT, ArbitraryGate
 from quaos.circuits.utils import is_symplectic
 from quaos.paulis import PauliSum, PauliString
 import numpy as np
@@ -17,6 +17,25 @@ class TestGates():
         ps5 = PauliString.from_string('x1z1 x0z0', dimensions=[dim, dim])
         p_sum = PauliSum(['x1z0 x0z0 x1z1', 'x0z0 x0z1 x1z0', 'x1z1 x1z0 x0z0'], dimensions=[dim, dim, dim])
         return ps1, ps2, ps3, ps4, ps5, p_sum
+
+    def random_pauli_sum(self, dim, n_paulis=10):
+        # Generates a random PauliSum with n_paulis random PauliStrings of dimension dim
+        ps_list = []
+        for _ in range(n_paulis):
+            r1 = np.random.randint(0, dim)
+            r2 = np.random.randint(0, dim)
+            s1 = np.random.randint(0, dim)
+            s2 = np.random.randint(0, dim)
+            ps_list.append(PauliString.from_string(f'x{r1}z{s1} x{r2}z{s2}', dimensions=[dim, dim]))
+        return PauliSum(ps_list, dimensions=[dim, dim], standardise=True)
+
+    def random_pauli_string(self, dim):
+        # Generates a random PauliString of dimension dim
+        r1 = np.random.randint(0, dim)
+        r2 = np.random.randint(0, dim)
+        s1 = np.random.randint(0, dim)
+        s2 = np.random.randint(0, dim)
+        return PauliString.from_string(f'x{r1}z{s1} x{r2}z{s2}', dimensions=[dim, dim]), r1, r2, s1, s2
 
     def test_SUM(self):
         # acts the SUM gate on a bunch of random pauli strings and pauli sums
@@ -68,7 +87,7 @@ class TestGates():
         # U[2:, :2] = np.eye(2, dtype=int)
         for d in [2, 5, 11]:
             # test pauli_strings
-            for i in range(10):
+            for i in range(100):
                 r1 = np.random.randint(0, d)
                 r2 = np.random.randint(0, d)
                 s1 = np.random.randint(0, d)
@@ -82,7 +101,7 @@ class TestGates():
                 assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in SUM gate'
 
             # test pauli_sums
-            for i in range(10):
+            for i in range(100):
                 ps_list_in = []
                 ps_list_out_correct = []
                 ps_phase_out_correct = []
@@ -110,18 +129,102 @@ class TestGates():
                 output_psum = SWAP(0, 1, d).act(input_psum)
                 assert output_psum == output_psum_correct, 'Error in SUM gate: \n' + input_psum.__str__() + '\n' + output_psum.__str__() + '\n' + output_psum_correct.__str__()
 
-
-
-
     def test_Hadamard(self):
-        pass
+        # TODO: Be certain of inverse convention - ultimately arbitrary but should match prevalent literature
+        for d in [2, 5, 11]:
+            # test pauli_strings
+            gate = Hadamard(0, d, inverse=True)  # Hadamard on qubit 0
 
+            for i in range(100):
+                input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
+                output_str_correct = f"x{(-s1)%d}z{r1} x{r2}z{s2}"
+
+                output_ps = gate.act(input_ps)
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in Hadamard gate 0'
+
+            gate = Hadamard(1, d, inverse=True)  # Hadamard on qudit 1
+            for i in range(100):
+                input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
+                output_str_correct = f"x{r1}z{s1} x{(-s2)%d}z{r2}"
+
+                output_ps = gate.act(input_ps)
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in Hadamard gate 1'
+            # test pauli_sums
+            gate = Hadamard(0, d, inverse=True)  # Hadamard on qubit 0
+
+            for i in range(100):
+                ps_list_in = []
+                ps_list_out_correct = []
+                ps_phase_out_correct = []
+                for j in range(10):
+                    input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
+                    output_str_correct = f"x{(-s1)%d}z{r1} x{r2}z{s2}"
+
+                    ps_list_in.append(input_ps)
+                    ps_list_out_correct.append(PauliString.from_string(output_str_correct, dimensions=[d, d]))
+                    ps_phase_out_correct.append(-2 * r1 * s1)
+
+                input_psum = PauliSum(ps_list_in, dimensions=[d, d], standardise=False)
+                output_psum = gate.act(input_psum)
+                output_psum_correct = PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d], standardise=False)
+                assert output_psum == output_psum_correct, 'Error in Hadamard gate: \n' + input_psum.__str__() + '\n' + output_psum.__str__() + '\n' + output_psum_correct.__str__()
 
     def test_PHASE(self):
-        pass
+        # TODO: Better approach to phases here - is there another approach that we can test the first one with like Hadamard?
+        for d in [2, 5, 11]:
+            gate = PHASE(0, d)  # PHASE on qubit 0
 
-    def test_arbitrary_gate(self):
-        pass
+            for i in range(100):
+                input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
+                output_str_correct = f"x{r1}z{(r1 + s1) % d} x{r2}z{s2}"
+
+                output_ps = gate.act(input_ps)
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in Hadamard gate 0'
+
+            gate = PHASE(1, d)  # PHASE on qudit 1
+            for i in range(100):
+                input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
+                output_str_correct = f"x{r1}z{s1} x{r2}z{(r2 + s2) % d}"
+
+                output_ps = gate.act(input_ps)
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in Hadamard gate 1'
+            # test pauli_sums
+            gate = PHASE(0, d)  # PHASE on qubit 0
+            h = gate.phase_vector
+            C = gate.symplectic
+            for i in range(100):
+                ps_list_in = []
+                ps_list_out_correct = []
+                ps_phase_out_correct = []
+                for j in range(10):
+                    input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
+                    output_str_correct = f"x{r1}z{(r1 + s1) % d} x{r2}z{s2}"
+
+                    ps_list_in.append(input_ps)
+                    ps_list_out_correct.append(PauliString.from_string(output_str_correct, dimensions=[d, d]))
+                    a1 = np.array([r1, s1])
+                    U = np.zeros((len(input_ps.dimensions), len(input_ps.dimensions)), dtype=int)
+                    U[1, 0] = 1
+
+                    p = np.dot(h, a1) - np.diag(C.T @ U @ C) @ a1 + 2 * a1 @ np.triu(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
+                    ps_phase_out_correct.append(p)
+
+                input_psum = PauliSum(ps_list_in, dimensions=[d, d], standardise=False)
+                output_psum = gate.act(input_psum)
+                output_psum_correct = PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d], standardise=False)
+                assert output_psum == output_psum_correct, 'Error in Hadamard gate: \n' + input_psum.__str__() + '\n' + output_psum.__str__() + '\n' + output_psum_correct.__str__()
+
+    # def test_arbitrary_gate(self):
+
+    #     for d in [2, 5, 11]:
+    #         for i in range(1000):
+    #             input_ps = self.random_pauli_sum(d, n_paulis=2)
+    #             target_ps = self.random_pauli_sum(d, n_paulis=2)
+    #             if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()):
+    #                 gate = ArbitraryGate('ArbGate', input_ps, target_ps)
+    #                 output_ps = gate.act(input_ps)
+    #                 assert output_ps == target_ps, 'Error in Arbitrary gate: \n' + input_ps.__str__() + '\n' + output_ps.__str__() + '\n' + target_ps.__str__()
+
 
     def test_group_homomorphism(self):
         # Tests all gates and all combinations of two pauli strings for the group homomorphism property:
@@ -143,10 +246,20 @@ class TestGates():
                                             i += 1
                                             p1 = PauliSum([f'x{x0}z{z0} x{x1}z{z1}'], dimensions=[2, 2])
                                             p2 = PauliSum([f'x{x0p}z{z0p} x{x1p}z{z1p}'], dimensions=[2, 2])
-                                            if p1 != p2:
-                                                err0 = 'In: \n' + p1.__str__() + '\n' + p2.__str__()
-                                                err = 'Out: \n' + (gate.act(p1) * gate.act(p2)).__str__() + '\n' + gate.act(p1 * p2).__str__()
-                                                assert gate.act(p1) * gate.act(p2) == gate.act(p1 * p2), err0 + err + '\n'
+                                            err0 = 'In: \n' + p1.__str__() + '\n' + p2.__str__()
+                                            err = 'Out: \n' + (gate.act(p1) * gate.act(p2)).__str__() + '\n' + gate.act(p1 * p2).__str__()
+                                            assert gate.act(p1) * gate.act(p2) == gate.act(p1 * p2), err0 + err + '\n'
+
+        for dim in [3, 5, 7, 15]:
+            gates = [SUM(0, 1, dim), SUM(1, 0, dim), SWAP(0, 1, dim), Hadamard(0, dim), Hadamard(1, dim), PHASE(0, dim), PHASE(1, dim)]
+            for gate in gates:
+
+                for _ in range(100):
+                    p1 = self.random_pauli_sum(dim, n_paulis=1)
+                    p2 = self.random_pauli_sum(dim, n_paulis=1)
+                    err0 = 'In: \n' + p1.__str__() + '\n' + p2.__str__()
+                    err = 'Out: \n' + (gate.act(p1) * gate.act(p2)).__str__() + '\n' + gate.act(p1 * p2).__str__()
+                    assert gate.act(p1) * gate.act(p2) == gate.act(p1 * p2), err0 + err + '\n'
 
     def test_is_symplectic(self):
 
@@ -259,16 +372,18 @@ if __name__ == "__main__":
     #                 print(i, phase1, phase2, multiplicative_phase, p3_phase, phase3)
     #                 assert ((phase1 + phase2) + multiplicative_phase) % phase_mod == phase3 % phase_mod, (p1.__str__(), p2.__str__(), p3.__str__())
 
-    p1 = PauliSum([PauliString([0, 0], [1, 0], dimensions=[2, 2])])
-    p2 = PauliSum([PauliString([1, 0], [0, 0], dimensions=[2, 2])])
-
-    p3 = p1 * p2
-    print(p1 * p2)
-    print(SUM(0, 1, 2).act(p1) * SUM(0, 1, 2).act(p2))
-    print(p3)
-    print(SUM(0, 1, 2).acquired_phase(p3[0]))
-    print(SUM(0, 1, 2).act(p3))
 
     # print('Done')
-    # c = TestGates()
-    # c.test_SWAP()
+    tst = TestGates()
+    d = 2
+    input_ps = tst.random_pauli_sum(d, n_paulis=4)
+
+    for i in range(100):
+        target_ps = tst.random_pauli_sum(d, n_paulis=4)
+        if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()) and input_ps != target_ps:
+            gate = ArbitraryGate('ArbGate', input_ps, target_ps)
+            output_ps = gate.act(input_ps)
+            print(target_ps)
+            print(output_ps)
+
+    print('done')
