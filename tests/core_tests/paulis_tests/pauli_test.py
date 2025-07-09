@@ -1,5 +1,7 @@
 import numpy as np
 from quaos.core.paulis import PauliSum, PauliString, Pauli, Xnd, Ynd, Znd, Id
+from sympy import primerange
+import random
 
 
 class TestSymplectic:
@@ -77,13 +79,18 @@ class TestSymplectic:
         assert psum == expected
 
     def test_phase_and_dot_product(self):
-        d = 7
+        # Get a random prime number between 2 and 100
+        d = random.choice(list(primerange(2, 100)))
         x = PauliString.from_string('x1z0', dimensions=[d])
         z = PauliString.from_string('x0z1', dimensions=[d])
 
-        assert x.acquired_phase(z) == 1.0
+        tmp = z.acquired_phase(x)
+        assert tmp == 2, tmp
 
-        dims = [3, 3]
+        tmp = x.acquired_phase(z)
+        assert tmp == 0, tmp
+
+        dims = [random.choice(list(primerange(2, 100))), random.choice(list(primerange(2, 100)))]
         x1x1 = PauliSum(PauliString.from_string('x1z0 x1z0', dimensions=dims))
         x1y1 = PauliSum(PauliString.from_string('x1z0 x1z1', dimensions=dims))
 
@@ -92,7 +99,7 @@ class TestSymplectic:
 
         s3 = PauliSum(['x2z0 x2z0', 'x2z0 x2z0', 'x2z0 x2z1', 'x2z0 x2z1'],
                       weights=[1, 1, 0.5, 0.5],
-                      phases=[0, 0, 1, 1],
+                      phases=[0, 0, 2, 2],
                       dimensions=dims, standardise=False)
 
         assert s1 * s2 == s3
