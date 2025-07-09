@@ -25,7 +25,6 @@ def bases_to_int(aa: list[int] | np.ndarray,
     """
     dims = np.flip(dims)
     aa = np.flip(aa)
-    print(aa, dims)
     a = aa[0] + sum([aa[i1] * np.prod(dims[:i1]) for i1 in range(1, len(dims))])
     dims = np.flip(dims)
     aa = np.flip(aa)
