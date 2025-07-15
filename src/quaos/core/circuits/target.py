@@ -1,8 +1,8 @@
 """Codes for finding target Paulis and gates which map a given Pauli to a target Pauli."""
-from quaos.paulis import PauliString, PauliSum
+from quaos.core.paulis import PauliString, PauliSum
 import numpy as np
 from collections import defaultdict
-from itertools import product
+from itertools import product, combinations
 from sympy import Matrix
 
 
@@ -183,84 +183,114 @@ def matrix_to_pauli_sum(matrix, weights, phases, dimensions):
     return PauliSum(pauli_strings, weights, phases, dimensions, standardise=False)
 
 
-
-def symplectic_inner_product(u, v):
-    """Compute symplectic inner product ⟨u, v⟩ over GF(2)."""
-    n = len(u) // 2
-    return (np.dot(u[:n], v[n:]) + np.dot(u[n:], v[:n])) % 2
+########## Symplectic Map Finding ##########
 
 
-def fftshift(x, axis=-1):
-    x = np.asarray(x)
-    n = x.shape[axis]
-    return np.roll(x, shift=n // 2, axis=axis)
+
+def is_symplectic(F):
+    """Check if F is symplectic over GF(2)."""
+    n = F.shape[0] // 2
+    Omega = np.block([
+        [np.zeros((n, n), dtype=int), np.eye(n, dtype=int)],
+        [np.eye(n, n, dtype=int), np.zeros((n, n), dtype=int)]
+    ])
+    return np.array_equal((F.T @ Omega @ F) % 2, Omega)
 
 
-def gf2_solve(A, b):
-    """Solve Ax = b over GF(2)."""
-    A = A.copy() % 2
-    b = b.copy() % 2
-    m, n = A.shape
-    aug = np.hstack([A, b.reshape(-1, 1)]).astype(np.uint8)
+def random_symplectic(n, seed=None):
+    """Generate a random symplectic matrix over GF(2) of size 2n x 2n."""
+    if seed is not None:
+        np.random.seed(seed)
 
-    row = 0
-    for col in range(n):
-        pivot = None
-        for r in range(row, m):
-            if aug[r, col] == 1:
-                pivot = r
-                break
-        if pivot is None:
+    while True:
+        A = np.random.randint(0, 2, size=(n, n))
+        if np.linalg.matrix_rank(A) < n:
             continue
-        aug[[row, pivot]] = aug[[pivot, row]]
-        for r in range(m):
-            if r != row and aug[r, col]:
-                aug[r] ^= aug[row]
-        row += 1
 
-    x = np.zeros(n, dtype=np.uint8)
-    for i in range(min(m, n)):
-        pivot_cols = np.flatnonzero(aug[i, :n])
-        if len(pivot_cols) == 1:
-            x[pivot_cols[0]] = aug[i, -1]
-    return x
+        B = np.random.randint(0, 2, size=(n, n))
+        B = (B + B.T) % 2  # Force symmetry
+
+        C = np.random.randint(0, 2, size=(n, n))
+        try:
+            AinvT = np.linalg.inv(A.T) % 2
+        except np.linalg.LinAlgError:
+            continue
+
+        D = (AinvT @ (C.T @ A + B)) % 2
+        F = np.block([[A, B], [C, D]]) % 2
+
+        if is_symplectic(F):
+            return F.astype(int)
+
+
+def symplectic_inner_product(u, v, d=2):
+    """Symplectic inner product over Z_d."""
+    n = len(u) // 2
+    u = np.array(u) % d
+    v = np.array(v) % d
+    top = np.dot(u[:n], v[n:]) % d
+    bottom = np.dot(u[n:], v[:n]) % d
+    return (top - bottom) % d
+
+def gram_schmidt_symplectic(B, d=2):
+    """
+    Given linearly independent rows B (k x 2n), complete to full symplectic basis (2n x 2n).
+    """
+    B = np.array(B, dtype=int) % d
+    k, dim = B.shape
+    n = dim // 2
+    assert dim % 2 == 0, "Input must have even number of columns"
+
+    basis = list(B)
+    symp_duals = []
+
+    # Construct symplectic duals for each vector in B
+    for i, b in enumerate(B):
+        # Find w such that <b, w> = 1 and <b_j, w> = 0 for all j < i
+        for trial in range(1 << dim):
+            w = np.array([int(x) for x in format(trial, f'0{dim}b')], dtype=int)
+            if symplectic_inner_product(b, w, d) != 1:
+                continue
+            if all(symplectic_inner_product(basis[j], w, d) == 0 for j in range(i)):
+                symp_duals.append(w)
+                break
+        else:
+            raise ValueError("Could not find symplectic dual for vector")
+
+    basis.extend(symp_duals)
+
+    # Add arbitrary symplectic pairs to fill remaining dimension
+    while len(basis) < dim:
+        for trial in range(1 << dim):
+            v = np.array([int(x) for x in format(trial, f'0{dim}b')], dtype=int)
+            if all(symplectic_inner_product(v, b, d) == 0 for b in basis):
+                # Find a dual for v
+                for dual_trial in range(1 << dim):
+                    w = np.array([int(x) for x in format(dual_trial, f'0{dim}b')], dtype=int)
+                    if symplectic_inner_product(v, w, d) == 1 and all(
+                        symplectic_inner_product(w, b, d) == 0 for b in basis
+                    ):
+                        basis.append(v)
+                        basis.append(w)
+                        break
+                break
+        else:
+            raise ValueError("Could not complete basis")
+
+    return np.array(basis[:dim]) % d
 
 
 def find_symplectic_map(H, H_prime):
-    """
-    Find symplectic matrix C such that H_prime = C @ H over GF(2).
-    """
-    m, dim = H.shape
-    n = dim // 2
-    C = np.eye(2 * n, dtype=int)
+    """Recover symplectic matrix C from H, H_prime."""
+    H = np.array(H, dtype=int) % 2
+    H_prime = np.array(H_prime, dtype=int) % 2
 
-    def Z_h(h):
-        """Right-multiplied symplectic transvection."""
-        h = h % 2
-        outer = np.outer(h, fftshift(h)) % 2
-        return (np.eye(2 * n, dtype=int) + outer) % 2
+    F1 = gram_schmidt_symplectic(H)
+    F2 = gram_schmidt_symplectic(H_prime)
 
-    def find_w(x, y, Ys):
-        A = fftshift(np.vstack([x, y, Ys]), axis=1)
-        b = np.concatenate([[1], [1], [symplectic_inner_product(y_j, y) for y_j in Ys]])
-        return gf2_solve(A, b)
+    F1_inv = Matrix(F1.tolist()).inv_mod(2)
+    C = (F2 @ np.array(F1_inv.tolist())) % 2
 
-    for i in range(m):
-        x_i = H[i]
-        y_i = H_prime[i]
-        x_it = (C @ x_i) % 2
-
-        if np.array_equal(x_it, y_i):
-            continue
-        if symplectic_inner_product(x_it, y_i) == 1:
-            h_i = (x_it + y_i) % 2
-            C = (Z_h(h_i) @ C) % 2
-        else:
-            Ys_prev = H_prime[:i]
-            w_i = find_w(x_it, y_i, Ys_prev)
-            h_i1 = (w_i + y_i) % 2
-            h_i2 = (x_it + w_i) % 2
-            C = (Z_h(h_i1) @ C) % 2
-            C = (Z_h(h_i2) @ C) % 2
-
+    assert is_symplectic(C), f"{H}\n{H_prime}\n{C}\n{F1}\n{F2}\n{F1_inv}"
     return C
+

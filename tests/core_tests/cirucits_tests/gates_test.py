@@ -1,4 +1,4 @@
-from quaos.core.circuits import SUM, SWAP, Hadamard, PHASE
+from quaos.core.circuits import SUM, SWAP, Hadamard, PHASE, ArbitraryGate
 from quaos.core.circuits.utils import is_symplectic
 from quaos.core.paulis import PauliSum, PauliString
 import numpy as np
@@ -25,7 +25,6 @@ class TestGates():
             ps, r1, r2, s1, s2 = self.random_pauli_string(dim)
             element_list.append((r1, r2, s1, s2))
             while (r1, r2, s1, s2) in element_list:
-                print('Duplicate PauliString found, generating new one...')
                 ps, r1, r2, s1, s2 = self.random_pauli_string(dim)
             ps_list.append(ps)
         return PauliSum(ps_list, dimensions=[dim, dim], standardise=True)
@@ -271,21 +270,55 @@ class TestGates():
 
 if __name__ == "__main__":
 
+    def random_symplectic(n, seed=None):
+        """Generate a random symplectic matrix over GF(2) of size 2n x 2n."""
+        if seed is not None:
+            np.random.seed(seed)
+
+        while True:
+            A = np.random.randint(0, 2, size=(n, n))
+            if np.linalg.matrix_rank(A) < n:
+                continue
+
+            B = np.random.randint(0, 2, size=(n, n))
+            B = (B + B.T) % 2  # Force symmetry
+
+            C = np.random.randint(0, 2, size=(n, n))
+            try:
+                AinvT = np.linalg.inv(A.T) % 2
+            except np.linalg.LinAlgError:
+                continue
+
+            D = (AinvT @ (C.T @ A + B)) % 2
+            F = np.block([[A, B], [C, D]]) % 2
+
+            if is_symplectic(F):
+                return F.astype(int)
+
     tst = TestGates()
     d = 2
-    input_ps = tst.random_pauli_sum(d, n_paulis=6)
+    input_ps = tst.random_pauli_sum(d, n_paulis=4)
+    successes = 0
+    for i in range(10000):
 
-    # for i in range(100):
+        target_ps = tst.random_pauli_sum(d, n_paulis=4)
+        if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()) and input_ps != target_ps:
+            gate = ArbitraryGate('ArbGate', input_ps, target_ps)
+            output_ps = gate.act(input_ps)
+            output_ps.phases = target_ps.phases  # we dont compare about these for now
+            target_ps.standardise()
+            output_ps.standardise()
 
-    #     target_ps = tst.random_pauli_sum(d, n_paulis=6)
-    #     if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()) and input_ps != target_ps:
-    #         gate = ArbitraryGate('ArbGate', input_ps, target_ps)
-    #         output_ps = gate.act(input_ps)
-    #         output_ps.phases = target_ps.phases  # we dont compare about these for now
-    #         target_ps.standardise()
-    #         output_ps.standardise()
-    #         print(target_ps.symplectic())
-    #         print(output_ps.symplectic())
-    #         print('Equal:', output_ps == target_ps)
+            if not output_ps == target_ps:
+                print(f'Error in Arbitrary gate: {i}')
+                print('Target PauliString:')
+                print(target_ps.symplectic())
+                print('Output PauliString:')
+                print(output_ps.symplectic())
+            else:
+                successes += 1
+
+    print(f'Successes: {successes} out of 10000')
+    print('Input PauliString:')
     print(input_ps.symplectic())
     print('done')
