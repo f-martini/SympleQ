@@ -2,11 +2,10 @@
 from quaos.core.paulis import PauliString, PauliSum
 import numpy as np
 from collections import defaultdict
-from itertools import product, combinations
-from sympy import Matrix
+from itertools import product
 
 
-def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) -> tuple[list[np.ndarray], np.ndarray,
+def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) -> tuple[np.ndarray, np.ndarray,
                                                                                          list[int], int]:
     """
     Find a gate that maps Pauli P to target Pauli.
@@ -32,8 +31,8 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
     # get list of qudits where input and target differ
     qudit_indices = []
     for i in range(n_qudits):
-        if input_pauli[:, i] != target_pauli[:, i]:
-            qudit_indices.append(i)
+        # if input_pauli[:, i] != target_pauli[:, i]:
+        qudit_indices.append(i)
     gate_dimension = input_pauli.dimensions[qudit_indices][0]
 
     if not np.all(input_pauli.dimensions[qudit_indices] == gate_dimension):
@@ -42,20 +41,20 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
     if np.all(input_pauli.symplectic_product_matrix() != target_pauli.symplectic_product_matrix()):
         raise ValueError("Input and target PauliSum must be symplectically equivalent.")
 
-    input_symplectic = input_pauli.symplectic()
-    target_symplectic = target_pauli.symplectic()
+    input_symplectic = input_pauli[:, qudit_indices].symplectic()
+    target_symplectic = target_pauli[:, qudit_indices].symplectic()
 
     C = find_symplectic_map(input_symplectic, target_symplectic)
-    images = []
-    for i in range(2 * len(qudit_indices)):
-        basis_element = np.zeros(2 * len(qudit_indices), dtype=int)
-        basis_element[i] = 1
-        image = (C @ basis_element) % gate_dimension
-        images.append(image)
+
+    print('IN FUNCTION')
+    print(input_symplectic)
+    print(target_symplectic)
+    print(input_symplectic @ C % 2)
+    print('----------')
 
     h = get_phase_vector(C, gate_dimension)
 
-    return images, h, qudit_indices, gate_dimension
+    return C, h, qudit_indices, gate_dimension
 
 
 def find_allowed_target(pauli_sum, target_pauli_list):
@@ -71,7 +70,7 @@ def find_allowed_target(pauli_sum, target_pauli_list):
     for idx, tup in enumerate(combined_indices):
         index_dict[tup].append(idx)
 
-    underdetermined_pauli_indices = [combined_indices[idxs[0]] for idxs in index_dict.values() if len(idxs) > 1]
+    underdetermined_pauli_indices = [combined_indices[indexes[0]] for indexes in index_dict.values() if len(indexes) > 1]
     underdetermined_pauli_options = []
     for indices in underdetermined_pauli_indices:
         options = []
@@ -80,9 +79,9 @@ def find_allowed_target(pauli_sum, target_pauli_list):
                 if target_pauli_list[i][0] not in options:
                     options.append(target_pauli_list[i][0])
         underdetermined_pauli_options.append(options)
-    underdetermined_pauli_options = [str_to_int(l) for l in underdetermined_pauli_options]
+    underdetermined_pauli_options = [str_to_int(upo) for upo in underdetermined_pauli_options]
 
-    determined_pauli_indices = [combined_indices[idxs[0]] for idxs in index_dict.values() if len(idxs) == 1]
+    determined_pauli_indices = [combined_indices[indexes[0]] for indexes in index_dict.values() if len(indexes) == 1]
 
     options_matrix = np.empty([pauli_sum.n_paulis(), pauli_sum.n_qudits()], dtype=object)
     for i in range(pauli_sum.n_paulis()):
@@ -183,114 +182,103 @@ def matrix_to_pauli_sum(matrix, weights, phases, dimensions):
     return PauliSum(pauli_strings, weights, phases, dimensions, standardise=False)
 
 
-########## Symplectic Map Finding ##########
+# Symplectic Map Finding utils below #
 
 
+def symp_inner_product(x, y):
+    """Symplectic inner product over GF(2) for single vectors"""
+    x = np.atleast_2d(x)
+    y = np.atleast_2d(y)
+    n = x.shape[1] // 2
+    J = np.block([[np.zeros((n, n), dtype=np.uint8), np.eye(n, dtype=np.uint8)],
+                  [np.eye(n, dtype=np.uint8), np.zeros((n, n), dtype=np.uint8)]])
+    return (x @ J @ y.T) % 2
 
-def is_symplectic(F):
-    """Check if F is symplectic over GF(2)."""
-    n = F.shape[0] // 2
-    Omega = np.block([
-        [np.zeros((n, n), dtype=int), np.eye(n, dtype=int)],
-        [np.eye(n, n, dtype=int), np.zeros((n, n), dtype=int)]
-    ])
-    return np.array_equal((F.T @ Omega @ F) % 2, Omega)
+
+def shift_columns(A):
+    A = np.asarray(A, dtype=np.uint8)
+    n = A.shape[1]
+    shift = (n + 1) // 2
+    return np.roll(A, -shift, axis=1)
 
 
-def random_symplectic(n, seed=None):
-    """Generate a random symplectic matrix over GF(2) of size 2n x 2n."""
-    if seed is not None:
-        np.random.seed(seed)
+def solve_gf2_linear_eq(A, b):
+    """Solve A x = b over GF(2) using Gaussian elimination."""
+    A = A.copy().astype(int) % 2
+    b = b.copy().reshape(-1, 1).astype(int) % 2
+    m, n = A.shape
+    Ab = np.hstack([A, b])
+    row = 0
+    pivots = []
 
-    while True:
-        A = np.random.randint(0, 2, size=(n, n))
-        if np.linalg.matrix_rank(A) < n:
+    for col in range(n):
+        pivot_rows = np.where(Ab[row:, col])[0]
+        if pivot_rows.size == 0:
             continue
+        pivot_row = pivot_rows[0] + row
+        if pivot_row != row:
+            Ab[[row, pivot_row]] = Ab[[pivot_row, row]]
+        pivots.append(col)
+        for r in range(m):
+            if r != row and Ab[r, col]:
+                Ab[r] ^= Ab[row]
+        row += 1
+        if row == m:
+            break
 
-        B = np.random.randint(0, 2, size=(n, n))
-        B = (B + B.T) % 2  # Force symmetry
+    x = np.zeros(n, dtype=int)
+    for i, col in enumerate(pivots):
+        x[col] = Ab[i, -1]
+    return x
 
-        C = np.random.randint(0, 2, size=(n, n))
-        try:
-            AinvT = np.linalg.inv(A.T) % 2
-        except np.linalg.LinAlgError:
+
+def find_symplectic_map(X, Y):
+    m, d2 = X.shape
+    n = d2 // 2
+    F = np.eye(2 * n, dtype=int)
+
+    def Z_h(h):
+        h_shift = shift_columns(h.reshape(1, -1))[0]
+        return (np.eye(2 * n, dtype=np.uint8) + np.outer(h_shift, h)) % 2
+
+    def find_w(x, y, Ys):
+        if Ys.shape[0] == 0:
+            A = shift_columns(np.vstack([x, y]))
+            b = np.array([1, 1], dtype=np.uint8)
+        else:
+            A = shift_columns(np.vstack([x, y, Ys]))
+            y_reps = np.tile(y, (Ys.shape[0], 1))
+            b = np.concatenate((
+                [1, 1],
+                symp_inner_product(Ys, y_reps).diagonal()
+            ))
+        return solve_gf2_linear_eq(A, b)
+
+    for i in range(m):
+        x_i = X[i]
+        y_i = Y[i]
+        x_it = (x_i @ F) % 2
+        if np.array_equal(x_it, y_i):
             continue
-
-        D = (AinvT @ (C.T @ A + B)) % 2
-        F = np.block([[A, B], [C, D]]) % 2
-
-        if is_symplectic(F):
-            return F.astype(int)
-
-
-def symplectic_inner_product(u, v, d=2):
-    """Symplectic inner product over Z_d."""
-    n = len(u) // 2
-    u = np.array(u) % d
-    v = np.array(v) % d
-    top = np.dot(u[:n], v[n:]) % d
-    bottom = np.dot(u[n:], v[:n]) % d
-    return (top - bottom) % d
-
-def gram_schmidt_symplectic(B, d=2):
-    """
-    Given linearly independent rows B (k x 2n), complete to full symplectic basis (2n x 2n).
-    """
-    B = np.array(B, dtype=int) % d
-    k, dim = B.shape
-    n = dim // 2
-    assert dim % 2 == 0, "Input must have even number of columns"
-
-    basis = list(B)
-    symp_duals = []
-
-    # Construct symplectic duals for each vector in B
-    for i, b in enumerate(B):
-        # Find w such that <b, w> = 1 and <b_j, w> = 0 for all j < i
-        for trial in range(1 << dim):
-            w = np.array([int(x) for x in format(trial, f'0{dim}b')], dtype=int)
-            if symplectic_inner_product(b, w, d) != 1:
-                continue
-            if all(symplectic_inner_product(basis[j], w, d) == 0 for j in range(i)):
-                symp_duals.append(w)
-                break
+        elif symp_inner_product(x_it, y_i) % 2 == 1:
+            h_i = (x_it + y_i) % 2
+            F = (F @ Z_h(h_i)) % 2
         else:
-            raise ValueError("Could not find symplectic dual for vector")
+            Ys = Y[:i]
+            w_i = find_w(x_it, y_i, Ys)
+            h1 = (w_i + y_i) % 2
+            h2 = (x_it + w_i) % 2
+            F = (F @ Z_h(h1) @ Z_h(h2)) % 2
 
-    basis.extend(symp_duals)
-
-    # Add arbitrary symplectic pairs to fill remaining dimension
-    while len(basis) < dim:
-        for trial in range(1 << dim):
-            v = np.array([int(x) for x in format(trial, f'0{dim}b')], dtype=int)
-            if all(symplectic_inner_product(v, b, d) == 0 for b in basis):
-                # Find a dual for v
-                for dual_trial in range(1 << dim):
-                    w = np.array([int(x) for x in format(dual_trial, f'0{dim}b')], dtype=int)
-                    if symplectic_inner_product(v, w, d) == 1 and all(
-                        symplectic_inner_product(w, b, d) == 0 for b in basis
-                    ):
-                        basis.append(v)
-                        basis.append(w)
-                        break
-                break
-        else:
-            raise ValueError("Could not complete basis")
-
-    return np.array(basis[:dim]) % d
+    return F
 
 
-def find_symplectic_map(H, H_prime):
-    """Recover symplectic matrix C from H, H_prime."""
-    H = np.array(H, dtype=int) % 2
-    H_prime = np.array(H_prime, dtype=int) % 2
-
-    F1 = gram_schmidt_symplectic(H)
-    F2 = gram_schmidt_symplectic(H_prime)
-
-    F1_inv = Matrix(F1.tolist()).inv_mod(2)
-    C = (F2 @ np.array(F1_inv.tolist())) % 2
-
-    assert is_symplectic(C), f"{H}\n{H_prime}\n{C}\n{F1}\n{F2}\n{F1_inv}"
-    return C
-
+def make_random_symplectic(n, steps=5, seed=None):
+    rng = np.random.default_rng(seed)
+    F = np.eye(2 * n, dtype=np.uint8)
+    for _ in range(steps):
+        h = rng.integers(0, 2, size=2 * n, dtype=np.uint8)
+        h_shifted = shift_columns(h.reshape(1, -1))[0]
+        Z = (np.eye(2 * n, dtype=np.uint8) + np.outer(h_shifted, h)) % 2
+        F = (F @ Z) % 2
+    return F
