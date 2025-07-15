@@ -528,6 +528,9 @@ class PauliSum:
             p_string += f'{self.weights[i]}' + ' ' * n_spaces + '|' + qudit_string + f'| {self.phases[i]} \n'
         return p_string
 
+    def __repr__(self) -> str:
+        return f'PauliSum({self.pauli_strings}, {self.weights}, {self.phases}, {self.dimensions})'
+
     def get_subspace(self, qudit_indices: list[int] | np.ndarray, pauli_indices: list[int] | np.ndarray | None = None):
         """
         Get the subspace of the PauliSum corresponding to the qudit indices for the given Paulis

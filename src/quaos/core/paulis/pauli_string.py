@@ -175,7 +175,7 @@ class PauliString:
         # phase = 0
         # for i in range(self.n_qudits()):
         #     phase += phi * (self.x_exp[i] * other_pauli.z_exp[i] + self.z_exp[i] * other_pauli.x_exp[i])
-        # return phase % (self.lcm)
+        # return phase % (2 * self.lcm)
 
         # identity on lower diagonal of U
         U = np.zeros((2 * self.n_qudits(), 2 * self.n_qudits()), dtype=int)

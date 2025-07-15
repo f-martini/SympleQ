@@ -98,8 +98,6 @@ class TestOperations():
                 assert p_string1[0] == ps1, 'Error in PauliString indexing (first PauliString)'
                 assert p_string1[1] == ps2, 'Error in PauliString indexing'
 
-    # TODO: Fix this test
-    @pytest.mark.skip(reason="Temporarily disabled")
     def test_pauli_sum_multiplication(self):
         for dim in [2, 3, 5]:
 
@@ -112,19 +110,19 @@ class TestOperations():
                 # Test multiplication of PauliSum with PauliString
                 input_ps1, r13, r23, s13, s23 = self.random_pauli_string(dim)
 
-                output_str_correct = f"x{(r1 + r13) % dim}z{(s1 + s13) % dim} x{(r2 + r23) % dim}z{(s2 + s23) % dim}"
-                output_str2_correct = f"x{(r12 + r13) % dim}z{(s12 + s13) % dim} x{(r22 + r23) % dim}z{(s22 + s23) % dim}"
+                output_str_correct = f"x{(r1 + r13) % dim}z{(s1 + s13) % dim} x{(r2 + r23) % dim}z{(s2 + s23) % (2 * dim)}"
+                output_str2_correct = f"x{(r12 + r13) % dim}z{(s12 + s13) % dim} x{(r22 + r23) % dim}z{(s22 + s23) % (2 * dim)}"
                 output_ps = random_pauli_sum * input_ps1
 
-                phase1 = (r1 * s13 + r13 * s1 + r2 * s23 + r23 * s2) % dim
-                phase2 = (r12 * s13 + r13 * s12 + r22 * s23 + r23 * s22) % dim
+                phase1 = 2 * (s1 * r13 + s2 * r23) % (2 * dim)
+                phase2 = 2 * (s12 * r13 + s22 * r23) % (2 * dim)
                 output_phases = [phase1, phase2]
                 output_ps_correct = PauliSum([PauliString.from_string(output_str_correct, dimensions=[dim, dim]),
                                               PauliString.from_string(output_str2_correct, dimensions=[dim, dim])],
                                              phases=output_phases,
                                              standardise=False)
 
-                assert output_ps == output_ps_correct, 'Error in PauliSum multiplication with PauliString'
+                assert output_ps == output_ps_correct, 'Error in PauliSum multiplication with PauliString\n' + output_ps.__str__() + '\n' + output_ps_correct.__str__()
 
                 # Test multiplication of PauliSum with PauliSum
                 random_pauli_sum2 = PauliSum([input_ps1], standardise=False)
@@ -174,3 +172,8 @@ class TestOperations():
                 assert random_pauli_sum[1] == p_string2, 'Error in PauliSum indexing (second PauliString)'
                 assert random_pauli_sum[0, 0] == p_string1[0], 'Error in PauliSum indexing (first PauliString, first Pauli)'
                 assert random_pauli_sum[0, 1] == p_string1[1], 'Error in PauliSum indexing (first PauliString, second Pauli)'
+
+
+if __name__ == "__main__":
+    to = TestOperations()
+    to.test_pauli_sum_multiplication()

@@ -81,7 +81,8 @@ class TestSymplectic:
         x = PauliString.from_string('x1z0', dimensions=[d])
         z = PauliString.from_string('x0z1', dimensions=[d])
 
-        assert x.acquired_phase(z) == 1.0
+        assert z.acquired_phase(x) == 2.0, 'Expected phase to be 2.0, got {}'.format(z.acquired_phase(x))
+        assert x.acquired_phase(z) == 0.0, 'Expected phase to be 0.0, got {}'.format(x.acquired_phase(z))
 
         dims = [3, 3]
         x1x1 = PauliSum(PauliString.from_string('x1z0 x1z0', dimensions=dims))
@@ -92,10 +93,10 @@ class TestSymplectic:
 
         s3 = PauliSum(['x2z0 x2z0', 'x2z0 x2z0', 'x2z0 x2z1', 'x2z0 x2z1'],
                       weights=[1, 1, 0.5, 0.5],
-                      phases=[0, 0, 1, 1],
+                      phases=[0, 0, 2, 2],
                       dimensions=dims, standardise=False)
 
-        assert s1 * s2 == s3
+        assert s1 * s2 == s3, 'Expected s1 * s2 to equal s3, got {}'.format(s1 * s2) + '\n' + s3.__str__()
 
     def test_tensor_product_distributivity(self):
         dims = [3, 3]
