@@ -2,8 +2,8 @@ import sys
 import os
 import numpy as np
 sys.path.append("./")
-from quaos.circuits.Gates import Gate
-from quaos.paulis import PauliSum
+from quaos.core.circuits import Gate
+from quaos.core.paulis import PauliSum
 
 
 # Random Symplectic Matrix Generation
