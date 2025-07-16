@@ -1,0 +1,25 @@
+name: PR Source Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-allowed-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source branch
+        run: |
+          echo "Target branch: ${{ github.base_ref }}"
+          echo "Source branch: ${{ github.head_ref }}"
+
+          if [[ "${{ github.base_ref }}" == "main" ]]; then
+            if [[ "${{ github.head_ref }}" == "release" ]]; then
+              echo "Allowed branch"
+              exit 0
+            else
+              echo "❌ Pull requests to 'main' must come from the 'release' branch."
+              exit 1
+            fi
+          fi
