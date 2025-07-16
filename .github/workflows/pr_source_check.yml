@@ -2,8 +2,7 @@ name: PR Source Check
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main, dev]
 
 jobs:
   check-allowed-branches:
@@ -15,11 +14,17 @@ jobs:
           echo "Source branch: ${{ github.head_ref }}"
 
           if [[ "${{ github.base_ref }}" == "main" ]]; then
-            if [[ "${{ github.head_ref }}" == "release" ]]; then
-              echo "Allowed branch"
-              exit 0
-            else
-              echo "❌ Pull requests to 'main' must come from the 'release' branch."
-              exit 1
-            fi
+              if [[ "${{ github.head_ref }}" != "release" ]]; then
+                  echo "❌ Pull requests to 'main' must come from the 'release' branch."
+                  exit 1
+              fi
           fi
+
+          if [[ "${{ github.base_ref }}" == "dev" ]]; then
+              if [[ "${{ github.head_ref }}" == "main" ]]; then
+                  echo "❌ Direct pull requests from 'main' to 'dev' are not allowed."
+                  exit 1
+              fi
+          fi
+
+          exit 0
