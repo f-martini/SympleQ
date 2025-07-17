@@ -33,7 +33,7 @@ class Gate:
         local_symplectic = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])
         acquired_phase = self.acquired_phase(P)
 
-        local_symplectic = (self.symplectic @ local_symplectic) % self.dimension
+        local_symplectic = (local_symplectic @ self.symplectic.T) % self.dimension
         P = P._replace_symplectic(local_symplectic, self.qudit_indices)
         return P, acquired_phase
 
@@ -184,3 +184,4 @@ class PHASE(Gate):
         phase_vector = np.array([dimension + 1, 0], dtype=int)
 
         super().__init__("S", [index], symplectic, dimension=dimension, phase_vector=phase_vector)
+

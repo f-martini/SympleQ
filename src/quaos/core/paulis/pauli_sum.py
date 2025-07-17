@@ -23,6 +23,8 @@ class PauliSum:
                  dimensions: list[int] | np.ndarray | None = None,
                  standardise: bool = True):
         """
+        TODO: I think this would be better if we didnt store the pauli strings, but a GF(d) matrix,
+              then had a method to return the pauli strings
         TODO: Change everything possible to numpy arrays.
         TODO: Remove self.xz_mat - should be in a utils module
         TODO: Add stack method to concatenate additional strings or sums (could use utils concatenate)

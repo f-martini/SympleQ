@@ -282,3 +282,16 @@ def make_random_symplectic(n, steps=5, seed=None):
         Z = (np.eye(2 * n, dtype=np.uint8) + np.outer(h_shifted, h)) % 2
         F = (F @ Z) % 2
     return F
+
+
+if __name__ == "__main__":
+
+    # Failing Example!!!!!!!!!!!!!!
+    X = np.array([[0., 1., 0., 0.],
+                  [0., 1., 0., 0.]], dtype=np.uint8)
+    Y = np.array([[0., 1., 0., 0.],
+                  [0., 1., 1., 0.]], dtype=np.uint8)
+    F = find_symplectic_map(X, Y)
+    print(F)
+    print(X @ F % 2)
+    print(Y)
