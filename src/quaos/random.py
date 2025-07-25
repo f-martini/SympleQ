@@ -67,11 +67,10 @@ def symplectic (n, num_transvections=None):
 
 def clifford(dimensions):
     M = symplectic(len(dimensions))
-    def phase_function(P):
-        return 0
+    phase_vector = np.random.randint(0, 2, size=2*len(dimensions), dtype=np.uint8)
     M = M.tolist()
     M = [np.array(v) for v in M]
-    g = Gate('RandomClifford', list(range(len(dimensions))), M, 2, phase_function)
+    g = Gate('RandomClifford', list(range(len(dimensions))), M, 2, phase_vector = phase_vector)
     return g
 
 
