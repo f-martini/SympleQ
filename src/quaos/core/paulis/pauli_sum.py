@@ -148,7 +148,10 @@ class PauliSum:
                        pauli_list: PauliStringDerivedType,
                        weights: list[float | complex] | np.ndarray | float | complex | None,
                        phases: list[float] | np.ndarray | None,
-                       dimensions: list[int] | np.ndarray | None) -> tuple[list[PauliString], np.ndarray, np.ndarray, np.ndarray]:
+                       dimensions: list[int] | np.ndarray | None) -> tuple[list[PauliString],
+                                                                           np.ndarray,
+                                                                           np.ndarray,
+                                                                           np.ndarray]:
         sanitized_pauli_list = self._sanitize_pauli_list(pauli_list, dimensions)
         sanitized_dimensions = self._sanitize_dimensions(sanitized_pauli_list, dimensions)
         sanitized_phases = self._sanitize_phases(sanitized_pauli_list, phases)
@@ -210,9 +213,16 @@ class PauliSum:
                 pauli_strings_all_qubits = self.pauli_strings[key[0]]
                 pauli_strings = [p[key[1]] for p in pauli_strings_all_qubits]
                 if isinstance(key[1], int):
-                    return PauliSum(pauli_strings, self.weights[key[0]], self.phases[key[0]], np.asarray([self.dimensions[key[1]]]), False)
+                    return PauliSum(pauli_strings,
+                                    self.weights[key[0]],
+                                    self.phases[key[0]],
+                                    np.asarray([self.dimensions[key[1]]]), False)
                 elif isinstance(key[1], slice):
-                    return PauliSum(pauli_strings, self.weights[key[0]], self.phases[key[0]], self.dimensions[key[1]], False)
+                    return PauliSum(pauli_strings,
+                                    self.weights[key[0]],
+                                    self.phases[key[0]],
+                                    self.dimensions[key[1]],
+                                    False)
         else:
             raise TypeError(f"Key must be int or slice, not {type(key)}")
 
@@ -489,7 +499,11 @@ class PauliSum:
         self.lcm = np.lcm.reduce(self.dimensions)
 
     def copy(self) -> 'PauliSum':
-        return PauliSum([ps.copy() for ps in self.pauli_strings], self.weights.copy(), self.phases.copy(), self.dimensions.copy(), False)
+        return PauliSum([ps.copy() for ps in self.pauli_strings],
+                        self.weights.copy(),
+                        self.phases.copy(),
+                        self.dimensions.copy(),
+                        False)
 
     def symplectic_product_matrix(self) -> np.ndarray:
         """
@@ -512,7 +526,8 @@ class PauliSum:
         max_str_len = max([len(f'{self.weights[i]}') for i in range(self.n_paulis())])
         for i in range(self.n_paulis()):
             pauli_string = self.pauli_strings[i]
-            qudit_string = ''.join(['x' + f'{pauli_string.x_exp[j]}' + 'z' + f'{pauli_string.z_exp[j]} ' for j in range(self.n_qudits())])
+            qudit_string = ''.join(['x' + f'{pauli_string.x_exp[j]}' + 'z' +
+                                   f'{pauli_string.z_exp[j]} ' for j in range(self.n_qudits())])
             n_spaces = max_str_len - len(f'{self.weights[i]}')
             p_string += f'{self.weights[i]}' + ' ' * n_spaces + '|' + qudit_string + f'| {self.phases[i]} \n'
         return p_string
@@ -570,14 +585,16 @@ class PauliSum:
             if isinstance(pauli_index, int):
                 pauli_index = [pauli_index]
             elif len(pauli_index) != len(phases):
-                raise ValueError(f"Number of phases ({len(phases)}) must be equal to number of Paulis ({len(pauli_index)})")
+                raise ValueError(
+                    f"Number of phases ({len(phases)}) must be equal to number of Paulis ({len(pauli_index)})")
             else:
                 raise ValueError(f"pauli_index must be int, list, or np.ndarray, not {type(pauli_index)}")
             for i in pauli_index:
                 self.phases[i] = (self.phases[i] + phases) % (2 * self.lcm)
         else:
             if len(phases) != self.n_paulis():
-                raise ValueError(f"Number of phases ({len(phases)}) must be equal to number of Paulis ({self.n_paulis()})")
+                raise ValueError(
+                    f"Number of phases ({len(phases)}) must be equal to number of Paulis ({self.n_paulis()})")
             new_phase = (np.array(self.phases) + np.array(phases)) % (2 * self.lcm)
         self.phases = new_phase
 

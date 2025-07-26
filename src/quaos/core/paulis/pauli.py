@@ -91,7 +91,9 @@ class Pauli:
     def __eq__(self, other_pauli: Any) -> bool:
         if not isinstance(other_pauli, Pauli):
             return False
-        return self.x_exp == other_pauli.x_exp and self.z_exp == other_pauli.z_exp and self.dimension == other_pauli.dimension
+        return self.x_exp == other_pauli.x_exp and \
+            self.z_exp == other_pauli.z_exp and \
+            self.dimension == other_pauli.dimension
 
     def __ne__(self, other_pauli: Any) -> bool:
         return not self.__eq__(other_pauli)
