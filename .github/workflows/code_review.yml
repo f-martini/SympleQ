@@ -11,6 +11,8 @@ env:
   SRC_DIR: ./src/quaos
   TEST_DIR: ./tests
   PYTEST_INI: ./scripts/configs/pytest.ini
+  DEV_REQUIREMENTS: ./scripts/configs/dev_requirements.txt
+  FLAKE8_CONFIG: ./scripts/configs/setup.cfg
   COVERAGE_REPORT_XML: ./docs/tests_results/coverage_report.xml
   COVERAGE_REPORT_HTML: ./docs/tests_results/coverage_html_report
   COVERAGE_REPORT_JUNIT: ./docs/tests_results/junit.xml
@@ -53,12 +55,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install ${{ env.SETUP_PY }}
+          python -m pip install ${{ env.DEV_REQUIREMENTS }}
 
       - name: Flake8
-        continue-on-error: true
         run: |
           pip install flake8
-          flake8 ${{ env.SRC_DIR }}
+          flake8 ${{ env.SRC_DIR }} --config=${{ env.FLAKE8_CONFIG }}
 
   testing:
     needs: [set-runner, linting]
