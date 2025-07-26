@@ -227,6 +227,35 @@ class PauliSum:
             raise TypeError(f"Key must be int or slice, not {type(key)}")
 
     @overload
+    def _setitem_tuple(self, key: tuple[int, int], value: 'Pauli'):
+        ...
+
+    @overload
+    def _setitem_tuple(self, key: tuple[int, slice], value: 'PauliString'):
+        ...
+
+    @overload
+    def _setitem_tuple(self, key: tuple[slice, int] | tuple[slice, slice], value: 'PauliSum'):
+        ...
+
+    def _setitem_tuple(self, key, value):
+        if len(key) != 2:
+            raise ValueError("Tuple key must be of length 2")
+        if isinstance(key[0], int):
+            if isinstance(key[1], int):  # key[0] indexes the pauli string, key[1] indexes the qudit
+                self.pauli_strings[key[0]][key[1]] = value
+            elif isinstance(key[1], slice):  # key[0] indexes the pauli string, key[1] indexes the qudits
+                self.pauli_strings[key[0]][key[1]] = value
+        if isinstance(key[0], slice):
+            if isinstance(key[1], int):  # key[0] indexes the pauli strings, key[1] indexes the qudit
+                for i in np.arange(self.n_paulis())[key[0]]:
+                    self.pauli_strings[i][key[1]] = value
+            elif isinstance(key[1], slice):  # key[0] indexes the pauli strings, key[1] indexes the qudits
+                for i_val, i in enumerate(np.arange(self.n_paulis())[key[0]]):
+                    print(i, value[int(i_val)])
+                    self.pauli_strings[i][key[1]] = value[int(i_val)]
+
+    @overload
     def __setitem__(self, key: tuple[int, int], value: 'Pauli'):
         ...
 
@@ -245,21 +274,7 @@ class PauliSum:
         elif isinstance(key, slice):
             self.pauli_strings[key] = value
         elif isinstance(key, tuple):
-            if len(key) != 2:
-                raise ValueError("Tuple key must be of length 2")
-            if isinstance(key[0], int):
-                if isinstance(key[1], int):  # key[0] indexes the pauli string, key[1] indexes the qudit
-                    self.pauli_strings[key[0]][key[1]] = value
-                elif isinstance(key[1], slice):  # key[0] indexes the pauli string, key[1] indexes the qudits
-                    self.pauli_strings[key[0]][key[1]] = value
-            if isinstance(key[0], slice):
-                if isinstance(key[1], int):  # key[0] indexes the pauli strings, key[1] indexes the qudit
-                    for i in np.arange(self.n_paulis())[key[0]]:
-                        self.pauli_strings[i][key[1]] = value
-                elif isinstance(key[1], slice):  # key[0] indexes the pauli strings, key[1] indexes the qudits
-                    for i_val, i in enumerate(np.arange(self.n_paulis())[key[0]]):
-                        print(i, value[int(i_val)])
-                        self.pauli_strings[i][key[1]] = value[int(i_val)]
+            self._setitem_tuple(key, value)
         self._set_exponents()  # update exponents x_exp and z_exp
 
     def __add__(self, A: PauliType) -> 'PauliSum':

@@ -112,6 +112,8 @@ def add_r2s2(pauli_sum: PauliSum, qudit_index_1: int, qudit_index_2: int) -> Cir
     return C
 
 
+# TODO: This (and other) functions are too complex, they have to be refactored and C901 enabled on flake8
+# (cyclomatic complexity checker)
 def ensure_zx_components(pauli_sum: PauliSum,
                          pauli_index_x: int,
                          pauli_index_z: int,

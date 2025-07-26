@@ -14,7 +14,7 @@
 
   // Linter and formatter configurations
   "flake8.severity": {
-    "C": "Information",
+    "C": "Warning",
     "E": "Warning",
     "F": "Warning",
     "R": "Hint",
@@ -23,7 +23,7 @@
   },
   "autopep8.args": [
     "--ignore=E402,I100,I201,W504",
-    "--select=W291,E101,E111,E114,E117,E121,E122,E123,E124,E126,E127,E128,E201,E202,E501",
+    "--select=W291,E101,E111,E114,E117,E121,E122,E123,E124,E126,E127,E128,E201,E202,E303,E501",
     "--max-line-length=120"
   ],
   "flake8.args": [
