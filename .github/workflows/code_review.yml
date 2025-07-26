@@ -79,6 +79,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install ${{ env.SETUP_PY }}
+          python -m pip install -r ${{ env.DEV_REQUIREMENTS }}
 
       - name: Pytest (No Benchmarking)
         run: |
