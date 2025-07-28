@@ -89,3 +89,5 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           with:
           file: ${{ env.COVERAGE_REPORT_XML }}
+          override_branch: ${{ github.base_ref }}
+          override_commit: ${{ github.event.pull_request.base.sha }}
