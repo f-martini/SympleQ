@@ -102,7 +102,9 @@ class PauliString:
         if not isinstance(other_pauli, PauliString):
             return False
 
-        return bool(np.all(self.x_exp == other_pauli.x_exp) and np.all(self.z_exp == other_pauli.z_exp) and np.all(self.dimensions == other_pauli.dimensions))
+        return bool(np.all(self.x_exp == other_pauli.x_exp) and
+                    np.all(self.z_exp == other_pauli.z_exp) and
+                    np.all(self.dimensions == other_pauli.dimensions))
 
     def __ne__(self, other_pauli: PauliString) -> bool:
         return not self.__eq__(other_pauli)
@@ -146,7 +148,8 @@ class PauliString:
         Get a list of Pauli objects from the PauliString
         :return: A list of Pauli objects
         """
-        return [Pauli(x_exp=self.x_exp[i], z_exp=self.z_exp[i], dimension=self.dimensions[i]) for i in range(len(self.x_exp))]
+        return [Pauli(x_exp=self.x_exp[i], z_exp=self.z_exp[i], dimension=self.dimensions[i])
+                for i in range(len(self.x_exp))]
 
     def symplectic(self) -> np.ndarray:
         symp = np.zeros(2 * self.n_qudits())
@@ -196,7 +199,8 @@ class PauliString:
 
         return PauliString(x_exp=x_exp, z_exp=z_exp, dimensions=self.dimensions)
 
-    def _delete_qudits(self, qudit_indices: list[int], return_new: bool = True) -> PauliString:  # not sure if here it is best to return a new object or not
+    # not sure if here it is best to return a new object or not
+    def _delete_qudits(self, qudit_indices: list[int], return_new: bool = True) -> PauliString:
         x_exp = np.delete(self.x_exp, qudit_indices)
         z_exp = np.delete(self.z_exp, qudit_indices)
         dimensions = np.delete(self.dimensions, qudit_indices)
