@@ -1,5 +1,6 @@
 import numpy as np
 from quaos.core.paulis import PauliSum
+import galois
 
 
 def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
@@ -180,3 +181,113 @@ def rand_state(dimension):
     phases = np.random.uniform(0, 2 * np.pi, int(dimension))
     normalized_state = np.sqrt(gamma_sample / np.sum(gamma_sample)) * np.exp(1j * phases)
     return normalized_state
+
+
+def get_linearly_independent_rows(A: np.ndarray, d: int) -> list[int]:
+    """
+    Returns the pivot column indices for the row-reduced form of matrix A over a Galois field.
+
+    Args:
+        A (galois.FieldArray): Input matrix over GF(p).
+
+    Returns:
+        List[int]: List of pivot column indices.
+    """
+
+    GF = galois.GF(d)
+    A = GF(A)
+    R = A.row_reduce()
+    pivots = []
+    for row in R:
+        nz_indices = np.nonzero(row)[0]
+        if nz_indices.size > 0:
+            pivots.append(nz_indices[0])
+    return pivots
+
+
+def solve_modular_linear_system(B: galois.FieldArray, v: galois.FieldArray):
+    """
+    Solve x @ B = v over GF(p) for x.
+    Inputs:
+        B: (r, m) matrix (independent rows)
+        v: (m,) target row
+    Returns:
+        x: (r,) solution vector such that x @ B == v
+    """
+    GF = type(B)
+    r, m = B.shape
+    # Transpose: B.T x.T = v.T → solve for x.T
+    A = B.T
+    b = v.T
+
+    # Check if system is square
+    if A.shape[0] == A.shape[1]:
+        # Solve exactly
+        try:
+            x = np.linalg.solve(A, b)
+            return x
+        except np.linalg.LinAlgError:
+            return None
+    else:
+        # Use row-reduction on augmented matrix [A | b]
+        Ab = np.column_stack([A, b.reshape(-1, 1)])
+        Ab = GF(Ab)
+        R = Ab.row_reduce()
+
+        # Extract solution from RREF
+        x = R[:-1, -1]  # last column (solution), assuming unique
+        return x
+
+
+def get_linear_dependencies(vectors: np.ndarray, p: int) -> tuple[list[int], dict[int, list[tuple[int, int]]]]:
+    """
+    Analyze linear dependencies over GF(p).
+
+    Parameters:
+        vectors: List of n vectors (length m)
+        p: Prime modulus for GF(p)
+
+    Returns:
+        pivot_indices: List[int] — indices of linearly independent input vectors
+        dependencies: Dict[int, List[Tuple[int, int]]] — i: [(j, coeff)] means v_i = sum(coeff * v_j)
+    """
+    assert galois.is_prime(p)
+    GF = galois.GF(p)
+
+    V = GF(vectors)  # (n x m)
+    R = V.row_reduce()
+
+    # Step 1: Identify pivot columns
+    pivot_cols = []
+    for row in R:
+        nz = np.nonzero(row)[0]
+        if len(nz) > 0:
+            pivot_cols.append(nz[0])
+
+    # Step 2: Pick the first rows from V that are linearly independent
+    pivot_indices = []
+    seen = GF.Zeros((0, V.shape[1]))
+    for i in range(V.shape[0]):
+        candidate = V[i]
+        A = np.vstack([seen, candidate])
+        if np.linalg.matrix_rank(np.array(A, dtype=int)) > seen.shape[0]:
+            pivot_indices.append(i)
+            seen = A
+        if len(pivot_indices) == len(pivot_cols):
+            break
+
+    # Step 3: Decompose dependents using only pivot vectors
+    B = GF(V[pivot_indices, :])
+    dependencies = {}
+    for i in range(V.shape[0]):
+        if i in pivot_indices:
+            continue
+        v = GF(V[i])
+        coeffs = solve_modular_linear_system(B, v)
+        if coeffs is None:
+            dependencies[i] = None
+        else:
+            deps = [(pivot_indices[j], int(coeffs[j])) for j in range(len(coeffs)) if coeffs[j] != 0]
+            dependencies[i] = deps
+
+    return pivot_indices, dependencies

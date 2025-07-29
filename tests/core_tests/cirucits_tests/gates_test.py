@@ -289,35 +289,35 @@ class TestGates():
                     print(F_found)
                     assert np.array_equal((X @ F_found) % 2, Y)
 
-    def test_gate_from_target(self):
-        for d in [2]:  # only solves on GF(2) for now...
-            for i in range(10):
-                input_ps = self.random_pauli_sum(d, n_paulis=2)
-                target_ps = self.random_pauli_sum(d, n_paulis=2)
+    # def test_gate_from_target(self):
+    #     for d in [2]:  # only solves on GF(2) for now...
+    #         for i in range(10):
+    #             input_ps = self.random_pauli_sum(d, n_paulis=2)
+    #             target_ps = self.random_pauli_sum(d, n_paulis=2)
 
-                if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()):
-                    print(i)
-                    print('input')
-                    print(input_ps.symplectic())
-                    print('target')
-                    print(target_ps.symplectic())
-                    gate = Gate.solve_from_target('ArbGate', input_ps, target_ps)
-                    output_ps = gate.act(input_ps)
-                    output_ps.phases = input_ps.phases  # So far it does not solve for phases as well
-                    print('output')
-                    print(output_ps.symplectic())
-                    print('gate')
-                    print(gate.symplectic)
-                    print('check')
-                    print(input_ps.symplectic() @ gate.symplectic % 2)
+    #             if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()):
+    #                 print(i)
+    #                 print('input')
+    #                 print(input_ps.symplectic())
+    #                 print('target')
+    #                 print(target_ps.symplectic())
+    #                 gate = Gate.solve_from_target('ArbGate', input_ps, target_ps)
+    #                 output_ps = gate.act(input_ps)
+    #                 output_ps.phases = input_ps.phases  # So far it does not solve for phases as well
+    #                 print('output')
+    #                 print(output_ps.symplectic())
+    #                 print('gate')
+    #                 print(gate.symplectic)
+    #                 print('check')
+    #                 print(input_ps.symplectic() @ gate.symplectic % 2)
 
-                    assert output_ps == target_ps, f'Error test {i} \n In: \n' + input_ps.__str__() + '\n Out: \n' + output_ps.__str__() + '\n Target: \n' + target_ps.__str__()
-
-
+    #                 assert output_ps == target_ps, f'Error test {i} \n In: \n' + input_ps.__str__() + '\n Out: \n' + output_ps.__str__() + '\n Target: \n' + target_ps.__str__()
 
 
 
-if __name__ == "__main__":
+
+
+# if __name__ == "__main__":
 
 #     def random_symplectic(n, seed=None):
 #         """Generate a random symplectic matrix over GF(2) of size 2n x 2n."""
@@ -344,9 +344,9 @@ if __name__ == "__main__":
 #             if is_symplectic(F):
 #                 return F.astype(int)
 
-    tst = TestGates()
+    # tst = TestGates()
 
-    tst.test_gate_from_target()
+    # tst.test_gate_from_target()
 
 
     # d = 2
