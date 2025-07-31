@@ -64,6 +64,13 @@ class PauliString:
         x_exp = np.array(xz_exponents[0::2], dtype=int)
         return cls(x_exp=x_exp, z_exp=z_exp, dimensions=dimensions)
 
+    @classmethod
+    def from_random(cls, n_qudits: int, dimensions: list[int] | np.ndarray, seed=None) -> PauliString:
+        np.random.seed(seed)
+        return cls(x_exp=np.random.randint(0, dimensions, (n_qudits)),
+                   z_exp=np.random.randint(0, dimensions, (n_qudits)),
+                   dimensions=dimensions)
+
     def __repr__(self) -> str:
         return f"Pauli(x_exp={self.x_exp}, z_exp={self.z_exp}, dimensions={self.dimensions})"
 

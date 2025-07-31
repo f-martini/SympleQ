@@ -44,17 +44,17 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
     input_symplectic = input_pauli[:, qudit_indices].symplectic()
     target_symplectic = target_pauli[:, qudit_indices].symplectic()
 
-    C = find_symplectic_map(input_symplectic, target_symplectic)
+    F = find_symplectic_map(input_symplectic, target_symplectic)
 
-    print('IN FUNCTION')
-    print(input_symplectic)
-    print(target_symplectic)
-    print(input_symplectic @ C % 2)
-    print('----------')
+    # print('IN FUNCTION')
+    # print(input_symplectic)
+    # print(target_symplectic)
+    # print(input_symplectic @ C % 2)
+    # print('----------')
 
-    h = get_phase_vector(C, gate_dimension)
+    h = get_phase_vector(F, gate_dimension)
 
-    return C, h, qudit_indices, gate_dimension
+    return F, h, qudit_indices, gate_dimension
 
 
 def find_allowed_target(pauli_sum, target_pauli_list):
@@ -282,16 +282,3 @@ def make_random_symplectic(n, steps=5, seed=None):
         Z = (np.eye(2 * n, dtype=np.uint8) + np.outer(h_shifted, h)) % 2
         F = (F @ Z) % 2
     return F
-
-
-if __name__ == "__main__":
-
-    # Failing Example!!!!!!!!!!!!!!
-    X = np.array([[0., 1., 0., 0.],
-                  [0., 1., 0., 0.]], dtype=np.uint8)
-    Y = np.array([[0., 1., 0., 0.],
-                  [0., 1., 1., 0.]], dtype=np.uint8)
-    F = find_symplectic_map(X, Y)
-    print(F)
-    print(X @ F % 2)
-    print(Y)

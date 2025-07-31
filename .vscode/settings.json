@@ -40,4 +40,5 @@
     120
   ],
   "files.trimTrailingWhitespace": true,
+  "python-envs.pythonProjects": [],
 }

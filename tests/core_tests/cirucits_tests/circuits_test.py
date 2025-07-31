@@ -145,7 +145,6 @@ class TestCircuits():
     #     # show that the composed gate returns the same thing as the circuit when acting on the pauli sum
     #     assert output_composite == output_sequential
 
-
     def test_symplectic_embedding(self):
 
         # hadamard on a two qubit symplectic
@@ -168,7 +167,6 @@ class TestCircuits():
         assert np.array_equal(embedded_symplectic, embedded_symplectic_correct)
 
         # test that the symplectic is a valid symplectic
-
 
 
 if __name__ == "__main__":

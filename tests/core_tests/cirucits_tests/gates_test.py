@@ -272,11 +272,11 @@ class TestGates():
         # this just tests the underlying solver, not the Gate or Pauli... implementation
         # see test below for implementation
 
-        for n in [3, 5, 7, 15]:
-            for d in range(1, 10):
+        for n in [10, 20, 50]:  # n_qudits
+            for n_p in range(1, 10):
                 for _ in range(100):
-                    F_true = make_random_symplectic(n, steps=6, seed=42)
-                    X = np.random.randint(0, 2, size=(d, 2 * n), dtype=np.uint8)
+                    F_true = make_random_symplectic(n, steps=50, seed=None)
+                    X = np.random.randint(0, 2, size=(n_p, 2 * n), dtype=np.uint8)
                     Y = (X @ F_true) % 2
 
                     print("X:")
@@ -314,9 +314,6 @@ class TestGates():
     #                 assert output_ps == target_ps, f'Error test {i} \n In: \n' + input_ps.__str__() + '\n Out: \n' + output_ps.__str__() + '\n Target: \n' + target_ps.__str__()
 
 
-
-
-
 # if __name__ == "__main__":
 
 #     def random_symplectic(n, seed=None):
@@ -347,7 +344,6 @@ class TestGates():
     # tst = TestGates()
 
     # tst.test_gate_from_target()
-
 
     # d = 2
     # input_ps = tst.random_pauli_sum(d, n_paulis=4)
