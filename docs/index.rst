@@ -1,5 +1,5 @@
-Welcome to QuAOS's documentation!
-=================================
+Index
+=====
 
 .. toctree::
     :maxdepth: 2
