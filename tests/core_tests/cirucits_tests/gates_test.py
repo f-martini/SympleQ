@@ -1,8 +1,9 @@
 from quaos.core.circuits import SUM, SWAP, Hadamard, PHASE, Gate
 from quaos.core.circuits.utils import is_symplectic
-from quaos.core.circuits.target import find_map_to_target_pauli_sum, make_random_symplectic, find_symplectic_map
+from quaos.core.circuits.target import find_map_to_target_pauli_sum, find_symplectic_map
 from quaos.core.paulis import PauliSum, PauliString
 import numpy as np
+from quaos.core.circuits.utils import random_symplectic
 
 
 class TestGates():
@@ -272,46 +273,61 @@ class TestGates():
         # this just tests the underlying solver, not the Gate or Pauli... implementation
         # see test below for implementation
 
-        for n in [10, 20, 50]:  # n_qudits
+        for n in [5, 10, 20, 50]:  # n_qudits
             for n_p in range(1, 10):
                 for _ in range(100):
-                    F_true = make_random_symplectic(n, steps=50, seed=None)
+                    F_true = random_symplectic(n, 2, seed=None)
                     X = np.random.randint(0, 2, size=(n_p, 2 * n), dtype=np.uint8)
                     Y = (X @ F_true) % 2
-
+                    print(_)
                     print("X:")
                     print(X)
-                    print("Y:")
+                    # print("Y:")
                     print(Y)
 
                     F_found = find_symplectic_map(X, Y)
-                    print("F_found:")
-                    print(F_found)
+                    # print("F_found:")
+                    print(X @ F_found % 2)
                     assert np.array_equal((X @ F_found) % 2, Y)
 
-    # def test_gate_from_target(self):
-    #     for d in [2]:  # only solves on GF(2) for now...
-    #         for i in range(10):
-    #             input_ps = self.random_pauli_sum(d, n_paulis=2)
-    #             target_ps = self.random_pauli_sum(d, n_paulis=2)
+    def test_gate_from_target(self):
+        n_qudits = 4
+        n_paulis = 6
+        dim = 2
+        dimensions = [dim] * n_qudits
 
-    #             if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()):
-    #                 print(i)
-    #                 print('input')
-    #                 print(input_ps.symplectic())
-    #                 print('target')
-    #                 print(target_ps.symplectic())
-    #                 gate = Gate.solve_from_target('ArbGate', input_ps, target_ps)
-    #                 output_ps = gate.act(input_ps)
-    #                 output_ps.phases = input_ps.phases  # So far it does not solve for phases as well
-    #                 print('output')
-    #                 print(output_ps.symplectic())
-    #                 print('gate')
-    #                 print(gate.symplectic)
-    #                 print('check')
-    #                 print(input_ps.symplectic() @ gate.symplectic % 2)
+        input_ps = PauliSum.from_random(n_paulis, n_qudits, dimensions=dimensions)
+        gate = Gate.from_random(n_qudits, dim)
+        target_ps = gate.act(input_ps)
 
-    #                 assert output_ps == target_ps, f'Error test {i} \n In: \n' + input_ps.__str__() + '\n Out: \n' + output_ps.__str__() + '\n Target: \n' + target_ps.__str__()
+        gate_from_solver = Gate.solve_from_target('ArbGate', input_ps, target_ps)
+        output_ps = gate_from_solver.act(input_ps)
+        assert output_ps == target_ps, (
+            'Error in gate_from_solver\n input:\n' + input_ps.__str__() +
+            '\n target:\n' + target_ps.__str__() + '\n output:\n' + output_ps.__str__())
+
+        # for d in [2]:  # only solves on GF(2) for now...
+        #     for i in range(10):
+        #         input_ps = self.random_pauli_sum(d, n_paulis=6)
+        #         target_ps = self.random_pauli_sum(d, n_paulis=6)
+
+        #         if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()):
+        #             print(i)
+        #             print('input')
+        #             print(input_ps.symplectic())
+        #             print('target')
+        #             print(target_ps.symplectic())
+        #             gate = Gate.solve_from_target('ArbGate', input_ps, target_ps)
+        #             output_ps = gate.act(input_ps)
+        #             output_ps.phases = input_ps.phases  # So far it does not solve for phases as well
+        #             print('output')
+        #             print(output_ps.symplectic())
+        #             print('gate')
+        #             print(gate.symplectic)
+        #             print('check')
+        #             print(input_ps.symplectic() @ gate.symplectic % 2)
+
+        #             assert output_ps == target_ps, f'Error test {i} \n In: \n' + input_ps.__str__() + '\n Out: \n' + output_ps.__str__() + '\n Target: \n' + target_ps.__str__()
 
 
 # if __name__ == "__main__":

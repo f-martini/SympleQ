@@ -1,7 +1,8 @@
 import numpy as np
 from quaos.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
-from quaos.core.circuits.target import find_map_to_target_pauli_sum
+from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
+from quaos.core.circuits.utils import number_of_symplectics, symplectic_from_index, index_from_symplectic
 
 
 class Gate:
@@ -25,7 +26,17 @@ class Gate:
         Create a gate that maps input_pauli_sum to target_pauli_sum.
         """
         symplectic, phase_vector, qudit_indices, dimension = find_map_to_target_pauli_sum(input_pauli_sum, target_pauli_sum)
-        return cls(name, qudit_indices, symplectic, dimension, phase_vector)
+        return cls(name, qudit_indices, symplectic.T, dimension, phase_vector)
+
+    @classmethod
+    def from_random(cls, n_qudits: int, dimension: int, seed=None):
+        np.random.seed(seed)
+        if dimension != 2:
+            raise NotImplementedError("Only implemented for dimension 2. GF(p) will be done asap.")
+        symp_int = np.random.randint(number_of_symplectics(n_qudits))
+        symplectic = symplectic_from_index(symp_int, n_qudits, dimension)
+        phase_vector = get_phase_vector(symplectic, dimension)
+        return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
         if np.all(self.dimension != P.dimensions[self.qudit_indices]):
@@ -110,6 +121,9 @@ class Gate:
     #     Returns a new gate that is the transvection of this gate by the given vector.
     #     The transvection vector should be a 2n-dimensional vector where n is the number of qudits.
     #     """
+
+    def get_int(self) -> int:
+        return index_from_symplectic(self.n_qudits, self.symplectic, self.dimension)
 
 
 class SUM(Gate):

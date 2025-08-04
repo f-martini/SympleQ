@@ -3,6 +3,7 @@ from quaos.core.paulis import PauliString, PauliSum
 import numpy as np
 from collections import defaultdict
 from itertools import product
+import galois
 
 
 def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) -> tuple[np.ndarray, np.ndarray,
@@ -41,8 +42,8 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
     if np.all(input_pauli.symplectic_product_matrix() != target_pauli.symplectic_product_matrix()):
         raise ValueError("Input and target PauliSum must be symplectically equivalent.")
 
-    input_symplectic = input_pauli[:, qudit_indices].symplectic()
-    target_symplectic = target_pauli[:, qudit_indices].symplectic()
+    input_symplectic = input_pauli.symplectic()  #[:, qudit_indices]
+    target_symplectic = target_pauli.symplectic()  #[:, qudit_indices]
 
     F = find_symplectic_map(input_symplectic, target_symplectic)
 
@@ -232,6 +233,20 @@ def solve_gf2_linear_eq(A, b):
     return x
 
 
+def solve_gf_linear(A, b, p):
+    GF = galois.GF(p)
+    A_gf = GF(A)
+    b_gf = GF(b)
+
+    # Solve A x = b over GF(p)
+    try:
+        x = np.linalg.solve(A_gf, b_gf)
+    except np.linalg.LinAlgError:
+        return None  # No solution
+
+    return x
+
+
 def find_symplectic_map(X, Y):
     m, d2 = X.shape
     n = d2 // 2
@@ -252,7 +267,7 @@ def find_symplectic_map(X, Y):
                 [1, 1],
                 symp_inner_product(Ys, y_reps).diagonal()
             ))
-        return solve_gf2_linear_eq(A, b)
+        return solve_gf_linear(A, b, 2)
 
     for i in range(m):
         x_i = X[i]
@@ -274,6 +289,9 @@ def find_symplectic_map(X, Y):
 
 
 def make_random_symplectic(n, steps=5, seed=None):
+
+    DeprecationWarning('make_random_symplectic is deprecated. Use quaos.circuits.utils.random_symplectic instead.')
+
     rng = np.random.default_rng(seed)
     F = np.eye(2 * n, dtype=np.uint8)
     for _ in range(steps):
@@ -282,3 +300,213 @@ def make_random_symplectic(n, steps=5, seed=None):
         Z = (np.eye(2 * n, dtype=np.uint8) + np.outer(h_shifted, h)) % 2
         F = (F @ Z) % 2
     return F
+
+
+def symp_inn_pdt(X, Y):
+    """
+    Compute the symplectic inner product over GF(2) between
+    corresponding rows of X and Y.
+    """
+    X = GF(X)
+    Y = GF(np.fft.fftshift(Y, axes=1))
+    return np.sum(X * Y, axis=1)  # Already in GF(2), no mod needed
+
+
+def find_symp_mat(X, Y, p=2):
+    """
+    Find a binary symplectic matrix F such that X @ F = Y over GF(2).
+    """
+    GF = galois.GF(p)
+
+    X = GF(X)
+    Y = GF(Y)
+    m, N = X.shape
+    n = N // 2
+    F = GF.Identity(2 * n)
+
+    def Z_h(h):
+        h = h.reshape(1, -1)
+        Z = GF(np.eye(2 * n, dtype=int)) + (h.T @ h)
+        return Z
+
+    for i in range(m):
+        x_i = X[i, :]
+        y_i = Y[i, :]
+        x_it = x_i @ F
+
+        if np.array_equal(x_it, y_i):
+            continue
+
+        if symp_inn_pdt(x_it.reshape(1, -1), y_i.reshape(1, -1))[0] == 1:
+            h_i = (x_it + y_i)
+            F = (F @ Z_h(h_i))
+        else:
+            try:
+                w_i = find_w(x_it, y_i, Y[:i, :])
+            except ValueError:
+                w_i = find_w_fallback(x_it, y_i, Y[:i, :])
+            h_i1 = (w_i + y_i)
+            h_i2 = (x_it + w_i)
+            F = ((F @ Z_h(h_i1))) @ Z_h(h_i2)
+
+    return np.array(F)
+
+
+def find_w(x, y, Ys):
+    """
+    Find a solution w over GF(2) such that:
+        ⟨x, w⟩ = 1
+        ⟨w, y⟩ = 1
+        ⟨Ys[i], w⟩ = ⟨y, Ys[i]⟩ for all i
+    """
+    GF2 = galois.GF(2)
+    k = Ys.shape[0]
+
+    A = np.vstack([x, y, Ys])
+    A = np.fft.fftshift(A, axes=1)
+    b = np.concatenate([
+        [1],
+        [1],
+        symp_inn_pdt(Ys, np.tile(y, (k, 1)))
+    ])
+
+    A = GF2(A)
+    b = GF2(b)
+
+    # Solve using custom Gaussian elimination
+    w = solve_gf2_system(A, b)
+    if w is None:
+        raise ValueError("No solution found for find_w.")
+
+    return w
+
+
+def solve_gf2_system(A, b):
+    """
+    Solves A w = b over GF(2) using RREF. Returns one solution if it exists, else None.
+    """
+    GF2 = galois.GF(2)
+    A = GF2(A.copy())
+    b = GF2(b.copy())
+    m, n = A.shape
+
+    Ab = np.hstack([A, b.reshape(-1, 1)])
+    Ab = Ab.copy()
+
+    row = 0
+    pivots = []
+
+    for col in range(n):
+        # Find a pivot in column `col` at or below row
+        pivot_row = None
+        for r in range(row, m):
+            if Ab[r, col] == 1:
+                pivot_row = r
+                break
+
+        if pivot_row is None:
+            continue  # No pivot in this column
+
+        # Swap rows
+        if pivot_row != row:
+            Ab[[row, pivot_row], :] = Ab[[pivot_row, row], :]
+
+        # Eliminate below and above
+        for r in range(m):
+            if r != row and Ab[r, col] == 1:
+                Ab[r, :] += Ab[row, :]
+
+        pivots.append(col)
+        row += 1
+
+    # Check for inconsistency
+    for r in range(m):
+        if np.all(Ab[r, :-1] == 0) and Ab[r, -1] != 0:
+            return None  # Inconsistent system
+
+    # Back-substitution to extract one solution
+    x = np.zeros(n, dtype=int)
+    for i, col in enumerate(pivots):
+        rhs = Ab[i, -1]
+        s = sum((Ab[i, j] * x[j] for j in range(col + 1, n)), start=GF2(0))
+        x[col] = int(rhs - s)
+
+    return GF2(x)
+
+
+def find_w_fallback(x, y, Ys, max_attempts=10000):
+    """
+    Try to find w satisfying:
+        ⟨x, w⟩ = ⟨w, y⟩ = 1
+        ⟨w, y_j⟩ = ⟨y, y_j⟩ for all y_j in Ys
+    """
+    GF2 = galois.GF(2)
+    y = GF2(y)
+    Ys = GF2(Ys)
+    y_inn = symp_inn_pdt(Ys, np.tile(y, (Ys.shape[0], 1)))
+
+    for _ in range(max_attempts):
+        w = GF2.Random(x.size)
+        if (int(symp_inn_pdt(x.reshape(1, -1), w.reshape(1, -1))[0]) != 1):
+            continue
+        if (int(symp_inn_pdt(w.reshape(1, -1), y.reshape(1, -1))[0]) != 1):
+            continue
+        if Ys.shape[0] > 0:
+            if not np.array_equal(symp_inn_pdt(Ys, w.reshape(1, -1)), y_inn):
+                continue
+        return w
+
+    raise ValueError("No solution found for find_w (even by random search).")
+
+
+def is_symplectic(F):
+    """
+    Check if F is symplectic over GF(2):
+        Fᵀ J F = J
+    """
+    n = F.shape[0] // 2
+    J = np.block([
+        [np.zeros((n, n), dtype=int), np.eye(n, dtype=int)],
+        [np.eye(n, dtype=int), np.zeros((n, n), dtype=int)]
+    ])
+    F = GF(F)
+    J = GF(J)
+    return np.array_equal(F.T @ J @ F, J)
+
+
+if __name__ == "__main__":
+    from quaos.core.circuits.utils import random_symplectic
+    GF = galois.GF(2)
+
+    def test_find_symp_mat(num_tests=10, n=4):
+        passed = 0
+        for i in range(num_tests):
+            F_true = random_symplectic(n, p=2)  # returns 2n x 2n binary symplectic matrix
+            F_true = GF(F_true)
+
+            # Sample m random input rows X
+            m = np.random.randint(1, 2 * n + 1)
+            X = GF(np.random.randint(0, 2, size=(m, 2 * n)))
+            Y = X @ F_true
+
+            # Try to recover F
+            F_recovered = find_symp_mat(np.array(X), np.array(Y))
+            F_recovered = GF(F_recovered)
+
+            # Check that X @ F_recovered == Y
+            match = np.array_equal(X @ F_recovered, Y)
+
+            # Optional: Check that F_recovered is symplectic
+            symplectic = is_symplectic(F_recovered)
+
+            if match and symplectic:
+                passed += 1
+            else:
+                print(f"Test {i} failed.")
+                print(f"X @ F_recovered =\n{X @ F_recovered}")
+                print(f"Y =\n{Y}")
+                print(f"F_recovered symplectic: {symplectic}")
+
+        print(f"Passed {passed}/{num_tests} tests.")
+
+    test_find_symp_mat()

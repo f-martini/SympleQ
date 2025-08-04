@@ -129,6 +129,7 @@
         "toctree",
         "tqdm",
         "traitlets",
+        "transvection",
         "uvicorn",
         "venv",
         "widetilde",

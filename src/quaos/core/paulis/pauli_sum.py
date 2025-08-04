@@ -80,11 +80,15 @@ class PauliSum:
                     rand_weights=True) -> 'PauliSum':
         weights = np.random.rand(n_paulis) if rand_weights else np.ones(n_paulis)
 
-        return cls([PauliString.from_random(n_qudits, dimensions) for _ in range(n_paulis)],
-                   weights=weights,
-                   phases=[0] * n_paulis,
-                   dimensions=dimensions,
-                   standardise=False)
+        # ensure no duplicate strings
+        strings = []
+        for _ in range(n_paulis):
+            ps = PauliString.from_random(n_qudits, dimensions)
+            while ps in strings:
+                ps = PauliString.from_random(n_qudits, dimensions)
+            strings.append(ps)
+
+        return cls(strings, weights=weights, phases=[0] * n_paulis, dimensions=dimensions, standardise=False)
 
     def _set_exponents(self):
         x_exp = np.zeros((len(self.pauli_strings), len(self.dimensions)))  # we can always index [pauli #, qudit #]
