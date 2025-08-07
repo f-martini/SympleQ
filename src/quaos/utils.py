@@ -1,7 +1,7 @@
 import numpy as np
 from quaos.core.paulis import PauliSum
 import galois
-
+from quaos.core.finite_field_solvers import solve_modular_linear_system
 
 def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
     """Reads a Hamiltonian file and parses the Pauli strings and coefficients.
@@ -203,81 +203,6 @@ def get_linearly_independent_rows(A: np.ndarray, d: int) -> list[int]:
         if nz_indices.size > 0:
             pivots.append(nz_indices[0])
     return pivots
-
-
-# def solve_modular_linear_system(B: galois.FieldArray, v: galois.FieldArray):
-#     """
-#     Solve x @ B = v over GF(p) for x.
-#     Inputs:
-#         B: (r, m) matrix (independent rows)
-#         v: (m,) target row
-#     Returns:
-#         x: (r,) solution vector such that x @ B == v
-#     """
-#     GF = type(B)
-#     r, m = B.shape
-#     # Transpose: B.T x.T = v.T → solve for x.T
-#     A = B.T
-#     b = v.T
-
-#     # Check if system is square
-#     if A.shape[0] == A.shape[1]:
-#         # Solve exactly
-#         try:
-#             x = np.linalg.solve(A, b)
-#             return x
-#         except np.linalg.LinAlgError:
-#             return None
-#     else:
-#         # Use row-reduction on augmented matrix [A | b]
-#         Ab = np.column_stack([A, b.reshape(-1, 1)])
-#         Ab = GF(Ab)
-#         R = Ab.row_reduce()
-
-#         # Extract solution from RREF
-#         x = R[:-1, -1]  # last column (solution), assuming unique
-#         return x
-
-
-def solve_modular_linear_system(B, v):
-    """
-    Solve x @ B = v over GF(p) for x (coefficients of pivot rows).
-    B: shape (r, m)
-    v: shape (m,)
-    Returns: x (length r) or None if no solution
-    """
-    GF = type(B)
-    r, m = B.shape
-
-    # Solve: x @ B = v  <=>  B^T @ x^T = v^T
-    A = B.T          # shape (m x r)
-    b = v.reshape(-1, 1)  # shape (m x 1)
-
-    Ab = GF(np.hstack((A, b)))  # shape (m x (r+1))
-    R = Ab.row_reduce()
-
-    # Check for inconsistency: row of [0 ... 0 | nonzero]
-    for row in R:
-        if np.all(row[:-1] == 0) and row[-1] != 0:
-            raise Exception("Inconsistent system")  # inconsistent system
-
-    # Back-substitution
-    num_vars = A.shape[1]
-    x = GF.Zeros(num_vars)
-    pivot_rows = 0
-    for i in range(R.shape[0]):
-        row = R[i]
-        nz = np.nonzero(row[:-1])[0]
-        if len(nz) == 0:
-            continue  # skip zero row
-        pivot_col = nz[0]
-        x[pivot_col] = row[-1]
-        pivot_rows += 1
-
-    if np.array_equal(x @ B, v):
-        return x
-    else:
-        raise Exception("Failed to solve linear system")
 
 
 def get_linear_dependencies(vectors: np.ndarray, p: int) -> tuple[list[int], dict[int, list[tuple[int, int]]]]:
