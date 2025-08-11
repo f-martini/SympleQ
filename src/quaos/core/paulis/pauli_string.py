@@ -116,8 +116,8 @@ class PauliString:
 
     def __gt__(self, other_pauli: PauliString) -> bool:
         this_pauli = self._to_int(reverse=True)
-        other_pauli = other_pauli._to_int(reverse=True)
-        return this_pauli > other_pauli
+        tmp_other_pauli = other_pauli._to_int(reverse=True)
+        return this_pauli > tmp_other_pauli
 
     def _to_int(self, reverse=False):
         dims = self.dimensions
