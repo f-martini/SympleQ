@@ -1,8 +1,8 @@
 import numpy as np
 from quaos.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
-from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
-# from quaos.core.circuits.utils import number_of_symplectics, symplectic_from_index, index_from_symplectic
+from quaos.core.circuits.target import find_map_to_target_pauli_sum  # , get_phase_vector
+# from quaos.core.circuits.utils import index_from_symplectic  # number_of_symplectics, symplectic_from_index,
 
 
 class Gate:
@@ -122,8 +122,8 @@ class Gate:
     #     The transvection vector should be a 2n-dimensional vector where n is the number of qudits.
     #     """
 
-    def get_int(self) -> int:
-        return index_from_symplectic(self.n_qudits, self.symplectic, self.dimension)
+    # def get_int(self) -> int:
+    #     return index_from_symplectic(self.n_qudits, self.symplectic, self.dimension)
 
 
 class SUM(Gate):
@@ -198,4 +198,3 @@ class PHASE(Gate):
         phase_vector = np.array([dimension + 1, 0], dtype=int)
 
         super().__init__("S", [index], symplectic, dimension=dimension, phase_vector=phase_vector)
-
