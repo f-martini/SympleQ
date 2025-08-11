@@ -19,10 +19,12 @@ class PauliSum:
     def __init__(self,
                  pauli_list: PauliStringDerivedType,
                  weights: list[float | complex] | np.ndarray | None = None,
-                 phases: list[float] | np.ndarray | None = None,
+                 phases: list[int] | np.ndarray | None = None,
                  dimensions: list[int] | np.ndarray | None = None,
                  standardise: bool = True):
         """
+        TODO: I think this would be better if we didn't store the pauli strings, but a GF(d) matrix,
+              then had a method to return the pauli strings
         TODO: Change everything possible to numpy arrays.
         TODO: Remove self.xz_mat - should be in a utils module
         TODO: Add stack method to concatenate additional strings or sums (could use utils concatenate)
@@ -71,6 +73,22 @@ class PauliSum:
                    phases=[0],
                    dimensions=pauli_string.dimensions,
                    standardise=False)
+
+    @classmethod
+    def from_random(cls, n_paulis: int, n_qudits: int,
+                    dimensions: list[int] | np.ndarray,
+                    rand_weights=True) -> 'PauliSum':
+        weights = np.random.rand(n_paulis) if rand_weights else np.ones(n_paulis)
+
+        # ensure no duplicate strings
+        strings = []
+        for _ in range(n_paulis):
+            ps = PauliString.from_random(n_qudits, dimensions)
+            while ps in strings:
+                ps = PauliString.from_random(n_qudits, dimensions)
+            strings.append(ps)
+
+        return cls(strings, weights=weights, phases=[0] * n_paulis, dimensions=dimensions, standardise=False)
 
     def _set_exponents(self):
         x_exp = np.zeros((len(self.pauli_strings), len(self.dimensions)))  # we can always index [pauli #, qudit #]
@@ -124,7 +142,7 @@ class PauliSum:
 
     @staticmethod
     def _sanitize_phases(pauli_list: list[PauliString],
-                         phases: list[float] | np.ndarray | None) -> np.ndarray:
+                         phases: list[int] | np.ndarray | None) -> np.ndarray:
         if phases is None:
             return np.zeros(len(pauli_list), dtype=int)
 
@@ -147,7 +165,7 @@ class PauliSum:
     def _sanity_checks(self,
                        pauli_list: PauliStringDerivedType,
                        weights: list[float | complex] | np.ndarray | float | complex | None,
-                       phases: list[float] | np.ndarray | None,
+                       phases: list[int] | np.ndarray | None,
                        dimensions: list[int] | np.ndarray | None) -> tuple[list[PauliString], np.ndarray, np.ndarray, np.ndarray]:
         sanitized_pauli_list = self._sanitize_pauli_list(pauli_list, dimensions)
         sanitized_dimensions = self._sanitize_dimensions(sanitized_pauli_list, dimensions)
@@ -431,7 +449,7 @@ class PauliSum:
         self._delete_qudits(to_delete)
 
     def symplectic(self) -> np.ndarray:
-        symplectic = np.zeros([self.n_paulis(), 2 * self.n_qudits()])
+        symplectic = np.zeros([self.n_paulis(), 2 * self.n_qudits()], dtype=int)
         for i, p in enumerate(self.pauli_strings):
             symplectic[i, :] = p.symplectic()
         return symplectic
@@ -528,6 +546,9 @@ class PauliSum:
             p_string += f'{self.weights[i]}' + ' ' * n_spaces + '|' + qudit_string + f'| {self.phases[i]} \n'
         return p_string
 
+    def __repr__(self) -> str:
+        return f'PauliSum({self.pauli_strings}, {self.weights}, {self.phases}, {self.dimensions})'
+
     def get_subspace(self, qudit_indices: list[int] | np.ndarray, pauli_indices: list[int] | np.ndarray | None = None):
         """
         Get the subspace of the PauliSum corresponding to the qudit indices for the given Paulis
@@ -609,6 +630,13 @@ class PauliSum:
         self.phases = np.array([self.phases[i] for i in order])
         self.x_exp = np.array([self.x_exp[i] for i in order])
         self.z_exp = np.array([self.z_exp[i] for i in order])
+
+    def swap_paulis(self, index_1: int, index_2: int):
+        self.pauli_strings[index_1], self.pauli_strings[index_2] = self.pauli_strings[index_2], self.pauli_strings[index_1]
+        self.weights[index_1], self.weights[index_2] = self.weights[index_2], self.weights[index_1]
+        self.phases[index_1], self.phases[index_2] = self.phases[index_2], self.phases[index_1]
+        self.x_exp[index_1], self.x_exp[index_2] = self.x_exp[index_2], self.x_exp[index_1]
+        self.z_exp[index_1], self.z_exp[index_2] = self.z_exp[index_2], self.z_exp[index_1]
 
     @staticmethod
     def xz_mat(d: int, aX: int, aZ: int) -> scipy.sparse.csr_matrix:

@@ -3,6 +3,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from .gates import Gate
 from quaos.core.paulis import PauliSum, PauliString, Pauli
+from .utils import embed_symplectic
 
 
 class Circuit:
@@ -21,6 +22,12 @@ class Circuit:
             dimensions (list[int] | np.ndarray): A list or array of integers representing the dimensions of the qudits.
             gates (list): A list of Gate objects representing the gates in the circuit.
 
+
+        TODO: Remove dimensions as input - this can be obtained from the gates only - make this a method not attribute
+        TODO: Composite gate of mixed dimensions. This is a bit tougher as it will need to change gate to allow for
+              mixed dimensions. This will only be possible for cases where the different
+              qudit species are not entangled by the gate
+        TODO: Perhaps store the composite gate as an attribute - it will allow gate.act to be significantly faster
         """
         if gates is None:
             gates = []
@@ -157,3 +164,31 @@ class Circuit:
                 new_indexes = [qudit_indices[j] for j in gate.qudit_indices]
                 new_gate.qudit_indices = new_indexes
             self.add_gate(new_gate)
+
+    def composite_gate(self) -> Gate:
+        """Composes the list of symplectics acting on all qudits to a single symplectic"""
+
+        total_indexes = []
+        total_symplectic = np.eye(2 * self.n_qudits(), dtype=np.uint8)
+        total_dimensions = []
+        total_phase_vector = np.zeros(2 * self.n_qudits(), dtype=np.uint8)
+        for gate in self.gates:
+            symplectic = gate.symplectic
+            indexes = gate.qudit_indices
+            dimension = gate.dimension
+            phase_vector = gate.phase_vector
+
+            F, h = embed_symplectic(symplectic, phase_vector, indexes, self.n_qudits(), dimension)
+            total_symplectic = np.mod(total_symplectic @ F.T, dimension)
+            total_phase_vector = np.mod(total_phase_vector @ F.T + h, dimension)
+
+            total_indexes.extend(indexes)
+            total_dimensions.append(dimension)
+
+        if np.all(np.array(total_dimensions) == total_dimensions[0]):
+            dimension = total_dimensions[0]
+        else:
+            NotImplementedError('Only composition of gates with constant dimension is supported')
+        total_indexes = list(set(np.sort(total_indexes)))
+        total_symplectic = total_symplectic.T
+        return Gate('CompositeGate', total_indexes, total_symplectic, dimension, total_phase_vector)

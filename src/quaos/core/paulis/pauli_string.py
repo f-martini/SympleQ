@@ -35,17 +35,6 @@ class PauliString:
         self.lcm = np.lcm.reduce(self.dimensions)
         self._sanity_check()
 
-    @classmethod
-    def from_pauli(cls, pauli: Pauli) -> PauliString:
-        return PauliString(x_exp=[pauli.x_exp], z_exp=[pauli.z_exp], dimensions=[pauli.dimension])
-
-    @classmethod
-    def from_string(cls, pauli_str: str, dimensions) -> PauliString:
-        xz_exponents = re.split('x|z', pauli_str)[1:]
-        z_exp = np.array(xz_exponents[1::2], dtype=int)
-        x_exp = np.array(xz_exponents[0::2], dtype=int)
-        return cls(x_exp=x_exp, z_exp=z_exp, dimensions=dimensions)
-
     def _sanity_check(self):
         if len(self.x_exp) != len(self.dimensions):
             raise ValueError(f"Number of x exponents ({len(self.x_exp)})"
@@ -63,6 +52,24 @@ class PauliString:
             if self.dimensions[i] - 1 < self.x_exp[i] or self.dimensions[i] - 1 < self.z_exp[i]:
                 raise ValueError(f"Dimension {self.dimensions[i]} is too small for"
                                  f" exponents {self.x_exp[i]} and {self.z_exp[i]}")
+
+    @classmethod
+    def from_pauli(cls, pauli: Pauli) -> PauliString:
+        return PauliString(x_exp=[pauli.x_exp], z_exp=[pauli.z_exp], dimensions=[pauli.dimension])
+
+    @classmethod
+    def from_string(cls, pauli_str: str, dimensions) -> PauliString:
+        xz_exponents = re.split('x|z', pauli_str)[1:]
+        z_exp = np.array(xz_exponents[1::2], dtype=int)
+        x_exp = np.array(xz_exponents[0::2], dtype=int)
+        return cls(x_exp=x_exp, z_exp=z_exp, dimensions=dimensions)
+
+    @classmethod
+    def from_random(cls, n_qudits: int, dimensions: list[int] | np.ndarray, seed=None) -> PauliString:
+        np.random.seed(seed)
+        return cls(x_exp=np.random.randint(0, dimensions, (n_qudits)),
+                   z_exp=np.random.randint(0, dimensions, (n_qudits)),
+                   dimensions=dimensions)
 
     def __repr__(self) -> str:
         return f"Pauli(x_exp={self.x_exp}, z_exp={self.z_exp}, dimensions={self.dimensions})"
@@ -108,11 +115,11 @@ class PauliString:
         return not self.__eq__(other_pauli)
 
     def __gt__(self, other_pauli: PauliString) -> bool:
-        this_int = self._to_int(reverse=True)
-        other_int = other_pauli._to_int(reverse=True)
-        return this_int > other_int
+        this_pauli = self._to_int(reverse=True)
+        other_pauli = other_pauli._to_int(reverse=True)
+        return this_pauli > other_pauli
 
-    def _to_int(self, reverse=False) -> int:
+    def _to_int(self, reverse=False):
         dims = self.dimensions
         dims_double = [d for d in dims for _ in range(2)]
         base = np.zeros(len(dims_double), dtype=int)
@@ -175,7 +182,7 @@ class PauliString:
         # phase = 0
         # for i in range(self.n_qudits()):
         #     phase += phi * (self.x_exp[i] * other_pauli.z_exp[i] + self.z_exp[i] * other_pauli.x_exp[i])
-        # return phase % (self.lcm)
+        # return phase % (2 * self.lcm)
 
         # identity on lower diagonal of U
         U = np.zeros((2 * self.n_qudits(), 2 * self.n_qudits()), dtype=int)
@@ -217,7 +224,7 @@ class PauliString:
     def __getitem__(self, key: slice | np.ndarray | list) -> PauliString:
         ...
 
-    def __getitem__(self, key):  # : int | slice | np.ndarray | list) -> 'PauliString | Pauli':
+    def __getitem__(self, key: int | slice | np.ndarray | list) -> 'PauliString | Pauli':
         if isinstance(key, int):
             return self.get_paulis()[key]
         elif isinstance(key, slice) or isinstance(key, np.ndarray) or isinstance(key, list):

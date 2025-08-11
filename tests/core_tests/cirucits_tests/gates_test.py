@@ -1,7 +1,9 @@
-from quaos.core.circuits import SUM, SWAP, Hadamard, PHASE
+from quaos.core.circuits import SUM, SWAP, Hadamard, PHASE, Gate
 from quaos.core.circuits.utils import is_symplectic
+from quaos.core.circuits.target import find_map_to_target_pauli_sum, find_symplectic_map
 from quaos.core.paulis import PauliSum, PauliString
 import numpy as np
+from quaos.core.circuits.utils import random_symplectic
 
 
 class TestGates():
@@ -25,7 +27,6 @@ class TestGates():
             ps, r1, r2, s1, s2 = self.random_pauli_string(dim)
             element_list.append((r1, r2, s1, s2))
             while (r1, r2, s1, s2) in element_list:
-                print('Duplicate PauliString found, generating new one...')
                 ps, r1, r2, s1, s2 = self.random_pauli_string(dim)
             ps_list.append(ps)
         return PauliSum(ps_list, dimensions=[dim, dim], standardise=True)
@@ -268,24 +269,121 @@ class TestGates():
         for gate in gates:
             assert is_symplectic(gate.symplectic), f"Gate {gate.name} is not symplectic"
 
+    def test_find_symplectic_map(self):
+        # this just tests the underlying solver, not the Gate or Pauli... implementation
+        # see test below for implementation
 
-if __name__ == "__main__":
+        for n in [5, 10, 20, 50]:  # n_qudits
+            for n_p in range(1, 10):
+                for _ in range(100):
+                    F_true = random_symplectic(n, 2, seed=None)
+                    X = np.random.randint(0, 2, size=(n_p, 2 * n), dtype=np.uint8)
+                    Y = (X @ F_true) % 2
+                    print(_)
+                    print("X:")
+                    print(X)
+                    # print("Y:")
+                    print(Y)
 
-    tst = TestGates()
-    d = 2
-    input_ps = tst.random_pauli_sum(d, n_paulis=6)
+                    F_found = find_symplectic_map(X, Y)
+                    # print("F_found:")
+                    print(X @ F_found % 2)
+                    assert np.array_equal((X @ F_found) % 2, Y)
 
-    # for i in range(100):
+    def test_gate_from_target(self):
+        n_qudits = 4
+        n_paulis = 6
+        dim = 2
+        dimensions = [dim] * n_qudits
 
-    #     target_ps = tst.random_pauli_sum(d, n_paulis=6)
+        input_ps = PauliSum.from_random(n_paulis, n_qudits, dimensions=dimensions)
+        gate = Gate.from_random(n_qudits, dim)
+        target_ps = gate.act(input_ps)
+
+        gate_from_solver = Gate.solve_from_target('ArbGate', input_ps, target_ps)
+        output_ps = gate_from_solver.act(input_ps)
+        assert output_ps == target_ps, (
+            'Error in gate_from_solver\n input:\n' + input_ps.__str__() +
+            '\n target:\n' + target_ps.__str__() + '\n output:\n' + output_ps.__str__())
+
+        # for d in [2]:  # only solves on GF(2) for now...
+        #     for i in range(10):
+        #         input_ps = self.random_pauli_sum(d, n_paulis=6)
+        #         target_ps = self.random_pauli_sum(d, n_paulis=6)
+
+        #         if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()):
+        #             print(i)
+        #             print('input')
+        #             print(input_ps.symplectic())
+        #             print('target')
+        #             print(target_ps.symplectic())
+        #             gate = Gate.solve_from_target('ArbGate', input_ps, target_ps)
+        #             output_ps = gate.act(input_ps)
+        #             output_ps.phases = input_ps.phases  # So far it does not solve for phases as well
+        #             print('output')
+        #             print(output_ps.symplectic())
+        #             print('gate')
+        #             print(gate.symplectic)
+        #             print('check')
+        #             print(input_ps.symplectic() @ gate.symplectic % 2)
+
+        #             assert output_ps == target_ps, f'Error test {i} \n In: \n' + input_ps.__str__() + '\n Out: \n' + output_ps.__str__() + '\n Target: \n' + target_ps.__str__()
+
+
+# if __name__ == "__main__":
+
+#     def random_symplectic(n, seed=None):
+#         """Generate a random symplectic matrix over GF(2) of size 2n x 2n."""
+#         if seed is not None:
+#             np.random.seed(seed)
+
+#         while True:
+#             A = np.random.randint(0, 2, size=(n, n))
+#             if np.linalg.matrix_rank(A) < n:
+#                 continue
+
+#             B = np.random.randint(0, 2, size=(n, n))
+#             B = (B + B.T) % 2  # Force symmetry
+
+#             C = np.random.randint(0, 2, size=(n, n))
+#             try:
+#                 AinvT = np.linalg.inv(A.T) % 2
+#             except np.linalg.LinAlgError:
+#                 continue
+
+#             D = (AinvT @ (C.T @ A + B)) % 2
+#             F = np.block([[A, B], [C, D]]) % 2
+
+#             if is_symplectic(F):
+#                 return F.astype(int)
+
+    # tst = TestGates()
+
+    # tst.test_gate_from_target()
+
+    # d = 2
+    # input_ps = tst.random_pauli_sum(d, n_paulis=4)
+    # successes = 0
+    # for i in range(10000):
+
+    #     target_ps = tst.random_pauli_sum(d, n_paulis=4)
     #     if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()) and input_ps != target_ps:
     #         gate = ArbitraryGate('ArbGate', input_ps, target_ps)
     #         output_ps = gate.act(input_ps)
     #         output_ps.phases = target_ps.phases  # we dont compare about these for now
     #         target_ps.standardise()
     #         output_ps.standardise()
-    #         print(target_ps.symplectic())
-    #         print(output_ps.symplectic())
-    #         print('Equal:', output_ps == target_ps)
-    print(input_ps.symplectic())
-    print('done')
+
+    #         if not output_ps == target_ps:
+    #             print(f'Error in Arbitrary gate: {i}')
+    #             print('Target PauliString:')
+    #             print(target_ps.symplectic())
+    #             print('Output PauliString:')
+    #             print(output_ps.symplectic())
+    #         else:
+    #             successes += 1
+
+    # print(f'Successes: {successes} out of 10000')
+    # print('Input PauliString:')
+    # print(input_ps.symplectic())
+    # print('done')
