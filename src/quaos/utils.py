@@ -3,6 +3,7 @@ from quaos.core.paulis import PauliSum
 import galois
 from quaos.core.finite_field_solvers import solve_modular_linear_system
 
+
 def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
     """Reads a Hamiltonian file and parses the Pauli strings and coefficients.
 
