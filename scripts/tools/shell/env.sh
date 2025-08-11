@@ -18,11 +18,11 @@ export DOC_INDEX=$DOC_ROOT/_build/html/index.html
 # Setup dev environment env variables
 export PYTHON_PY_SETUP=$CONFIGS_ROOT
 export PERSONAL_FOLDER=scripts/personal
+export DEV_REQUIREMENTS=scripts/configs/dev_requirements.txt
 
 # Python requirements synching env variables
 export SYNC_REQUIREMENTS_SCRIPT=scripts/tools/python/sync_requirements.py
 
 # Clear notebooks env variables
 export NOTEBOOKS_ROOT_DIR=$PROJECT_ROOT
-export DEV_REQUIREMENTS=scripts/configs/dev_requirements.txt
 export CLEAR_NOTEBOOKS_SCRIPT=scripts/tools/python/clear_notebooks.py

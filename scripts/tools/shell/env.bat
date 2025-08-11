@@ -18,11 +18,11 @@ set DOC_INDEX=%DOC_ROOT%/_build/html/index.html
 REM Setup dev environment env variables
 set PYTHON_PY_SETUP=%CONFIGS_ROOT%
 set PERSONAL_FOLDER=scripts/personal
+set DEV_REQUIREMENTS=scripts/configs/dev_requirements.txt
 
 REM Python requirements synching env variables
 set SYNC_REQUIREMENTS_SCRIPT=scripts/tools/python/sync_requirements.py
 
 REM Clear notebooks env variables
 set NOTEBOOKS_ROOT_DIR=%PROJECT_ROOT%
-set DEV_REQUIREMENTS=scripts/configs/dev_requirements.txt
 set CLEAR_NOTEBOOKS_SCRIPT=scripts/tools/python/clear_notebooks.py

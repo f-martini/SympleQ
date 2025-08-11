@@ -26,7 +26,8 @@ def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
         coeff = pauli_list[0][1:].replace(" ", "").replace('*I', 'j')
         coefficients.append(complex(coeff))
 
-        pauli_str = ' '.join(f"x{item.count('X')}z{item.count('Z')}" for item in pauli_list[1:])
+        pauli_str = ' '.join(
+            f"x{item.count('X')}z{item.count('Z')}" for item in pauli_list[1:])
         pauli_strings.append(pauli_str.strip())
 
     return PauliSum(pauli_strings,
@@ -61,7 +62,8 @@ def bases_to_int(base, dimensions) -> int:
     """
     dimensions = np.flip(dimensions)
     base = np.flip(base)
-    number = base[0] + sum([base[qudit] * np.prod(dimensions[:qudit]) for qudit in range(1, len(dimensions))])
+    number = base[0] + sum([base[qudit] * np.prod(dimensions[:qudit])
+                           for qudit in range(1, len(dimensions))])
     dimensions = np.flip(dimensions)
     base = np.flip(base)
     return number
@@ -92,7 +94,8 @@ def int_to_bases(number, dimensions) -> np.ndarray:
     dimensions = np.flip(dimensions)
     base = [number % dimensions[0]]
     for i in range(1, len(dimensions)):
-        s0 = base[0] + sum([base[i1] * dimensions[i1 - 1] for i1 in range(1, i)])
+        s0 = base[0] + sum([base[i1] * dimensions[i1 - 1]
+                           for i1 in range(1, i)])
         s1 = np.prod(dimensions[:i])
         base.append(((number - s0) // s1) % dimensions[i])
     dimensions = np.flip(dimensions)
@@ -136,7 +139,8 @@ def covariance_matrix(P: PauliSum, psi: np.ndarray) -> np.ndarray:
     psi_dag = psi.conj().T
     cc1 = [psi_dag @ mm[i] @ psi for i in range(p)]
     cc2 = [psi_dag @ mm[i].conj().T @ psi for i in range(p)]
-    return np.array([[np.conj(cc[i0]) * cc[i1] * ((psi_dag @ mm[i0].conj().T @ mm[i1] @ psi) - cc2[i0] * cc1[i1]) for i1 in range(p)] for i0 in range(p)])
+    return np.array([[np.conj(cc[i0]) * cc[i1] * ((psi_dag @ mm[i0].conj().T @ mm[i1] @ psi) - cc2[i0] * cc1[i1])
+                      for i1 in range(p)] for i0 in range(p)])
 
 
 def commutation_graph(P: PauliSum) -> np.ndarray:
@@ -180,7 +184,8 @@ def rand_state(dimension):
     """
     gamma_sample = np.random.gamma(1, 1, int(dimension))
     phases = np.random.uniform(0, 2 * np.pi, int(dimension))
-    normalized_state = np.sqrt(gamma_sample / np.sum(gamma_sample)) * np.exp(1j * phases)
+    normalized_state = np.sqrt(
+        gamma_sample / np.sum(gamma_sample)) * np.exp(1j * phases)
     return normalized_state
 
 
