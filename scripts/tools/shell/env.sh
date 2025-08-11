@@ -11,7 +11,7 @@ export SRC_REQUIREMENTS=scripts/configs/requirements.txt
 # Docs env variables
 export DOC_VENV=$DOC_ROOT/doc_venv
 export DOC_REQUIREMENTS=$DOC_ROOT/doc_requirements.txt
-export DOC_AUTOSUMMARY=$DOC_ROOT/index/_autosummary
+export DOC_AUTOSUMMARY=$DOC_ROOT/index/guides/_autosummary
 export DOC_BUILD_DIR=$DOC_ROOT/_build/html
 export DOC_INDEX=$DOC_ROOT/_build/html/index.html
 
