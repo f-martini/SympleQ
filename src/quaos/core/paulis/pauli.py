@@ -6,17 +6,22 @@ from typing import Any
 def get_sanitized_x_exp(x_exp: int | np.integer | None) -> int:
     """
     Checks whether the input `x_exp` is valid.
+
+    Parameters
     ----------
     x_exp : int, np.integer, or None
         The exponent value to be sanitized. Can be a Python integer, a NumPy integer, or None.
+
     Returns
     -------
     int
         The sanitized integer exponent. Returns 0 if `x_exp` is None.
+
     Raises
     ------
     TypeError
         If `x_exp` is not an integer.
+
     Examples
     --------
     >>> get_sanitized_x_exp(2)
@@ -41,17 +46,22 @@ def get_sanitized_x_exp(x_exp: int | np.integer | None) -> int:
 def get_sanitized_z_exp(z_exp: int | np.integer | None) -> int:
     """
     Checks whether the input `z_exp` is valid.
+
+    Parameters
     ----------
     z_exp : int, np.integer, or None
         The exponent value to be sanitized. Can be a Python integer, a NumPy integer, or None.
+
     Returns
     -------
     int
         The sanitized integer exponent. Returns 0 if `z_exp` is None.
+
     Raises
     ------
     TypeError
         If `z_exp` is not an integer.
+
     Examples
     --------
     >>> get_sanitized_z_exp(2)
@@ -113,23 +123,26 @@ def get_sanitized_dimension(dimension: int | np.integer,
 
 
 class Pauli:
+    """
+    Constructor for Pauli class. This represent a single Pauli operator acting on a quDit in symplectic form. 
+    For more details, see the reference:
+    `Phys. Rev. A 70, 052328 (204) <https://doi.org/10.1103/PhysRevA.70.052328>`_
+
+    Parameters
+    ----------
+    x_exp : int or str
+        Exponent of X part of Pauli in symplectic form. If str, this describes x and z parts in form
+        'xnzm', where n and m are integers representing the exponents of x and z respectively.
+    z_exp : int
+        Exponent of Z part of Pauli in symplectic form. If None, this is set to 0.
+    dimension : int
+        The dimension of the qudit. Default is 2.
+    """
+
     def __init__(self,
                  x_exp: int | None = None,
                  z_exp: int | None = None,
                  dimension: int = 2):
-        """
-        Constructor for Pauli class.
-
-        Parameters
-        ----------
-        x_exp : int or str
-            Exponent of X part of Pauli in symplectic form. If str, this describes x and z parts in form
-            'xnzm', where n and m are integers representing the exponents of x and z respectively.
-        z_exp : int
-            Exponent of Z part of Pauli in symplectic form. If None, this is set to 0.
-        dimension : int
-            The dimension of the qudit. Default is 2.
-        """
         self.x_exp = get_sanitized_x_exp(x_exp)
         self.z_exp = get_sanitized_z_exp(z_exp)
         self.dimension = get_sanitized_dimension(dimension, self.x_exp, self.z_exp)
