@@ -3,130 +3,13 @@ import numpy as np
 from typing import Any
 
 
-def get_sanitized_x_exp(x_exp: int | np.integer | None) -> int:
-    """
-    Checks whether the input `x_exp` is valid.
-
-    Parameters
-    ----------
-    x_exp : int, np.integer, or None
-        The exponent value to be sanitized. Can be a Python integer, a NumPy integer, or None.
-
-    Returns
-    -------
-    int
-        The sanitized integer exponent. Returns 0 if `x_exp` is None.
-
-    Raises
-    ------
-    TypeError
-        If `x_exp` is not an integer.
-
-    Examples
-    --------
-    >>> get_sanitized_x_exp(2)
-    2
-    >>> get_sanitized_x_exp(None)
-    0
-    >>> get_sanitized_x_exp(np.int32(5))
-    5
-    >>> get_sanitized_x_exp("a")
-    Traceback (most recent call last):
-        ...
-    TypeError: x_exp must be an integer type.
-    """
-    if x_exp is None:
-        return 0
-
-    if not isinstance(x_exp, (int, np.integer)):
-        raise TypeError("x_exp must be an integer type.")
-    return int(x_exp)
-
-
-def get_sanitized_z_exp(z_exp: int | np.integer | None) -> int:
-    """
-    Checks whether the input `z_exp` is valid.
-
-    Parameters
-    ----------
-    z_exp : int, np.integer, or None
-        The exponent value to be sanitized. Can be a Python integer, a NumPy integer, or None.
-
-    Returns
-    -------
-    int
-        The sanitized integer exponent. Returns 0 if `z_exp` is None.
-
-    Raises
-    ------
-    TypeError
-        If `z_exp` is not an integer.
-
-    Examples
-    --------
-    >>> get_sanitized_z_exp(2)
-    2
-    >>> get_sanitized_z_exp(None)
-    0
-    >>> get_sanitized_z_exp(np.int32(5))
-    5
-    >>> get_sanitized_z_exp("a")
-    Traceback (most recent call last):
-        ...
-    TypeError: z_exp must be an integer type.
-    """
-    if z_exp is None:
-        return 0
-
-    if not isinstance(z_exp, (int, np.integer)):
-        raise TypeError("z_exp must be an integer type.")
-    return int(z_exp)
-
-
-def get_sanitized_dimension(dimension: int | np.integer,
-                            x_exp: int,
-                            z_exp: int) -> int:
-    """
-    Validates the input dimension for Pauli operator exponents.
-    Checks that the provided dimension is an integer type and that it is large enough
-    to accommodate the given x and z exponents. Raises exceptions if the
-    inputs are invalid.
-
-    Parameters
-    ----------
-    dimension : int or numpy.integer
-        The dimension to be validated.
-    x_exp : int
-        The exponent for the X Pauli operator.
-    z_exp : int
-        The exponent for the Z Pauli operator.
-
-    Returns
-    -------
-    int
-        The sanitized dimension as a Python integer.
-
-    Raises
-    ------
-    TypeError
-        If `dimension` is not an integer type.
-    ValueError
-        If `dimension` is too small for the provided exponents.
-    """
-    if not isinstance(dimension, (int, np.integer)):
-        raise TypeError("dimension must be an integer type.")
-
-    if dimension - 1 < x_exp or dimension - 1 < z_exp:
-        raise ValueError(f"Dimension {dimension} is too small for exponents {x_exp} and {z_exp}")
-
-    return int(dimension)
-
-
 class Pauli:
     """
     Constructor for Pauli class. This represent a single Pauli operator acting on a quDit in symplectic form. 
-    For more details, see the reference:
-    `Phys. Rev. A 70, 052328 (204) <https://doi.org/10.1103/PhysRevA.70.052328>`_
+    For more details, see the references:
+    `Phys. Rev. A 71, 042315 (2005) <https://doi.org/10.1103/PhysRevA.71.042315>`_
+    and
+    `Phys. Rev. A 70, 052328 (2004) <https://doi.org/10.1103/PhysRevA.70.052328>`_
 
     Parameters
     ----------
@@ -290,10 +173,10 @@ class Xnd(Pauli):
     def __init__(self, x_exp: int, dimension: int):
         super().__init__(x_exp, 0, dimension)
 
-#TODO: I wonder whether we should keep the Y class this... It can be a bit confusing to be honest...
+
 class Ynd(Pauli):
     """
-    Represents a Pauli operator with only the Y part defined. In the context of qudits, this is represented as a Pauli operator with both X and Z parts defined.
+    Represents a Pauli operator with only the Y part defined. In the context of qudits, this is represented as a Pauli operator with the same X and Z powers.
     """
     def __init__(self, y_exp: int, dimension: int):
         super().__init__(y_exp, y_exp, dimension)
@@ -313,3 +196,122 @@ class Id(Pauli):
     """
     def __init__(self, dimension: int):
         super().__init__(0, 0, dimension)
+
+
+def get_sanitized_x_exp(x_exp: int | np.integer | None) -> int:
+    """
+    Checks whether the input `x_exp` is valid.
+
+    Parameters
+    ----------
+    x_exp : int, np.integer, or None
+        The exponent value to be sanitized. Can be a Python integer, a NumPy integer, or None.
+
+    Returns
+    -------
+    int
+        The sanitized integer exponent. Returns 0 if `x_exp` is None.
+
+    Raises
+    ------
+    TypeError
+        If `x_exp` is not an integer.
+
+    Examples
+    --------
+    >>> get_sanitized_x_exp(2)
+    2
+    >>> get_sanitized_x_exp(None)
+    0
+    >>> get_sanitized_x_exp(np.int32(5))
+    5
+    >>> get_sanitized_x_exp("a")
+    Traceback (most recent call last):
+        ...
+    TypeError: x_exp must be an integer type.
+    """
+    if x_exp is None:
+        return 0
+
+    if not isinstance(x_exp, (int, np.integer)):
+        raise TypeError("x_exp must be an integer type.")
+    return int(x_exp)
+
+
+def get_sanitized_z_exp(z_exp: int | np.integer | None) -> int:
+    """
+    Checks whether the input `z_exp` is valid.
+
+    Parameters
+    ----------
+    z_exp : int, np.integer, or None
+        The exponent value to be sanitized. Can be a Python integer, a NumPy integer, or None.
+
+    Returns
+    -------
+    int
+        The sanitized integer exponent. Returns 0 if `z_exp` is None.
+
+    Raises
+    ------
+    TypeError
+        If `z_exp` is not an integer.
+
+    Examples
+    --------
+    >>> get_sanitized_z_exp(2)
+    2
+    >>> get_sanitized_z_exp(None)
+    0
+    >>> get_sanitized_z_exp(np.int32(5))
+    5
+    >>> get_sanitized_z_exp("a")
+    Traceback (most recent call last):
+        ...
+    TypeError: z_exp must be an integer type.
+    """
+    if z_exp is None:
+        return 0
+
+    if not isinstance(z_exp, (int, np.integer)):
+        raise TypeError("z_exp must be an integer type.")
+    return int(z_exp)
+
+
+def get_sanitized_dimension(dimension: int | np.integer,
+                            x_exp: int,
+                            z_exp: int) -> int:
+    """
+    Validates the input dimension for Pauli operator exponents.
+    Checks that the provided dimension is an integer type and that it is large enough
+    to accommodate the given x and z exponents. Raises exceptions if the
+    inputs are invalid.
+
+    Parameters
+    ----------
+    dimension : int or numpy.integer
+        The dimension to be validated.
+    x_exp : int
+        The exponent for the X Pauli operator.
+    z_exp : int
+        The exponent for the Z Pauli operator.
+
+    Returns
+    -------
+    int
+        The sanitized dimension as a Python integer.
+
+    Raises
+    ------
+    TypeError
+        If `dimension` is not an integer type.
+    ValueError
+        If `dimension` is too small for the provided exponents.
+    """
+    if not isinstance(dimension, (int, np.integer)):
+        raise TypeError("dimension must be an integer type.")
+
+    if dimension - 1 < x_exp or dimension - 1 < z_exp:
+        raise ValueError(f"Dimension {dimension} is too small for exponents {x_exp} and {z_exp}")
+
+    return int(dimension)
