@@ -568,6 +568,24 @@ class PauliString:
         return self
 
     def acquired_phase(self, other_pauli: PauliString) -> int:
+        """
+        Compute the phase acquired when multiplying two Pauli strings self * other_pauli.
+        This method calculates the phase factor resulting from the multiplication of two Pauli strings,
+        using their symplectic representations. The phase is computed modulo twice the least common multiple (lcm)
+        of the underlying dimensions. For details, see:
+        `IEEE International Symposium on Information Theory (ISIT), pp. 791-795. IEEE (2018)
+        <https://doi.org/10.1109/ISIT.2018.8437652>`_
+
+        Parameters
+        ----------
+        other_pauli : PauliString
+            The Pauli string to multiply with this Pauli string.
+
+        Returns
+        -------
+        int
+            The acquired phase, as an integer modulo ``2 * self.lcm``.
+        """
         # phases acquired when multiplying two Pauli strings self * other_pauli
         # phi = 2.  # / self.dimensions
         # phase = 0
@@ -583,6 +601,30 @@ class PauliString:
         return int(2 * a.T @ U @ b) % (2 * self.lcm)
 
     def _replace_symplectic(self, symplectic: np.ndarray, qudit_indices: list[int]) -> PauliString:
+        """
+        Change a PauliString via its symplectic representation.
+        This method updates the `x_exp` and `z_exp` exponents of the Pauli string for the given
+        `qudit_indices` using the provided `symplectic` array. The `symplectic` array is expected
+        to be a concatenation of the new x and z exponents for the specified qudits.
+
+        Parameters
+        ----------
+        symplectic : np.ndarray
+            A 1D numpy array containing the new symplectic representation (x and z exponents)
+            for the specified qudits. The first half corresponds to x exponents, and the second
+            half to z exponents.
+        qudit_indices : list[int]
+            List of indices specifying which qudits in the Pauli string should be replaced.
+
+        Returns
+        -------
+        PauliString
+            A new PauliString object with the updated symplectic representation for the specified qudits.
+
+        Notes
+        -----
+        The length of `symplectic` must be exactly twice the length of `qudit_indices`.
+        """
         x_exp_replace = symplectic[0:len(qudit_indices)]
         z_exp_replace = symplectic[len(qudit_indices):2 * len(qudit_indices)]
 
@@ -594,8 +636,30 @@ class PauliString:
 
         return PauliString(x_exp=x_exp, z_exp=z_exp, dimensions=self.dimensions)
 
-    # not sure if here it is best to return a new object or not
+    # TODO: not sure if here it is best to return a new object or not
     def _delete_qudits(self, qudit_indices: list[int], return_new: bool = True) -> PauliString:
+        """
+        Delete specified qudits from the PauliString.
+        Removes the qudits at the given indices from the internal representations
+        (`x_exp`, `z_exp`, and `dimensions`). Optionally returns a new PauliString
+        instance with the specified qudits removed, or modifies the current instance
+        in place.
+
+        Parameters
+        ----------
+        qudit_indices : list of int
+            Indices of the qudits to be deleted.
+        return_new : bool, optional
+            If True (default), returns a new PauliString instance with the specified
+            qudits removed. If False, modifies the current instance in place and
+            returns self.
+
+        Returns
+        -------
+        PauliString
+            A new PauliString instance with the specified qudits removed if
+            `return_new` is True, otherwise returns self after modification.
+        """
         x_exp = np.delete(self.x_exp, qudit_indices)
         z_exp = np.delete(self.z_exp, qudit_indices)
         dimensions = np.delete(self.dimensions, qudit_indices)
@@ -617,6 +681,32 @@ class PauliString:
         ...
 
     def __getitem__(self, key: int | slice | np.ndarray | list) -> 'PauliString | Pauli':
+        """
+        Retrieve a Pauli or a (smaller) PauliString from the PauliString.
+
+        Parameters
+        ----------
+        key : int, slice, np.ndarray, or list
+            The index or indices specifying which Pauli(s) to retrieve. If an int, returns a single Pauli.
+            If a slice, numpy array, or list, returns a new PauliString containing the selected Paulis.
+
+        Returns
+        -------
+        PauliString or Pauli
+            The selected Pauli operator(s). Returns a single Pauli if `key` is an int, otherwise returns a PauliString.
+
+        Raises
+        ------
+        ValueError
+            If `key` is not an int, slice, numpy.ndarray, or list.
+
+        Examples
+        --------
+        >>> ps = PauliString(...)
+        >>> ps[0]  # Returns a single Pauli
+        >>> ps[1:3]  # Returns a PauliString with selected Paulis
+        >>> ps[[0, 2]]  # Returns a PauliString with Paulis at indices 0 and 2
+        """
         if isinstance(key, int):
             return self.get_paulis()[key]
         elif isinstance(key, slice) or isinstance(key, np.ndarray) or isinstance(key, list):
@@ -625,6 +715,24 @@ class PauliString:
             raise ValueError(f"Cannot get item with key {key}. Key must be an int or a slice.")
 
     def __setitem__(self, key: int | slice, value: 'Pauli | PauliString'):
+        """
+        Set the value(s) of the PauliString at the specified index or slice.
+
+        Parameters
+        ----------
+        key : int or slice
+            The index or slice at which to set the value. If an integer, a single Pauli is set.
+            If a slice, a PauliString is set over the specified range.
+        value : Pauli or PauliString
+            The value to set at the specified key. Must be a Pauli if key is an int,
+            or a PauliString if key is a slice.
+
+        Raises
+        ------
+        ValueError
+            If the key and value types do not match the expected combinations.
+        """
+        # TODO: is it necessary to distinguish the two cases in the if... elif... loop?
         if isinstance(key, int) and isinstance(value, Pauli):
             self.x_exp[key] = value.x_exp
             self.z_exp[key] = value.z_exp
@@ -637,16 +745,74 @@ class PauliString:
             raise ValueError(f"Cannot set item with key {key} and value {value}.")
 
     def get_subspace(self, qudit_indices: list[int] | int) -> PauliString:
+        """
+        Extracts a subspace of the PauliString corresponding to the specified qudit indices.
+
+        Parameters
+        ----------
+        qudit_indices : list[int] or int
+            The indices of the qudits to extract. Can be a single integer or a list of integers.
+
+        Returns
+        -------
+        PauliString
+            A new PauliString object representing the subspace defined by the selected qudit indices.
+
+        Examples
+        --------
+        >>> ps = PauliString(...)
+        >>> sub_ps = ps.get_subspace([0, 2])
+        """
         return PauliString(x_exp=self.x_exp[qudit_indices], z_exp=self.z_exp[qudit_indices],
                            dimensions=self.dimensions[qudit_indices])
 
     def copy(self) -> PauliString:
+        """
+        Create a deep copy of the current PauliString instance.
+
+        Returns
+        -------
+        PauliString
+            A new instance of PauliString with copied `x_exp`, `z_exp`, and `dimensions` attributes.
+        """
         return PauliString(x_exp=self.x_exp.copy(), z_exp=self.z_exp.copy(), dimensions=self.dimensions.copy())
 
     def commute(self, other_pauli: PauliString) -> bool:
+        """
+        Determine whether this Pauli string commutes with another Pauli string.
+        It is efficiently checked via the symplectic product.
+
+        Parameters
+        ----------
+        other_pauli : PauliString
+            The other Pauli string to check commutation with.
+
+        Returns
+        -------
+        bool
+            True if the two Pauli strings commute, False otherwise.
+
+        Notes
+        -----
+        Two Pauli strings commute if their symplectic product is zero.
+        """
         return self.symplectic_product(other_pauli) == 0
 
+    # TODO: Do we need this? I guess it does not harm, but essentially a
+    # PauliSTRING is hermitian if it only has qubit Paulis...
     def hermitian(self) -> PauliString:
+        """
+        Determine whether this Pauli string is Hermitian.
+
+        Returns
+        -------
+        bool
+            True if the Pauli string is Hermitian, False otherwise.
+
+        Notes
+        -----
+        A Pauli string is Hermitian if it is equal to its own adjoint.
+        """
         return PauliString(x_exp=(-self.x_exp) % self.dimensions,
                            z_exp=(-self.z_exp) % self.dimensions,
                            dimensions=self.dimensions)

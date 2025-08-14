@@ -143,7 +143,7 @@ class Pauli:
         Compares two Pauli operators based on their x and z exponents.
         """
         d = self.dimension
-        #TODO: Ask @charlie why we are including "d-*_exp" in the comparison
+        # TODO: Ask @charlie why we are including "d-*_exp" in the comparison
         x_measure = min(self.x_exp % d, (d - self.x_exp) % d)
         x_measure_new = min(other_pauli.x_exp % d, (d - other_pauli.x_exp) % d)
         z_measure = min(self.z_exp % d, (d - self.z_exp) % d)
