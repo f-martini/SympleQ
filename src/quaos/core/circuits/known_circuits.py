@@ -1,6 +1,6 @@
 from .gates import SUM as CX, PHASE as S, Hadamard as H
 from .circuits import Circuit
-from .utils import solve_modular_linear
+from quaos.core.finite_field_solvers import solve_modular_linear_additive
 from quaos.core.paulis import PauliString, PauliSum
 
 
@@ -112,12 +112,139 @@ def add_r2s2(pauli_sum: PauliSum, qudit_index_1: int, qudit_index_2: int) -> Cir
     return C
 
 
-# TODO: This (and other) functions are too complex, they have to be refactored and C901 enabled on flake8
-# (cyclomatic complexity checker)
-def ensure_zx_components(pauli_sum: PauliSum,
-                         pauli_index_x: int,
-                         pauli_index_z: int,
-                         target_qubit: int) -> tuple[Circuit, PauliSum]:
+def _find_first_exp(pauli_sum, pauli_index, target_qubit, exp_type):
+    """Finds the first qubit >= target_qubit with nonzero x_exp or z_exp for pauli_index."""
+    exp = pauli_sum.x_exp if exp_type == 'x' else pauli_sum.z_exp
+    for i in range(target_qubit, pauli_sum.n_qudits()):
+        if exp[pauli_index, i]:
+            return i
+    return None
+
+
+def _apply_h_and_cx(C, pauli_sum, qubit, target_qubit, direction='forward'):
+    """Apply H and CX gates and update pauli_sum."""
+    g = H(qubit, 2)
+    pauli_sum = g.act(pauli_sum)
+    C.add_gate(g)
+    if direction == 'forward':
+        g = CX(target_qubit, qubit, 2)
+    else:
+        g = CX(qubit, target_qubit, 2)
+    C.add_gate(g)
+    pauli_sum = g.act(pauli_sum)
+    return C, pauli_sum
+
+
+def _handle_xz_case(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit):
+    px = None
+    if pauli_sum.x_exp[pauli_index_x, target_qubit] == 1 and pauli_sum.z_exp[pauli_index_z, target_qubit] == 1:
+        px = pauli_index_x
+    elif pauli_sum.z_exp[pauli_index_x, target_qubit] == 1 and pauli_sum.x_exp[pauli_index_z, target_qubit] == 1:
+        px = pauli_index_z
+    return px
+
+
+def _handle_x_id_or_x_x(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit):
+    px = None
+    z_qubit = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'z')
+    x_qubit = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'x')
+    if z_qubit is not None:
+        g = CX(target_qubit, z_qubit, 2)
+    elif x_qubit is not None:
+        C, pauli_sum = _apply_h_and_cx(C, pauli_sum, x_qubit, target_qubit, direction='forward')
+        z_qubit = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'z')
+        g = CX(target_qubit, z_qubit, 2)
+    C.add_gate(g)
+    pauli_sum = g.act(pauli_sum)
+    px = pauli_index_x
+    return C, pauli_sum, px
+
+
+def _handle_z_id_or_z_z(C, pauli_sum, pauli_index_z, target_qubit):
+    px = None
+    x_qubit = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'x')
+    z_qubit = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'z')
+    if x_qubit is not None:
+        g = CX(x_qubit, target_qubit, 2)
+    elif z_qubit is not None:
+        C, pauli_sum = _apply_h_and_cx(C, pauli_sum, z_qubit, target_qubit, direction='backward')
+        x_qubit = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'x')
+        g = CX(x_qubit, target_qubit, 2)
+    C.add_gate(g)
+    pauli_sum = g.act(pauli_sum)
+    px = pauli_index_z
+    return C, pauli_sum, px
+
+
+def _handle_id_z(C, pauli_sum, pauli_index_x, target_qubit):
+    px = None
+    x_qubit = _find_first_exp(pauli_sum, pauli_index_x, target_qubit, 'x')
+    z_qubit = _find_first_exp(pauli_sum, pauli_index_x, target_qubit, 'z')
+    if x_qubit is not None:
+        g = CX(x_qubit, target_qubit, 2)
+    elif z_qubit is not None:
+        C, pauli_sum = _apply_h_and_cx(C, pauli_sum, z_qubit, target_qubit, direction='backward')
+        x_qubit = _find_first_exp(pauli_sum, pauli_index_x, target_qubit, 'x')
+        g = CX(x_qubit, target_qubit, 2)
+    C.add_gate(g)
+    pauli_sum = g.act(pauli_sum)
+    px = pauli_index_x
+    return C, pauli_sum, px
+
+
+def _handle_id_x(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit):
+    px = None
+    z_qubit = _find_first_exp(pauli_sum, pauli_index_x, target_qubit, 'z')
+    x_qubit = _find_first_exp(pauli_sum, pauli_index_x, target_qubit, 'x')
+    if z_qubit is not None:
+        g = CX(target_qubit, z_qubit, 2)
+    elif x_qubit is not None:
+        C, pauli_sum = _apply_h_and_cx(C, pauli_sum, x_qubit, target_qubit, direction='forward')
+        z_qubit = _find_first_exp(pauli_sum, pauli_index_x, target_qubit, 'z')
+        g = CX(target_qubit, z_qubit, 2)
+    C.add_gate(g)
+    pauli_sum = g.act(pauli_sum)
+    px = pauli_index_z
+    return C, pauli_sum, px
+
+
+def _handle_id_id(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit):
+    px = None
+    x_qubit_x = _find_first_exp(pauli_sum, pauli_index_x, target_qubit, 'x')
+    z_qubit_x = _find_first_exp(pauli_sum, pauli_index_x, target_qubit, 'z')
+    x_qubit_z = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'x')
+    z_qubit_z = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'z')
+    if x_qubit_x is not None:
+        g = CX(x_qubit_x, target_qubit, 2)
+        pauli_sum = g.act(pauli_sum)
+        C.add_gate(g)
+        if z_qubit_z is not None:
+            g = CX(target_qubit, z_qubit_z, 2)
+        elif x_qubit_z is not None:
+            C, pauli_sum = _apply_h_and_cx(C, pauli_sum, x_qubit_z, target_qubit, direction='forward')
+            z_qubit_z = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'z')
+            g = CX(target_qubit, z_qubit_z, 2)
+        C.add_gate(g)
+        pauli_sum = g.act(pauli_sum)
+        px = pauli_index_x
+    elif z_qubit_x is not None:
+        g = CX(target_qubit, z_qubit_x, 2)
+        pauli_sum = g.act(pauli_sum)
+        C.add_gate(g)
+        if x_qubit_z is not None:
+            g = CX(x_qubit_z, target_qubit, 2)
+        elif z_qubit_z is not None:
+            C, pauli_sum = _apply_h_and_cx(C, pauli_sum, z_qubit_z, target_qubit, direction='backward')
+            x_qubit_z = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'x')
+            g = CX(x_qubit_z, target_qubit, 2)
+        C.add_gate(g)
+        pauli_sum = g.act(pauli_sum)
+        px = pauli_index_z
+    return C, pauli_sum, px
+
+
+def ensure_zx_components(pauli_sum: PauliSum, pauli_index_x: int,
+                         pauli_index_z: int, target_qubit: int) -> tuple[Circuit, PauliSum]:
     """
     Assumes anti-commutation between pauli_index_x and pauli_index_z.
     brings pauli_sum to the form:
@@ -128,121 +255,56 @@ def ensure_zx_components(pauli_sum: PauliSum,
     where r1 and s2 are always non-zero
 
     """
-
     if not pauli_sum[pauli_index_x, target_qubit:].commute(pauli_sum[pauli_index_z, target_qubit:]):
-        raise ValueError(
-            "ensure_zx_components requires anti-commutation between pauli_index_x and pauli_index_z beyond target_qubit"
-        )
+        raise ValueError(("ensure_zx_components requires anti-commutation"
+                          " between pauli_index_x and pauli_index_z beyond target_qubit"))
 
     C = Circuit(dimensions=pauli_sum.dimensions)
-    # prepare anti-commuting pauli strings with the same absolute coefficients for test of hadamard Symmetry
-    # prime pauli pi and pj for cancel_pauli
-
-    # x,z
-    if pauli_sum.x_exp[pauli_index_x, target_qubit] == 1 and pauli_sum.z_exp[pauli_index_z, target_qubit] == 1:
-        px = pauli_index_x
-    # z,x
-    elif pauli_sum.z_exp[pauli_index_x, target_qubit] == 1 and pauli_sum.x_exp[pauli_index_z, target_qubit] == 1:
-        px = pauli_index_z
-    # x,id or x,x
+    px = _handle_xz_case(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit)
+    if px is not None:
+        pass
     elif pauli_sum.x_exp[pauli_index_x, target_qubit] == 1 and pauli_sum.z_exp[pauli_index_z, target_qubit] == 0:
-        if any(pauli_sum.z_exp[pauli_index_z, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-            g = CX(target_qubit, min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                   if pauli_sum.z_exp[pauli_index_z, i]]), 2)
-        elif any(pauli_sum.x_exp[pauli_index_z, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-            g = H(min([i for i in range(target_qubit, pauli_sum.n_qudits()) if pauli_sum.x_exp[pauli_index_z, i]]), 2)
-            pauli_sum = g.act(pauli_sum)
-            C.add_gate(g)
-            g = CX(target_qubit, min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                   if pauli_sum.z_exp[pauli_index_z, i]]), 2)
-        C.add_gate(g)
-        pauli_sum = g.act(pauli_sum)
-        px = pauli_index_x
-    # z,id or z,z
+        C, pauli_sum, px = _handle_x_id_or_x_x(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit)
     elif pauli_sum.z_exp[pauli_index_x, target_qubit] == 1 and pauli_sum.x_exp[pauli_index_z, target_qubit] == 0:
-        if any(pauli_sum.x_exp[pauli_index_z, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-            g = CX(min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                   if pauli_sum.x_exp[pauli_index_z, i]]), target_qubit, 2)
-        elif any(pauli_sum.z_exp[pauli_index_z, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-            g = H(min([i for i in range(target_qubit, pauli_sum.n_qudits()) if pauli_sum.z_exp[pauli_index_z, i]]), 2)
-            pauli_sum = g.act(pauli_sum)
-            C.add_gate(g)
-            g = CX(min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                   if pauli_sum.x_exp[pauli_index_z, i]]), target_qubit, 2)
-        C.add_gate(g)
-        pauli_sum = g.act(pauli_sum)
-        px = pauli_index_z
-    # id,z
+        C, pauli_sum, px = _handle_z_id_or_z_z(C, pauli_sum, pauli_index_z, target_qubit)
     elif pauli_sum.x_exp[pauli_index_x, target_qubit] == 0 and pauli_sum.z_exp[pauli_index_z, target_qubit] == 1:
-        if any(pauli_sum.x_exp[pauli_index_x, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-            g = CX(min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                   if pauli_sum.x_exp[pauli_index_x, i]]), target_qubit, 2)
-        elif any(pauli_sum.z_exp[pauli_index_x, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-            g = H(min([i for i in range(target_qubit, pauli_sum.n_qudits()) if pauli_sum.z_exp[pauli_index_x, i]]), 2)
-            pauli_sum = g.act(pauli_sum)
-            C.add_gate(g)
-            g = CX(min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                   if pauli_sum.x_exp[pauli_index_x, i]]), target_qubit, 2)
-        C.add_gate(g)
-        pauli_sum = g.act(pauli_sum)
-        px = pauli_index_x
-    # id,x
+        C, pauli_sum, px = _handle_id_z(C, pauli_sum, pauli_index_x, target_qubit)
     elif pauli_sum.x_exp[pauli_index_x, target_qubit] == 0 and pauli_sum.x_exp[pauli_index_z, target_qubit] == 1:
-        if any(pauli_sum.z_exp[pauli_index_x, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-            g = CX(target_qubit, min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                   if pauli_sum.z_exp[pauli_index_x, i]]), 2)
-        elif any(pauli_sum.x_exp[pauli_index_x, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-            g = H(min([i for i in range(target_qubit, pauli_sum.n_qudits()) if pauli_sum.x_exp[pauli_index_x, i]]), 2)
-            pauli_sum = g.act(pauli_sum)
-            C.add_gate(g)
-            g = CX(target_qubit, min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                   if pauli_sum.z_exp[pauli_index_x, i]]), 2)
-        C.add_gate(g)
-        pauli_sum = g.act(pauli_sum)
-        px = pauli_index_z
-    # id,id
+        C, pauli_sum, px = _handle_id_x(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit)
     else:
-        if any(pauli_sum.x_exp[pauli_index_x, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-            g = CX(min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                   if pauli_sum.x_exp[pauli_index_x, i]]), target_qubit, 2)
-            pauli_sum = g.act(pauli_sum)
-            C.add_gate(g)
-            if any(pauli_sum.z_exp[pauli_index_z, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-                g = CX(target_qubit, min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                       if pauli_sum.z_exp[pauli_index_z, i]]), 2)
-            elif any(pauli_sum.x_exp[pauli_index_z, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-                g = H(min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                           if pauli_sum.x_exp[pauli_index_z, i]]), 2)
-                pauli_sum = g.act(pauli_sum)
-                C.add_gate(g)
-                g = CX(target_qubit, min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                       if pauli_sum.z_exp[pauli_index_z, i]]), 2)
-            C.add_gate(g)
-            pauli_sum = g.act(pauli_sum)
-            px = pauli_index_x
-        elif any(pauli_sum.z_exp[pauli_index_x, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-            g = CX(target_qubit, min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                   if pauli_sum.z_exp[pauli_index_x, i]]), 2)
-            pauli_sum = g.act(pauli_sum)
-            C.add_gate(g)
-            if any(pauli_sum.x_exp[pauli_index_z, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-                g = CX(min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                       if pauli_sum.x_exp[pauli_index_z, i]]), target_qubit, 2)
-            elif any(pauli_sum.z_exp[pauli_index_z, i] for i in range(target_qubit, pauli_sum.n_qudits())):
-                g = H(min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                           if pauli_sum.z_exp[pauli_index_z, i]]), 2)
-                pauli_sum = g.act(pauli_sum)
-                C.add_gate(g)
-                g = CX(min([i for i in range(target_qubit, pauli_sum.n_qudits())
-                       if pauli_sum.x_exp[pauli_index_z, i]]), target_qubit, 2)
-            C.add_gate(g)
-            pauli_sum = g.act(pauli_sum)
-            px = pauli_index_z
+        C, pauli_sum, px = _handle_id_id(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit)
+
     if px == pauli_index_z:
         C.add_gate(H(target_qubit, 2))
         pauli_sum = H(target_qubit, 2).act(pauli_sum)
 
     return C, pauli_sum
+
+
+def _to_ix_logic(circuit: Circuit, pauli_string: PauliString,
+                 target_index: int, p_string_in: PauliString) -> tuple[Circuit, PauliString]:
+    for q in range(pauli_string.n_qudits()):
+        if pauli_string[q].x_exp == 0 and pauli_string[q].z_exp != 0:
+            circuit.add_gate(H(q, pauli_string.dimensions[q]))
+            pauli_string = circuit.act(p_string_in)
+        if pauli_string[q].x_exp != 0:
+            if pauli_string[q].z_exp != 0:
+                # use the x to cancel the z of q with S gates
+                n_s = solve_modular_linear_additive(pauli_string[q].x_exp, pauli_string[q].z_exp,
+                                                    pauli_string.dimensions[q])
+                for i in range(n_s):
+                    circuit.add_gate(S(q, pauli_string.dimensions[q]))
+                pauli_string = circuit.act(p_string_in)
+
+                # use cnot to cancel the x of q with the x of target. n_cnot = n where x_q + x+_target) % d= 0
+                n_cnot = solve_modular_linear_additive(pauli_string[q].x_exp, pauli_string[target_index].x_exp,
+                                                       pauli_string.dimensions[target_index])
+                if n_cnot is None:
+                    raise Exception("Weird")
+                for i in range(n_cnot):
+                    circuit.add_gate(CX(target_index, q, pauli_string.dimensions[target_index]))
+                pauli_string = circuit.act(p_string_in)
+    return circuit, pauli_string
 
 
 def to_ix(pauli_string: PauliString, target_index: int, ignore: int | list[int] | None = None) -> Circuit:
@@ -267,32 +329,13 @@ def to_ix(pauli_string: PauliString, target_index: int, ignore: int | list[int] 
     n_q = pauli_string.n_qudits()
     for q in range(n_q):
         if q != target_index and q not in ignore:
-            if pauli_string[q].x_exp == 0 and pauli_string[q].z_exp != 0:
-                circuit.add_gate(H(q, pauli_string.dimensions[q]))
-                pauli_string = circuit.act(p_string_in)
-            if pauli_string[q].x_exp != 0:
-                if pauli_string[q].z_exp != 0:
-                    # use the x to cancel the z of q with S gates
-                    n_s = solve_modular_linear(pauli_string[q].x_exp, pauli_string[q].z_exp, pauli_string.dimensions[q])
-                    for i in range(n_s):
-                        circuit.add_gate(S(q, pauli_string.dimensions[q]))
-                    pauli_string = circuit.act(p_string_in)
-
-                # use cnot to cancel the x of q with the x of target. n_cnot = n where x_q + x+_target) % d= 0
-                n_cnot = solve_modular_linear(
-                    pauli_string[q].x_exp, pauli_string[target_index].x_exp, pauli_string.dimensions[target_index])
-                if n_cnot is None:
-                    raise Exception("Weird")
-                for i in range(n_cnot):
-                    circuit.add_gate(CX(target_index, q, pauli_string.dimensions[target_index]))
-                pauli_string = circuit.act(p_string_in)
+            circuit, pauli_string = _to_ix_logic(circuit, pauli_string, target_index, p_string_in)
 
     else:
         return circuit
 
 
-def to_x(pauli_string: PauliString, target_index: int, ignore: int | list[int] | None = None) -> Circuit:
-    """Finds a circuit to turn a PauliString to ****X*** where the X is at target_index"""
+def _validate_inputs(pauli_string, target_index, ignore):
     if ignore is None:
         ignore = []
     if isinstance(ignore, int):
@@ -302,42 +345,54 @@ def to_x(pauli_string: PauliString, target_index: int, ignore: int | list[int] |
 
     if target_index < 0:
         target_index += pauli_string.n_qudits()
-    if target_index > pauli_string.n_qudits():
+    if target_index >= pauli_string.n_qudits():
         raise Exception(f"target_index {target_index} out of range {pauli_string.n_qudits()}")
-
-    n_q = pauli_string.n_qudits()
-    if PauliString.n_identities == n_q:
+    if PauliString.n_identities == pauli_string.n_qudits():
         raise Exception("PauliString is identity - cannot be converted to X")
+    return ignore, target_index
 
-    circuit = Circuit(dimensions=pauli_string.dimensions)  # Empty circuit of correct dimensions
 
-    # First we check if we can get there from a single qudit gate
-    # target is X
+def _single_qudit_x(pauli_string, target_index, circuit):
     dim_target = pauli_string.dimensions[target_index]
-    if pauli_string[target_index].x_exp != 0 and pauli_string[target_index].z_exp == 0:  # already x
+    x_exp = pauli_string[target_index].x_exp
+    z_exp = pauli_string[target_index].z_exp
+    if x_exp != 0 and z_exp == 0:
         return circuit
-    elif pauli_string[target_index].x_exp != 0 and pauli_string[target_index].z_exp != 0:
-        # We remove the Z by performing S gates
-        n_s_gates = solve_modular_linear(pauli_string[target_index].z_exp, pauli_string[target_index].x_exp, dim_target)
-        for i in range(n_s_gates):
-            circuit.add_gate(S(target_index, dim_target))  # xrzs -> xrz(s+r) until s+r = 0
+    elif x_exp != 0 and z_exp != 0:
+        n_s_gates = solve_modular_linear_additive(z_exp, x_exp, dim_target)
+        for _ in range(n_s_gates):
+            circuit.add_gate(S(target_index, dim_target))
         return circuit
-    elif pauli_string[target_index].x_exp == 0 and pauli_string[target_index].z_exp != 0:
-        circuit.add_gate(H(target_index, dim_target))  # swap x and z
+    elif x_exp == 0 and z_exp != 0:
+        circuit.add_gate(H(target_index, dim_target))
         return circuit
-    elif pauli_string[target_index].x_exp == 0 and pauli_string[target_index].z_exp == 0:  # must be x0z0
-        # We have to use a multi-qubit gate - we loop through the qudits until we find a resource
-        for q in range(n_q - 1, -1, -1):
-            if q != target_index and q not in ignore:
-                if pauli_string[q].x_exp != 0:
-                    # move x of q to target
-                    circuit.add_gate(CX(q, target_index, dim_target))
-                    return circuit
-                if pauli_string[q].x_exp == 0 and pauli_string[q].z_exp != 0:
-                    # move z of q to target_index then Hadamard
-                    circuit.add_gate(CX(target_index, q, dim_target))
-                    circuit.add_gate(H(target_index, dim_target))
-                    return circuit
-    else:
-        raise Exception("A case has been missed from the above loop")
+    return None  # Not handled here
+
+
+def _multi_qudit_x(pauli_string, target_index, ignore, circuit):
+    n_q = pauli_string.n_qudits()
+    dim_target = pauli_string.dimensions[target_index]
+    for q in range(n_q - 1, -1, -1):
+        if q != target_index and q not in ignore:
+            x_exp = pauli_string[q].x_exp
+            z_exp = pauli_string[q].z_exp
+            if x_exp != 0:
+                circuit.add_gate(CX(q, target_index, dim_target))
+                return circuit
+            if x_exp == 0 and z_exp != 0:
+                circuit.add_gate(CX(target_index, q, dim_target))
+                circuit.add_gate(H(target_index, dim_target))
+                return circuit
     raise Exception(f"No circuit found to convert {pauli_string} pauli to X")
+
+
+def to_x(pauli_string: PauliString, target_index: int, ignore: int | list[int] | None = None) -> Circuit:
+    """Finds a circuit to turn a PauliString to ****X*** where the X is at target_index"""
+
+    ignore, target_index = _validate_inputs(pauli_string, target_index, ignore)
+    circuit = Circuit(dimensions=pauli_string.dimensions)
+    result = _single_qudit_x(pauli_string, target_index, circuit)
+    if result is not None:
+        return result
+    # If not handled by single qudit, try multi-qudit
+    return _multi_qudit_x(pauli_string, target_index, ignore, circuit)
