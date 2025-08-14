@@ -78,7 +78,9 @@ def add_phase(xz_pauli_sum: PauliSum, qudit_index: int, qudit_index_2: int, phas
                            S(qudit_index_2, 2), CX(qudit_index, qudit_index_2, 2)])
         return C
     else:
-        raise ValueError("Phase key must be one of 'SSSS', 'DDSS', 'DSDS', 'DSSD', 'SDDS', 'SDSD', 'SSDD', 'DDDD'")
+        raise ValueError(
+            "Invalid phase key. Must be one of 'SSSS', 'DDSS', 'DSDS', 'DSSD', 'SDDS', 'SDSD', 'SSDD', 'DDDD'"
+        )
 
 
 def add_s2(pauli_sum: PauliSum, qudit_index_1: int, qudit_index_2: int) -> Circuit:
@@ -340,6 +342,7 @@ def _validate_inputs(pauli_string, target_index, ignore):
         ignore = [ignore]
     if target_index in ignore:
         raise Exception("target_index must not be in ignore")
+
     if target_index < 0:
         target_index += pauli_string.n_qudits()
     if target_index >= pauli_string.n_qudits():
