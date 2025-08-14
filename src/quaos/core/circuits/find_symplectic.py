@@ -5,7 +5,6 @@ So far it only works for GF(2), as in the original paper. It could be extended t
 """
 
 import numpy as np
-# np.random.seed(42)
 from quaos.core.finite_field_solvers import solve_gf2
 from quaos.core.circuits.utils import transvection_matrix, symplectic_product, symplectic_product_matrix
 

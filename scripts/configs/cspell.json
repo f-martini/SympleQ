@@ -55,6 +55,8 @@
         "markersize",
         "matplotlib",
         "mcmc",
+        "multiset",
+        "multisets",
         "nbconvert",
         "nbformat",
         "ncols",
