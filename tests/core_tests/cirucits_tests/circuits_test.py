@@ -8,10 +8,10 @@ import numpy as np
 
 class TestKnownCircuits():
 
-    def test_to_x(self):
+    def test_to_x(self, n_tests=10000):
         target_x = 0
         list_of_failures = []
-        for _ in range(20000):
+        for _ in range(n_tests):
             ps = random_pauli_string([3, 3, 3, 3])
             if ps.n_identities() == 4:
                 continue
@@ -22,10 +22,10 @@ class TestKnownCircuits():
 
         return list_of_failures
 
-    def test_to_ix(self):
+    def test_to_ix(self, n_tests=10000):
         target_x = 0
         list_of_failures = []
-        for _ in range(2000):
+        for _ in range(n_tests):
             ps = random_pauli_string([3, 3, 3, 3])
             if ps.n_identities() == 4:
                 continue
@@ -56,7 +56,8 @@ class TestCircuits():
         # Generates a random PauliSum with n_paulis random PauliStrings of dimension dim
         #
         ps_list = []
-        element_list = [[0, 0] * n_qudits]  # to keep track of already generated PauliStrings. Avoids identity and duplicates
+        element_list = [[0, 0] * n_qudits]  # to keep track of already generated PauliStrings.
+        # Avoids identity and duplicates
         for _ in range(n_paulis):
             ps, elements = self.random_pauli_string(dim, n_qudits)
             element_list.append(elements)

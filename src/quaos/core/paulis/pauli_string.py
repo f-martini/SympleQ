@@ -799,7 +799,7 @@ class PauliString:
         return self.symplectic_product(other_pauli) == 0
 
     # TODO: Do we need this? I guess it does not harm, but essentially a
-    # PauliSTRING is hermitian if it only has qubit Paulis...
+    # PauliString is hermitian if it only has qubit Paulis (or identities)...
     def hermitian(self) -> PauliString:
         """
         Determine whether this Pauli string is Hermitian.
