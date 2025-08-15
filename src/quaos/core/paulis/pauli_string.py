@@ -37,13 +37,13 @@ class PauliString:
     dimensions : np.ndarray
         Array of dimensions for each qudit.
     lcm : int
-        Least common multiple of all qudit dimensions.
+        Least common multiplier of all qudit dimensions.
 
     Notes
     -----
     - The class assumes that the Pauli operator exponents are always reduced modulo their respective qudit dimensions.
-    - The string representation for initialization should follow the format: 'x0z0 x1z1 ...',
-    where xi and zi are integers within [0, d-1] for each qudit of dimension d.
+    - The string representation for initialization should follow the format: 'x0z0 x1z1 ...', where xi and zi are
+      integers within [0, d-1] for each qudit of dimension d.
     '''
 
     def __init__(self,
