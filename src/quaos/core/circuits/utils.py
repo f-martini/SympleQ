@@ -30,7 +30,7 @@ def symplectic_product(u: np.ndarray, v: np.ndarray, p: int = 2) -> int:
         Symplectic inner product modulo p
     """
     n = len(u) // 2
-    return (np.sum(u[:n] * v[n:] + u[n:] * v[:n])) % p
+    return (np.sum(u[:n] * v[n:] - u[n:] * v[:n])) % p
 
 
 def symplectic_product_matrix(pauli_sum):
