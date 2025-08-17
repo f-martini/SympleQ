@@ -1,0 +1,37 @@
+[build-system]
+requires = ["scikit-build-core[ninja]", "nanobind"]
+build-backend = "scikit_build_core.build"
+
+[project]
+dependencies = [
+    "build==1.3.0",
+    "nanobind==2.8.0",
+    "scikit-build-core==0.11.5",
+    "numpy==2.1.3",
+    "ipykernel==6.29.5",
+    "matplotlib==3.10.0",
+    "scipy==1.15.1",
+    "networkx==3.4.2",
+    "numba-cuda==0.4.0",
+    "ipywidgets==8.1.5",
+    "tqdm==4.67.1",
+    "python-dotenv==1.0.1",
+    "requests==2.32.3",
+    "pandas==2.2.3",
+    "qiskit==2.0.0",
+]
+name = "quaos"
+version = "0.1.0"
+description = "QuAOS: Quantum Algorithms, Optomechanics and Simulations"
+readme = "../../README.md"
+authors = [{ name = "Quaos-Lab", email = "quaos.org@gmail.com" }]
+license = { text = "MIT" }
+requires-python = ">=3.11"
+
+[tool.scikit-build]
+build-dir = "../../src/quaos/core/light/build"
+cmake.define.CUDA_PATH = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9"
+cmake.source-dir = "../../src"
+cmake.version = ">=3.21"
+sdist.include = ["src", "CMakeLists.txt", "README.md"]
+wheel.packages = ["../../src/quaos"]
