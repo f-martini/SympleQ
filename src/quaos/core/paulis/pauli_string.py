@@ -73,7 +73,7 @@ class PauliString:
 
     def _sanity_check(self):
         """
-        Validates the consistency of the Pauli string's internal representation.
+        Validates the consistency of the PauliString's internal representation.
 
         Raises
         ------
@@ -81,7 +81,6 @@ class PauliString:
             If the lengths of `x_exp`, `z_exp`, and `dimensions` do not match,
             or if any exponent is not valid for its corresponding dimension.
         """
-
         if len(self.x_exp) != len(self.dimensions):
             raise ValueError(f"Number of x exponents ({len(self.x_exp)})"
                              f" and dimensions ({len(self.dimensions)}) must be equal.")
@@ -425,18 +424,22 @@ class PauliString:
 
     def __hash__(self) -> int:
         """
-        Return the hash value of the Pauli string.
+        Return the hash value of the PauliString object.
         That is a unique identifier, similar to the characterizing int.
 
         Returns
         -------
         int
-            The hash value of the Pauli string instance.
+            The hash value of the PauliString instance.
         """
         if self.n_qudits() > 15:
             raise ValueError(f"Cannot convert PauliString with more than {self.n_qudits()} qudits to hash, "
                              "as it may exceed the maximum integer size. Current max set to 15 qudits.")
-        return hash((tuple(self.x_exp), tuple(self.z_exp), tuple(self.dimensions)))
+        return hash(
+            (tuple(self.x_exp),
+             tuple(self.z_exp),
+             tuple(self.dimensions))
+        )
 
     def __dict__(self) -> dict:
         """
@@ -447,7 +450,9 @@ class PauliString:
         dict
             A dictionary containing the values of `x_exp`, `z_exp`, and `dimensions`.
         """
-        return {'x_exp': self.x_exp, 'z_exp': self.z_exp, 'dimensions': self.dimensions}
+        return {'x_exp': self.x_exp,
+                'z_exp': self.z_exp,
+                'dimensions': self.dimensions}
 
     def n_qudits(self) -> int:
         """
