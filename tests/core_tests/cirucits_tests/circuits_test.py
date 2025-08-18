@@ -162,8 +162,8 @@ class TestCircuits():
 
         embedded_symplectic, embedded_h = embed_symplectic(symplectic, gate.phase_vector, [0], 2, 2)
 
-        print(embedded_symplectic_correct)
-        print(embedded_symplectic)
+        # print(embedded_symplectic_correct)
+        # print(embedded_symplectic)
 
         assert np.array_equal(embedded_symplectic, embedded_symplectic_correct)
 
