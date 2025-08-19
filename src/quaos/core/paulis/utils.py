@@ -7,7 +7,21 @@ from .pauli_sum import PauliSum
 import networkx as nx
 
 
-def to_pauli_sum(P: Pauli | PauliString) -> PauliSum:
+def to_pauli_sum(P: Pauli | PauliString
+                 ) -> PauliSum:
+    """
+    Convert a Pauli or PauliString to a PauliSum.
+
+    Parameters
+    ----------
+    P : Pauli | PauliString
+        The Pauli or PauliString to convert.
+
+    Returns
+    -------
+    PauliSum
+        The resulting PauliSum.
+    """
     if isinstance(P, Pauli):
         x = P.x_exp
         z = P.z_exp
