@@ -1,7 +1,4 @@
-import sys
-import os
 import numpy as np
-sys.path.append("./")
 from quaos.core.circuits import Gate
 from quaos.core.paulis import PauliSum
 
@@ -62,7 +59,7 @@ def symplectic (n, num_transvections=None):
     return M
 
 # Random Clifford Circuit Generation
-# so-far only supports qubits (2-dimensional systems) 
+# so-far only supports qubits (2-dimensional systems)
 
 
 def clifford(dimensions):
@@ -112,10 +109,10 @@ def pauli_hamiltonian(n_qudits, n_paulis, n_redundant=0, n_conditional=0, weight
                 paulistrings[i] += 'x0z1'
             elif P[i, j] == 3:
                 paulistrings[i] += 'x1z1'
-            
+
             paulistrings[i] += ' '
         paulistrings[i] = paulistrings[i].strip()
-    
+
     if weight_mode == 'uniform':
         weights = np.ones(n_paulis, dtype=float)
     elif weight_mode == 'random':

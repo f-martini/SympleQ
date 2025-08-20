@@ -419,6 +419,14 @@ class PauliSum:
                 to_delete.append(i)
         self._delete_qudits(to_delete)
 
+    def remove_zero_weight_paulis(self):
+        # If weight of Pauli string is 0, remove it
+        to_delete = []
+        for i in range(self.n_paulis()):
+            if np.abs(self.weights[i]) <= 1e-14:
+                to_delete.append(i)
+        self._delete_paulis(to_delete)
+
     def symplectic(self) -> np.ndarray:
         symplectic = np.zeros([self.n_paulis(), 2 * self.n_qudits()])
         for i, p in enumerate(self.pauli_strings):
