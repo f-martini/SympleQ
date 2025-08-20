@@ -56,10 +56,9 @@ class PauliSum:
     #       we can simply get it at the beginning of whatever function and use it from there.
     # TODO: Change everything possible to numpy arrays.
     # TODO: Remove self.xz_mat - should be in a utils module
-    # TODO: Add stack method to concatenate additional strings or sums (could use utils concatenate)
     def __init__(self,
                  pauli_list: PauliStringDerivedType,
-                 weights: list[float | complex] | np.ndarray | None = None,
+                 weights: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,
                  phases: list[int] | np.ndarray | None = None,
                  dimensions: list[int] | np.ndarray | None = None,
                  standardise: bool = True):
@@ -243,7 +242,8 @@ class PauliSum:
 
     @staticmethod
     def _sanitize_weights(pauli_list: list[PauliString],
-                          weights: list[float | complex] | np.ndarray | float | complex | None) -> np.ndarray:
+                          weights: list[float | complex] | list[float] | list[complex] |
+                          np.ndarray | float | complex | None) -> np.ndarray:
         """
         Validates the consistency of the PauliSum internal representation.
         This check is for the coefficients. If None are given, they are initialized to ones.
@@ -266,7 +266,8 @@ class PauliSum:
 
     def _sanity_checks(self,
                        pauli_list: PauliStringDerivedType,
-                       weights: list[float | complex] | np.ndarray | float | complex | None,
+                       weights: list[float | complex] | list[float] | list[complex] | np.ndarray |
+                       float | complex | None,
                        phases: list[int] | np.ndarray | None,
                        dimensions: list[int] | np.ndarray | None) -> tuple[list[PauliString],
                                                                            np.ndarray,
@@ -358,7 +359,11 @@ class PauliSum:
 
     @overload
     def __getitem__(self,
-                    key: slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] | tuple[slice, list[int]] | tuple[slice, np.ndarray] | tuple[list[int], int] | tuple[np.ndarray, int] | tuple[np.ndarray, slice] | tuple[np.ndarray, list[int]] | tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, list[int]] | tuple[list[int], list[int]] | tuple[list[int], np.ndarray]) -> 'PauliSum':
+                    key: slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] |
+                    tuple[slice, list[int]] | tuple[slice, np.ndarray] | tuple[list[int], int] |
+                    tuple[np.ndarray, int] | tuple[np.ndarray, slice] | tuple[np.ndarray, list[int]] |
+                    tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, list[int]] | tuple[list[int], list[int]] |
+                    tuple[list[int], np.ndarray]) -> 'PauliSum':
         ...
 
     def __getitem__(self,
@@ -387,9 +392,11 @@ class PauliSum:
                                     self.phases[key[0]],
                                     np.asarray([self.dimensions[key[1]]]), False)
                 elif isinstance(key[1], slice):
-                    return PauliSum(pauli_strings, self.weights[key[0]], self.phases[key[0]], self.dimensions[key[1]], False)
+                    return PauliSum(pauli_strings, self.weights[key[0]],
+                                    self.phases[key[0]], self.dimensions[key[1]], False)
                 elif isinstance(key[1], list) or isinstance(key[1], np.ndarray):
-                    return PauliSum(pauli_strings, self.weights[key[0]], self.phases[key[0]], self.dimensions[key[1]], False)
+                    return PauliSum(pauli_strings, self.weights[key[0]],
+                                    self.phases[key[0]], self.dimensions[key[1]], False)
             if isinstance(key[0], list) or isinstance(key[0], np.ndarray):
                 if isinstance(key[1], int):
                     return self.get_subspace([key[1]], key[0])
@@ -1184,7 +1191,8 @@ class PauliSum:
         Parameters
         ----------
         pauli_string_index : int | None
-            The index of the Pauli string to get the matrix form for. If None, the matrix form for the entire PauliSum is returned.
+            The index of the Pauli string to get the matrix form for.
+            If None, the matrix form for the entire PauliSum is returned.
 
         Returns
         -------
@@ -1274,7 +1282,8 @@ class PauliSum:
         self.z_exp = np.array([self.z_exp[i] for i in order])
 
     def swap_paulis(self, index_1: int, index_2: int):
-        self.pauli_strings[index_1], self.pauli_strings[index_2] = self.pauli_strings[index_2], self.pauli_strings[index_1]
+        self.pauli_strings[index_1], self.pauli_strings[index_2] = (self.pauli_strings[index_2],
+                                                                    self.pauli_strings[index_1])
         self.weights[index_1], self.weights[index_2] = self.weights[index_2], self.weights[index_1]
         self.phases[index_1], self.phases[index_2] = self.phases[index_2], self.phases[index_1]
         self.x_exp[index_1], self.x_exp[index_2] = self.x_exp[index_2], self.x_exp[index_1]
