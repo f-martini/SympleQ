@@ -241,8 +241,8 @@ def map_pauli_sum_to_target(pauli_sum: np.ndarray, target_pauli_sum: np.ndarray)
         ps = (pauli_sum[i] @ F) % 2
         target_ps = target_pauli_sum[i]
 
-        if np.array_equal(ps, target_ps):
-            continue
+        # if np.array_equal(ps, target_ps):
+        #     continue
 
         F_map = map_single_pauli_string_to_target(ps, target_ps, mapped_paulis)
         assert np.all((ps @ F_map) % 2 == target_ps), f"\n{F_map}\n{ps}\n{(ps @ F_map) % 2}\n{target_ps}"
