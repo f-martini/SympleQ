@@ -52,8 +52,10 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
     coefficients = []
 
     for p in range(num_paulis):
-        x_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]  # np.random.randint(qudit_dims, size=n_qudits)
-        z_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]  # np.random.randint(qudit_dims, size=n_qudits)
+        # np.random.randint(qudit_dims, size=n_qudits)
+        x_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]
+        # np.random.randint(qudit_dims, size=n_qudits)
+        z_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]
         x_exp_H = np.zeros_like(x_exp)
         z_exp_H = np.zeros_like(z_exp)
         phase_factor = 1
@@ -139,9 +141,10 @@ def cancel_X(pauli_sum, qudit, pauli_index, C, q_max):
     list_of_gates = []
     for i in range(qudit + 1, q_max):
         if pauli_sum.x_exp[pauli_index, i]:
-            list_of_gates += [CX(qudit, i, pauli_sum.dimensions[qudit])] * number_of_SUM_X(pauli_sum.x_exp[pauli_index, qudit],
-                                                                                           pauli_sum.x_exp[pauli_index, i],
-                                                                                           pauli_sum.dimensions[i])
+            number_of_sum_x = number_of_SUM_X(pauli_sum.x_exp[pauli_index, qudit],
+                                              pauli_sum.x_exp[pauli_index, i],
+                                              pauli_sum.dimensions[i])
+            list_of_gates += [CX(qudit, i, pauli_sum.dimensions[qudit])] * number_of_sum_x
     C.add_gate(list_of_gates)
     for g in list_of_gates:
         pauli_sum = g.act(pauli_sum)
@@ -154,9 +157,10 @@ def cancel_Z(pauli_sum, qudit, pauli_index, C, q_max):
     list_of_gates += [H(qudit, pauli_sum.dimensions[qudit])]
     for i in range(qudit + 1, q_max):
         if pauli_sum.z_exp[pauli_index, i]:
-            list_of_gates += [CX(i, qudit, pauli_sum.dimensions[qudit])] * number_of_SUM_Z(pauli_sum.z_exp[pauli_index, i],
-                                                                                           pauli_sum.x_exp[pauli_index, qudit],
-                                                                                           pauli_sum.dimensions[i])
+            number_of_sum_z = number_of_SUM_Z(pauli_sum.z_exp[pauli_index, i],
+                                              pauli_sum.x_exp[pauli_index, qudit],
+                                              pauli_sum.dimensions[i])
+            list_of_gates += [CX(i, qudit, pauli_sum.dimensions[qudit])] * number_of_sum_z
     list_of_gates += [H(qudit, pauli_sum.dimensions[qudit])]
     C.add_gate(list_of_gates)
     for g in list_of_gates:
@@ -208,7 +212,8 @@ def symplectic_reduction_qudit(P):
     P1 = C.act(P1)
 
     removable_qubits = set(range(q)) - set([pivot[1] for pivot in pivots])
-    conditional_qubits = sorted(set(range(q)) - removable_qubits - set([pivot[1] for pivot in pivots if pivot[2] == 'Z']))
+    pivot_qudits = set([pivot[1] for pivot in pivots if pivot[2] == 'Z'])
+    conditional_qubits = sorted(set(range(q)) - removable_qubits - pivot_qudits)
     if len(conditional_qubits) > 0:
         for cq in conditional_qubits:
             g = H(cq, d[cq])

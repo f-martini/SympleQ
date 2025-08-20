@@ -1,43 +1,61 @@
 {
+  // Editor settings
   "editor.renderWhitespace": "all",
-  "jupyter.notebookFileRoot": "${workspaceFolder}",
-  "task.autoDetect": "off",
-  "restructuredtext.linter.disabledLinters": ["doc8", "rstcheck"],
-  "flake8.severity": {
-    "C": "Information",
-    "E": "Warning",
-    "F": "Warning",
-    "R": "Hint",
-    "W": "Warning",
-    "I": "Information"
+  "editor.rulers": [120],
+  "editor.formatOnSave": true,
+    "files.exclude": {
+    "**/_autosummary": true
   },
+  "search.exclude": {
+    "**/_autosummary": true
+  },
+
+  // Language-specific formatters
   "[python]": {
     "editor.defaultFormatter": "ms-python.autopep8"
   },
   "[cuda-cpp]": {
     "editor.defaultFormatter": "ms-vscode.cpptools"
   },
-  "cSpell.import": [
-    "${workspaceFolder}/scripts/configs/cspell.json"
+
+  // Linter and formatter configurations
+  "flake8.severity": {
+    "C": "Warning",
+    "E": "Warning",
+    "F": "Warning",
+    "R": "Hint",
+    "W": "Warning",
+    "I": "Information"
+  },
+  "autopep8.args": [
+    "--ignore=E402,I100,I201,W504",
+    "--select=W291,E101,E111,E114,E117,E121,E122,E123,E124,E126,E127,E128,E201,E202,E303,E501",
+    "--max-line-length=120"
   ],
+  "flake8.args": [
+    "--config=${workspaceFolder}/scripts/configs/setup.cfg"
+  ],
+  "restructuredtext.linter.disabledLinters": ["doc8", "rstcheck"],
+
+  // Spell checker
+  "cSpell.import": [
+      "${workspaceFolder}/scripts/configs/cspell.json"
+  ],
+
+  // Esbonio/Sphinx settings
   "esbonio.server.pythonPath": "${workspaceFolder}/docs/doc_venv/Scripts/python",
   "esbonio.sphinx.confDir": "${workspaceFolder}/docs",
   "esbonio.sphinx.buildDir": "${workspaceFolder}/docs/_build",
-  "autopep8.args": [
-    "--config=${workspaceFolder}/scripts/configs/setup.cfg"
-  ],
-  "flake8.args": [
-    "--config=${workspaceFolder}/scripts/configs/setup.cfg",
-    "--ignore=W293, E501"
-  ],
+
+  // Python analysis and testing
   "python.analysis.typeCheckingMode": "basic",
   "python.testing.pytestArgs": [
     "tests"
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-  "editor.rulers": [
-    120
-  ],
-  "files.trimTrailingWhitespace": true,
+
+  // Miscellaneous
+  "jupyter.notebookFileRoot": "${workspaceFolder}",
+  "task.autoDetect": "off",
 }

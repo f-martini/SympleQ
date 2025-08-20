@@ -9,6 +9,7 @@ env:
   BENCHMARK_OUTPUT: benchmark.json
   PROFILING_OUTPUT: profile.out
   SIMULATION_SCRIPT: ./scripts/tools/python/profiling_script.py
+  DEV_REQUIREMENTS: ./scripts/configs/dev_requirements.txt
   PYTHON_VERSION: "3.11"
 
 jobs:
@@ -48,6 +49,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install ${{ env.SETUP_PY }}
+          python -m pip install -r ${{ env.DEV_REQUIREMENTS }}
 
       - name: Run benchmarks
         run: |
@@ -78,6 +80,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install ${{ env.SETUP_PY }}
+          python -m pip install -r ${{ env.DEV_REQUIREMENTS }}
 
       - name: Run profiling with cProfile
         run: |

@@ -1,5 +1,7 @@
 import numpy as np
 from quaos.core.paulis import PauliSum
+import galois
+from quaos.core.finite_field_solvers import solve_modular_linear_system
 
 
 def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
@@ -24,7 +26,8 @@ def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
         coeff = pauli_list[0][1:].replace(" ", "").replace('*I', 'j')
         coefficients.append(complex(coeff))
 
-        pauli_str = ' '.join(f"x{item.count('X')}z{item.count('Z')}" for item in pauli_list[1:])
+        pauli_str = ' '.join(
+            f"x{item.count('X')}z{item.count('Z')}" for item in pauli_list[1:])
         pauli_strings.append(pauli_str.strip())
 
     return PauliSum(pauli_strings,
@@ -59,7 +62,8 @@ def bases_to_int(base, dimensions) -> int:
     """
     dimensions = np.flip(dimensions)
     base = np.flip(base)
-    number = base[0] + sum([base[qudit] * np.prod(dimensions[:qudit]) for qudit in range(1, len(dimensions))])
+    number = base[0] + sum([base[qudit] * np.prod(dimensions[:qudit])
+                           for qudit in range(1, len(dimensions))])
     dimensions = np.flip(dimensions)
     base = np.flip(base)
     return number
@@ -90,7 +94,8 @@ def int_to_bases(number, dimensions) -> np.ndarray:
     dimensions = np.flip(dimensions)
     base = [number % dimensions[0]]
     for i in range(1, len(dimensions)):
-        s0 = base[0] + sum([base[i1] * dimensions[i1 - 1] for i1 in range(1, i)])
+        s0 = base[0] + sum([base[i1] * dimensions[i1 - 1]
+                           for i1 in range(1, i)])
         s1 = np.prod(dimensions[:i])
         base.append(((number - s0) // s1) % dimensions[i])
     dimensions = np.flip(dimensions)
@@ -134,7 +139,8 @@ def covariance_matrix(P: PauliSum, psi: np.ndarray) -> np.ndarray:
     psi_dag = psi.conj().T
     cc1 = [psi_dag @ mm[i] @ psi for i in range(p)]
     cc2 = [psi_dag @ mm[i].conj().T @ psi for i in range(p)]
-    return np.array([[np.conj(cc[i0]) * cc[i1] * ((psi_dag @ mm[i0].conj().T @ mm[i1] @ psi) - cc2[i0] * cc1[i1]) for i1 in range(p)] for i0 in range(p)])
+    return np.array([[np.conj(cc[i0]) * cc[i1] * ((psi_dag @ mm[i0].conj().T @ mm[i1] @ psi) - cc2[i0] * cc1[i1])
+                      for i1 in range(p)] for i0 in range(p)])
 
 
 def commutation_graph(P: PauliSum) -> np.ndarray:
@@ -178,5 +184,82 @@ def rand_state(dimension):
     """
     gamma_sample = np.random.gamma(1, 1, int(dimension))
     phases = np.random.uniform(0, 2 * np.pi, int(dimension))
-    normalized_state = np.sqrt(gamma_sample / np.sum(gamma_sample)) * np.exp(1j * phases)
+    normalized_state = np.sqrt(
+        gamma_sample / np.sum(gamma_sample)) * np.exp(1j * phases)
     return normalized_state
+
+
+def get_linearly_independent_rows(A: np.ndarray, d: int) -> list[int]:
+    """
+    Returns the pivot column indices for the row-reduced form of matrix A over a Galois field.
+
+    Args:
+        A (galois.FieldArray): Input matrix over GF(p).
+
+    Returns:
+        List[int]: List of pivot column indices.
+    """
+
+    GF = galois.GF(d)
+    A = GF(A)
+    R = A.row_reduce()
+    pivots = []
+    for row in R:
+        nz_indices = np.nonzero(row)[0]
+        if nz_indices.size > 0:
+            pivots.append(nz_indices[0])
+    return pivots
+
+
+def get_linear_dependencies(vectors: np.ndarray, p: int) -> tuple[list[int], dict[int, list[tuple[int, int]]]]:
+    """
+    Analyze linear dependencies over GF(p).
+
+    Parameters:
+        vectors: List of n vectors (length m)
+        p: Prime modulus for GF(p)
+
+    Returns:
+        pivot_indices: List[int] — indices of linearly independent input vectors
+        dependencies: Dict[int, List[Tuple[int, int]]] — i: [(j, coeff)] means v_i = sum(coeff * v_j)
+    """
+    assert galois.is_prime(p)
+    GF = galois.GF(p)
+
+    V = GF(vectors)  # (n x m)
+    R = V.row_reduce()
+
+    # Step 1: Identify pivot columns
+    pivot_cols = []
+    for row in R:
+        nz = np.nonzero(row)[0]
+        if len(nz) > 0:
+            pivot_cols.append(nz[0])
+
+    # Step 2: Pick the first rows from V that are linearly independent
+    pivot_indices = []
+    seen = GF.Zeros((0, V.shape[1]))
+    for i in range(V.shape[0]):
+        candidate = V[i]
+        A = np.vstack([seen, candidate])
+        if np.linalg.matrix_rank(np.array(A, dtype=int)) > seen.shape[0]:
+            pivot_indices.append(i)
+            seen = A
+        if len(pivot_indices) == len(pivot_cols):
+            break
+
+    # Step 3: Decompose dependents using only pivot vectors
+    B = GF(V[pivot_indices, :])
+    dependencies = {}
+    for i in range(V.shape[0]):
+        if i in pivot_indices:
+            continue
+        v = GF(V[i])
+        coeffs = solve_modular_linear_system(B, v)
+        if coeffs is None:
+            dependencies[i] = None
+        else:
+            deps = [(pivot_indices[j], int(coeffs[j])) for j in range(len(coeffs)) if coeffs[j] != 0]
+            dependencies[i] = deps
+
+    return pivot_indices, dependencies

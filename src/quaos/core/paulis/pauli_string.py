@@ -64,6 +64,13 @@ class PauliString:
         x_exp = np.array(xz_exponents[0::2], dtype=int)
         return cls(x_exp=x_exp, z_exp=z_exp, dimensions=dimensions)
 
+    @classmethod
+    def from_random(cls, n_qudits: int, dimensions: list[int] | np.ndarray, seed=None) -> PauliString:
+        np.random.seed(seed)
+        return cls(x_exp=np.random.randint(0, dimensions, (n_qudits)),
+                   z_exp=np.random.randint(0, dimensions, (n_qudits)),
+                   dimensions=dimensions)
+
     def __repr__(self) -> str:
         return f"Pauli(x_exp={self.x_exp}, z_exp={self.z_exp}, dimensions={self.dimensions})"
 
@@ -102,15 +109,17 @@ class PauliString:
         if not isinstance(other_pauli, PauliString):
             return False
 
-        return bool(np.all(self.x_exp == other_pauli.x_exp) and np.all(self.z_exp == other_pauli.z_exp) and np.all(self.dimensions == other_pauli.dimensions))
+        return bool(np.all(self.x_exp == other_pauli.x_exp) and
+                    np.all(self.z_exp == other_pauli.z_exp) and
+                    np.all(self.dimensions == other_pauli.dimensions))
 
     def __ne__(self, other_pauli: PauliString) -> bool:
         return not self.__eq__(other_pauli)
 
     def __gt__(self, other_pauli: PauliString) -> bool:
         this_pauli = self._to_int(reverse=True)
-        other_pauli = other_pauli._to_int(reverse=True)
-        return this_pauli > other_pauli
+        tmp_other_pauli = other_pauli._to_int(reverse=True)
+        return this_pauli > tmp_other_pauli
 
     def _to_int(self, reverse=False):
         dims = self.dimensions
@@ -146,7 +155,8 @@ class PauliString:
         Get a list of Pauli objects from the PauliString
         :return: A list of Pauli objects
         """
-        return [Pauli(x_exp=self.x_exp[i], z_exp=self.z_exp[i], dimension=self.dimensions[i]) for i in range(len(self.x_exp))]
+        return [Pauli(x_exp=self.x_exp[i], z_exp=self.z_exp[i], dimension=self.dimensions[i])
+                for i in range(len(self.x_exp))]
 
     def symplectic(self) -> np.ndarray:
         symp = np.zeros(2 * self.n_qudits())
@@ -175,7 +185,7 @@ class PauliString:
         # phase = 0
         # for i in range(self.n_qudits()):
         #     phase += phi * (self.x_exp[i] * other_pauli.z_exp[i] + self.z_exp[i] * other_pauli.x_exp[i])
-        # return phase % (self.lcm)
+        # return phase % (2 * self.lcm)
 
         # identity on lower diagonal of U
         U = np.zeros((2 * self.n_qudits(), 2 * self.n_qudits()), dtype=int)
@@ -196,7 +206,8 @@ class PauliString:
 
         return PauliString(x_exp=x_exp, z_exp=z_exp, dimensions=self.dimensions)
 
-    def _delete_qudits(self, qudit_indices: list[int], return_new: bool = True) -> PauliString:  # not sure if here it is best to return a new object or not
+    # not sure if here it is best to return a new object or not
+    def _delete_qudits(self, qudit_indices: list[int], return_new: bool = True) -> PauliString:
         x_exp = np.delete(self.x_exp, qudit_indices)
         z_exp = np.delete(self.z_exp, qudit_indices)
         dimensions = np.delete(self.dimensions, qudit_indices)
@@ -214,13 +225,13 @@ class PauliString:
         ...
 
     @overload
-    def __getitem__(self, key: slice) -> PauliString:
+    def __getitem__(self, key: slice | np.ndarray | list) -> PauliString:
         ...
 
-    def __getitem__(self, key: int | slice) -> 'PauliString | Pauli':
+    def __getitem__(self, key: int | slice | np.ndarray | list) -> 'PauliString | Pauli':
         if isinstance(key, int):
             return self.get_paulis()[key]
-        elif isinstance(key, slice):
+        elif isinstance(key, slice) or isinstance(key, np.ndarray) or isinstance(key, list):
             return PauliString(x_exp=self.x_exp[key], z_exp=self.z_exp[key], dimensions=self.dimensions[key])
         else:
             raise ValueError(f"Cannot get item with key {key}. Key must be an int or a slice.")

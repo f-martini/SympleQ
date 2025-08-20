@@ -1,9 +1,145 @@
-import pytest
 import numpy as np
 from quaos.core.paulis import PauliSum, PauliString, Pauli, Xnd, Ynd, Znd, Id
 
 
-class TestSymplectic:
+class TestPaulis:
+
+    def random_pauli_string(self, dim):
+        r1 = np.random.randint(0, dim)
+        r2 = np.random.randint(0, dim)
+        s1 = np.random.randint(0, dim)
+        s2 = np.random.randint(0, dim)
+        return PauliString.from_string(f"x{r1}z{s1} x{r2}z{s2}", dimensions=[dim, dim]), r1, r2, s1, s2
+
+    def test_pauli_multiplication(self):
+        for dim in [2]:
+            x1 = Pauli(1, 0, dim)
+            y1 = Pauli(1, 1, dim)
+            z1 = Pauli(0, 1, dim)
+            id = Pauli(0, 0, dim)
+
+            assert x1 * z1 == y1, 'Error in Pauli multiplication (x * z = y) ' + (x1 * z1).__str__()
+            assert x1**dim == id, 'Error in Pauli exponentiation (x**dim = id) ' + (x1**dim).__str__()
+            assert y1**dim == id, 'Error in Pauli exponentiation (y**dim = id) ' + (y1**dim).__str__()
+            assert z1**dim == id, 'Error in Pauli exponentiation (z**dim = id)  ' + (z1**dim).__str__()
+            assert x1 * y1 == z1, 'Error in Pauli multiplication (x * y = z) ' + (x1 * y1).__str__()
+            assert y1 * z1 == x1, 'Error in Pauli multiplication (y * z = x) ' + (y1 * z1).__str__()
+            assert z1 * x1 == y1, 'Error in Pauli multiplication (z * x = y) ' + (z1 * x1).__str__()
+            assert x1 * id == x1, 'Error in Pauli multiplication (x * id = x) ' + (x1 * id).__str__()
+            assert y1 * id == y1, 'Error in Pauli multiplication (y * id = y) ' + (y1 * id).__str__()
+            assert z1 * id == z1, 'Error in Pauli multiplication (z * id = z) ' + (z1 * id).__str__()
+
+        for dim in [3, 5, 11]:
+            for i in range(100):
+                s = np.random.randint(0, dim)
+                r = np.random.randint(0, dim)
+                s2 = np.random.randint(0, dim)
+                r2 = np.random.randint(0, dim)
+                p1 = Pauli(r, s, dim)
+                p2 = Pauli(r2, s2, dim)
+                p3 = p1 * p2
+                assert p3.x_exp == (p1.x_exp + p2.x_exp) % dim, 'Error in Pauli multiplication (x_exp)'
+                assert p3.z_exp == (p1.z_exp + p2.z_exp) % dim, 'Error in Pauli multiplication (z_exp)'
+                assert p3.dimension == dim, 'Error in Pauli multiplication (dimension)'
+
+    def test_pauli_string_multiplication(self):
+        for dim in [2, 3, 5, 11]:
+            for i in range(100):
+                r1 = np.random.randint(0, dim)
+                r2 = np.random.randint(0, dim)
+                s1 = np.random.randint(0, dim)
+                s2 = np.random.randint(0, dim)
+
+                r12 = np.random.randint(0, dim)
+                r22 = np.random.randint(0, dim)
+                s12 = np.random.randint(0, dim)
+                s22 = np.random.randint(0, dim)
+
+                input_str1 = f"x{r1}z{s1} x{r2}z{s2}"
+                input_str2 = f"x{r12}z{s12} x{r22}z{s22}"
+                output_str_correct = f"x{(r1 + r12) % dim}z{(s1 + s12) % dim} x{(r2 + r22) % dim}z{(s2 + s22) % dim}"
+                input_ps1 = PauliString.from_string(input_str1, dimensions=[dim, dim])
+                input_ps2 = PauliString.from_string(input_str2, dimensions=[dim, dim])
+                output_ps = input_ps1 * input_ps2
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[dim, dim]), 'Error in PauliString multiplication'
+
+    def test_pauli_string_tensor_product(self):
+        for dim in [2, 3, 5, 11]:
+            for i in range(100):
+                r1 = np.random.randint(0, dim)
+                r2 = np.random.randint(0, dim)
+                s1 = np.random.randint(0, dim)
+                s2 = np.random.randint(0, dim)
+
+                r12 = np.random.randint(0, dim)
+                r22 = np.random.randint(0, dim)
+                s12 = np.random.randint(0, dim)
+                s22 = np.random.randint(0, dim)
+
+                input_str1 = f"x{r1}z{s1} x{r2}z{s2}"
+                input_str2 = f"x{r12}z{s12} x{r22}z{s22}"
+                output_str_correct = f"x{r1}z{s1} x{r2}z{s2} x{r12}z{s12} x{r22}z{s22}"
+                input_ps1 = PauliString.from_string(input_str1, dimensions=[dim, dim])
+                input_ps2 = PauliString.from_string(input_str2, dimensions=[dim, dim])
+                output_ps = input_ps1 @ input_ps2
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[dim] * 4), 'Error in PauliString tensor product'
+
+    def test_pauli_string_indexing(self):
+        for dim in [2, 3, 5]:
+            for i in range(100):
+                p_string1, r1, r2, s1, s2 = self.random_pauli_string(dim)
+                ps1 = Pauli.from_string(f"x{r1}z{s1}", dimension=dim)
+                ps2 = Pauli.from_string(f"x{r2}z{s2}", dimension=dim)
+
+                assert p_string1[0] == ps1, 'Error in PauliString indexing (first PauliString)'
+                assert p_string1[1] == ps2, 'Error in PauliString indexing'
+
+    def test_pauli_sum_multiplication(self):
+        for dim in [2, 3, 5]:
+
+            for i in range(100):
+                p_string1, r1, r2, s1, s2 = self.random_pauli_string(dim)
+                p_string2, r12, r22, s12, s22 = self.random_pauli_string(dim)
+
+                random_pauli_sum = PauliSum([p_string1, p_string2], standardise=False)
+
+                # Test multiplication of PauliSum with PauliString
+                input_ps1, r13, r23, s13, s23 = self.random_pauli_string(dim)
+
+                output_str_correct = f"x{(r1 + r13) % dim}z{(s1 + s13) % dim} x{(r2 + r23) % dim}z{(s2 + s23) % (2 * dim)}"
+                output_str2_correct = f"x{(r12 + r13) % dim}z{(s12 + s13) % dim} x{(r22 + r23) % dim}z{(s22 + s23) % (2 * dim)}"
+                output_ps = random_pauli_sum * input_ps1
+
+                phase1 = 2 * (s1 * r13 + s2 * r23) % (2 * dim)
+                phase2 = 2 * (s12 * r13 + s22 * r23) % (2 * dim)
+                output_phases = [phase1, phase2]
+                output_ps_correct = PauliSum([PauliString.from_string(output_str_correct, dimensions=[dim, dim]),
+                                              PauliString.from_string(output_str2_correct, dimensions=[dim, dim])],
+                                             phases=output_phases,
+                                             standardise=False)
+
+                assert output_ps == output_ps_correct, 'Error in PauliSum multiplication with PauliString\n' + output_ps.__str__() + '\n' + output_ps_correct.__str__()
+
+                # Test multiplication of PauliSum with PauliSum
+                random_pauli_sum2 = PauliSum([input_ps1], standardise=False)
+                output_ps2 = random_pauli_sum * random_pauli_sum2
+                print(f"Output PauliSum: \n {output_ps2}")
+                print(f"Expected PauliSum: \n {output_ps_correct}")
+                assert output_ps2 == output_ps_correct, 'Error in PauliSum multiplication with PauliSum'
+
+    def test_pauli_sum_tensor_product(self):
+
+        for dim in [2, 3, 5]:
+            for i in range(100):
+                p_string1, r1, r2, s1, s2 = self.random_pauli_string(dim)
+                p_string2, r12, r22, s12, s22 = self.random_pauli_string(dim)
+                p_string3, r13, r23, s13, s23 = self.random_pauli_string(dim)
+
+                random_pauli_sum = PauliSum([p_string1, p_string2], standardise=False)
+                random_pauli_sum2 = PauliSum([p_string3], standardise=False)
+                ps_out = random_pauli_sum @ random_pauli_sum2
+                ps_out_correct = PauliSum([p_string1 @ p_string3, p_string2 @ p_string3], standardise=False)
+                assert ps_out == ps_out_correct, 'Error in PauliSum tensor product'
 
     def test_symplectic_matrix_single_pauli(self):
         pauli_list = ['x1z0']
@@ -44,50 +180,7 @@ class TestSymplectic:
         assert Znd(1, dims) == p2
         assert Ynd(1, dims) == p3
 
-    def test_pauli_addition_and_sum(self):
-        """
-        dims = 3
-        p1 = Pauli.from_string('x1z0', dimension=dims)
-        p2 = Pauli.from_string('x0z1', dimension=dims)
-
-        psum = p1 + p2
-        assert isinstance(psum, PauliSum)
-
-        assert np.all(psum.symplectic() == np.array([[1., 0.], [0., 1.]]))
-        assert np.all(psum.x_exp == np.array([[1.], [0.]]))
-        assert np.all(psum.z_exp == np.array([[0.], [1.]]))
-
-        expected = PauliSum([PauliString.from_string('x1z0', dimensions=[dims]),
-                            PauliString.from_string('x0z1', dimensions=[dims])], standardise=False)
-        assert psum == expected
-        """
-        # TODO: Support add for the Pauli class
-        pass
-
-    def test_pauli_multiplication(self):
-        dims = 3
-        p1 = Pauli.from_string('x1z0', dimension=dims)
-        p2 = Pauli.from_string('x0z1', dimension=dims)
-        p3 = Pauli.from_string('x1z1', dimension=dims)
-
-        assert isinstance(p1 * p2, Pauli)
-        assert p1 * p1 == Pauli.from_string('x2z0', dimension=dims)
-        assert p1 * p2 * p3 == Pauli.from_string('x2z2', dimension=dims)
-
-    def test_tensor_product(self):
-        """
-        dims = 3
-        p1 = Pauli.from_string('x1z0', dimension=dims)
-        p2 = Pauli.from_string('x0z1', dimension=dims)
-
-        result = p1 @ p2
-        assert isinstance(result, PauliString)
-        assert result == PauliString.from_string('x1z0 x0z1', dimensions=[dims, dims])
-        """
-        # TODO: Support tensor product for the Pauli class
-        pass
-
-    def test_paulistring_construction(self):
+    def test_pauli_string_construction(self):
         dims = [3, 3]
         x1x1 = PauliString.from_string('x1z0 x1z0', dimensions=dims)
         x1x1_2 = PauliString([1, 1], [0, 0], dims)
@@ -99,50 +192,57 @@ class TestSymplectic:
 
         assert x1y1 == x1y1_2
 
-    def test_paulisum_addition(self):
-        """
-        dims = [3, 3]
-        x1x1 = PauliString.from_string('x1z0 x1z0', dimensions=dims)
-        x1y1 = PauliString.from_string('x1z0 x1z1', dimensions=dims)
+    def test_pauli_sum_addition(self):
+
+        for dim in [2, 3, 5]:
+
+            for i in range(100):
+                p_string1, r1, r2, s1, s2 = self.random_pauli_string(dim)
+                p_string2, r12, r22, s12, s22 = self.random_pauli_string(dim)
+                p_string3, r13, r23, s13, s23 = self.random_pauli_string(dim)
+
+                random_pauli_sum = PauliSum([p_string1, p_string2], standardise=False)
+                random_pauli_sum2 = PauliSum([p_string3], standardise=False)
+                ps_out = random_pauli_sum + random_pauli_sum2
+                ps_out_correct = PauliSum([p_string1, p_string2, p_string3], standardise=False)
+                assert ps_out == ps_out_correct, 'Error in PauliSum addition'
+                dims = [3, 3]
+
+        x1x1 = PauliSum(PauliString.from_string('x1z0 x1z0', dimensions=dims))
+        x1y1 = PauliSum(PauliString.from_string('x1z0 x1z1', dimensions=dims))
 
         psum = x1x1 + x1y1
-        expected = PauliSum([x1x1, x1y1], weights=[1, 1], phases=[0, 0])
+        expected = PauliSum([PauliString.from_string('x1z0 x1z0', dimensions=dims),
+                             PauliString.from_string('x1z0 x1z1', dimensions=dims)], weights=[1, 1], phases=[0, 0])
 
         assert psum == expected
-        """
-        # TODO: Suuport add
-        pass
 
     def test_phase_and_dot_product(self):
-        """
         d = 7
         x = PauliString.from_string('x1z0', dimensions=[d])
         z = PauliString.from_string('x0z1', dimensions=[d])
 
-        assert x.acquired_phase(z) == 1.0
+        assert z.acquired_phase(x) == 2.0, 'Expected phase to be 2.0, got {}'.format(z.acquired_phase(x))
+        assert x.acquired_phase(z) == 0.0, 'Expected phase to be 0.0, got {}'.format(x.acquired_phase(z))
 
         dims = [3, 3]
-        x1x1 = PauliString.from_string('x1z0 x1z0', dimensions=dims)
-        x1y1 = PauliString.from_string('x1z0 x1z1', dimensions=dims)
+        x1x1 = PauliSum(PauliString.from_string('x1z0 x1z0', dimensions=dims))
+        x1y1 = PauliSum(PauliString.from_string('x1z0 x1z1', dimensions=dims))
 
         s1 = x1x1 + x1y1 * 0.5
         s2 = x1x1 + x1x1
 
         s3 = PauliSum(['x2z0 x2z0', 'x2z0 x2z0', 'x2z0 x2z1', 'x2z0 x2z1'],
                       weights=[1, 1, 0.5, 0.5],
-                      phases=[0, 0, 1, 1],
+                      phases=[0, 0, 2, 2],
                       dimensions=dims, standardise=False)
 
-        assert s1 * s2 == s3
-        """
-        # TODO: Suuport add
-        pass
+        assert s1 * s2 == s3, 'Expected s1 * s2 to equal s3, got {}'.format(s1 * s2) + '\n' + s3.__str__()
 
     def test_tensor_product_distributivity(self):
-        """
         dims = [3, 3]
-        x1x1 = PauliString.from_string('x1z0 x1z0', dimensions=dims)
-        x1y1 = PauliString.from_string('x1z0 x1z1', dimensions=dims)
+        x1x1 = PauliSum(PauliString.from_string('x1z0 x1z0', dimensions=dims))
+        x1y1 = PauliSum(PauliString.from_string('x1z0 x1z1', dimensions=dims))
 
         s1 = x1x1 + x1y1 * 0.5
         s2 = x1x1 + x1x1
@@ -151,189 +251,22 @@ class TestSymplectic:
         right = s1 @ s2 + s2 @ s2
 
         assert left == right
-        """
-        # TODO: Support tensor product/add for the Pauli class
-        pass
 
-    # TODO: Fix this test
-    @pytest.mark.skip(reason="Temporarily disabled")
     def test_pauli_sum_indexing(self):
-        dims = [3, 3]
-        ps = PauliSum(['x2z0 x2z0', 'x2z0 x2z0', 'x2z0 x2z1', 'x2z0 x2z1'],
+        dims = [3, 3, 3]
+        ps = PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z0 x0z0', 'x2z0 x2z1 x2z0', 'x2z0 x2z1 x1z1'],
                       weights=[1, 1, 0.5, 0.5],
                       phases=[0, 0, 1, 1],
                       dimensions=dims, standardise=False)
 
-        assert ps[0] == PauliString.from_string('x2z0 x2z0', dimensions=dims)
-        assert ps[1] == PauliString.from_string('x2z0 x2z0', dimensions=dims)
-        assert ps[2] == PauliString.from_string('x2z0 x2z1', dimensions=dims)
-        assert ps[3] == PauliString.from_string('x2z0 x2z1', dimensions=dims)
-        assert ps[0:2] == PauliSum(['x2z0 x2z0', 'x2z0 x2z0'], dimensions=dims, standardise=False)
-        assert ps[(0, 3)] == PauliSum(['x2z0 x2z0', 'x2z0 x2z1'], weights=[1, 0.5], phases=[0, 1], dimensions=dims, standardise=False)
-
-
-# TODO: merge useful bits from below with pauli_test (rename test_paulis for consistency) and delete this file
-"""
-import pytest
-import sys
-import os
-import numpy as np
-
-test_dir = os.path.dirname(os.path.abspath(__file__))
-module_dir = os.path.join(test_dir, "..")
-sys.path.append(module_dir)
-sys.path.append(test_dir)
-from quaos.symplectic import PauliSum, PauliString, Pauli, Xnd, Ynd, Znd
-# TODO: merge useful bits from here with pauli_test (rename test_paulis for consistency) and delete this file
-
-class TestSymplectic:
-
-    def test_symplectic_matrix_single_pauli(self):
-        pauli_list = ['X']
-        weights = np.array([1.])
-        sp = PauliSum(pauli_list, weights, dimensions=[2])
-        expected_matrix = np.array([[1, 1, 0, 0]])
-        np.testing.assert_array_equal(sp.symplectic_matrix(), expected_matrix)
-
-    def test_symplectic_matrix_multiple_paulis(self):
-        pauli_list = ['X', 'Z', 'Y']
-        weights = np.array([1, 2, 3])
-        sp = PauliSum(pauli_list, weights)
-        expected_matrix = np.array([
-            [1, 1, 0, 0],
-            [2, 0, 1, 0],
-            [3, 1, 1, 1]
-        ])
-        np.testing.assert_array_equal(sp.symplectic_matrix(), expected_matrix)
-
-    def test_symplectic_matrix_with_zero_weights(self):
-        pauli_list = ['X', 'Z', 'Y']
-        weights = np.array([0, 0, 0])
-        sp = PauliSum(pauli_list, weights)
-        expected_matrix = np.array([
-            [0, 1, 0, 0],
-            [0, 0, 1, 0],
-            [0, 1, 1, 1]
-        ])
-        np.testing.assert_array_equal(sp.symplectic_matrix(), expected_matrix)
-
-    def test_symplectic_matrix_with_different_weights(self):
-        pauli_list = ['X', 'Z', 'Y']
-        weights = np.array([1, 2, 3])
-        sp = PauliSum(pauli_list, weights)
-        expected_matrix = np.array([
-            [1, 1, 0, 0],
-            [2, 0, 1, 0],
-            [3, 1, 1, 1]
-        ])
-        np.testing.assert_array_equal(sp.symplectic_matrix(), expected_matrix)
-
-    def test_basic_pauli_relations(self):
-        dims = 3
-        x1 = Xnd(1, dims)
-        y1 = Ynd(1, dims)
-        z1 = Znd(1, dims)
-
-        assert x1 * z1 == y1
-
-    def test_pauli_equality(self):
-        dims = 3
-        p1 = Pauli('x1z0', dimension=dims)
-        p2 = Pauli('x0z1', dimension=dims)
-        p3 = Pauli('x1z1', dimension=dims)
-
-        assert Xnd(1, dims) == p1
-        assert Znd(1, dims) == p2
-        assert Ynd(1, dims) == p3
-
-    def test_pauli_addition_and_sum(self):
-        dims = 3
-        p1 = Pauli('x1z0', dimension=dims)
-        p2 = Pauli('x0z1', dimension=dims)
-
-        psum = p1 + p2
-        assert isinstance(psum, PauliSum)
-
-        assert np.all(psum.symplectic_matrix() == np.array([[0., 1.], [1., 0.]]))
-        assert np.all(psum.x_exp == np.array([[0.], [1.]]))
-        assert np.all(psum.z_exp == np.array([[1.], [0.]]))
-
-        expected = PauliSum([PauliString('x1z0', dimensions=[dims]),
-                            PauliString('x0z1', dimensions=[dims])])
-        assert psum == expected
-
-    def test_pauli_multiplication(self):
-        dims = 3
-        p1 = Pauli('x1z0', dimension=dims)
-        p2 = Pauli('x0z1', dimension=dims)
-        p3 = Pauli('x1z1', dimension=dims)
-
-        assert isinstance(p1 * p2, Pauli)
-        assert p1 * p1 == Pauli('x2z0', dimension=dims)
-        assert p1 * p2 * p3 == Pauli('x2z2', dimension=dims)
-
-    def test_tensor_product(self):
-        dims = 3
-        p1 = Pauli('x1z0', dimension=dims)
-        p2 = Pauli('x0z1', dimension=dims)
-
-        result = p1 @ p2
-        assert isinstance(result, PauliString)
-        assert result == PauliString('x1z0 x0z1', dimensions=[dims, dims])
-
-    def test_paulistring_construction(self):
-        dims = [3, 3]
-        x1x1 = PauliString('x1z0 x1z0', dimensions=dims)
-        x1x1_2 = PauliString([1, 1], [0, 0], dims)
-
-        assert x1x1 == x1x1_2
-
-        x1y1 = PauliString([1, 1], [0, 1], dimensions=dims)
-        x1y1_2 = PauliString('x1z0 x1z1', dimensions=dims)
-
-        assert x1y1 == x1y1_2
-
-    def test_paulisum_addition(self):
-        dims = [3, 3]
-        x1x1 = PauliString('x1z0 x1z0', dimensions=dims)
-        x1y1 = PauliString('x1z0 x1z1', dimensions=dims)
-
-        psum = x1x1 + x1y1
-        expected = PauliSum([x1x1, x1y1], weights=[1, 1], phases=[0, 0])
-
-        assert psum == expected
-
-    def test_phase_and_dot_product(self):
-        d = 7
-        x = PauliString('x1z0', dimensions=[d])
-        z = PauliString('x0z1', dimensions=[d])
-
-        assert x.acquired_phase(z) == 1.0
-
-        dims = [3, 3]
-        x1x1 = PauliString('x1z0 x1z0', dimensions=dims)
-        x1y1 = PauliString('x1z0 x1z1', dimensions=dims)
-
-        s1 = x1x1 + x1y1 * 0.5
-        s2 = x1x1 + x1x1
-
-        s3 = PauliSum(['x2z0 x2z0', 'x2z0 x2z1', 'x2z0 x2z1', 'x2z0 x2z0'],
-                      weights=[1, 0.5, 0.5, 1],
-                      phases=[0, 1, 1, 0],
-                      dimensions=dims)
-
-        assert s1 * s2 == s3
-
-    def test_tensor_product_distributivity(self):
-        dims = [3, 3]
-        x1x1 = PauliString('x1z0 x1z0', dimensions=dims)
-        x1y1 = PauliString('x1z0 x1z1', dimensions=dims)
-
-        s1 = x1x1 + x1y1 * 0.5
-        s2 = x1x1 + x1x1
-
-        left = (s1 + s2) @ s2
-        right = s1 @ s2 + s2 @ s2
-
-        assert left == right
-"""
+        assert ps[0] == PauliString.from_string('x2z0 x2z0 x1z1', dimensions=dims)
+        assert ps[1] == PauliString.from_string('x2z0 x2z0 x0z0', dimensions=dims)
+        assert ps[2] == PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)
+        assert ps[3] == PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)
+        assert ps[0:2] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z0 x0z0'], dimensions=dims, standardise=False)
+        assert ps[[0, 3]] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z1 x1z1'], weights=[1, 0.5], phases=[0, 1], dimensions=dims,
+                                      standardise=False)
+        assert ps[[0, 2], 1] == PauliSum(['x2z0', 'x2z1'], weights=[1, 0.5], phases=[0, 1], dimensions=[3],
+                                         standardise=False)
+        assert ps[[0, 2], [0, 2]] == PauliSum(['x2z0 x1z1', 'x2z0 x2z0'], weights=[1, 0.5], phases=[0, 1], dimensions=[3, 3],
+                                              standardise=False)

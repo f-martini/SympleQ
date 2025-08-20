@@ -9,6 +9,9 @@ cd "$PROJECT_ROOT"
 if [ ! -d "$SRC_VENV" ]; then
     echo "Creating virtual environment $SRC_VENV..."
     python3 -m venv "$SRC_VENV"
+    source "$SRC_VENV/bin/activate"
+    python3 -m pip install -r "$DEV_REQUIREMENTS"
+    deactivate
 fi
 
 if [ ! -f "$SRC_REQUIREMENTS" ]; then

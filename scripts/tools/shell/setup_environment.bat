@@ -10,6 +10,9 @@ REM Initializing virtual environment...
 if not exist %SRC_VENV% (
     echo Creating virtual environment %SRC_VENV%...
     python -m venv %SRC_VENV%
+    call %SRC_VENV%/Scripts/activate
+    call python -m pip install -r %DEV_REQUIREMENTS%
+    call deactivate
 )
 
 if not exist "%SRC_REQUIREMENTS%" (
