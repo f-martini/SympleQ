@@ -1,8 +1,34 @@
 from collections import defaultdict, Counter
-from itertools import permutations, combinations
+from itertools import combinations, permutations
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Any
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
+
+
+# Keep the same mapping_key format the original used (pairs). Also provide an image-only key for compatibility.
+def mapping_key_pairs(mapping: Dict[Any, Any], domain: Optional[Iterable[Any]] = None) -> Tuple[Tuple[Any, Any], ...]:
+    """
+    Canonical key: tuple of (element, image) pairs in sorted(domain) order.
+    This matches the original mapping_key that returned ((x, mapping[x]), ...).
+    """
+    if domain is None:
+        domain = sorted(mapping.keys())
+    else:
+        domain = sorted(domain)
+    return tuple((x, mapping.get(x, x)) for x in domain)
+
+
+def mapping_key_images(mapping: Dict[Any, Any], domain: Optional[Iterable[Any]] = None) -> Tuple[Any, ...]:
+    """
+    Compatibility key: tuple of images only, in sorted(domain) order.
+    Some earlier variants used this representation; we check both forms.
+    """
+    if domain is None:
+        domain = sorted(mapping.keys())
+    else:
+        domain = sorted(domain)
+    return tuple(mapping.get(x, x) for x in domain)
 
 
 def find_swappable_pairs(colored_lists):
@@ -98,7 +124,7 @@ def plot_group_graph(group_lists, group_name="group"):
     plt.show()
 
 
-# Below are functions for finding permutations with k-cycles up to a certain size.
+# # Below are functions for finding permutations with k-cycles up to a certain size.
 
 
 def multiset_by_label(lists, labels):
@@ -163,7 +189,7 @@ def find_one_permutation(list_of_dependencies: list[list[int]], coefficients: li
         previously_found = set()
 
     elements = sorted({x for lst in list_of_dependencies for x in lst})
-    # Try small cycles first (usually enough): 2-cycles (swaps), then 3-cycles, etc.
+    # Try small cycles first: 2-cycles (swaps), then 3-cycles, etc.
     for k in range(2, max_cycle_size + 1):
         for subset in combinations(elements, k):
             # Generate directed cycles over this subset
@@ -182,6 +208,23 @@ def find_one_permutation(list_of_dependencies: list[list[int]], coefficients: li
                         return mapping
     return None
 
+
+def brute_force_all_permutations(list_of_dependencies: list[list[int]],
+                                 coefficients: list[complex] | np.ndarray):
+    """
+    Brute force all permutations of elements and return all valid mappings.
+
+    Returns: list of dicts, each dict is a valid automorphism mapping.
+    """
+    elements = sorted({x for lst in list_of_dependencies for x in lst})
+    valid_mappings = []
+
+    for perm in permutations(elements):
+        mapping = {elements[i]: perm[i] for i in range(len(elements))}
+        if preserves_per_label_multisets(list_of_dependencies, coefficients, mapping):
+            valid_mappings.append(mapping)
+
+    return valid_mappings
 
 def permutation_to_swaps(perm_dict):
     """
@@ -213,26 +256,25 @@ def permutation_to_swaps(perm_dict):
     return swaps
 
 
-if __name__ == "__main__":
-    # --- Example usage ---
-    data2 = {
-        'red': [[1, 2], [1, 4], [2, 6]],
-        'blue': [[5, 3]],
-        'green': [[6, 7]]
-    }
+# if __name__ == "__main__":
+#     # --- Example usage ---
+#     data2 = {
+#         'red': [[1, 2], [1, 4], [2, 6]],
+#         'blue': [[5, 3]],
+#         'green': [[6, 7]]
+#     }
 
-    print("Swappable pairs:", find_swappable_pairs(data2))
-    plot_group_graph(data2['red'], group_name="red")
+#     print("Swappable pairs:", find_swappable_pairs(data2))
+#     plot_group_graph(data2['red'], group_name="red")
 
-    lists = [
-        [1, 2],   # label i
-        [1, 4],   # label i
-        [5, 3]    # label 1
-    ]
-    labels = [0 + 1j, 0 + 1j, 1 + 0j]
+#     lists = [
+#         [1, 2],   # label i
+#         [1, 4],   # label i
+#         [5, 3]    # label 1
+#     ]
+#     labels = [0 + 1j, 0 + 1j, 1 + 0j]
 
-    found = find_one_permutation(lists, labels, previously_found=set(), max_cycle_size=4)
-    print("Found permutation:", found)
-    if found:
-        print("Preserves groups:", preserves_per_label_multisets(lists, labels, found))
-
+#     found = find_one_permutation(lists, labels, previously_found=set(), max_cycle_size=4)
+#     print("Found permutation:", found)
+#     if found:
+#         print("Preserves groups:", preserves_per_label_multisets(lists, labels, found))

@@ -4,6 +4,8 @@ from qiskit import QuantumCircuit
 from .gates import Gate
 from quaos.core.paulis import PauliSum, PauliString, Pauli
 from .utils import embed_symplectic
+from .gates import Hadamard as H, SUM as CX, PHASE as S
+import random
 
 
 class Circuit:
@@ -34,6 +36,31 @@ class Circuit:
         self.dimensions = dimensions
         self.gates = gates
         self.indexes = [gate.qudit_indices for gate in gates]  # indexes accessible at the Circuit level
+
+    @classmethod
+    def from_random(cls, n_qudits: int, depth: int, dimensions: list[int] | np.ndarray) -> 'Circuit':
+        """
+        Creates a random circuit with the given number of qudits and depth.
+
+        Parameters:
+            n_qudits (int): The number of qudits in the circuit.
+            depth (int): The depth of the circuit.
+
+        Returns:
+            Circuit: A new Circuit object.
+        """
+        gate_list = [H, S, CX]
+        gg = []
+        for i in range(depth):
+            g_i = np.random.randint(3)
+            if g_i == 2:
+                aa = list(random.sample(range(n_qudits), 2))
+                gg += [gate_list[g_i](aa[0], aa[1], 2)]
+            else:
+                aa = list(random.sample(range(n_qudits), 1))
+                gg += [gate_list[g_i](aa[0], 2)]
+
+        return cls(dimensions, gg)
 
     def add_gate(self, gate: Gate | list[Gate]):
         """

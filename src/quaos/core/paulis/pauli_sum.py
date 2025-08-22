@@ -452,10 +452,9 @@ class PauliSum:
         if isinstance(key[0], slice):
             if isinstance(key[1], int):  # key[0] indexes the pauli strings, key[1] indexes the qudit
                 for i in np.arange(self.n_paulis())[key[0]]:
-                    self.pauli_strings[i][key[1]] = value
+                    self.pauli_strings[int(i)][key[1]] = value[int(i)]
             elif isinstance(key[1], slice):  # key[0] indexes the pauli strings, key[1] indexes the qudits
                 for i_val, i in enumerate(np.arange(self.n_paulis())[key[0]]):
-                    print(i, value[int(i_val)])
                     self.pauli_strings[i][key[1]] = value[int(i_val)]
 
     @overload
@@ -936,7 +935,7 @@ class PauliSum:
         """
         Removes trivial Pauli strings (those that are identity operators) from the sum.
         """
-        # If entire Pauli string is I, remove it
+        # If entire Pauli string is x0z0, remove it
         to_delete = []
         for i in range(self.n_paulis()):
             if np.all(self.x_exp[i, :] == 0) and np.all(self.z_exp[i, :] == 0):

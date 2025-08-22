@@ -60,6 +60,9 @@ class PauliString:
         elif isinstance(x_exp, list):
             z_exp = np.array(z_exp)
             x_exp = np.array(x_exp)
+        elif isinstance(x_exp, int):
+            z_exp = np.array([z_exp])
+            x_exp = np.array([x_exp])
 
         if type(dimensions) is int:
             self.dimensions = dimensions * np.ones(len(x_exp), dtype=int)
@@ -713,7 +716,7 @@ class PauliString:
         >>> ps[[0, 2]]  # Returns a PauliString with Paulis at indices 0 and 2
         """
         if isinstance(key, int):
-            return self.get_paulis()[key]
+            return PauliString.from_pauli(self.get_paulis()[key])
         elif isinstance(key, slice) or isinstance(key, np.ndarray) or isinstance(key, list):
             return PauliString(x_exp=self.x_exp[key], z_exp=self.z_exp[key], dimensions=self.dimensions[key])
         else:
@@ -738,11 +741,15 @@ class PauliString:
             If the key and value types do not match the expected combinations.
         """
         # TODO: is it necessary to distinguish the two cases in the if... elif... loop?
-        if isinstance(key, int) and isinstance(value, Pauli):
+        
+        if isinstance(key, int):
             self.x_exp[key] = value.x_exp
             self.z_exp[key] = value.z_exp
-            self.dimensions[key] = value.dimension
-        elif isinstance(key, slice) and isinstance(value, PauliString):
+            if isinstance(value, Pauli):
+                self.dimensions[key] = value.dimension
+            else:
+                self.dimensions[key] = value.dimensions
+        elif isinstance(key, slice) and not isinstance(value, Pauli):
             self.x_exp[key] = value.x_exp
             self.z_exp[key] = value.z_exp
             self.dimensions[key] = value.dimensions
