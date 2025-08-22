@@ -256,6 +256,39 @@ def permutation_to_swaps(perm_dict):
     return swaps
 
 
+def find_swapped_dependent_elements(swaps, elements):
+    """
+    Given a list of swaps (elementary basis swaps) and a list of elements,
+    return which dependent elements (list-of-lists) are swapped.
+    """
+    # Defensive check
+    for s in swaps:
+        if not (isinstance(s, tuple) and len(s) == 2):
+            raise ValueError(f"Each swap must be a 2-tuple, got {s!r}")
+
+    # Build mapping from swaps
+    mapping = {a: b for a, b in swaps}
+    mapping.update({b: a for a, b in swaps})
+
+    def apply_map(lst):
+        return sorted(mapping.get(x, x) for x in lst)
+
+    mapped = [apply_map(lst) for lst in elements]
+
+    swapped_pairs = []
+    used = set()
+    for i, m in enumerate(mapped):
+        if i in used:
+            continue
+        for j, orig in enumerate(elements):
+            if sorted(orig) == m:
+                if i != j:
+                    swapped_pairs.append((i, j))
+                    used.add(j)
+                break
+    return swapped_pairs
+
+
 # if __name__ == "__main__":
 #     # --- Example usage ---
 #     data2 = {
