@@ -741,7 +741,7 @@ class PauliString:
             If the key and value types do not match the expected combinations.
         """
         # TODO: is it necessary to distinguish the two cases in the if... elif... loop?
-        
+
         if isinstance(key, int):
             self.x_exp[key] = value.x_exp
             self.z_exp[key] = value.z_exp
