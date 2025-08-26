@@ -78,6 +78,13 @@ class PauliSum:
             self.standardise()
 
     @classmethod
+    def from_tableau(cls, tableau: np.ndarray, dimensions: list[int] | np.ndarray) -> 'PauliSum':
+        p_strings = []
+        for row in tableau:
+            p_strings.append(PauliString(x_exp=row[:len(row) // 2], z_exp=row[len(row) // 2:], dimensions=dimensions))
+        return cls(p_strings, dimensions=dimensions)
+
+    @classmethod
     def from_pauli(cls,
                    pauli: Pauli) -> 'PauliSum':
         """
@@ -153,7 +160,7 @@ class PauliSum:
                 ps = PauliString.from_random(n_qudits, dimensions)
             strings.append(ps)
 
-        return cls(strings, weights=weights, phases=[0] * n_paulis, dimensions=dimensions, standardise=False)
+        return cls(strings, weights=weights, phases=[0] * n_paulis, dimensions=dimensions, standardise=True)
 
     def _set_exponents(self):
         """
@@ -748,7 +755,7 @@ class PauliSum:
         elif isinstance(A, PauliString):
             return self * PauliSum.from_pauli_strings(A)
         elif not isinstance(A, PauliSum):
-            raise ValueError("Multiplication only supported with SymplecticPauli objects or scalar")
+            raise ValueError("Multiplication only supported with PauliSum objects or scalar")
 
         new_p_sum = []
         new_weights = []
@@ -844,6 +851,7 @@ class PauliSum:
         t2 = np.all(self.weights == other_pauli.weights)
         t3 = np.all(self.phases == other_pauli.phases)
         t4 = np.all(self.dimensions == other_pauli.dimensions)
+        print(t1, t2, t3, t4)
         return bool(t1 and t2 and t3 and t4)
 
     def __ne__(self,
@@ -953,22 +961,21 @@ class PauliSum:
                 to_delete.append(i)
         self._delete_qudits(to_delete)
 
-    def symplectic(self) -> np.ndarray:
+    def tableau(self) -> np.ndarray:
         """
-        Returns the symplectic representation of the PauliSum.
-        That is, a tableau with all symplectic representations of
-        the PauliStrings.
+        Returns the tableau representation of the PauliSum.
+
 
         Returns
         -------
         np.ndarray
-            The symplectic representation of the PauliSum.
+            The tableau representation of the PauliSum.
         """
-        symplectic = np.zeros([self.n_paulis(), 2 * self.n_qudits()],
+        tableau = np.zeros([self.n_paulis(), 2 * self.n_qudits()],
                               dtype=int)
         for i, p in enumerate(self.pauli_strings):
-            symplectic[i, :] = p.symplectic()
-        return symplectic
+            tableau[i, :] = p.tableau()
+        return tableau
 
     def is_x(self) -> bool:
         """

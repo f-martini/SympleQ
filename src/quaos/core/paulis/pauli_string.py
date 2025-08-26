@@ -386,9 +386,24 @@ class PauliString:
         >>> ps1 > ps2
         True
         """
-        this_pauli = self._to_int(reverse=True)
-        tmp_other_pauli = other_pauli._to_int(reverse=True)
-        return this_pauli > tmp_other_pauli
+        # compare x first
+        for i in range(self.n_qudits()):
+            if self.x_exp[i] == other_pauli.x_exp[i]:
+                pass
+            elif self.x_exp[i] < other_pauli.x_exp[i]:
+                return True
+            else:
+                return False
+        # x are equal, compare z
+        for i in range(self.n_qudits()):
+            if self.z_exp[i] == other_pauli.z_exp[i]:
+                pass
+            elif self.z_exp[i] < other_pauli.z_exp[i]:
+                return True
+            else:
+                return False
+        # they are equal
+        return False
 
     def _to_int(self, reverse=False):
         """
@@ -491,10 +506,10 @@ class PauliString:
         return [Pauli(x_exp=self.x_exp[i], z_exp=self.z_exp[i], dimension=self.dimensions[i])
                 for i in range(len(self.x_exp))]
 
-    def symplectic(self) -> np.ndarray:
+    def tableau(self) -> np.ndarray:
         """
-        Returns the symplectic representation of the Pauli string.
-        The symplectic representation is a binary vector of length 2 * n_qudits,
+        Returns the tableau representation of the Pauli string.
+        The tableau representation is a binary vector of length 2 * n_qudits,
         where the first n_qudits entries correspond to the X exponents and the
         last n_qudits entries correspond to the Z exponents of the Pauli string.
         It is essential for efficient algebraic operations on Pauli strings, see
@@ -503,7 +518,7 @@ class PauliString:
         Returns
         -------
         np.ndarray
-            A 1D numpy array of length 2 * n_qudits representing the symplectic
+            A 1D numpy array of length 2 * n_qudits representing the tableau
             form of the Pauli string.
         """
         symp = np.zeros(2 * self.n_qudits())
@@ -540,8 +555,8 @@ class PauliString:
             raise ValueError(
                 f"Incompatible PauliStrings: must have the same number of qudits (currently {self.n_qudits()} and {A.n_qudits()}) and dimensions (currently {self.dimensions} and {A.dimensions}).")
         n = self.n_qudits()
-        symp = self.symplectic()
-        symp_A = A.symplectic()
+        symp = self.tableau()
+        symp_A = A.tableau()
         prod = sum([symp[i] * symp_A[i + n] - symp[i + n] * symp_A[i] for i in range(n)]) % self.lcm
         return prod
 
@@ -604,8 +619,8 @@ class PauliString:
         # identity on lower diagonal of U
         U = np.zeros((2 * self.n_qudits(), 2 * self.n_qudits()), dtype=int)
         U[self.n_qudits():, :self.n_qudits()] = np.eye(self.n_qudits(), dtype=int)
-        a = self.symplectic()
-        b = other_pauli.symplectic()
+        a = self.tableau()
+        b = other_pauli.tableau()
         return int(2 * a.T @ U @ b) % (2 * self.lcm)
 
     def _replace_symplectic(self, symplectic: np.ndarray, qudit_indices: list[int]) -> PauliString:
