@@ -226,6 +226,7 @@ def brute_force_all_permutations(list_of_dependencies: list[list[int]],
 
     return valid_mappings
 
+
 def permutation_to_swaps(perm_dict):
     """
     Convert a permutation dictionary {old_index: new_index} into a list

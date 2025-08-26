@@ -218,7 +218,7 @@ class TestPaulis:
                 ps_out = random_pauli_sum + random_pauli_sum2
                 ps_out_correct = PauliSum([p_string1, p_string2, p_string3], standardise=False)
                 assert ps_out == ps_out_correct, 'Error in PauliSum addition'
-                
+
         dims = [3, 3]
         x1x1 = PauliSum(PauliString.from_string('x1z0 x1z0', dimensions=dims))
         x1y1 = PauliSum(PauliString.from_string('x1z0 x1z1', dimensions=dims))

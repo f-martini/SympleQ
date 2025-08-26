@@ -902,22 +902,29 @@ class PauliSum:
                 'phases': self.phases,
                 'dimensions': self.dimensions}
 
-    # TODO: does it combine equivalent Paulis?
     def standardise(self):
         """
         Standardises the PauliSum object by combining equivalent Paulis and
         adding phase factors to the weights then resetting the phases.
         """
-        # combine equivalent
-        # self.combine_equivalent_paulis()
-        # sort
+        self.phase_to_weight()
+
+        # Zip together, sort by PauliString's ordering, then unzip
+        combined = list(zip(self.pauli_strings, self.weights))
+        combined.sort(key=lambda t: t[0])  # t[0] is a PauliString, so __lt__ is used
+
+        self.pauli_strings = [t[0] for t in combined]
+        self.weights = np.array([t[1] for t in combined], dtype=np.complex128)
+        # Do the same for phases if needed
+    """
+    def standardise(self):
+
         self.phase_to_weight()
         self.weights = [x for _, x in sorted(zip(self.pauli_strings, self.weights))]
         # self.phases = [x for _, x in sorted(zip(self.pauli_strings, self.phases))]
         self.pauli_strings = sorted(self.pauli_strings)
+    """
 
-    # TODO: Maybe switch self.standardise() -> self.phase_to_weight() here and
-    #       include self.combine_equivalent_paulis() in standardize() above?
     def combine_equivalent_paulis(self):
         """
         Combines equivalent Pauli operators in the sum by summing their coefficients and deleting duplicates.
@@ -972,7 +979,7 @@ class PauliSum:
             The tableau representation of the PauliSum.
         """
         tableau = np.zeros([self.n_paulis(), 2 * self.n_qudits()],
-                              dtype=int)
+                           dtype=int)
         for i, p in enumerate(self.pauli_strings):
             tableau[i, :] = p.tableau()
         return tableau
