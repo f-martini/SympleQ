@@ -283,7 +283,10 @@ class TestGates():
         # Tests if the symplectic matrix of the gate is symplectic
         gates = [SUM(0, 1, 2), SWAP(0, 1, 2), Hadamard(0, 2), Hadamard(1, 2), PHASE(0, 2), PHASE(1, 2)]
         for gate in gates:
-            assert is_symplectic(gate.symplectic, 2), f"Gate {gate.name} is not symplectic"
+            assert is_symplectic(gate.symplectic, 2), (
+                f"Gate {gate.name} is not symplectic. \n" +
+                gate.symplectic.__str__()
+            )
 
     # def test_find_symplectic_map(self):
     #     # this just tests the underlying solver, not the Gate or Pauli... implementation

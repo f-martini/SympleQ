@@ -3,19 +3,42 @@ import numpy as np
 import galois
 
 
-def is_symplectic(F, p):
-    GF = galois.GF(p)
+# def is_symplectic(F, p):
+#     GF = galois.GF(p)
+#     if isinstance(F, np.ndarray):
+#         F = GF(F)
+#     n = F.shape[0] // 2
+#     Id = GF.Identity(n)
+#     if p == 2:
+#         Omega = GF.Zeros((2 * n, 2 * n))
+#         Omega[:n, n:] = Id
+#         Omega[n:, :n] = Id
+#     else:
+#         Omega = GF.Zeros((2 * n, 2 * n))
+#         Omega[:n, n:] = Id
+#         Omega[n:, :n] = -Id
+#     lhs = F.T @ Omega @ F
+#     return np.array_equal(lhs, Omega)
+
+def is_symplectic(F, p: int) -> bool:
+    """
+    Check if matrix F is symplectic over GF(p).
+    
+    Args:
+        F: (2n x 2n) numpy array, entries in {0, 1, ..., p-1}.
+        p: prime modulus.
+        
+    Returns:
+        True if F is symplectic over GF(p), False otherwise.
+    """
     n = F.shape[0] // 2
-    Id = GF.Identity(n)
-    if p == 2:
-        Omega = GF.Zeros((2 * n, 2 * n))
-        Omega[:n, n:] = Id
-        Omega[n:, :n] = Id
-    else:
-        Omega = GF.Zeros((2 * n, 2 * n))
-        Omega[:n, n:] = Id
-        Omega[n:, :n] = -Id
-    lhs = F.T @ Omega @ F
+    Omega = np.zeros((2 * n, 2 * n), dtype=int)
+    Omega[:n, n:] = np.eye(n, dtype=int)
+    Omega[n:, :n] = -np.eye(n, dtype=int) 
+
+    Omega = Omega % p
+
+    lhs = (F.T @ Omega @ F) % p
     return np.array_equal(lhs, Omega)
 
 
