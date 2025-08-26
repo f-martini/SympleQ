@@ -909,23 +909,13 @@ class PauliSum:
         """
         self.phase_to_weight()
 
-        # Create a list of tuples (key, pauli_string, weight)
-        combined = list(zip(
-            [(tuple(p.x_exp), tuple(p.z_exp), tuple(p.dimensions)) for p in self.pauli_strings],
-            self.pauli_strings,
-            self.weights
-        ))
+        # Zip together, sort by PauliString's ordering, then unzip
+        combined = list(zip(self.pauli_strings, self.weights))
+        combined.sort(key=lambda t: t[0])  # t[0] is a PauliString, so __lt__ is used
 
-        # Sort by the key (exponents and dimensions)
-        combined.sort(key=lambda t: t[0])
-
-        # Unpack sorted results
-        self.pauli_strings = [t[1] for t in combined]
-        self.weights = np.array([t[2] for t in combined], dtype=np.complex128)
-        # If you want to sort phases as well, do the same for phases
-
-        # Optionally, reset phases to zero if not already done
-        # self.phases = np.zeros(self.n_paulis(), dtype=int)
+        self.pauli_strings = [t[0] for t in combined]
+        self.weights = np.array([t[1] for t in combined], dtype=np.complex128)
+        # Do the same for phases if needed
     """
     def standardise(self):
 

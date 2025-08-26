@@ -7,35 +7,78 @@ from .pauli_sum import PauliSum
 import networkx as nx
 
 
-def ground_state(P: PauliSum
-                 ) -> np.ndarray:
-    """Returns the ground state of a given Hamiltonian
-
-    Args:
-        P: pauli, Paulis for Hamiltonian
-        cc: list[int], coefficients for Hamiltonian
-
-    Returns:
-        numpy.array: eigenvector corresponding to lowest eigenvalue of Hamiltonian
+def ground_state_TMP(P: PauliSum,
+                     only_gs: bool = True
+                     ) -> tuple[np.ndarray, np.ndarray]:
     """
+    Compute eigenvalues/eigenvectors of `P` and (by default) pick
+    the ground-state energy (`only_gs` = `True`).
 
+    Parameters
+    ----------
+    P : PauliSum
+        A PauliSum object representing the Hamiltonian/operator.
+    only_gs : bool, optional
+        If `True` (default), only the ground-state (energy) is kept in `gs` (`en`).
+         If `False`, all eigenvectors (eigenvalues) are kept in `gs` (`en`).
+
+    Returns
+    -------
+    en : float or numpy.ndarray
+        If `only_gs` is `True`, the lowest eigenvalue (ground-state energy).
+        Otherwise, a 1D array of all eigenvalues sorted ascending.
+    gs : numpy.ndarray
+        Eigenvectors sorted to match ``en``.
+
+    Raises
+    ------
+    AssertionError
+        If the (internally normalized) eigenvector(s) do not yield real
+        expectation values matching the corresponding eigenvalue(s) within
+        ``1e-10``.
+
+    Notes
+    -----
+    - Since :func:`numpy.linalg.eig` is used, the input matrix is treated as
+      general (not assumed Hermitian). If the operator is Hermitian, consider
+      using :func:`numpy.linalg.eigh` for improved numerical stability.
+    """
+    # Convert PauliSum to matrix form
     m = P.matrix_form()
-
     m = m.toarray()
+    # Get eigenvalues and eigenvectors
     val, vec = np.linalg.eig(m)
     val = np.real(val)
     vec = np.transpose(vec)
-
-    tmp_index = val.argmin(axis=0)
-
+    # Ordering
+    tmp_index = np.argsort(val)
+    en = val[tmp_index]
     gs = vec[tmp_index]
-    gs = np.transpose(gs)
-    gs = gs / np.linalg.norm(gs)
-
-    if abs(min(val) - np.transpose(np.conjugate(gs)) @ m @ gs) > 10**-10:
-        print("ERROR with the GS!!!")
-
-    return gs
+    # Prepare output
+    if only_gs:
+        en = en[0]
+        gs_out = gs[0]
+        gs_out = np.transpose(gs_out)
+        gs_out = gs_out / np.linalg.norm(gs_out)
+    else:
+        gs_out = []
+        for el in gs:
+            el = np.transpose(el)
+            el = el / np.linalg.norm(el)
+            gs_out.append(el)
+        gs_out = np.array(gs_out)
+    # Checks
+    exp_en = []
+    if not only_gs:
+        for el in gs_out:
+            exp_en.append(np.transpose(np.conjugate(el)) @ m @ el)
+        exp_en = np.array(exp_en)
+    else:
+        exp_en = np.transpose(np.conjugate(gs_out)) @ m @ gs_out
+    assert np.max(abs(en - exp_en)) < 10**-10, \
+        "The ground state does not yield a real value <gs | H |gs> = {}".format(exp_en)
+    # Return
+    return en, gs
 
 
 def to_pauli_sum(P: Pauli | PauliString
@@ -324,14 +367,77 @@ def commutation_graph(PauliSum: PauliSum,
     return gr
 
 
-def modinv(a, d):
+def modinv(a : int,
+           d: int
+           ) -> int:
+    """
+    Compute the modular multiplicative inverse of an integer.
+
+    Given integers `a` and `d`, this function finds an integer `i` such that
+    `(a * i) % d == 1`. If no such integer exists, a `ValueError` is raised.
+
+    Parameters
+    ----------
+    a : int
+        The integer whose modular inverse is to be computed.
+    d : int
+        The modulus.
+
+    Returns
+    -------
+    int
+        The modular multiplicative inverse of `a` modulo `d`.
+
+    Raises
+    ------
+    ValueError
+        If the modular inverse does not exist (i.e., if `a` and `d` are not coprime).
+
+    Examples
+    --------
+    >>> modinv(3, 11)
+    4
+    >>> modinv(10, 17)
+    12
+    """
     for i in range(1, d):
         if (a * i) % d == 1:
             return i
     raise ValueError(f"No inverse for {a} mod {d}")
 
 
-def row_reduce_mod_d(A, d):
+def row_reduce_mod_d(A: np.ndarray,
+                     d: int
+                     ) -> tuple[np.ndarray, list[int], int]:
+    """
+    Performs row reduction (Gaussian elimination) of a matrix modulo a given integer.
+
+    This function reduces the input matrix `A` to its row-echelon form over the integers modulo `d`.
+    It also returns the list of pivot columns and the rank of the matrix modulo `d`.
+
+    Parameters
+    ----------
+    A : numpy.ndarray
+        The input matrix to be row reduced. Must be a 2D numpy array of integers (dtype=int).
+    d : int
+        The modulus for the arithmetic operations.
+
+    Returns
+    -------
+    A_reduced : numpy.ndarray
+        The row-reduced form of the input matrix modulo `d`.
+    pivots : list of int
+        List of column indices that are pivots in the reduced matrix.
+    rank : int
+        The rank of the matrix modulo `d`.
+
+    Notes
+    -----
+    - The input matrix `A` must have integer dtype (e.g., np.int32, np.int64).
+    - The function assumes that `modinv` is defined elsewhere and computes modular inverses.
+    - The input matrix `A` is not modified; a copy is used internally.
+    - All arithmetic is performed modulo `d`.
+    """
     A = A.copy() % d
     m, n = A.shape
     rank = 0

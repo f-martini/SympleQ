@@ -346,7 +346,9 @@ class PauliString:
                     np.all(self.z_exp == other_pauli.z_exp) and
                     np.all(self.dimensions == other_pauli.dimensions))
 
-    def __ne__(self, other_pauli: PauliString) -> bool:
+    def __ne__(self,
+               other_pauli: PauliString
+               ) -> bool:
         """
         Check if this PauliString is not equal to another PauliString.
 
@@ -362,7 +364,9 @@ class PauliString:
         """
         return not self.__eq__(other_pauli)
 
-    def __gt__(self, other_pauli: PauliString) -> bool:
+    def __gt__(self,
+               other_pauli: PauliString
+               ) -> bool:
         """
         Compare this PauliString with another PauliString for the greater-than relationship.
         This method overrides the `>` operator to compare two PauliString objects by converting
@@ -404,6 +408,34 @@ class PauliString:
                 return False
         # they are equal
         return False
+
+    def __lt__(self,
+               other_pauli: PauliString
+               ) -> bool:
+        """
+        Compare this PauliString with another PauliString for the greater-than relationship.
+        This method overrides the `<` operator to compare two PauliString objects by converting
+        them to their integer representations (with bits reversed) and checking if this instance
+        is smaller than the other.
+
+        Parameters
+        ----------
+        other_pauli : PauliString
+            The other PauliString instance to compare against.
+
+        Returns
+        -------
+        bool
+            True if this PauliString is smaller than `other_pauli`, False otherwise.
+
+        Examples
+        --------
+        >>> ps1 = PauliString.from_string("x1z0 x0z1", [2, 2])
+        >>> ps2 = PauliString.from_string("x0z1 x1z0", [2, 2])
+        >>> ps1 > ps2
+        False
+        """
+        return not self.__gt__(other_pauli) and not self.__eq__(other_pauli)
 
     def _to_int(self, reverse=False):
         """
