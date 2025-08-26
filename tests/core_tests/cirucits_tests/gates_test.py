@@ -127,7 +127,7 @@ class TestGates():
                     ps_list_out_correct.append(output_ps_correct)
                     # a = np.array([r1, r2, s1, s2])
 
-                    # phase_out = np.diag(C.T @ U @ C) @ a 
+                    # phase_out = np.diag(C.T @ U @ C) @ a
                     # + 2 * a @ np.triu(C.T @ U @ C) @ a - a @ np.diag(np.diag(C.T @ U @ C)) @ a
                     ps_phase_out_correct.append(0)
 
@@ -184,11 +184,17 @@ class TestGates():
 
                 input_psum = PauliSum(ps_list_in, dimensions=[d, d], standardise=False)
                 output_psum = gate.act(input_psum)
-                output_psum_correct = PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d], standardise=False)
-                assert output_psum == output_psum_correct, 'Error in Hadamard gate: \n' + input_psum.__str__() + '\n' + output_psum.__str__() + '\n' + output_psum_correct.__str__()
+                output_psum_correct = PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d],
+                                               standardise=False)
+                assert output_psum == output_psum_correct, (
+                    'Error in Hadamard gate: \n' +
+                    input_psum.__str__() + '\n' +
+                    output_psum.__str__() + '\n' +
+                    output_psum_correct.__str__()
+                )
 
     def test_PHASE(self):
-        # TODO: Better approach to phases here - is there another approach that we can test the first one with like Hadamard?
+        # TODO: Better approach - is there another approach that we can test the first one with like Hadamard?
         for d in [2, 5, 11]:
             gate = PHASE(0, d)  # PHASE on qubit 0
 
@@ -197,7 +203,7 @@ class TestGates():
                 output_str_correct = f"x{r1}z{(r1 + s1) % d} x{r2}z{s2}"
 
                 output_ps = gate.act(input_ps)
-                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in Hadamard gate 0'
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in H gate 0'
 
             gate = PHASE(1, d)  # PHASE on qudit 1
             for i in range(100):
@@ -205,7 +211,7 @@ class TestGates():
                 output_str_correct = f"x{r1}z{s1} x{r2}z{(r2 + s2) % d}"
 
                 output_ps = gate.act(input_ps)
-                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in Hadamard gate 1'
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in H gate 1'
             # test pauli_sums
             gate = PHASE(0, d)  # PHASE on qubit 0
             h = gate.phase_vector
@@ -224,24 +230,24 @@ class TestGates():
                     U = np.zeros((len(input_ps.dimensions), len(input_ps.dimensions)), dtype=int)
                     U[1, 0] = 1
 
-                    p = np.dot(h, a1) - np.diag(C.T @ U @ C) @ a1 + 2 * a1 @ np.triu(C.T @ U @ C) @ a1 - a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
+                    p = (
+                        np.dot(h, a1) -
+                        np.diag(C.T @ U @ C) @ a1 +
+                        2 * a1 @ np.triu(C.T @ U @ C) @ a1 -
+                        a1 @ np.diag(np.diag(C.T @ U @ C)) @ a1
+                    )
                     ps_phase_out_correct.append(p)
 
                 input_psum = PauliSum(ps_list_in, dimensions=[d, d], standardise=False)
                 output_psum = gate.act(input_psum)
-                output_psum_correct = PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d], standardise=False)
-                assert output_psum == output_psum_correct, 'Error in Hadamard gate: \n' + input_psum.__str__() + '\n' + output_psum.__str__() + '\n' + output_psum_correct.__str__()
-
-    # def test_arbitrary_gate(self):
-
-    #     for d in [2, 5, 11]:
-    #         for i in range(1000):
-    #             input_ps = self.random_pauli_sum(d, n_paulis=2)
-    #             target_ps = self.random_pauli_sum(d, n_paulis=2)
-    #             if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()):
-    #                 gate = ArbitraryGate('ArbGate', input_ps, target_ps)
-    #                 output_ps = gate.act(input_ps)
-    #                 assert output_ps == target_ps, 'Error in Arbitrary gate: \n' + input_ps.__str__() + '\n' + output_ps.__str__() + '\n' + target_ps.__str__()
+                output_psum_correct = PauliSum(ps_list_out_correct, phases=ps_phase_out_correct, dimensions=[d, d],
+                                               standardise=False)
+                assert output_psum == output_psum_correct, (
+                    'Error in Hadamard gate: \n' +
+                    input_psum.__str__() + '\n' +
+                    output_psum.__str__() + '\n' +
+                    output_psum_correct.__str__()
+                )
 
     def test_group_homomorphism(self):
         # Tests all gates and all combinations of two pauli strings for the group homomorphism property:
@@ -264,11 +270,17 @@ class TestGates():
                                             p1 = PauliSum([f'x{x0}z{z0} x{x1}z{z1}'], dimensions=[2, 2])
                                             p2 = PauliSum([f'x{x0p}z{z0p} x{x1p}z{z1p}'], dimensions=[2, 2])
                                             err0 = 'In: \n' + p1.__str__() + '\n' + p2.__str__()
-                                            err = 'Out: \n' + (gate.act(p1) * gate.act(p2)).__str__() + '\n' + gate.act(p1 * p2).__str__()
+                                            err = (
+                                                'Out: \n' +
+                                                (gate.act(p1) * gate.act(p2)).__str__() +
+                                                '\n' +
+                                                gate.act(p1 * p2).__str__()
+                                            )
                                             assert gate.act(p1) * gate.act(p2) == gate.act(p1 * p2), err0 + err + '\n'
 
         for dim in [3, 5, 7, 15]:
-            gates = [SUM(0, 1, dim), SUM(1, 0, dim), SWAP(0, 1, dim), Hadamard(0, dim), Hadamard(1, dim), PHASE(0, dim), PHASE(1, dim)]
+            gates = [SUM(0, 1, dim), SUM(1, 0, dim), SWAP(0, 1, dim), Hadamard(0, dim),
+                     Hadamard(1, dim), PHASE(0, dim), PHASE(1, dim)]
             for gate in gates:
 
                 for _ in range(100):
@@ -319,84 +331,32 @@ class TestGates():
             'Error in gate_from_solver\n input:\n' + input_ps.__str__() +
             '\n target:\n' + target_ps.__str__() + '\n output:\n' + output_ps.__str__())
 
-        # for d in [2]:  # only solves on GF(2) for now...
-        #     for i in range(10):
-        #         input_ps = self.random_pauli_sum(d, n_paulis=6)
-        #         target_ps = self.random_pauli_sum(d, n_paulis=6)
+        for d in [2]:  # only solves on GF(2) for now...
+            for i in range(10):
+                input_ps = self.random_pauli_sum(d, n_paulis=6)
+                target_ps = self.random_pauli_sum(d, n_paulis=6)
 
-        #         if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()):
-        #             print(i)
-        #             print('input')
-        #             print(input_ps.symplectic())
-        #             print('target')
-        #             print(target_ps.symplectic())
-        #             gate = Gate.solve_from_target('ArbGate', input_ps, target_ps)
-        #             output_ps = gate.act(input_ps)
-        #             output_ps.phases = input_ps.phases  # So far it does not solve for phases as well
-        #             print('output')
-        #             print(output_ps.symplectic())
-        #             print('gate')
-        #             print(gate.symplectic)
-        #             print('check')
-        #             print(input_ps.symplectic() @ gate.symplectic % 2)
+                if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()):
+                    print(i)
+                    print('input')
+                    print(input_ps.tableau())
+                    print('target')
+                    print(target_ps.tableau())
+                    gate = Gate.solve_from_target('ArbGate', input_ps, target_ps)
+                    output_ps = gate.act(input_ps)
+                    output_ps.phases = input_ps.phases  # So far it does not solve for phases as well
+                    print('output')
+                    print(output_ps.tableau())
+                    print('gate')
+                    print(gate.symplectic)
+                    print('check')
+                    print(input_ps.tableau() @ gate.symplectic % 2)
 
-        #             assert output_ps == target_ps, f'Error test {i} \n In: \n' + input_ps.__str__() + '\n Out: \n' + output_ps.__str__() + '\n Target: \n' + target_ps.__str__()
-
-
-# if __name__ == "__main__":
-
-#     def random_symplectic(n, seed=None):
-#         """Generate a random symplectic matrix over GF(2) of size 2n x 2n."""
-#         if seed is not None:
-#             np.random.seed(seed)
-
-#         while True:
-#             A = np.random.randint(0, 2, size=(n, n))
-#             if np.linalg.matrix_rank(A) < n:
-#                 continue
-
-#             B = np.random.randint(0, 2, size=(n, n))
-#             B = (B + B.T) % 2  # Force symmetry
-
-#             C = np.random.randint(0, 2, size=(n, n))
-#             try:
-#                 AinvT = np.linalg.inv(A.T) % 2
-#             except np.linalg.LinAlgError:
-#                 continue
-
-#             D = (AinvT @ (C.T @ A + B)) % 2
-#             F = np.block([[A, B], [C, D]]) % 2
-
-#             if is_symplectic(F):
-#                 return F.astype(int)
-
-    # tst = TestGates()
-
-    # tst.test_gate_from_target()
-
-    # d = 2
-    # input_ps = tst.random_pauli_sum(d, n_paulis=4)
-    # successes = 0
-    # for i in range(10000):
-
-    #     target_ps = tst.random_pauli_sum(d, n_paulis=4)
-    #     if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()) and input_ps != target_ps:
-    #         gate = ArbitraryGate('ArbGate', input_ps, target_ps)
-    #         output_ps = gate.act(input_ps)
-    #         output_ps.phases = target_ps.phases  # we dont compare about these for now
-    #         target_ps.standardise()
-    #         output_ps.standardise()
-
-    #         if not output_ps == target_ps:
-    #             print(f'Error in Arbitrary gate: {i}')
-    #             print('Target PauliString:')
-    #             print(target_ps.symplectic())
-    #             print('Output PauliString:')
-    #             print(output_ps.symplectic())
-    #         else:
-    #             successes += 1
-
-    # print(f'Successes: {successes} out of 10000')
-    # print('Input PauliString:')
-    # print(input_ps.symplectic())
-    # print('done')
+                    assert output_ps == target_ps, (
+                        f'Error test {i} \n In: \n' +
+                        input_ps.__str__() +
+                        '\n Out: \n' +
+                        output_ps.__str__() +
+                        '\n Target: \n' +
+                        target_ps.__str__()
+                    )
