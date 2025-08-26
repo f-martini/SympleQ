@@ -902,22 +902,39 @@ class PauliSum:
                 'phases': self.phases,
                 'dimensions': self.dimensions}
 
-    # TODO: does it combine equivalent Paulis?
     def standardise(self):
         """
         Standardises the PauliSum object by combining equivalent Paulis and
         adding phase factors to the weights then resetting the phases.
         """
-        # combine equivalent
-        # self.combine_equivalent_paulis()
-        # sort
+        self.phase_to_weight()
+
+        # Create a list of tuples (key, pauli_string, weight)
+        combined = list(zip(
+            [(tuple(p.x_exp), tuple(p.z_exp), tuple(p.dimensions)) for p in self.pauli_strings],
+            self.pauli_strings,
+            self.weights
+        ))
+
+        # Sort by the key (exponents and dimensions)
+        combined.sort(key=lambda t: t[0])
+
+        # Unpack sorted results
+        self.pauli_strings = [t[1] for t in combined]
+        self.weights = np.array([t[2] for t in combined], dtype=np.complex128)
+        # If you want to sort phases as well, do the same for phases
+
+        # Optionally, reset phases to zero if not already done
+        # self.phases = np.zeros(self.n_paulis(), dtype=int)
+    """
+    def standardise(self):
+
         self.phase_to_weight()
         self.weights = [x for _, x in sorted(zip(self.pauli_strings, self.weights))]
         # self.phases = [x for _, x in sorted(zip(self.pauli_strings, self.phases))]
         self.pauli_strings = sorted(self.pauli_strings)
+    """
 
-    # TODO: Maybe switch self.standardise() -> self.phase_to_weight() here and
-    #       include self.combine_equivalent_paulis() in standardize() above?
     def combine_equivalent_paulis(self):
         """
         Combines equivalent Pauli operators in the sum by summing their coefficients and deleting duplicates.
@@ -972,7 +989,7 @@ class PauliSum:
             The tableau representation of the PauliSum.
         """
         tableau = np.zeros([self.n_paulis(), 2 * self.n_qudits()],
-                              dtype=int)
+                           dtype=int)
         for i, p in enumerate(self.pauli_strings):
             tableau[i, :] = p.tableau()
         return tableau
