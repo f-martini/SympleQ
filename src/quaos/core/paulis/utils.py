@@ -7,6 +7,37 @@ from .pauli_sum import PauliSum
 import networkx as nx
 
 
+def ground_state(P: PauliSum) -> np.ndarray:
+    """Returns the ground state of a given Hamiltonian
+
+    Args:
+        P: pauli, Paulis for Hamiltonian
+        cc: list[int], coefficients for Hamiltonian
+
+    Returns:
+        numpy.array: eigenvector corresponding to lowest eigenvalue of Hamiltonian
+    """
+
+    m = P.matrix_form()
+
+    m = m.toarray()
+    val, vec = np.linalg.eig(m)
+    val = np.real(val)
+    vec = np.transpose(vec)
+
+    tmp_index = val.argmin(axis=0)
+
+    gs = vec[tmp_index]
+    gs = np.transpose(gs)
+    gs = gs / np.linalg.norm(gs)
+
+    if abs(min(val) - np.transpose(np.conjugate(gs)) @ m @ gs) > 10**-10:
+        print("ERROR with the GS!!!")
+
+    return gs
+
+
+
 def to_pauli_sum(P: Pauli | PauliString
                  ) -> PauliSum:
     """
