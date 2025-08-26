@@ -267,7 +267,7 @@ class TestGates():
         # Tests if the symplectic matrix of the gate is symplectic
         gates = [SUM(0, 1, 2), SWAP(0, 1, 2), Hadamard(0, 2), Hadamard(1, 2), PHASE(0, 2), PHASE(1, 2)]
         for gate in gates:
-            assert is_symplectic(gate.symplectic), f"Gate {gate.name} is not symplectic"
+            assert is_symplectic(gate.symplectic, 2), f"Gate {gate.name} is not symplectic"
 
     def test_find_symplectic_map(self):
         # this just tests the underlying solver, not the Gate or Pauli... implementation
@@ -279,15 +279,7 @@ class TestGates():
                     F_true = random_symplectic(n, 2, seed=None)
                     X = np.random.randint(0, 2, size=(n_p, 2 * n), dtype=np.uint8)
                     Y = (X @ F_true) % 2
-                    print(_)
-                    print("X:")
-                    print(X)
-                    # print("Y:")
-                    print(Y)
-
                     F_found = find_symplectic_map(X, Y)
-                    # print("F_found:")
-                    print(X @ F_found % 2)
                     assert np.array_equal((X @ F_found) % 2, Y)
 
     def test_gate_from_target(self):

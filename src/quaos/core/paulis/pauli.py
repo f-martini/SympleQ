@@ -5,7 +5,7 @@ from typing import Any
 
 class Pauli:
     """
-    Constructor for Pauli class. This represent a single Pauli operator acting on a quDit in symplectic form. 
+    Constructor for Pauli class. This represent a single Pauli operator acting on a quDit in symplectic form.
     For more details, see the references:
     `Phys. Rev. A 71, 042315 (2005) <https://doi.org/10.1103/PhysRevA.71.042315>`_
     and
@@ -15,7 +15,7 @@ class Pauli:
     ----------
     x_exp : int or str
         Exponent of X part of Pauli in symplectic form. If str, this describes x and z parts in form
-        'xnzm', where n and m are integers representing the exponents of x and z respectively.
+        'xrzs', where r and s are integers representing the exponents of x and z respectively.
     z_exp : int
         Exponent of Z part of Pauli in symplectic form. If None, this is set to 0.
     dimension : int
@@ -134,7 +134,8 @@ class Pauli:
 
     def __dict__(self) -> dict:
         """
-        Returns a dictionary representation of the Pauli operator, in the form {'x_exp': ..., 'z_exp': ..., 'dimension': ...}.
+        Returns a dictionary representation of the Pauli operator,
+        in the form {'x_exp': ..., 'z_exp': ..., 'dimension': ...}.
         """
         return {'x_exp': self.x_exp, 'z_exp': self.z_exp, 'dimension': self.dimension}
 
@@ -176,7 +177,8 @@ class Xnd(Pauli):
 
 class Ynd(Pauli):
     """
-    Represents a Pauli operator with only the Y part defined. In the context of qudits, this is represented as a Pauli operator with the same X and Z powers.
+    Represents a Pauli operator with only the Y part defined. In the context of qudits,
+    this is represented as a Pauli operator with the same X and Z powers.
     """
     def __init__(self, y_exp: int, dimension: int):
         super().__init__(y_exp, y_exp, dimension)

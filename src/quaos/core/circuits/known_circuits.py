@@ -281,35 +281,8 @@ def ensure_zx_components(pauli_sum: PauliSum, pauli_index_x: int,
     return C, pauli_sum
 
 
-def _to_ix_logic(circuit: Circuit, pauli_string: PauliString,
-                 target_index: int, p_string_in: PauliString) -> tuple[Circuit, PauliString]:
-    for q in range(pauli_string.n_qudits()):
-        if pauli_string[q].x_exp == 0 and pauli_string[q].z_exp != 0:
-            circuit.add_gate(H(q, pauli_string.dimensions[q]))
-            pauli_string = circuit.act(p_string_in)
-        if pauli_string[q].x_exp != 0:
-            if pauli_string[q].z_exp != 0:
-                # use the x to cancel the z of q with S gates
-                n_s = solve_modular_linear_additive(pauli_string[q].x_exp, pauli_string[q].z_exp,
-                                                    pauli_string.dimensions[q])
-                for i in range(n_s):
-                    circuit.add_gate(S(q, pauli_string.dimensions[q]))
-                pauli_string = circuit.act(p_string_in)
-
-                # use cnot to cancel the x of q with the x of target. n_cnot = n where x_q + x+_target) % d= 0
-                n_cnot = solve_modular_linear_additive(pauli_string[q].x_exp, pauli_string[target_index].x_exp,
-                                                       pauli_string.dimensions[target_index])
-                if n_cnot is None:
-                    raise Exception("Weird")
-                for i in range(n_cnot):
-                    circuit.add_gate(CX(target_index, q, pauli_string.dimensions[target_index]))
-                pauli_string = circuit.act(p_string_in)
-    return circuit, pauli_string
-
-
 def to_ix(pauli_string: PauliString, target_index: int, ignore: int | list[int] | None = None) -> Circuit:
     """Finds a circuit to turn a PauliString to III...IXI...II where the X is at target_index
-
     for qudits X = xrz0 for any r != 0, I = x0z0
 
     ignore is a list of qudits to not try to turn into an I
@@ -329,7 +302,26 @@ def to_ix(pauli_string: PauliString, target_index: int, ignore: int | list[int] 
     n_q = pauli_string.n_qudits()
     for q in range(n_q):
         if q != target_index and q not in ignore:
-            circuit, pauli_string = _to_ix_logic(circuit, pauli_string, target_index, p_string_in)
+            if pauli_string[q].x_exp == 0 and pauli_string[q].z_exp != 0:
+                circuit.add_gate(H(q, pauli_string.dimensions[q]))
+                pauli_string = circuit.act(p_string_in)
+            if pauli_string[q].x_exp != 0:
+                if pauli_string[q].z_exp != 0:
+                    # use the x to cancel the z of q with S gates
+                    n_s = solve_modular_linear_additive(pauli_string[q].x_exp, pauli_string[q].z_exp,
+                                                        pauli_string.dimensions[q])
+                    for i in range(n_s):
+                        circuit.add_gate(S(q, pauli_string.dimensions[q]))
+                    pauli_string = circuit.act(p_string_in)
+
+                # use cnot to cancel the x of q with the x of target. n_cnot = n where x_q + x+_target) % d= 0
+                n_cnot = solve_modular_linear_additive(pauli_string[q].x_exp, pauli_string[target_index].x_exp,
+                                                       pauli_string.dimensions[target_index])
+                if n_cnot is None:
+                    raise Exception("Weird")
+                for i in range(n_cnot):
+                    circuit.add_gate(CX(target_index, q, pauli_string.dimensions[target_index]))
+                pauli_string = circuit.act(p_string_in)
 
     else:
         return circuit

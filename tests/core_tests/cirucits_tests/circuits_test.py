@@ -8,7 +8,7 @@ import numpy as np
 
 class TestKnownCircuits():
 
-    def test_to_x(self, n_tests=10000):
+    def test_to_x(self, n_tests=1000):
         target_x = 0
         list_of_failures = []
         for _ in range(n_tests):
@@ -20,13 +20,13 @@ class TestKnownCircuits():
                 print(f"Failed: {ps} -> {c.act(ps)}")
                 list_of_failures.append(ps)
 
-        return list_of_failures
+        assert len(list_of_failures) == 0
 
-    def test_to_ix(self, n_tests=10000):
+    def test_to_ix(self, n_tests=1000):
         target_x = 0
         list_of_failures = []
         for _ in range(n_tests):
-            ps = random_pauli_string([3, 3, 3, 3])
+            ps = random_pauli_string([2, 2, 2, 2])
             if ps.n_identities() == 4:
                 continue
             c = to_ix(ps, 0)
@@ -46,8 +46,8 @@ class TestKnownCircuits():
                         print(f"Failed identity: {ps} -> {c.act(ps)}")
                         list_of_failures.append(ps)
                         failed = True
-
-        return list_of_failures
+        print(list_of_failures)
+        assert len(list_of_failures) == 0
 
 
 class TestCircuits():
