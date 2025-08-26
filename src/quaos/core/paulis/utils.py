@@ -118,67 +118,67 @@ def commutation_graph(pauli_sum: PauliSum, labels: list[str] | None = None, axis
     return gr
 
 
-def modinv(a, d):
-    for i in range(1, d):
-        if (a * i) % d == 1:
-            return i
-    raise ValueError(f"No inverse for {a} mod {d}")
+# def modinv(a, d):
+#     for i in range(1, d):
+#         if (a * i) % d == 1:
+#             return i
+#     raise ValueError(f"No inverse for {a} mod {d}")
 
 
-def row_reduce_mod_d(A, d):
-    A = A.copy() % d
-    m, n = A.shape
-    rank = 0
-    pivots = []
-    for col in range(n):
-        for row in range(rank, m):
-            if A[row, col] != 0:
-                break
-        else:
-            continue
-        if row != rank:
-            A[[row, rank]] = A[[rank, row]]
-        inv = modinv(A[rank, col], d)
-        A[rank] = (A[rank] * inv) % d
-        for r in range(m):
-            if r != rank and A[r, col] != 0:
-                A[r] = (A[r] - A[r, col] * A[rank]) % d
-        pivots.append(col)
-        rank += 1
-    return A, pivots, rank
+# def row_reduce_mod_d(A, d):
+#     A = A.copy() % d
+#     m, n = A.shape
+#     rank = 0
+#     pivots = []
+#     for col in range(n):
+#         for row in range(rank, m):
+#             if A[row, col] != 0:
+#                 break
+#         else:
+#             continue
+#         if row != rank:
+#             A[[row, rank]] = A[[rank, row]]
+#         inv = modinv(A[rank, col], d)
+#         A[rank] = (A[rank] * inv) % d
+#         for r in range(m):
+#             if r != rank and A[r, col] != 0:
+#                 A[r] = (A[r] - A[r, col] * A[rank]) % d
+#         pivots.append(col)
+#         rank += 1
+#     return A, pivots, rank
 
 
-def solve_mod_d(A, b, d, max_solutions=1000):
-    from itertools import product
-    import sympy as sp
+# def solve_mod_d(A, b, d, max_solutions=1000):
+#     from itertools import product
+#     import sympy as sp
 
-    A = sp.Matrix(A.tolist())
-    b = sp.Matrix(b.tolist())
-    A_aug = A.row_join(b)
-    A_mod = A_aug.applyfunc(lambda x: x % d)
+#     A = sp.Matrix(A.tolist())
+#     b = sp.Matrix(b.tolist())
+#     A_aug = A.row_join(b)
+#     A_mod = A_aug.applyfunc(lambda x: x % d)
 
-    Ab_rref, pivot_cols = A_mod.rref(iszerofunc=lambda x: x % d == 0, simplify=True)
-    n_vars = A.shape[1]
+#     Ab_rref, pivot_cols = A_mod.rref(iszerofunc=lambda x: x % d == 0, simplify=True)
+#     n_vars = A.shape[1]
 
-    pivot_cols = [p for p in pivot_cols if p < n_vars]
-    free_vars = [i for i in range(n_vars) if i not in pivot_cols]
+#     pivot_cols = [p for p in pivot_cols if p < n_vars]
+#     free_vars = [i for i in range(n_vars) if i not in pivot_cols]
 
-    solutions = []
-    for free_vals in product(range(d), repeat=len(free_vars)):
-        sol = [0] * n_vars
-        for i, val in zip(free_vars, free_vals):
-            sol[i] = val
+#     solutions = []
+#     for free_vals in product(range(d), repeat=len(free_vars)):
+#         sol = [0] * n_vars
+#         for i, val in zip(free_vars, free_vals):
+#             sol[i] = val
 
-        for i, pivot in enumerate(pivot_cols):
-            rhs = Ab_rref[i, -1]
-            lhs = sum(Ab_rref[i, j] * sol[j] for j in range(n_vars)) % d
-            sol[pivot] = int((rhs - lhs) % d)
+#         for i, pivot in enumerate(pivot_cols):
+#             rhs = Ab_rref[i, -1]
+#             lhs = sum(Ab_rref[i, j] * sol[j] for j in range(n_vars)) % d
+#             sol[pivot] = int((rhs - lhs) % d)
 
-        solutions.append(np.array(sol, dtype=int))
-        if len(solutions) >= max_solutions:
-            break
+#         solutions.append(np.array(sol, dtype=int))
+#         if len(solutions) >= max_solutions:
+#             break
 
-    return solutions
+#     return solutions
 
 
 def is_symplectic(M, d):

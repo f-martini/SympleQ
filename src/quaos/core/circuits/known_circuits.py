@@ -314,7 +314,7 @@ def to_ix(pauli_string: PauliString, target_index: int, ignore: int | list[int] 
                         circuit.add_gate(S(q, pauli_string.dimensions[q]))
                     pauli_string = circuit.act(p_string_in)
 
-                # use cnot to cancel the x of q with the x of target. n_cnot = n where x_q + x+_target) % d= 0
+                # use cnot to cancel the x of q with the x of target. n_cnot = n where x_q + x+_target) % d = 0
                 n_cnot = solve_modular_linear_additive(pauli_string[q].x_exp, pauli_string[target_index].x_exp,
                                                        pauli_string.dimensions[target_index])
                 if n_cnot is None:

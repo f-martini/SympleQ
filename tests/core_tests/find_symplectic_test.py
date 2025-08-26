@@ -4,7 +4,7 @@ from quaos.core.circuits.find_symplectic import (
     find_symplectic_solution,
     find_symplectic_solution_extended,
     solve_gf2,
-    map_pauli_sum_to_target
+    map_pauli_sum_to_target_tableau
 )
 import numpy as np
 from quaos.core.circuits.utils import transvection, transvection_matrix, symplectic_product
@@ -135,7 +135,6 @@ class TestSymplecticSolver:
                     assert result is None, f"System should be inconsistent but solver found solution for u={u}, v={v}"
 
     def test_extended_constraints(self):
-
         """Test the extended constraint functionality."""
 
         # Test case 1: Simple extended constraint
@@ -195,7 +194,7 @@ class TestSymplecticSolver:
             if not check_mappable_via_clifford(pauli_sum, target_pauli_sum):
                 continue  # Skip if not mappable
 
-            F = map_pauli_sum_to_target(pauli_sum, target_pauli_sum)
+            F = map_pauli_sum_to_target_tableau(pauli_sum, target_pauli_sum)
 
             # Verify the mapping
             mapped_pauli_sum = (pauli_sum @ F) % p
