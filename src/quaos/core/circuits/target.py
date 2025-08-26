@@ -42,8 +42,8 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
     if np.all(input_pauli.symplectic_product_matrix() != target_pauli.symplectic_product_matrix()):
         raise ValueError("Input and target PauliSum must be symplectically equivalent.")
 
-    input_symplectic = input_pauli.symplectic()  # [:, qudit_indices]
-    target_symplectic = target_pauli.symplectic()  # [:, qudit_indices]
+    input_symplectic = input_pauli.tableau()  # [:, qudit_indices]
+    target_symplectic = target_pauli.tableau()  # [:, qudit_indices]
 
     F = map_pauli_sum_to_target(input_symplectic, target_symplectic)
 
@@ -71,7 +71,8 @@ def find_allowed_target(pauli_sum, target_pauli_list):
     for idx, tup in enumerate(combined_indices):
         index_dict[tup].append(idx)
 
-    underdetermined_pauli_indices = [combined_indices[indexes[0]] for indexes in index_dict.values() if len(indexes) > 1]
+    underdetermined_pauli_indices = [combined_indices[indexes[0]]
+                                     for indexes in index_dict.values() if len(indexes) > 1]
     underdetermined_pauli_options = []
     for indices in underdetermined_pauli_indices:
         options = []
@@ -94,7 +95,8 @@ def find_allowed_target(pauli_sum, target_pauli_list):
             else:
                 options_matrix[i, j] = [0, 1, 2, 3]
 
-    flag_matrix = np.zeros([pauli_sum.n_paulis(), pauli_sum.n_qudits()], dtype=int)  # flag matrix to track which indices are determined
+    # flag matrix to track which indices are determined
+    flag_matrix = np.zeros([pauli_sum.n_paulis(), pauli_sum.n_qudits()], dtype=int)
     # 0 for not determined, 1 for underdetermined, -1 for determined
     for idx, tup in enumerate(combined_indices):
         if tup in underdetermined_pauli_indices:
