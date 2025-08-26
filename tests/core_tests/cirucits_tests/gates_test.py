@@ -3,7 +3,8 @@ from quaos.core.circuits.utils import is_symplectic
 from quaos.core.circuits.target import find_map_to_target_pauli_sum, map_pauli_sum_to_target_tableau
 from quaos.core.paulis import PauliSum, PauliString
 import numpy as np
-# from quaos.core.circuits.utils import random_symplectic
+from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
+import random
 
 
 class TestGates():
@@ -300,6 +301,16 @@ class TestGates():
                 gate.symplectic.__str__()
             )
 
+    def test_random_symplectic(self, num_tests=20, max_n=5, primes=[2, 3, 5, 7]):
+        """
+        Test random_symplectic() across several n, p values using assertions only.
+        """
+        for n in range(2, max_n + 1):
+            for i in range(num_tests):
+                index = random.randint(0, symplectic_group_size(n))
+                F = symplectic_gf2(index, n)
+                assert is_symplectic(F, 2), f"Failed symplectic check: n={n}, test {i}"
+
     # def test_find_symplectic_map(self):
     #     # this just tests the underlying solver, not the Gate or Pauli... implementation
     #     # see test below for implementation
@@ -307,7 +318,8 @@ class TestGates():
     #     for n in [5, 10, 20, 50]:  # n_qudits
     #         for n_p in range(1, 10):
     #             for _ in range(100):
-    #                 F_true = random_symplectic(n, 2, seed=None)
+    #                 index = random.randint(0, symplectic_group_size(n))
+    #                 F_true = symplectic_gf2(index, n)
     #                 X = np.random.randint(0, 2, size=(n_p, 2 * n), dtype=np.uint8)
     #                 Y = (X @ F_true) % 2
     #                 F_found = map_pauli_sum_to_target_tableau(X, Y)
