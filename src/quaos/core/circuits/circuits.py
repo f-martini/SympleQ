@@ -26,9 +26,7 @@ class Circuit:
 
 
         TODO: Remove dimensions as input - this can be obtained from the gates only - make this a method not attribute
-        TODO: Composite gate of mixed dimensions. This is a bit tougher as it will need to change gate to allow for
-              mixed dimensions. This will only be possible for cases where the different
-              qudit species are not entangled by the gate
+
         TODO: Perhaps store the composite gate as an attribute - it will allow gate.act to be significantly faster
         """
         if gates is None:
@@ -89,24 +87,16 @@ class Circuit:
         """
         return len(self.dimensions)
 
-    def __add__(self, other: 'Circuit') -> 'Circuit':
+    def __add__(self, other: "Circuit | Gate") -> "Circuit":
         """
         Adds two circuits together by concatenating their gates and indexes.
         """
-        if not isinstance(other, Circuit):
-            raise TypeError("Can only add another Circuit object.")
-        new_gates = self.gates + other.gates
-        return Circuit(self.dimensions, new_gates)
-
-    def __mul__(self, other: 'Circuit') -> 'Circuit':
-        """
-        THIS IS THE SAME FUNCTION AS ADDITION  -  PROBABLY WANT TO CHOOSE WHICH ONE DOES THIS
-
-        Adds two circuits together by concatenating their gates and indexes.
-        """
-        if not isinstance(other, Circuit):
-            raise TypeError("Can only add another Circuit object.")
-        new_gates = self.gates + other.gates
+        if not isinstance(other, Circuit) and not isinstance(other, Gate):
+            raise TypeError("Can only add another Circuit or Gate object.")
+        if isinstance(other, Gate):
+            new_gates = self.gates + [other]
+        else:
+            new_gates = self.gates + other.gates
         return Circuit(self.dimensions, new_gates)
 
     def __eq__(self, other: 'Circuit') -> bool:

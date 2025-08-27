@@ -42,8 +42,8 @@ def inner(v: np.ndarray, w: np.ndarray) -> int:
     assert nn == w.size and (nn % 2 == 0)
     t = 0
     for i in range(0, nn, 2):
-        t ^= (int(v[i]) & int(w[i+1]))
-        t ^= (int(v[i+1]) & int(w[i]))
+        t ^= (int(v[i]) & int(w[i + 1]))
+        t ^= (int(v[i + 1]) & int(w[i]))
     return t & 1
 
 
@@ -129,7 +129,7 @@ def symplectic_gf2_interleaved(index: int, n: int) -> np.ndarray:
 
     total = symplectic_group_size(n, p=2)
     if index < 0 or index >= total:
-        raise ValueError(f"index out of range: should be in [0, {total-1}]")
+        raise ValueError(f"index out of range: should be in [0, {total - 1}]")
 
     # Working copy of index that we peel off at each recursion level
     i = int(index)

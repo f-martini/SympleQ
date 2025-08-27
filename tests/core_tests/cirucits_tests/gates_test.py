@@ -372,3 +372,14 @@ class TestGates():
                         '\n Target: \n' +
                         target_ps.__str__()
                     )
+
+    def test_gate_transvection(self):
+        g = Hadamard(0, 2)
+        gt = g.transvection([0, 1])
+        target = np.array([[0, 1], [-1, -1]])
+        assert np.array_equal(gt.symplectic, target), 'Error in Hadamard transvection'
+
+        for _ in range(100):
+            g = Gate.from_random(5, 2)
+            gt = g.transvection(np.random.randint(0, 1, size=10))
+            assert is_symplectic(gt.symplectic, 2), 'Error in transvection'

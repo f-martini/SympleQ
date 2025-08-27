@@ -87,7 +87,7 @@ def construct_omega(n: int, p: int = 2) -> np.ndarray:
         return np.block([[Z, Id], [Id, Z]])
 
 
-def transvection_matrix(h, p=2):
+def transvection_matrix(h: np.ndarray, p=2, multiplier=1):
     """
     Compute the transvection matrix corresponding to the vector h.
 
@@ -101,7 +101,7 @@ def transvection_matrix(h, p=2):
     n = len(h) // 2
     Omega = construct_omega(n, p)
 
-    F_h = (np.eye(2 * n, dtype=int) + Omega @ (np.outer(h.T, h))) % p
+    F_h = (np.eye(2 * n, dtype=int) + multiplier * Omega @ (np.outer(h.T, h))) % p
     return F_h
 
 
