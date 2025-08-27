@@ -211,7 +211,10 @@ def get_linearly_independent_rows(A: np.ndarray, d: int) -> list[int]:
     return pivots
 
 
-def get_linear_dependencies(vectors: np.ndarray, p: int) -> tuple[list[int], dict[int, list[tuple[int, int]]]]:
+# TODO: make sure it works for mixed qudits
+def get_linear_dependencies(vectors: np.ndarray,
+                            p: int
+                            ) -> tuple[list[int], dict[int, list[tuple[int, int]]]]:
     """
     Analyze linear dependencies over GF(p).
 

@@ -189,8 +189,13 @@ def solve_extended_system(u: np.ndarray, v: np.ndarray, t_vectors: list) -> np.n
     return solve_gf2(A, b)
 
 
-def check_mappable_via_clifford(pauli_sum_tableau: np.ndarray, target_pauli_sum_tableau: np.ndarray) -> bool:
-    if np.all(symplectic_product_matrix(pauli_sum_tableau) == symplectic_product_matrix(target_pauli_sum_tableau)):
+def check_mappable_via_clifford(pauli_sum_tableau: np.ndarray,
+                                target_pauli_sum_tableau: np.ndarray
+                                ) -> bool:
+    sym_check = np.all(
+        symplectic_product_matrix(pauli_sum_tableau) == symplectic_product_matrix(target_pauli_sum_tableau)
+    )
+    if sym_check:
         return True
     else:
         return False

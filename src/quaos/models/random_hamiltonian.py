@@ -19,11 +19,14 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
     pauli_strings = []
     coefficients = []
 
-    for p in range(num_paulis):
-        # np.random.randint(qudit_dims, size=n_qudits)
-        x_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]
-        # np.random.randint(qudit_dims, size=n_qudits)
-        z_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]
+    for _ in range(num_paulis):
+        x_exp = [0 for i in range(n_qudits)]
+        z_exp = [0 for i in range(n_qudits)]
+        while np.sum(np.array(x_exp) + np.array(z_exp)) == 0:
+            # np.random.randint(qudit_dims, size=n_qudits)
+            x_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]
+            # np.random.randint(qudit_dims, size=n_qudits)
+            z_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]
         x_exp_H = np.zeros_like(x_exp)
         z_exp_H = np.zeros_like(z_exp)
         phase_factor = 1

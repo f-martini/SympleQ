@@ -8,7 +8,8 @@ from quaos.core.circuits.find_symplectic import (
 )
 import numpy as np
 from quaos.core.circuits.utils import transvection, transvection_matrix, symplectic_product
-from quaos.core.paulis import pauli_sum
+from quaos.utils import get_linear_dependencies
+from quaos.core.paulis import PauliSum
 from quaos.models import random_hamiltonian
 from quaos.core.circuits import Gate, Circuit, SWAP
 
@@ -181,8 +182,9 @@ class TestSymplecticSolver:
 
     def test_map_pauli_sum_to_target(self):
 
-        for _ in range(3000):
-            # Generate random Pauli sums
+        for i in range(100):
+            print(i)
+            # choose random properties of the system
             n = np.random.randint(2, 4)  # , 50)  # Number of qudits
             allowed_dims = [2]  # , 3, 5, 7, 11]  # allowed dimensions
             dimensions = []  # dimensions
@@ -192,35 +194,41 @@ class TestSymplecticSolver:
                         np.random.choice(allowed_dims)
                     )
                 )
-            m = np.random.randint(2, 2 * n - 1)  # Number of Paulis
+            m = int(np.random.randint(2, 2 * n - 1))  # Number of Paulis
 
+            # define input hamiltonian
             pl_sum = random_hamiltonian.random_pauli_hamiltonian(m, dimensions)
-            C = Circuit.from_random(len(dimensions), 100, dimensions=dimensions)
-            target_pl_sum = C.act(pl_sum)
+            print()
+            print(pl_sum)
+            basis_indices, _ = get_linear_dependencies(pl_sum.tableau(), int(pl_sum.lcm))
+            print("banana")
+            pl_sum = pl_sum[basis_indices]
 
+            # scramble input hamiltonian to get target
+            C = Circuit.from_random(len(dimensions), 10 * n**2, dimensions=dimensions)
+            target_pl_sum = C.act(pl_sum)
+            # target hamiltonian
             sym_sum = pl_sum.tableau()
             target_sym_sum = target_pl_sum.tableau()
 
+            print()
             print(pl_sum)
+            print(pl_sum.symplectic_product_matrix())
             print()
             print(target_pl_sum)
+            print(target_pl_sum.symplectic_product_matrix())
+            print()
 
-            # det_pl_sum = 0
-            # det_target_pl_sum = 0
-            # while det_pl_sum == 0 or det_target_pl_sum == 0:
-            #     pl_sum = np.random.randint(p, size=(m, 2 * n))
-            #     target_pl_sum = np.random.randint(p, size=(m, 2 * n))
+            check_pl_sum = pl_sum.copy()
+            check_pl_sum.combine_equivalent_paulis()
 
-            #     det_pl_sum = 1 if np.linalg.matrix_rank(pl_sum) == m else 0
-            #     det_target_pl_sum = 1 if np.linalg.matrix_rank(target_pl_sum) == m else 0
+            if check_pl_sum.n_paulis() != pl_sum.n_paulis():
+                continue  # Skip if not mappable
 
-            # if not check_mappable_via_clifford(pl_sum, target_pl_sum):
-            #     continue  # Skip if not mappable
-
-            F = map_pauli_sum_to_target(sym_sum, target_sym_sum)
+            F = map_pauli_sum_to_target_tableau(sym_sum, target_sym_sum)
 
             # Verify the mapping
-            mapped_sym_sum = (sym_sum @ F) % pl_sum.lcm()
+            mapped_sym_sum = (sym_sum @ F) % pl_sum.lcm
             assert np.array_equal(mapped_sym_sum, target_sym_sum), (
                 "Mapping failed. The mapped Pauli sum is:\n"
                 f"{mapped_sym_sum}\n"
