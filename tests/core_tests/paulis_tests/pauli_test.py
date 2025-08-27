@@ -136,8 +136,7 @@ class TestPaulis:
                 # Test multiplication of PauliSum with PauliSum
                 random_pauli_sum2 = PauliSum([input_ps1], standardise=False)
                 output_ps2 = random_pauli_sum * random_pauli_sum2
-                print(f"Output PauliSum: \n {output_ps2}")
-                print(f"Expected PauliSum: \n {output_ps_correct}")
+
                 assert output_ps2 == output_ps_correct, 'Error in PauliSum multiplication with PauliSum'
 
     def test_pauli_sum_tensor_product(self):
@@ -228,8 +227,7 @@ class TestPaulis:
         psum.standardise()
         expected = PauliSum([PauliString.from_string('x1z0 x1z0', dimensions=dims),
                              PauliString.from_string('x1z0 x1z1', dimensions=dims)], weights=[1, 1], phases=[0, 0])
-        print(psum)
-        print(expected)
+
         assert psum == expected
 
     def test_phase_and_dot_product(self):

@@ -4,7 +4,7 @@ from quaos.core.circuits.find_symplectic import (
     find_symplectic_solution,
     find_symplectic_solution_extended,
     solve_gf2,
-    map_pauli_sum_to_target
+    map_pauli_sum_to_target_tableau
 )
 import numpy as np
 from quaos.core.circuits.utils import transvection, transvection_matrix, symplectic_product

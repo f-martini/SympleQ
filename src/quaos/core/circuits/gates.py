@@ -1,8 +1,9 @@
 import numpy as np
 from quaos.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
-from quaos.core.circuits.target import find_map_to_target_pauli_sum  # , get_phase_vector
-# from quaos.core.circuits.utils import index_from_symplectic  # number_of_symplectics, symplectic_from_index,
+from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
+from quaos.core.circuits.utils import transvection_matrix
+from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
 
 
 class Gate:
@@ -25,18 +26,20 @@ class Gate:
         """
         Create a gate that maps input_pauli_sum to target_pauli_sum.
         """
-        symplectic, phase_vector, qudit_indices, dimension = find_map_to_target_pauli_sum(input_pauli_sum, target_pauli_sum)
+        symplectic, phase_vector, qudit_indices, dimension = find_map_to_target_pauli_sum(input_pauli_sum,
+                                                                                          target_pauli_sum)
         return cls(name, qudit_indices, symplectic.T, dimension, phase_vector)
 
-    # @classmethod
-    # def from_random(cls, n_qudits: int, dimension: int, seed=None):
-    #     np.random.seed(seed)
-    #     if dimension != 2:
-    #         raise NotImplementedError("Only implemented for dimension 2. GF(p) will be done asap.")
-    #     symp_int = np.random.randint(number_of_symplectics(n_qudits))
-    #     symplectic = symplectic_from_index(symp_int, n_qudits, dimension)
-    #     phase_vector = get_phase_vector(symplectic, dimension)
-    #     return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
+    @classmethod
+    def from_random(cls, n_qudits: int, dimension: int, seed=None):
+        np.random.seed(seed)
+        if dimension != 2:
+            raise NotImplementedError("Only implemented for dimension 2. GF(p) will be done asap.")
+
+        symp_int = np.random.randint(symplectic_group_size(n_qudits))
+        symplectic = symplectic_gf2(symp_int, n_qudits)
+        phase_vector = get_phase_vector(symplectic, dimension)
+        return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
         if np.all(self.dimension != P.dimensions[self.qudit_indices]):
@@ -114,16 +117,25 @@ class Gate:
         """
         Returns a copy of the gate.
         """
-        return Gate(self.name, self.qudit_indices.copy(), self.symplectic.copy(), self.dimension, self.phase_vector.copy())
+        return Gate(self.name, self.qudit_indices.copy(), self.symplectic.copy(), self.dimension,
+                    self.phase_vector.copy())
 
-    # def transvection(self, transvection_vector: np.ndarray) -> 'Gate':
-    #     """
-    #     Returns a new gate that is the transvection of this gate by the given vector.
-    #     The transvection vector should be a 2n-dimensional vector where n is the number of qudits.
-    #     """
+    def transvection(self, transvection_vector: np.ndarray | list, transvection_weight: int = 1) -> 'Gate':
+        """
+        Returns a new gate that is the transvection of this gate by the given vector.
+        The transvection vector should be a 2n-dimensional vector where n is the number of qudits.
+        """
+        if transvection_weight >= self.dimension:
+            raise ValueError("Transvection weight must be less than the gate dimension.")
+        if not isinstance(transvection_weight, int) and not isinstance(transvection_weight, np.int64):
+            raise TypeError("Transvection weight must be an integer.")
+        if isinstance(transvection_vector, list):
+            transvection_vector = np.array(transvection_vector)
 
-    # def get_int(self) -> int:
-    #     return index_from_symplectic(self.n_qudits, self.symplectic, self.dimension)
+        T = transvection_matrix(transvection_vector, multiplier=transvection_weight, p=self.dimension)
+        if self.name[0] != "T":
+            self.name = "T-" + self.name
+        return Gate(self.name, self.qudit_indices, self.symplectic @ T, self.dimension, self.phase_vector)
 
 
 class SUM(Gate):

@@ -3,12 +3,14 @@ from quaos.core.paulis import PauliString, PauliSum
 import numpy as np
 from collections import defaultdict
 from itertools import product
-from quaos.core.circuits.find_symplectic import map_pauli_sum_to_target
+from quaos.core.circuits.find_symplectic import map_pauli_sum_to_target_tableau
 
 
 def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) -> tuple[np.ndarray, np.ndarray,
                                                                                          list[int], int]:
     """
+    TODO: For efficiency improvement act only on target qudits
+
     Find a gate that maps Pauli P to target Pauli.
 
     Args:
@@ -45,7 +47,7 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
     input_symplectic = input_pauli.tableau()  # [:, qudit_indices]
     target_symplectic = target_pauli.tableau()  # [:, qudit_indices]
 
-    F = map_pauli_sum_to_target(input_symplectic, target_symplectic)
+    F = map_pauli_sum_to_target_tableau(input_symplectic, target_symplectic)
 
     # print('IN FUNCTION')
     # # print(input_symplectic)
