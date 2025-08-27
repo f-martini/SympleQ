@@ -460,13 +460,55 @@ def row_reduce_mod_d(A: np.ndarray,
     return A, pivots, rank
 
 
-def solve_mod_d(A, b, d, max_solutions=1000):
+def solve_mod_d(A: np.ndarray,
+                b: np.ndarray,
+                d: int,
+                max_solutions: int = 1000
+                ) -> list[np.ndarray]:
+    """
+    Solve a system of linear equations modulo d.
+    Given a matrix equation A x = b (mod d), this function finds all possible solutions x
+    over the integers modulo d, up to a maximum number of solutions.
+
+    Parameters
+    ----------
+    A : np.ndarray
+        The coefficient matrix of shape (m, n), where m is the number of equations and n is the number of variables.
+    b : np.ndarray
+        The right-hand side vector of shape (m,).
+    d : int
+        The modulus for the system of equations.
+    max_solutions : int, optional
+        The maximum number of solutions to return. Default is 1000.
+
+    Returns
+    -------
+    list[np.ndarray]
+        A list of solutions, where each solution is a numpy array of shape (n,) representing a solution vector x
+        such that A @ x % d == b % d.
+
+    Notes
+    -----
+    - The function uses sympy for symbolic computation and Gaussian elimination modulo d.
+    - If the system has infinitely many solutions, only up to `max_solutions` are returned.
+    - Free variables are enumerated exhaustively, which may be slow for large systems or large d.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> A = np.array([[1, 2], [3, 4]])
+    >>> b = np.array([1, 0])
+    >>> solve_mod_d(A, b, 5)
+    [array([3, 4]), array([0, 2]), array([2, 0]), array([4, 3]), array([1, 1])]
+    """
+    # TODO: is it better to import at the beginning of this
+    #       entire .py file rather than only within this function?
     from itertools import product
     import sympy as sp
 
-    A = sp.Matrix(A.tolist())
-    b = sp.Matrix(b.tolist())
-    A_aug = A.row_join(b)
+    A_sym = sp.Matrix(A.tolist())
+    b_sym = sp.Matrix(b.tolist())
+    A_aug = A_sym.row_join(b_sym)
     A_mod = A_aug.applyfunc(lambda x: x % d)
 
     Ab_rref, pivot_cols = A_mod.rref(iszerofunc=lambda x: x % d == 0, simplify=True)
@@ -493,7 +535,31 @@ def solve_mod_d(A, b, d, max_solutions=1000):
     return solutions
 
 
-def is_symplectic(M, d):
+def is_symplectic(M: np.ndarray,
+                  d: int
+                  ) -> bool:
+    """
+    Check if a given matrix is symplectic over the finite field Z_d.
+    A matrix M is symplectic if it preserves the symplectic form J under the transformation
+    M.T @ J @ M ≡ J (mod d), where J is the standard symplectic matrix.
+
+    Parameters
+    ----------
+    M : np.ndarray
+        A square 2n x 2n integer matrix to be checked for the symplectic property.
+    d : int
+        The modulus for the finite field Z_d.
+
+    Returns
+    -------
+    bool
+        True if M is symplectic over Z_d, False otherwise.
+
+    Notes
+    -----
+    - The input matrix M must be square and have even dimensions (2*n_qudits).
+    - The function checks the symplectic condition modulo d.
+    """
     n = M.shape[0] // 2
     if M.shape[0] != M.shape[1] or M.shape[0] % 2 != 0:
         return False
@@ -502,22 +568,45 @@ def is_symplectic(M, d):
     return np.array_equal((M.T @ J @ M) % d, J % d)
 
 
-def find_symplectic_maps(H, H_prime, d, max_solutions=1000):
+def find_symplectic_maps(H: np.ndarray,
+                         H_prime: np.ndarray,
+                         d: int,
+                         max_solutions=1000
+                         ) -> list[np.ndarray]:
     """
-    Find symplectic matrices M such that H M^T = H' mod d.
+    Find symplectic matrices M such that :math:`H M^T = H_prime %d`.
+    This function attempts to find all symplectic matrices :math:`M` that satisfy the equation
+    :math:`H M^T = H_prime %d`, where :math:`H` and :math:`H_prime` are given matrices,
+    :math:`M^T` is the transpose of :math:`M`, and :math:`d` is the modulus.
+    Only symplectic matrices :math:`M` are returned.
 
-    This function attempts to find matrices M that satisfy the equation
-    H M^T = H' (mod d), where H and H' are given matrices, M^T is the transpose
-    of M, and d is the modulus. Only symplectic matrices M are returned.
+    Parameters
+    ----------
+    H : np.ndarray
+        The left-hand side matrix in the equation, of shape (n, k).
+    H_prime : np.ndarray
+        The right-hand side matrix in the equation, with the same shape as ``H``.
+    d : int
+        The modulus for the equation.
+    max_solutions : int, optional
+        The maximum number of solutions to return. Default is 1000.
 
-    Args:
-        H (np.ndarray): The left-hand side matrix in the equation, with shape (n, k).
-        H_prime (np.ndarray): The right-hand side matrix in the equation, with the same shape as H.
-        d (int): The modulus for the equation.
-        max_solutions (int, optional): The maximum number of solutions to return. Default is 1000.
+    Returns
+    -------
+    List[np.ndarray]
+        A list of symplectic matrices ``M`` (each of shape (k, k)) that satisfy the equation.
 
-    Returns:
-        List[np.ndarray]: A list of symplectic matrices M that satisfy the equation.
+    Raises
+    ------
+    AssertionError
+        If ``H_prime`` does not have the same shape as ``H``.
+
+    Notes
+    -----
+    - A symplectic matrix is a matrix that preserves the symplectic form under matrix multiplication.
+    This function relies on ``solve_mod_d`` to solve the modular linear system and ``is_symplectic``
+    to check the symplectic property.
+    - k is twice the number of qudits n_qudits
     """
     n, k = H.shape
     assert H_prime.shape == (n, k)

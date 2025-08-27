@@ -8,6 +8,9 @@ from quaos.core.circuits.find_symplectic import (
 )
 import numpy as np
 from quaos.core.circuits.utils import transvection, transvection_matrix, symplectic_product
+from quaos.core.paulis import pauli_sum
+from quaos.models import random_hamiltonian
+from quaos.core.circuits import Gate, Circuit, SWAP
 
 
 class TestSymplecticSolver:
@@ -135,7 +138,6 @@ class TestSymplecticSolver:
                     assert result is None, f"System should be inconsistent but solver found solution for u={u}, v={v}"
 
     def test_extended_constraints(self):
-
         """Test the extended constraint functionality."""
 
         # Test case 1: Simple extended constraint
@@ -178,26 +180,52 @@ class TestSymplecticSolver:
         #         assert self.verify_solution_extended(u, v, w, t_vectors), "Failed verification"
 
     def test_map_pauli_sum_to_target(self):
-        n = 4  # Number of qubits
-        p = 2  # Field size
-        m = 3  # Number of Pauli strings
 
-        for _ in range(30):
+        for _ in range(3000):
             # Generate random Pauli sums
-            pauli_sum = np.random.randint(p, size=(m, 2 * n))
-            target_pauli_sum = np.random.randint(p, size=(m, 2 * n))
+            n = np.random.randint(2, 4)  # , 50)  # Number of qudits
+            allowed_dims = [2]  # , 3, 5, 7, 11]  # allowed dimensions
+            dimensions = []  # dimensions
+            for _ in range(n):
+                dimensions.append(
+                    int(
+                        np.random.choice(allowed_dims)
+                    )
+                )
+            m = np.random.randint(2, 2 * n - 1)  # Number of Paulis
 
-            if np.any([np.array_equal(pauli_sum[i],
-                                      np.zeros(2 * n)) or np.array_equal(target_pauli_sum[i],
-                                                                         np.zeros(2 * n)) for i in range(m)]) is False:
-                continue  # Skip zero vectors
+            pl_sum = random_hamiltonian.random_pauli_hamiltonian(m, dimensions)
+            C = Circuit.from_random(len(dimensions), 100, dimensions=dimensions)
+            target_pl_sum = C.act(pl_sum)
 
-            if not check_mappable_via_clifford(pauli_sum, target_pauli_sum):
-                continue  # Skip if not mappable
+            sym_sum = pl_sum.tableau()
+            target_sym_sum = target_pl_sum.tableau()
 
-            F = map_pauli_sum_to_target(pauli_sum, target_pauli_sum)
+            print(pl_sum)
+            print()
+            print(target_pl_sum)
+
+            # det_pl_sum = 0
+            # det_target_pl_sum = 0
+            # while det_pl_sum == 0 or det_target_pl_sum == 0:
+            #     pl_sum = np.random.randint(p, size=(m, 2 * n))
+            #     target_pl_sum = np.random.randint(p, size=(m, 2 * n))
+
+            #     det_pl_sum = 1 if np.linalg.matrix_rank(pl_sum) == m else 0
+            #     det_target_pl_sum = 1 if np.linalg.matrix_rank(target_pl_sum) == m else 0
+
+            # if not check_mappable_via_clifford(pl_sum, target_pl_sum):
+            #     continue  # Skip if not mappable
+
+            F = map_pauli_sum_to_target(sym_sum, target_sym_sum)
 
             # Verify the mapping
-            mapped_pauli_sum = (pauli_sum @ F) % p
-            assert np.array_equal(mapped_pauli_sum, target_pauli_sum), (f"Mapping failed:"
-                                                                        f"\n{mapped_pauli_sum}\n{target_pauli_sum}")
+            mapped_sym_sum = (sym_sum @ F) % pl_sum.lcm()
+            assert np.array_equal(mapped_sym_sum, target_sym_sum), (
+                "Mapping failed. The mapped Pauli sum is:\n"
+                f"{mapped_sym_sum}\n"
+                " while the target Pauli sum is:\n"
+                f"{target_sym_sum}\n"
+                "The matrix M is:\n"
+                f"{F}\n"
+            )
