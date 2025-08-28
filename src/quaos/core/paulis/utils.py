@@ -396,13 +396,55 @@ def row_reduce_mod_d(A: np.ndarray,
     return A, pivots, rank
 
 
-def solve_mod_d(A, b, d, max_solutions=1000):
+def solve_mod_d(A: np.ndarray,
+                b: np.ndarray,
+                d: int,
+                max_solutions: int = 1000
+                ) -> list[np.ndarray]:
+    """
+    Solve a system of linear equations modulo d.
+    Given a matrix equation A x = b (mod d), this function finds all possible solutions x
+    over the integers modulo d, up to a maximum number of solutions.
+
+    Parameters
+    ----------
+    A : np.ndarray
+        The coefficient matrix of shape (m, n), where m is the number of equations and n is the number of variables.
+    b : np.ndarray
+        The right-hand side vector of shape (m,).
+    d : int
+        The modulus for the system of equations.
+    max_solutions : int, optional
+        The maximum number of solutions to return. Default is 1000.
+
+    Returns
+    -------
+    list[np.ndarray]
+        A list of solutions, where each solution is a numpy array of shape (n,) representing a solution vector x
+        such that A @ x % d == b % d.
+
+    Notes
+    -----
+    - The function uses sympy for symbolic computation and Gaussian elimination modulo d.
+    - If the system has infinitely many solutions, only up to `max_solutions` are returned.
+    - Free variables are enumerated exhaustively, which may be slow for large systems or large d.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> A = np.array([[1, 2], [3, 4]])
+    >>> b = np.array([1, 0])
+    >>> solve_mod_d(A, b, 5)
+    [array([3, 4]), array([0, 2]), array([2, 0]), array([4, 3]), array([1, 1])]
+    """
+    # TODO: is it better to import at the beginning of this
+    #       entire .py file rather than only within this function?
     from itertools import product
     import sympy as sp
 
-    A = sp.Matrix(A.tolist())
-    b = sp.Matrix(b.tolist())
-    A_aug = A.row_join(b)
+    A_sym = sp.Matrix(A.tolist())
+    b_sym = sp.Matrix(b.tolist())
+    A_aug = A_sym.row_join(b_sym)
     A_mod = A_aug.applyfunc(lambda x: x % d)
 
     Ab_rref, pivot_cols = A_mod.rref(iszerofunc=lambda x: x % d == 0, simplify=True)
