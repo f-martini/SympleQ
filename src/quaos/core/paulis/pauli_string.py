@@ -71,6 +71,7 @@ class PauliString:
 
         self.x_exp = x_exp % self.dimensions
         self.z_exp = z_exp % self.dimensions
+        # TODO: this returns an np integer array that sometimes clashes with the "int" requirement (?)
         self.lcm = np.lcm.reduce(self.dimensions)
         self._sanity_check()
 

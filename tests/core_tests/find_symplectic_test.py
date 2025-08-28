@@ -198,10 +198,7 @@ class TestSymplecticSolver:
 
             # define input hamiltonian
             pl_sum = random_hamiltonian.random_pauli_hamiltonian(m, dimensions)
-            print()
-            print(pl_sum)
             basis_indices, _ = get_linear_dependencies(pl_sum.tableau(), int(pl_sum.lcm))
-            print("banana")
             pl_sum = pl_sum[basis_indices]
 
             # scramble input hamiltonian to get target
@@ -211,13 +208,13 @@ class TestSymplecticSolver:
             sym_sum = pl_sum.tableau()
             target_sym_sum = target_pl_sum.tableau()
 
-            print()
-            print(pl_sum)
-            print(pl_sum.symplectic_product_matrix())
-            print()
-            print(target_pl_sum)
-            print(target_pl_sum.symplectic_product_matrix())
-            print()
+            # print()
+            # print(pl_sum)
+            # print(pl_sum.symplectic_product_matrix())
+            # print()
+            # print(target_pl_sum)
+            # print(target_pl_sum.symplectic_product_matrix())
+            # print()
 
             check_pl_sum = pl_sum.copy()
             check_pl_sum.combine_equivalent_paulis()
