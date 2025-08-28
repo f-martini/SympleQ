@@ -1,6 +1,5 @@
-# TODO: Refine quaos.circuit_utils and move here
 import numpy as np
-import galois
+# import galois
 
 
 # def is_symplectic(F, p):
@@ -23,18 +22,18 @@ import galois
 def is_symplectic(F, p: int) -> bool:
     """
     Check if matrix F is symplectic over GF(p).
-    
+
     Args:
         F: (2n x 2n) numpy array, entries in {0, 1, ..., p-1}.
         p: prime modulus.
-        
+
     Returns:
         True if F is symplectic over GF(p), False otherwise.
     """
     n = F.shape[0] // 2
     Omega = np.zeros((2 * n, 2 * n), dtype=int)
     Omega[:n, n:] = np.eye(n, dtype=int)
-    Omega[n:, :n] = -np.eye(n, dtype=int) 
+    Omega[n:, :n] = -np.eye(n, dtype=int)
 
     Omega = Omega % p
 
