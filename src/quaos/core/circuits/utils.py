@@ -3,19 +3,42 @@ import numpy as np
 import galois
 
 
-def is_symplectic(F, p):
-    GF = galois.GF(p)
+# def is_symplectic(F, p):
+#     GF = galois.GF(p)
+#     if isinstance(F, np.ndarray):
+#         F = GF(F)
+#     n = F.shape[0] // 2
+#     Id = GF.Identity(n)
+#     if p == 2:
+#         Omega = GF.Zeros((2 * n, 2 * n))
+#         Omega[:n, n:] = Id
+#         Omega[n:, :n] = Id
+#     else:
+#         Omega = GF.Zeros((2 * n, 2 * n))
+#         Omega[:n, n:] = Id
+#         Omega[n:, :n] = -Id
+#     lhs = F.T @ Omega @ F
+#     return np.array_equal(lhs, Omega)
+
+def is_symplectic(F, p: int) -> bool:
+    """
+    Check if matrix F is symplectic over GF(p).
+    
+    Args:
+        F: (2n x 2n) numpy array, entries in {0, 1, ..., p-1}.
+        p: prime modulus.
+        
+    Returns:
+        True if F is symplectic over GF(p), False otherwise.
+    """
     n = F.shape[0] // 2
-    Id = GF.Identity(n)
-    if p == 2:
-        Omega = GF.Zeros((2 * n, 2 * n))
-        Omega[:n, n:] = Id
-        Omega[n:, :n] = Id
-    else:
-        Omega = GF.Zeros((2 * n, 2 * n))
-        Omega[:n, n:] = Id
-        Omega[n:, :n] = -Id
-    lhs = F.T @ Omega @ F
+    Omega = np.zeros((2 * n, 2 * n), dtype=int)
+    Omega[:n, n:] = np.eye(n, dtype=int)
+    Omega[n:, :n] = -np.eye(n, dtype=int) 
+
+    Omega = Omega % p
+
+    lhs = (F.T @ Omega @ F) % p
     return np.array_equal(lhs, Omega)
 
 
@@ -33,7 +56,7 @@ def symplectic_product(u: np.ndarray, v: np.ndarray, p: int = 2) -> int:
     return (np.sum(u[:n] * v[n:] - u[n:] * v[:n])) % p
 
 
-def symplectic_product_matrix(pauli_sum):
+def symplectic_product_matrix(pauli_sum: np.ndarray) -> np.ndarray:
     m = len(pauli_sum)
     spm = np.zeros((m, m), dtype=int)
 
@@ -64,7 +87,7 @@ def construct_omega(n: int, p: int = 2) -> np.ndarray:
         return np.block([[Z, Id], [Id, Z]])
 
 
-def transvection_matrix(h, p=2):
+def transvection_matrix(h: np.ndarray, p=2, multiplier=1):
     """
     Compute the transvection matrix corresponding to the vector h.
 
@@ -78,7 +101,7 @@ def transvection_matrix(h, p=2):
     n = len(h) // 2
     Omega = construct_omega(n, p)
 
-    F_h = (np.eye(2 * n, dtype=int) + Omega @ (np.outer(h.T, h))) % p
+    F_h = (np.eye(2 * n, dtype=int) + multiplier * Omega @ (np.outer(h.T, h))) % p
     return F_h
 
 

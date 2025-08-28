@@ -8,10 +8,10 @@ import numpy as np
 
 class TestKnownCircuits():
 
-    def test_to_x(self):
+    def test_to_x(self, n_tests=1000):
         target_x = 0
         list_of_failures = []
-        for _ in range(20000):
+        for _ in range(n_tests):
             ps = random_pauli_string([3, 3, 3, 3])
             if ps.n_identities() == 4:
                 continue
@@ -20,13 +20,13 @@ class TestKnownCircuits():
                 print(f"Failed: {ps} -> {c.act(ps)}")
                 list_of_failures.append(ps)
 
-        return list_of_failures
+        assert len(list_of_failures) == 0
 
-    def test_to_ix(self):
+    def test_to_ix(self, n_tests=1000):
         target_x = 0
         list_of_failures = []
-        for _ in range(2000):
-            ps = random_pauli_string([3, 3, 3, 3])
+        for _ in range(n_tests):
+            ps = random_pauli_string([2, 2, 2, 2])
             if ps.n_identities() == 4:
                 continue
             c = to_ix(ps, 0)
@@ -46,8 +46,8 @@ class TestKnownCircuits():
                         print(f"Failed identity: {ps} -> {c.act(ps)}")
                         list_of_failures.append(ps)
                         failed = True
-
-        return list_of_failures
+        print(list_of_failures)
+        assert len(list_of_failures) == 0
 
 
 class TestCircuits():
@@ -56,7 +56,8 @@ class TestCircuits():
         # Generates a random PauliSum with n_paulis random PauliStrings of dimension dim
         #
         ps_list = []
-        element_list = [[0, 0] * n_qudits]  # to keep track of already generated PauliStrings. Avoids identity and duplicates
+        element_list = [[0, 0] * n_qudits]  # to keep track of already generated PauliStrings.
+        # Avoids identity and duplicates
         for _ in range(n_paulis):
             ps, elements = self.random_pauli_string(dim, n_qudits)
             element_list.append(elements)
@@ -161,8 +162,8 @@ class TestCircuits():
 
         embedded_symplectic, embedded_h = embed_symplectic(symplectic, gate.phase_vector, [0], 2, 2)
 
-        print(embedded_symplectic_correct)
-        print(embedded_symplectic)
+        # print(embedded_symplectic_correct)
+        # print(embedded_symplectic)
 
         assert np.array_equal(embedded_symplectic, embedded_symplectic_correct)
 

@@ -4,6 +4,8 @@ from qiskit import QuantumCircuit
 from .gates import Gate
 from quaos.core.paulis import PauliSum, PauliString, Pauli
 from .utils import embed_symplectic
+from .gates import Hadamard as H, SUM as CX, PHASE as S
+import random
 
 
 class Circuit:
@@ -24,9 +26,7 @@ class Circuit:
 
 
         TODO: Remove dimensions as input - this can be obtained from the gates only - make this a method not attribute
-        TODO: Composite gate of mixed dimensions. This is a bit tougher as it will need to change gate to allow for
-              mixed dimensions. This will only be possible for cases where the different
-              qudit species are not entangled by the gate
+
         TODO: Perhaps store the composite gate as an attribute - it will allow gate.act to be significantly faster
         """
         if gates is None:
@@ -34,6 +34,31 @@ class Circuit:
         self.dimensions = dimensions
         self.gates = gates
         self.indexes = [gate.qudit_indices for gate in gates]  # indexes accessible at the Circuit level
+
+    @classmethod
+    def from_random(cls, n_qudits: int, depth: int, dimensions: list[int] | np.ndarray) -> 'Circuit':
+        """
+        Creates a random circuit with the given number of qudits and depth.
+
+        Parameters:
+            n_qudits (int): The number of qudits in the circuit.
+            depth (int): The depth of the circuit.
+
+        Returns:
+            Circuit: A new Circuit object.
+        """
+        gate_list = [H, S, CX]
+        gg = []
+        for i in range(depth):
+            g_i = np.random.randint(3)
+            if g_i == 2:
+                aa = list(random.sample(range(n_qudits), 2))
+                gg += [gate_list[g_i](aa[0], aa[1], 2)]
+            else:
+                aa = list(random.sample(range(n_qudits), 1))
+                gg += [gate_list[g_i](aa[0], 2)]
+
+        return cls(dimensions, gg)
 
     def add_gate(self, gate: Gate | list[Gate]):
         """
@@ -62,24 +87,16 @@ class Circuit:
         """
         return len(self.dimensions)
 
-    def __add__(self, other: 'Circuit') -> 'Circuit':
+    def __add__(self, other: "Circuit | Gate") -> "Circuit":
         """
         Adds two circuits together by concatenating their gates and indexes.
         """
-        if not isinstance(other, Circuit):
-            raise TypeError("Can only add another Circuit object.")
-        new_gates = self.gates + other.gates
-        return Circuit(self.dimensions, new_gates)
-
-    def __mul__(self, other: 'Circuit') -> 'Circuit':
-        """
-        THIS IS THE SAME FUNCTION AS ADDITION  -  PROBABLY WANT TO CHOOSE WHICH ONE DOES THIS
-
-        Adds two circuits together by concatenating their gates and indexes.
-        """
-        if not isinstance(other, Circuit):
-            raise TypeError("Can only add another Circuit object.")
-        new_gates = self.gates + other.gates
+        if not isinstance(other, Circuit) and not isinstance(other, Gate):
+            raise TypeError("Can only add another Circuit or Gate object.")
+        if isinstance(other, Gate):
+            new_gates = self.gates + [other]
+        else:
+            new_gates = self.gates + other.gates
         return Circuit(self.dimensions, new_gates)
 
     def __eq__(self, other: 'Circuit') -> bool:

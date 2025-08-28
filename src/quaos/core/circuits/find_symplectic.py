@@ -189,31 +189,27 @@ def solve_extended_system(u: np.ndarray, v: np.ndarray, t_vectors: list) -> np.n
     return solve_gf2(A, b)
 
 
-def check_mappable_via_clifford(pauli_sum, target_pauli_sum):
-    if np.all(symplectic_product_matrix(pauli_sum) == symplectic_product_matrix(target_pauli_sum)):
+def check_mappable_via_clifford(pauli_sum_tableau: np.ndarray, target_pauli_sum_tableau: np.ndarray) -> bool:
+    if np.all(symplectic_product_matrix(pauli_sum_tableau) == symplectic_product_matrix(target_pauli_sum_tableau)):
         return True
     else:
         return False
 
 
-def map_single_pauli_string_to_target(pauli_string, target_pauli_string, constraint_paulis=None):
-    sp = symplectic_product(pauli_string, target_pauli_string)
+def map_single_pauli_string_to_target(pauli_string_tableau: np.ndarray, target_pauli_string_tableau: np.ndarray,
+                                      constraint_paulis: list | None = None):
+    sp = symplectic_product(pauli_string_tableau, target_pauli_string_tableau)
     if sp == 1:
-        h = pauli_string + target_pauli_string
+        h = pauli_string_tableau + target_pauli_string_tableau
 
         F_h = transvection_matrix(h)
 
         return F_h
 
     elif sp == 0:
-        w = find_symplectic_solution_extended(pauli_string, target_pauli_string, constraint_paulis)
-        h_1 = target_pauli_string + w
-        h_2 = pauli_string + w
-
-        # assert symplectic_product(pauli_string, w) == 1
-        # assert symplectic_product(target_pauli_string, w) == 1
-        # if constraint_paulis is not None:
-        #     assert np.all([symplectic_product(c, w) == symplectic_product(c, target_pauli_string) for c in constraint_paulis])
+        w = find_symplectic_solution_extended(pauli_string_tableau, target_pauli_string_tableau, constraint_paulis)
+        h_1 = target_pauli_string_tableau + w
+        h_2 = pauli_string_tableau + w
 
         F_h_1 = transvection_matrix(h_1)
         F_h_2 = transvection_matrix(h_2)
@@ -224,25 +220,25 @@ def map_single_pauli_string_to_target(pauli_string, target_pauli_string, constra
         raise Exception(f'sp = {sp}...This should never happen')
 
 
-def map_pauli_sum_to_target(pauli_sum: np.ndarray, target_pauli_sum: np.ndarray) -> np.ndarray:
+def map_pauli_sum_to_target_tableau(pauli_sum_tableau: np.ndarray, target_pauli_sum_tableau: np.ndarray) -> np.ndarray:
     """
     Map a Pauli sum to a target Pauli sum using symplectic transvections.
     """
-    if not check_mappable_via_clifford(pauli_sum, target_pauli_sum):
-        raise Exception(f'Cannot map\n{pauli_sum} to\n{target_pauli_sum}')
+    if not check_mappable_via_clifford(pauli_sum_tableau, target_pauli_sum_tableau):
+        raise Exception(f'Cannot map\n{pauli_sum_tableau} to\n{target_pauli_sum_tableau}')
     # Find a vector w such that <w, pauli_sum> = <w, target_pauli_sum> = 1
 
-    m = len(pauli_sum)
-    n = len(pauli_sum[0]) // 2
+    m = len(pauli_sum_tableau)
+    n = len(pauli_sum_tableau[0]) // 2
     mapped_paulis = []
     F = np.eye(2 * n, dtype=int)
     for i in range(m):
         # update the starting point to whatever previous solutions mapped it to
-        ps = (pauli_sum[i] @ F) % 2
-        target_ps = target_pauli_sum[i]
+        ps = (pauli_sum_tableau[i] @ F) % 2
+        target_ps = target_pauli_sum_tableau[i]
 
-        if np.array_equal(ps, target_ps):
-            continue
+        # if np.array_equal(ps, target_ps):
+        #     continue
 
         F_map = map_single_pauli_string_to_target(ps, target_ps, mapped_paulis)
         assert np.all((ps @ F_map) % 2 == target_ps), f"\n{F_map}\n{ps}\n{(ps @ F_map) % 2}\n{target_ps}"

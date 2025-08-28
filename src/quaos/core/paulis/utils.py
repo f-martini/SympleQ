@@ -7,7 +7,95 @@ from .pauli_sum import PauliSum
 import networkx as nx
 
 
-def to_pauli_sum(P: Pauli | PauliString) -> PauliSum:
+def ground_state_TMP(P: PauliSum,
+                     only_gs: bool = True
+                     ) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Compute eigenvalues/eigenvectors of `P` and (by default) pick
+    the ground-state energy (`only_gs` = `True`).
+
+    Parameters
+    ----------
+    P : PauliSum
+        A PauliSum object representing the Hamiltonian/operator.
+    only_gs : bool, optional
+        If `True` (default), only the ground-state (energy) is kept in `gs` (`en`).
+         If `False`, all eigenvectors (eigenvalues) are kept in `gs` (`en`).
+
+    Returns
+    -------
+    en : float or numpy.ndarray
+        If `only_gs` is `True`, the lowest eigenvalue (ground-state energy).
+        Otherwise, a 1D array of all eigenvalues sorted ascending.
+    gs : numpy.ndarray
+        Eigenvectors sorted to match ``en``.
+
+    Raises
+    ------
+    AssertionError
+        If the (internally normalized) eigenvector(s) do not yield real
+        expectation values matching the corresponding eigenvalue(s) within
+        ``1e-10``.
+
+    Notes
+    -----
+    - Since :func:`numpy.linalg.eig` is used, the input matrix is treated as
+      general (not assumed Hermitian). If the operator is Hermitian, consider
+      using :func:`numpy.linalg.eigh` for improved numerical stability.
+    """
+    # Convert PauliSum to matrix form
+    m = P.matrix_form()
+    m = m.toarray()
+    # Get eigenvalues and eigenvectors
+    val, vec = np.linalg.eig(m)
+    val = np.real(val)
+    vec = np.transpose(vec)
+    # Ordering
+    tmp_index = np.argsort(val)
+    en = val[tmp_index]
+    gs = vec[tmp_index]
+    # Prepare output
+    if only_gs:
+        en = en[0]
+        gs_out = gs[0]
+        gs_out = np.transpose(gs_out)
+        gs_out = gs_out / np.linalg.norm(gs_out)
+    else:
+        gs_out = []
+        for el in gs:
+            el = np.transpose(el)
+            el = el / np.linalg.norm(el)
+            gs_out.append(el)
+        gs_out = np.array(gs_out)
+    # Checks
+    exp_en = []
+    if not only_gs:
+        for el in gs_out:
+            exp_en.append(np.transpose(np.conjugate(el)) @ m @ el)
+        exp_en = np.array(exp_en)
+    else:
+        exp_en = np.transpose(np.conjugate(gs_out)) @ m @ gs_out
+    assert np.max(abs(en - exp_en)) < 10**-10, \
+        "The ground state does not yield a real value <gs | H |gs> = {}".format(exp_en)
+    # Return
+    return en, gs
+
+
+def to_pauli_sum(P: Pauli | PauliString
+                 ) -> PauliSum:
+    """
+    Convert a Pauli or PauliString to a PauliSum.
+
+    Parameters
+    ----------
+    P : Pauli | PauliString
+        The Pauli or PauliString to convert.
+
+    Returns
+    -------
+    PauliSum
+        The resulting PauliSum.
+    """
     if isinstance(P, Pauli):
         x = P.x_exp
         z = P.z_exp
@@ -18,27 +106,52 @@ def to_pauli_sum(P: Pauli | PauliString) -> PauliSum:
         return PauliSum([P])
 
 
-def to_pauli_string(pauli: Pauli) -> PauliString:
+def to_pauli_string(pauli: Pauli
+                    ) -> PauliString:
     raise NotImplementedError
 
 
-def symplectic_product(pauli_string: PauliString, pauli_string2: PauliString) -> bool:
-    # Inputs:
-    #     pauli_string - (PauliString)
-    #     pauli_string2 - (PauliString)
-    # Outputs:
-    #     (bool) - quditwise inner product of Paulis
+def symplectic_product(PauliString_1: PauliString,
+                       PauliString_2: PauliString
+                       ) -> bool:
+    """
+    Qudit-wise symplectic product of two Pauli strings.
 
-    if any(pauli_string.dimensions - pauli_string.dimensions):
+    Parameters
+    ----------
+    PauliString_1 : Pauli | PauliString
+        The first PauliString for computing the inner product.
+    PauliString_2 : Pauli | PauliString
+        The second PauliString for computing the inner product.
+
+    Returns
+    -------
+    int
+        The symplectic product of the two PauliStrings objects.
+    """
+    if any(PauliString_1.dimensions - PauliString_2.dimensions):
         raise Exception("Symplectic inner product only works if Paulis have same dimensions")
     sp = 0
-    for i in range(pauli_string.n_qudits()):
-        sp += (pauli_string.x_exp[i] * pauli_string2.z_exp[i] - pauli_string.z_exp[i] * pauli_string2.x_exp[i])
-    return sp % pauli_string.lcm
+    for i in range(PauliString_1.n_qudits()):
+        sp += (PauliString_1.x_exp[i] * PauliString_2.z_exp[i] - PauliString_1.z_exp[i] * PauliString_2.x_exp[i])
+    return sp % PauliString_1.lcm
 
 
-def string_to_symplectic(string: str) -> tuple[np.ndarray, int]:
-    # split into single qubit paulis by spaces
+def string_to_symplectic(string: str
+                         ) -> tuple[np.ndarray, int]:
+    """
+    Convert a string representation of a PauliString into its symplectic form.
+
+    Parameters
+    ----------
+    string : str
+        The string representation of the PauliString.
+
+    Returns
+    -------
+    tuple[np.ndarray, int]
+        The symplectic form of the PauliString and its phase.
+    """
     substrings = string.split()
     local_symplectics = []
     phases = []
@@ -57,7 +170,27 @@ def string_to_symplectic(string: str) -> tuple[np.ndarray, int]:
     return symplectic.flatten(), sum(phases)
 
 
-def symplectic_to_string(symplectic: np.ndarray, dimension: int) -> str:
+# TODO: The previous and following functions do not seem super useful...
+#       I would say one can create a PauliString/Sum object from the string and
+#       then use that object for any further processing.
+def symplectic_to_string(symplectic: np.ndarray,
+                         dimension: int
+                         ) -> str:
+    """
+    Convert a symplectic representation of a PauliString into its string form.
+
+    Parameters
+    ----------
+    symplectic : np.ndarray
+        The symplectic representation of the PauliString.
+    dimension : int
+        The dimension of the PauliString.
+
+    Returns
+    -------
+    str
+        The string representation of the PauliString.
+    """
     if dimension == 2:
         if symplectic[0] == 0 and symplectic[1] == 0:
             return 'x0z0'
@@ -73,8 +206,23 @@ def symplectic_to_string(symplectic: np.ndarray, dimension: int) -> str:
         return f'x{symplectic[0]}z{symplectic[1]}'
 
 
-def random_pauli_string(dimensions: list[int]) -> PauliString:
-    """Generates a random PauliString of n_qudits"""
+def random_pauli_string(dimensions: list[int]
+                        ) -> PauliString:
+    """
+    Generates a random PauliString with dimensions specified by `dimensions'.
+    Each qudit is assigned a random exponent both for its `x' and `z' components,
+    that is uniformly distributed between 0 and d-1, d being the dimension of the qudit.
+
+    Parameters
+    ----------
+    dimensions : list[int]
+        The dimensions of the PauliString.
+
+    Returns
+    -------
+    PauliString
+        A random PauliString with the specified dimensions.
+    """
     n_qudits = len(dimensions)
     x_array = np.zeros(n_qudits, dtype=int)
     z_array = np.zeros(n_qudits, dtype=int)
@@ -86,12 +234,34 @@ def random_pauli_string(dimensions: list[int]) -> PauliString:
     return p_string
 
 
-def check_mappable_via_clifford(pauli_sum: PauliSum, target_pauli_sum: PauliSum) -> bool:
-    return bool(np.all(pauli_sum.symplectic_product_matrix() == target_pauli_sum.symplectic_product_matrix()))
+def check_mappable_via_clifford(PauliSum: PauliSum,
+                                target_PauliSum: PauliSum
+                                ) -> bool:
+    """
+    Checks whether the given PauliSum can be mapped to the target PauliSum via Clifford operations.
+
+    Parameters
+    ----------
+    PauliSum : PauliSum
+        The PauliSum to check.
+    target_PauliSum : PauliSum
+        The target PauliSum to check against.
+
+    Returns
+    -------
+    bool
+        True if the PauliSum can be mapped to the target PauliSum, False otherwise.
+    """
+    return bool(
+        np.all(
+            PauliSum.symplectic_product_matrix() == target_PauliSum.symplectic_product_matrix()
+        )
+    )
 
 
 # TODO: correct type hint error
-def concatenate_pauli_sums(pauli_sums: list[PauliSum]) -> PauliSum:
+def concatenate_pauli_sums(pauli_sums: list[PauliSum]
+                           ) -> PauliSum:
     """
     Concatenate a list of Pauli sums into a single Pauli sum.
     """
@@ -117,13 +287,37 @@ def concatenate_pauli_sums(pauli_sums: list[PauliSum]) -> PauliSum:
     raise NotImplementedError()
 
 
-def are_subsets_equal(pauli_sum_1: PauliSum, pauli_sum_2: PauliSum,
-                      subset_1: list[tuple[int, int]], subset_2: list[tuple[int, int]] | None = None):
+def are_subsets_equal(PauliSum_1: PauliSum,
+                      PauliSum_2: PauliSum,
+                      subset_1: list[tuple[int, int]],
+                      subset_2: list[tuple[int, int]] | None = None
+                      ) -> bool:
     """
-    Check if two subsets of Pauli sums are equal.
+    Check if two subsets of two PauliSums objects are equal.
+    I.e., the first `subset_1' of `PauliSum_1' must match the second `subset_2' of `PauliSum_2'.
+
+    Parameters
+    ----------
+    PauliSum_1 : PauliSum
+        The first PauliSum to compare.
+    PauliSum_2 : PauliSum
+        The second PauliSum to compare.
+    subset_1 : list[tuple[int, int]]
+        The indices of the first PauliSum to compare, given as a list of tuples
+    subset_2 : list[tuple[int, int]] | None
+        The indices of the second PauliSum to compare, given as a list of tuples
+
+    Returns
+    -------
+    bool
+        True if the subsets are equal, False otherwise.
     """
     if subset_2 is None:
-        subset_2 = subset_1
+        if subset_1 is None:
+            # TODO: maybe set `subset_1' to all indices of `PauliSum_1'
+            raise ValueError("At least one subset must be provided")
+        else:
+            subset_2 = subset_1
     else:
         if len(subset_1) != len(subset_2):
             raise ValueError("Subsets must be of the same length")
@@ -133,16 +327,33 @@ def are_subsets_equal(pauli_sum_1: PauliSum, pauli_sum_2: PauliSum,
             raise ValueError("Subsets must be lists of tuples of length 2")
 
     for i in range(len(subset_1)):
-        if pauli_sum_1[subset_1[i]] != pauli_sum_2[subset_2[i]]:
+        if PauliSum_1[subset_1[i]] != PauliSum_2[subset_2[i]]:
             return False
     return True
 
 
-def commutation_graph(pauli_sum: PauliSum, labels: list[str] | None = None, axis: Any | None = None):
+def commutation_graph(PauliSum: PauliSum,
+                      labels: list[str] | None = None,
+                      axis: Any | None = None):
     """
-    Plots graph where adjacency matrix is the symplectic product matrix
+    Plots the commutation graph of a PauliSum, based on the adjacency
+    matrix given by the symplectic product matrix.
+
+    Parameters
+    ----------
+    PauliSum : PauliSum
+        The PauliSum to plot as a graph.
+    labels : list[str] | None
+        The labels for the nodes in the graph.
+    axis : Any | None
+        The axis to plot the graph on.
+
+    Returns
+    -------
+    nx.Graph
+        The commutation graph of the PauliSum.
     """
-    adjacency_matrix = pauli_sum.symplectic_product_matrix()
+    adjacency_matrix = PauliSum.symplectic_product_matrix()
     rows, cols = np.where(adjacency_matrix == 1)
     edges = zip(rows.tolist(), cols.tolist())
     gr = nx.Graph()
@@ -156,14 +367,77 @@ def commutation_graph(pauli_sum: PauliSum, labels: list[str] | None = None, axis
     return gr
 
 
-def modinv(a, d):
+def modinv(a : int,
+           d: int
+           ) -> int:
+    """
+    Compute the modular multiplicative inverse of an integer.
+
+    Given integers `a` and `d`, this function finds an integer `i` such that
+    `(a * i) % d == 1`. If no such integer exists, a `ValueError` is raised.
+
+    Parameters
+    ----------
+    a : int
+        The integer whose modular inverse is to be computed.
+    d : int
+        The modulus.
+
+    Returns
+    -------
+    int
+        The modular multiplicative inverse of `a` modulo `d`.
+
+    Raises
+    ------
+    ValueError
+        If the modular inverse does not exist (i.e., if `a` and `d` are not coprime).
+
+    Examples
+    --------
+    >>> modinv(3, 11)
+    4
+    >>> modinv(10, 17)
+    12
+    """
     for i in range(1, d):
         if (a * i) % d == 1:
             return i
     raise ValueError(f"No inverse for {a} mod {d}")
 
 
-def row_reduce_mod_d(A, d):
+def row_reduce_mod_d(A: np.ndarray,
+                     d: int
+                     ) -> tuple[np.ndarray, list[int], int]:
+    """
+    Performs row reduction (Gaussian elimination) of a matrix modulo a given integer.
+
+    This function reduces the input matrix `A` to its row-echelon form over the integers modulo `d`.
+    It also returns the list of pivot columns and the rank of the matrix modulo `d`.
+
+    Parameters
+    ----------
+    A : numpy.ndarray
+        The input matrix to be row reduced. Must be a 2D numpy array of integers (dtype=int).
+    d : int
+        The modulus for the arithmetic operations.
+
+    Returns
+    -------
+    A_reduced : numpy.ndarray
+        The row-reduced form of the input matrix modulo `d`.
+    pivots : list of int
+        List of column indices that are pivots in the reduced matrix.
+    rank : int
+        The rank of the matrix modulo `d`.
+
+    Notes
+    -----
+    - The input matrix `A` must have integer dtype (e.g., np.int32, np.int64).
+    - The function assumes that `modinv` is defined elsewhere and computes modular inverses.
+    - The input matrix `A` is not modified; a copy is used internally.
+    - All arithmetic is performed modulo `d`.
+    """
     A = A.copy() % d
     m, n = A.shape
     rank = 0

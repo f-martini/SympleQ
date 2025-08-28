@@ -61,7 +61,8 @@ class TestPaulis:
                 input_ps1 = PauliString.from_string(input_str1, dimensions=[dim, dim])
                 input_ps2 = PauliString.from_string(input_str2, dimensions=[dim, dim])
                 output_ps = input_ps1 * input_ps2
-                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[dim, dim]), 'Error in PauliString multiplication'
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[
+                                                            dim, dim]), 'Error in PauliString multiplication'
 
     def test_pauli_string_tensor_product(self):
         for dim in [2, 3, 5, 11]:
@@ -82,7 +83,8 @@ class TestPaulis:
                 input_ps1 = PauliString.from_string(input_str1, dimensions=[dim, dim])
                 input_ps2 = PauliString.from_string(input_str2, dimensions=[dim, dim])
                 output_ps = input_ps1 @ input_ps2
-                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[dim] * 4), 'Error in PauliString tensor product'
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[
+                                                            dim] * 4), 'Error in PauliString tensor product'
 
     def test_pauli_string_indexing(self):
         for dim in [2, 3, 5]:
@@ -91,8 +93,8 @@ class TestPaulis:
                 ps1 = Pauli.from_string(f"x{r1}z{s1}", dimension=dim)
                 ps2 = Pauli.from_string(f"x{r2}z{s2}", dimension=dim)
 
-                assert p_string1[0] == ps1, 'Error in PauliString indexing (first PauliString)'
-                assert p_string1[1] == ps2, 'Error in PauliString indexing'
+                assert p_string1[0] == PauliString.from_pauli(ps1), 'Error in PauliString indexing (first PauliString)'
+                assert p_string1[1] == PauliString.from_pauli(ps2), 'Error in PauliString indexing'
 
     def test_pauli_sum_multiplication(self):
         for dim in [2, 3, 5]:
@@ -106,8 +108,14 @@ class TestPaulis:
                 # Test multiplication of PauliSum with PauliString
                 input_ps1, r13, r23, s13, s23 = self.random_pauli_string(dim)
 
-                output_str_correct = f"x{(r1 + r13) % dim}z{(s1 + s13) % dim} x{(r2 + r23) % dim}z{(s2 + s23) % (2 * dim)}"
-                output_str2_correct = f"x{(r12 + r13) % dim}z{(s12 + s13) % dim} x{(r22 + r23) % dim}z{(s22 + s23) % (2 * dim)}"
+                output_str_correct = (
+                    f"x{(r1 + r13) % dim}z{(s1 + s13) % dim} "
+                    f"x{(r2 + r23) % dim}z{(s2 + s23) % (2 * dim)}"
+                )
+                output_str2_correct = (
+                    f"x{(r12 + r13) % dim}z{(s12 + s13) % dim} "
+                    f"x{(r22 + r23) % dim}z{(s22 + s23) % (2 * dim)}"
+                )
                 output_ps = random_pauli_sum * input_ps1
 
                 phase1 = 2 * (s1 * r13 + s2 * r23) % (2 * dim)
@@ -118,13 +126,17 @@ class TestPaulis:
                                              phases=output_phases,
                                              standardise=False)
 
-                assert output_ps == output_ps_correct, 'Error in PauliSum multiplication with PauliString\n' + output_ps.__str__() + '\n' + output_ps_correct.__str__()
+                assert output_ps == output_ps_correct, (
+                    'Error in PauliSum multiplication with PauliString\n' +
+                    output_ps.__str__() +
+                    '\n' +
+                    output_ps_correct.__str__()
+                )
 
                 # Test multiplication of PauliSum with PauliSum
                 random_pauli_sum2 = PauliSum([input_ps1], standardise=False)
                 output_ps2 = random_pauli_sum * random_pauli_sum2
-                print(f"Output PauliSum: \n {output_ps2}")
-                print(f"Expected PauliSum: \n {output_ps_correct}")
+
                 assert output_ps2 == output_ps_correct, 'Error in PauliSum multiplication with PauliSum'
 
     def test_pauli_sum_tensor_product(self):
@@ -146,7 +158,7 @@ class TestPaulis:
         weights = np.array([1.])
         sp = PauliSum(pauli_list, weights, dimensions=[2])
         expected_matrix = np.array([[1, 0]])
-        np.testing.assert_array_equal(sp.symplectic(), expected_matrix)
+        np.testing.assert_array_equal(sp.tableau(), expected_matrix)
 
     def test_symplectic_matrix_multiple_paulis(self):
         pauli_list = ['x1z0', 'x0z1', 'x1z1']
@@ -158,7 +170,7 @@ class TestPaulis:
             [1, 1]
         ])
 
-        np.testing.assert_array_equal(sp.symplectic(), expected_matrix)
+        np.testing.assert_array_equal(sp.tableau(), expected_matrix)
 
     def test_basic_pauli_relations(self):
         dims = 3
@@ -206,12 +218,13 @@ class TestPaulis:
                 ps_out = random_pauli_sum + random_pauli_sum2
                 ps_out_correct = PauliSum([p_string1, p_string2, p_string3], standardise=False)
                 assert ps_out == ps_out_correct, 'Error in PauliSum addition'
-                dims = [3, 3]
 
+        dims = [3, 3]
         x1x1 = PauliSum(PauliString.from_string('x1z0 x1z0', dimensions=dims))
         x1y1 = PauliSum(PauliString.from_string('x1z0 x1z1', dimensions=dims))
 
         psum = x1x1 + x1y1
+        psum.standardise()
         expected = PauliSum([PauliString.from_string('x1z0 x1z0', dimensions=dims),
                              PauliString.from_string('x1z0 x1z1', dimensions=dims)], weights=[1, 1], phases=[0, 0])
 
@@ -264,9 +277,22 @@ class TestPaulis:
         assert ps[2] == PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)
         assert ps[3] == PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)
         assert ps[0:2] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z0 x0z0'], dimensions=dims, standardise=False)
-        assert ps[[0, 3]] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z1 x1z1'], weights=[1, 0.5], phases=[0, 1], dimensions=dims,
-                                      standardise=False)
+        assert ps[[0, 3]] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z1 x1z1'], weights=[1, 0.5], phases=[0, 1],
+                                      dimensions=dims, standardise=False)
         assert ps[[0, 2], 1] == PauliSum(['x2z0', 'x2z1'], weights=[1, 0.5], phases=[0, 1], dimensions=[3],
                                          standardise=False)
-        assert ps[[0, 2], [0, 2]] == PauliSum(['x2z0 x1z1', 'x2z0 x2z0'], weights=[1, 0.5], phases=[0, 1], dimensions=[3, 3],
-                                              standardise=False)
+        assert ps[[0, 2], [0, 2]] == PauliSum(['x2z0 x1z1', 'x2z0 x2z0'], weights=[1, 0.5], phases=[0, 1],
+                                              dimensions=[3, 3], standardise=False)
+
+    def test_ordering(self):
+        # check that the symplectic basis gives the identity when ordered
+        n_qudits = 10
+        d = 2
+        n_paulis = 2 * n_qudits
+        symplectic_basis = np.eye(2 * n_qudits, dtype=int)
+        basis_list = [symplectic_basis[i, :] for i in range(n_paulis)]
+        shuffled_basis = basis_list.copy()
+        np.random.shuffle(shuffled_basis)
+        ps = PauliSum.from_tableau(np.array(shuffled_basis), [d] * n_qudits)
+
+        assert np.all(ps.tableau() == symplectic_basis), 'Error in PauliSum ordering to symplectic basis'
