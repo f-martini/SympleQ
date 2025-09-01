@@ -11,7 +11,7 @@ set SRC_REQUIREMENTS=scripts/configs/requirements.txt
 REM Docs env variables
 set DOC_VENV=%DOC_ROOT%/doc_venv
 set DOC_REQUIREMENTS=%DOC_ROOT%/doc_requirements.txt
-set DOC_AUTOSUMMARY=%DOC_ROOT%/index/_autosummary
+set DOC_AUTOSUMMARY=%DOC_ROOT%/index/guides/_autosummary
 set DOC_BUILD_DIR=%DOC_ROOT%/_build/html
 set DOC_INDEX=%DOC_ROOT%/_build/html/index.html
 

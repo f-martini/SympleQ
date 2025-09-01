@@ -33,10 +33,10 @@ def solve_HT_equals_PH_blockwise(H, c, d):
         m = len(indices)
         H_block = H[indices, :]
         for i in range(m):
-            for l in range(k):
-                lhs = quicksum(H_block[i, j] * M[l][j] for j in range(k))
-                rhs = quicksum(P[i][r] * int(H_block[r, l]) for r in range(m))
-                z = model.addVar(vtype="I", name=f"Z_g{i}_{l}")
+            for j in range(k):
+                lhs = quicksum(H_block[i, j] * M[j][j] for j in range(k))
+                rhs = quicksum(P[i][r] * int(H_block[r, j]) for r in range(m))
+                z = model.addVar(vtype="I", name=f"Z_g{i}_{j}")
                 model.addCons(lhs - rhs - d * z == 0)
 
     # Avoid trivial identity solution
@@ -68,7 +68,6 @@ def solve_HT_equals_PH_blockwise(H, c, d):
 ########################################################################################################################
 
 
-
 if __name__ == "__main__":
     import sys
     sys.path.append('./')  # Adjust path to import quaos
@@ -91,11 +90,11 @@ if __name__ == "__main__":
             n_paulis = 5
             n_qudits = 5
             ham = random_pauli_hamiltonian(n_paulis, [d] * n_qudits, mode='randint2')
-            H = ham.symplectic_matrix()
+            H = ham.symplectic()
             coeffs = ham.weights
             print(coeffs)
 
-            print('Running test', i+1, 'of', n_tests)
+            print('Running test', i + 1, 'of', n_tests)
 
             time1 = time()
             M, P = solve_HT_equals_PH_blockwise(H, coeffs, d)
@@ -132,8 +131,6 @@ if __name__ == "__main__":
         #     print("M =\n", M)
         #     print("P =\n", P)
 
-
-
     if False:
         # Example usage
         d = 5
@@ -144,18 +141,6 @@ if __name__ == "__main__":
             [1, 0, 0, 1]
         ], dtype=int)
         c = [1, 1, 1, 2]  # coefficients per row
-
-        M, P = solve_HT_equals_PH_global(H, c, d)
-        if M is not None:
-            print("Found consistent M:")
-            print(M)
-            print("Permutation P:")
-            print(P)
-            print("Check H @ M.T % d == P @ H % d:")
-            print(np.all((H @ M.T) % d == (P @ H) % d))
-            print((M) % d)
-        else:
-            print("No consistent M found.")
 
         M, P = solve_HT_equals_PH_blockwise(H, c, d)
         if M is not None:

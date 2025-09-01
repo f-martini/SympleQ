@@ -1,23 +1,132 @@
 import numpy as np
 from quaos.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
+from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
+from quaos.core.circuits.utils import transvection_matrix
+from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
 
 
 class Gate:
+    """
+    Represents a quantum gate acting on qudits, defined by its symplectic representation.
+    A `Gate` encapsulates the action of a Clifford gate on a set of qudits, using the symplectic formalism.
+    It supports construction from explicit symplectic data, random generation, and mapping between Pauli operators.
+    The class provides methods to act on Pauli operators, Pauli strings, and Pauli sums, as well as to compute
+    the acquired phase and perform symplectic transvections.
+    For more info, see the references:
+    `arXiv:1406.2170 (2014) <https://arxiv.org/abs/1406.2170>`_
+    `PRL 134, 160801 (2025) <https://doi.org/10.1103/PhysRevLett.134.160801>`_
+    `Markus Heinrich, PhD thesis (2021) <https://kups.ub.uni-koeln.de/50465/1/dissertation_heinrich.pdf>`_
 
+    Parameters
+    ----------
+    name : str
+        The name of the gate.
+    qudit_indices : list[int]
+        Indices of the qudits the gate acts on.
+    symplectic : np.ndarray
+        The symplectic matrix representing the gate's action.
+    dimension : int
+        The dimension of the qudits (e.g., 2 for qubits).
+    phase_vector : np.ndarray or list[int]
+        The phase vector associated with the gate.
+
+    Attributes
+    ----------
+    dimension : int
+        The dimension of the qudits.
+    name : str
+        The name of the gate.
+    qudit_indices : list[int]
+        Indices of the qudits the gate acts on.
+    n_qudits : int
+        Number of qudits the gate acts on.
+    symplectic : np.ndarray
+        The symplectic matrix representing the gate's action.
+    phase_vector : np.ndarray or list[int]
+        The phase vector associated with the gate.
+
+    Methods
+    -------
+    solve_from_target(name, input_pauli_sum, target_pauli_sum)
+        Construct a gate that maps an input Pauli sum to a target Pauli sum.
+    from_random(n_qudits, dimension, seed=None)
+        Generate a random gate acting on `n_qudits` of the given dimension.
+    act(P)
+        Apply the gate to a Pauli, PauliString, or PauliSum.
+    acquired_phase(P)
+        Compute the phase acquired by a PauliString under the action of this gate.
+    copy()
+        Return a copy of the gate.
+    transvection(transvection_vector, transvection_weight=1)
+        Return a new gate that is the transvection of this gate by the given vector.
+    __repr__()
+        Return a string representation of the gate.
+    """
+    # TODO: In the gate class, the dimensions of the qudit is an int (rather than a list).
+    #       While this, from a point of view, makes sense
+    #       (entangling Clifford gates can only act on qudits with the same dimensions),
+    #       when we define a generic cClifford based on the symplectic representation,
+    #       we may want to do that in a single shot, such that it possibly acts on qudits with different dimensions...
     def __init__(self, name: str,
                  qudit_indices: list[int],
-                 images: list[np.ndarray],
+                 symplectic: np.ndarray,
                  dimension: int,
                  phase_vector: np.ndarray | list[int]):
 
         self.dimension = dimension
         self.name = name
         self.qudit_indices = qudit_indices
-        self.images = images
         self.n_qudits = len(qudit_indices)
-        self.symplectic = np.stack([v % dimension for v in images]).T
+        self.symplectic = symplectic
         self.phase_vector = phase_vector
+
+    @classmethod
+    def solve_from_target(cls,
+                          name: str,
+                          input_pauli_sum: PauliSum,
+                          target_pauli_sum: PauliSum
+                          ) -> "Gate":
+        """
+        Create a gate that maps an input PauliSum to a target PauliSum.
+        This class method constructs a new gate instance that, when applied, transforms
+        the given `input_pauli_sum` into the specified `target_pauli_sum`. The mapping is
+        determined by computing the appropriate symplectic transformation, phase vector,
+        qudit indices, and dimension required for the transformation.
+
+        Parameters
+        ----------
+        name : str
+            The name to assign to the created gate.
+        input_pauli_sum : PauliSum
+            The initial Pauli sum to be mapped.
+        target_pauli_sum : PauliSum
+            The target Pauli sum to map to.
+
+        Returns
+        -------
+        Gate
+            A new gate instance that implements the mapping from `input_pauli_sum` to `target_pauli_sum`.
+
+        """
+        # TODO: Does it work if the qudits have different dimensions?
+        symplectic, phase_vector, qudit_indices, dimension = find_map_to_target_pauli_sum(input_pauli_sum,
+                                                                                          target_pauli_sum)
+        return cls(name, qudit_indices, symplectic.T, dimension, phase_vector)
+
+    @classmethod
+    def from_random(cls,
+                    n_qudits: int,
+                    dimension: int,
+                    seed=None):
+        np.random.seed(seed)
+        if dimension != 2:
+            raise NotImplementedError("Only implemented for dimension 2. GF(p) will be done asap.")
+
+        symp_int = np.random.randint(symplectic_group_size(n_qudits))
+        symplectic = symplectic_gf2(symp_int, n_qudits)
+        phase_vector = get_phase_vector(symplectic, dimension)
+        return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
         if np.all(self.dimension != P.dimensions[self.qudit_indices]):
@@ -25,7 +134,7 @@ class Gate:
         local_symplectic = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])
         acquired_phase = self.acquired_phase(P)
 
-        local_symplectic = (self.symplectic @ local_symplectic) % self.dimension
+        local_symplectic = (local_symplectic @ self.symplectic.T) % self.dimension
         P = P._replace_symplectic(local_symplectic, self.qudit_indices)
         return P, acquired_phase
 
@@ -38,6 +147,10 @@ class Gate:
             phases.append(pauli_sum.phases[i] + phase)
 
         return PauliSum(pauli_strings, pauli_sum.weights, np.asarray(phases), pauli_sum.dimensions, False)
+
+    def __repr__(self):
+        return f"Gate(name={self.name}, qudit_indices={self.qudit_indices}, " \
+            f"dimension={self.dimension}, phase_vector={self.phase_vector})"
 
     @overload
     def act(self, P: Pauli) -> PauliSum:
@@ -67,19 +180,20 @@ class Gate:
 
         See PHYSICAL REVIEW A 71, 042315 (2005)
 
-        ha = phase_function(P) - treated separately in the act method
         """
 
         U = np.zeros((2 * self.n_qudits, 2 * self.n_qudits), dtype=int)
         U[self.n_qudits:, :self.n_qudits] = np.eye(self.n_qudits, dtype=int)
 
         C = self.symplectic
+
+        ctuc = C.T @ U @ C
         h = self.phase_vector
         a = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])  # local symplectic
         # V_diag(C^TUC)
-        p1 = np.dot(np.diag(C.T @ U @ C), a)
+        p1 = np.dot(np.diag(ctuc), a)
         # a^T P_upps(C^TUC) a a^T P_diag(C^TUC) a
-        ctuc = C.T @ U @ C
+
         p_part = 2 * np.triu(ctuc) - np.diag(np.diag(ctuc))
         p2 = np.dot(a.T, np.dot(p_part, a))
         #
@@ -90,72 +204,96 @@ class Gate:
         """
         Returns a copy of the gate.
         """
-        return Gate(self.name, self.qudit_indices.copy(), self.images.copy(), self.dimension, self.phase_vector.copy())
+        return Gate(self.name, self.qudit_indices.copy(), self.symplectic.copy(), self.dimension,
+                    self.phase_vector.copy())
+
+    def transvection(self, transvection_vector: np.ndarray | list, transvection_weight: int = 1) -> 'Gate':
+        """
+        Returns a new gate that is the transvection of this gate by the given vector.
+        The transvection vector should be a 2n-dimensional vector where n is the number of qudits.
+        """
+        if transvection_weight >= self.dimension:
+            raise ValueError("Transvection weight must be less than the gate dimension.")
+        if not isinstance(transvection_weight, int) and not isinstance(transvection_weight, np.int64):
+            raise TypeError("Transvection weight must be an integer.")
+        if isinstance(transvection_vector, list):
+            transvection_vector = np.array(transvection_vector)
+
+        T = transvection_matrix(transvection_vector, multiplier=transvection_weight, p=self.dimension)
+        if self.name[0] != "T":
+            self.name = "T-" + self.name
+        return Gate(self.name, self.qudit_indices, self.symplectic @ T, self.dimension, self.phase_vector)
 
 
 class SUM(Gate):
     def __init__(self, control, target, dimension):
-        images = [np.array([1, 1, 0, 0]),  # image of X0:  X0 -> X0 X1
-                  np.array([0, 1, 0, 0]),  # image of X1:  X1 -> X1
-                  np.array([0, 0, 1, 0]),  # image of Z0:  Z0 -> Z0
-                  np.array([0, 0, -1, 1])  # image of Z1:  Z1 -> Z0^-1 Z1
-                  ]
+        symplectic = np.array([
+            [1, 1, 0, 0],   # image of X0:  X0 -> X0 X1
+            [0, 1, 0, 0],   # image of X1:  X1 -> X1
+            [0, 0, 1, 0],   # image of Z0:  Z0 -> Z0
+            [0, 0, -1, 1]   # image of Z1:  Z1 -> Z0^-1 Z1
+        ], dtype=int).T
 
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
-        super().__init__("SUM", [control, target], images, dimension=dimension, phase_vector=phase_vector)
+        super().__init__("SUM", [control, target], symplectic, dimension=dimension, phase_vector=phase_vector)
 
 
 class SWAP(Gate):
     def __init__(self, index1, index2, dimension):
-        images = [np.array([0, 1, 0, 0]),  # image of X0:  X0 -> X1
-                  np.array([1, 0, 0, 0]),  # image of X1:  X1 -> X0
-                  np.array([0, 0, 0, 1]),  # image of Z0:  Z0 -> Z2
-                  np.array([0, 0, 1, 0])   # image of Z1:  Z1 -> Z0
-                  ]
+        symplectic = np.array([
+            [0, 1, 0, 0],  # image of X0:  X0 -> X1
+            [1, 0, 0, 0],  # image of X1:  X1 -> X0
+            [0, 0, 0, 1],  # image of Z0:  Z0 -> Z1
+            [0, 0, 1, 0]   # image of Z1:  Z1 -> Z0
+        ], dtype=int).T
 
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
-        super().__init__("SWAP", [index1, index2], images, dimension=dimension, phase_vector=phase_vector)
+        super().__init__("SWAP", [index1, index2], symplectic, dimension=dimension, phase_vector=phase_vector)
 
 
 class CNOT(Gate):
     def __init__(self, control, target):
-        images = [np.array([1, 1, 0, 0]),  # image of X0:  X0 -> X0 X1
-                  np.array([0, 1, 0, 0]),  # image of X1:  X1 -> X1
-                  np.array([0, 0, 1, 0]),  # image of Z0:  Z0 -> Z0
-                  np.array([0, 0, -1, 1])  # image of Z1:  Z1 -> Z0^-1 Z1
-                  ]
+        symplectic = np.array([
+            [1, 1, 0, 0],   # image of X0:  X0 -> X0 X1
+            [0, 1, 0, 0],   # image of X1:  X1 -> X1
+            [0, 0, 1, 0],   # image of Z0:  Z0 -> Z0
+            [0, 0, -1, 1]   # image of Z1:  Z1 -> Z0^-1 Z1
+        ], dtype=int).T
 
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
-        super().__init__("SUM", [control, target], images, dimension=2, phase_vector=phase_vector)
+        super().__init__("SUM", [control, target], symplectic, dimension=2, phase_vector=phase_vector)
 
 
 class Hadamard(Gate):
     def __init__(self, index: int, dimension: int, inverse: bool = False):
         if inverse:
-            images = [np.array([0, 1]),  # image of X:  X -> Z
-                      np.array([-1, 0]),  # image of Z:  Z -> -X
-                      ]
+            symplectic = np.array([
+                [0, 1],    # image of X:  X -> Z
+                [-1, 0]    # image of Z:  Z -> -X
+            ], dtype=int).T
         else:
-            images = [np.array([0, -1]),  # image of X:  X -> -Z
-                      np.array([1, 0]),  # image of Z:  Z -> X
-                      ]
+            symplectic = np.array([
+                [0, -1],   # image of X:  X -> -Z
+                [1, 0]     # image of Z:  Z -> X
+            ], dtype=int).T
 
         phase_vector = np.array([0, 0], dtype=int)
 
         name = "H" if not inverse else "Hdag"
-        super().__init__(name, [index], images, dimension=dimension, phase_vector=phase_vector)
+        super().__init__(name, [index], symplectic, dimension=dimension, phase_vector=phase_vector)
 
 
 class PHASE(Gate):
 
     def __init__(self, index: int, dimension: int):
-        images = [np.array([1, 1]),  # image of X:  X -> XZ
-                  np.array([0, 1]),  # image of Z:  Z -> Z
-                  ]
+        symplectic = np.array([
+            [1, 1],  # image of X:  X -> XZ
+            [0, 1]   # image of Z:  Z -> Z
+        ], dtype=int).T
 
         phase_vector = np.array([dimension + 1, 0], dtype=int)
 
-        super().__init__("S", [index], images, dimension=dimension, phase_vector=phase_vector)
+        super().__init__("S", [index], symplectic, dimension=dimension, phase_vector=phase_vector)

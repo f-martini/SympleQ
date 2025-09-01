@@ -1,64 +1,75 @@
 import sys
 import os
 
-# -- Project information -----------------------------------------------------
+_seen_names = {}
 
-project = 'QuAOS'
+
+def skip_duplicate_aliases(app, what, name, obj, skip, options):
+    mod = getattr(obj, "__module__", None)
+    if name in _seen_names:
+        if mod != _seen_names[name]:
+            return True
+    else:
+        _seen_names[name] = mod
+    return None
+
+
+def setup(app):
+    app.connect("autodoc-skip-member", skip_duplicate_aliases)
+
+
+# -- Project information -----------------------------------------------------
+project = ''
 copyright = '2025, QuAOS-Lab'
 author = 'QuAOS-Lab'
 
 # -- General configuration ---------------------------------------------------
 
-html_logo = "_static/logo.svg"
-html_favicon = "_static/logo.svg"
+html_favicon = "_static/quaos_logo_light.svg"
 
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    'sphinx_rtd_theme',
-    'sphinx_copybutton',
-    "sphinx_immaterial.task_lists",
     'sphinx.ext.duration',
     'sphinx.ext.doctest',
     'sphinx.ext.autosummary',
     'sphinx_autodoc_typehints',
+    'sphinx_copybutton',
 ]
 
 templates_path = ['_templates']
+autodoc_typehints_format = 'short'
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'doc_venv']
+
 autodoc_default_options = {
     'members': True,
-    'undoc-members': True,
-    'private-members': True,
-    'special-members': True,
-    'inherited-members': True,
+    'undoc-members': False,
+    'private-members': False,
+    'special-members': False,
+    'inherited-members': False,
     'show-inheritance': True,
-    'exclude-members': '__dict__,__weakref__,__module__'
+    'exclude-members': '__dict__,__weakref__,__module__,__annotations__,__hash__'
 }
 autosummary_generate = True
-autosummary_generate_overwrite = False
+autosummary_generate_overwrite = True
+autosummary_imported_members = False
+autosummary_ignore_module_all = True
 autosummary_default_options = {
-    'exclude-members': '__dict__,__weakref__,__module__',
+    'exclude-members': '__dict__,__weakref__,__module__,__annotations__,__hash__',
 }
 
 # -- Options for HTML output -------------------------------------------------
 
-html_theme = "sphinx_rtd_theme"
+html_theme = "furo"
 html_static_path = ['_static']
+html_css_files = ["custom.css"]
+html_title = ""
+html_short_title = "QuAOS"
 html_theme_options = {
-    # 'analytics_id': 'G-XXXXXXXXXX',  # Provided by Google in your dashboard
-    'analytics_anonymize_ip': False,
-    'logo_only': False,
-    'prev_next_buttons_location': 'bottom',
-    'style_external_links': False,
-    'vcs_pageview_mode': '',
-    'style_nav_header_background': 'white',
-    'collapse_navigation': True,
-    'sticky_navigation': True,
-    'navigation_depth': 4,
-    'includehidden': True,
-    'titles_only': False
+    "light_logo": "quaos_name_light.svg",
+    "dark_logo": "quaos_name_dark.svg",
 }
+html_show_sourcelink = False
 
 # Required for autosummary to generate the project doc
 sys.path.insert(0, os.path.abspath('../src'))

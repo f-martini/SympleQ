@@ -12,7 +12,6 @@ __pycache__/
 # Utility directories
 data/
 docs/tests_results/
-**/_autosummary/
 **/_autosummary/*
 
 # Distribution / packaging
