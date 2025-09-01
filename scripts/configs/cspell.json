@@ -54,6 +54,7 @@
         "jupyterlab",
         "keras",
         "kron",
+        "LIGHTMATH",
         "linalg",
         "luca",
         "markersize",

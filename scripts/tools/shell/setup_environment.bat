@@ -15,9 +15,27 @@ if not exist %SRC_VENV% (
     call deactivate
 )
 
+set ARCH=%PROCESSOR_ARCHITECTURE%
+REM On 64-bit Windows with 32-bit CMD, check PROCESSOR_ARCHITEW6432
+if "%ARCH%"=="x86" (
+    if not "%PROCESSOR_ARCHITEW6432%"=="" (
+        set ARCH=%PROCESSOR_ARCHITEW6432%
+    )
+)
+if /I "%ARCH%"=="AMD64" (
+    set PRESET=%CMAKE_X86_64_PRESET%
+) else if /I "%ARCH%"=="ARM64" (
+    echo Architecture %SRC_VENV% unsupported on Windows os
+    exit -1
+) else (
+    echo Architecture %SRC_VENV% unsupported on Windows os
+    exit -1
+)
+echo Detected architecture %ARCH%: using preset %PRESET%
+
 call %SRC_VENV%/Scripts/activate
 call python -m pip install --upgrade pip setuptools wheel scikit-build-core nanobind
-call python -m pip install -e %PYTHON_PY_SETUP%
+call python -m pip install -e %PYTHON_PY_SETUP% --config-settings=cmake.args="--preset;%PRESET%"
 call deactivate
 
 REM Generating unversioned folders...
