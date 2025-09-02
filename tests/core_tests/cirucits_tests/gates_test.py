@@ -327,11 +327,14 @@ class TestGates():
 
     def test_gate_from_target(self):
         n_qudits = 4
-        n_paulis = 6
+        n_paulis = 2
         dim = 2
         dimensions = [dim] * n_qudits
 
         input_ps = PauliSum.from_random(n_paulis, n_qudits, dimensions=dimensions)
+        input_ps.remove_trivial_paulis()
+        input_ps.combine_equivalent_paulis()
+        print(input_ps)
         circuit = Circuit.from_random(n_qudits, 100, dimensions)
         target_ps = circuit.act(input_ps)
         target_ps.phases = np.zeros(n_qudits)

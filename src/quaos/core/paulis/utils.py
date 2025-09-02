@@ -5,6 +5,8 @@ from .pauli import Pauli
 from .pauli_string import PauliString
 from .pauli_sum import PauliSum
 import networkx as nx
+from itertools import product
+import sympy as sp
 
 
 def ground_state_TMP(P: PauliSum,
@@ -304,8 +306,8 @@ def commutation_graph(PauliSum: PauliSum,
 
 
 def mod_inv(a: int,
-           d: int
-           ) -> int:
+            d: int
+            ) -> int:
     """
     Compute the modular multiplicative inverse of an integer.
 
@@ -373,6 +375,9 @@ def row_reduce_mod_d(A: np.ndarray,
     - The function assumes that `mod_inv` is defined elsewhere and computes modular inverses.
     - The input matrix `A` is not modified; a copy is used internally.
     - All arithmetic is performed modulo `d`.
+
+    TODO: This is a place where we should test if galois is faster and/or more stable.
+    It has inbuilt row_reduce over GF(p)
     """
     A = A.copy() % d
     m, n = A.shape
@@ -437,10 +442,6 @@ def solve_mod_d(A: np.ndarray,
     >>> solve_mod_d(A, b, 5)
     [array([3, 4]), array([0, 2]), array([2, 0]), array([4, 3]), array([1, 1])]
     """
-    # TODO: is it better to import at the beginning of this
-    #       entire .py file rather than only within this function?
-    from itertools import product
-    import sympy as sp
 
     A_sym = sp.Matrix(A.tolist())
     b_sym = sp.Matrix(b.tolist())

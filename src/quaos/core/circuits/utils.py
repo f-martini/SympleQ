@@ -1,5 +1,5 @@
+from __future__ import annotations
 import numpy as np
-# import galois
 
 
 # def is_symplectic(F, p):
@@ -81,9 +81,9 @@ def construct_omega(n: int, p: int = 2) -> np.ndarray:
     Z = np.zeros((n, n), dtype=int)
 
     if p == 2:
-        return np.block([[Z, Id], [-Id, Z]])
-    else:
         return np.block([[Z, Id], [Id, Z]])
+    else:
+        return np.block([[Z, Id], [-Id, Z]])
 
 
 def transvection_matrix(h: np.ndarray, p=2, multiplier=1):
@@ -108,49 +108,32 @@ def transvection(h, x, p=2):
     return (x + symplectic_product(x, h.T, p) * h) % p
 
 
-def embed_symplectic_single_pauli_string(symplectic_local, qudit_indices, n_qudits):
-    """Embed a local Clifford (F, h) into full 2n space"""
-    full_F = np.zeros(2 * n_qudits, dtype=int)
+def embed_symplectic(symplectic_local, phase_vector_local, qudit_indices, n_qudits):
+    """
+    Embed a local Clifford (F_local, h_local) into a larger 2n-dimensional space,
+    correctly handling arbitrary qudit index ordering.
+    """
+    m = len(qudit_indices)
+    if symplectic_local.shape != (2 * m, 2 * m):
+        raise ValueError("symplectic_local must be 2m x 2m")
+    if len(phase_vector_local) != 2 * m:
+        raise ValueError("phase_vector_local must have length 2m")
 
-    n_qudits_local = len(qudit_indices)
+    # Full 2n x 2n identity
+    F_full = np.eye(2 * n_qudits, dtype=int)
+    h_full = np.zeros(2 * n_qudits, dtype=int)
 
-    if 2 * n_qudits_local != len(symplectic_local):
-        raise ValueError(
-            f"symplectic_local must have 2 * n_qudits_local = {n_qudits_local}, but has length {len(symplectic_local)}")
+    qudit_indices = np.array(qudit_indices, dtype=int)
 
-    x_in = symplectic_local[:n_qudits_local]
-    z_in = symplectic_local[n_qudits_local:]
+    # Build row/column index mapping for the full space
+    # First X rows/columns
+    row_indices = np.concatenate([qudit_indices, n_qudits + qudit_indices])
+    col_indices = np.concatenate([qudit_indices, n_qudits + qudit_indices])
 
-    x_image = np.zeros(n_qudits, dtype=int)
-    z_image = np.zeros(n_qudits, dtype=int)
+    # Place the full local symplectic block into the full system
+    F_full[np.ix_(row_indices, col_indices)] = symplectic_local
 
-    for i in range(n_qudits_local):
-        x_image[qudit_indices[i]] = x_in[i]
-        z_image[qudit_indices[i]] = z_in[i]
+    # Embed phase vector
+    h_full[row_indices] = phase_vector_local
 
-    full_F[:n_qudits] = x_image
-    full_F[n_qudits:] = z_image
-
-    return full_F
-
-
-def embed_symplectic(symplectic_local, phase_vector_local, qudit_indices, n_qudits, dimension):
-    """Embed a local Clifford (F, h) into full 2n space"""
-    full_F = np.eye(2 * n_qudits, dtype=int)
-    full_v = np.zeros(2 * n_qudits, dtype=int)
-
-    n_loc_qudits = len(qudit_indices)
-    x_in = symplectic_local[:n_loc_qudits, :]
-    z_in = symplectic_local[n_loc_qudits:, :]
-
-    for image_row_index in range(n_loc_qudits):
-
-        full_F[image_row_index, :] = embed_symplectic_single_pauli_string(x_in[image_row_index, :],
-                                                                          qudit_indices, n_qudits)
-        full_F[n_qudits + image_row_index, :] = embed_symplectic_single_pauli_string(z_in[image_row_index, :],
-                                                                                     qudit_indices, n_qudits)
-
-    for i, ind in enumerate(qudit_indices):  # check
-        full_v[ind] = phase_vector_local[i]
-
-    return np.mod(full_F, dimension), np.mod(full_v, dimension)
+    return F_full, h_full

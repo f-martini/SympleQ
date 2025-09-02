@@ -182,18 +182,14 @@ class TestSymplecticSolver:
 
     def test_map_pauli_sum_to_target(self):
 
-        for i in range(100):
+        for i in range(1000):
             print(i)
             # choose random properties of the system
-            n = np.random.randint(2, 4)  # , 50)  # Number of qudits
+            n = np.random.randint(2, 5)  # , 50)  # Number of qudits
             allowed_dims = [2]  # , 3, 5, 7, 11]  # allowed dimensions
             dimensions = []  # dimensions
             for _ in range(n):
-                dimensions.append(
-                    int(
-                        np.random.choice(allowed_dims)
-                    )
-                )
+                dimensions.append(int(np.random.choice(allowed_dims)))
             m = int(np.random.randint(2, 2 * n - 1))  # Number of Paulis
 
             # define input hamiltonian

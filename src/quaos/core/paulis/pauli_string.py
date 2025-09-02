@@ -167,8 +167,8 @@ class PauliString:
             A randomly generated PauliString instance with random x and z exponents for each qudit.
         """
         np.random.seed(seed)
-        return cls(x_exp=np.random.randint(0, dimensions, (n_qudits)),
-                   z_exp=np.random.randint(0, dimensions, (n_qudits)),
+        return cls(x_exp=np.random.randint(0, dimensions, (n_qudits), dtype=int),
+                   z_exp=np.random.randint(0, dimensions, (n_qudits), dtype=int),
                    dimensions=dimensions)
 
     def __repr__(self) -> str:

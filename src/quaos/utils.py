@@ -2,6 +2,8 @@ import numpy as np
 from quaos.core.paulis import PauliSum
 import galois
 from quaos.core.finite_field_solvers import solve_modular_linear_system
+from collections import defaultdict
+from typing import Union
 
 
 def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
@@ -211,58 +213,77 @@ def get_linearly_independent_rows(A: np.ndarray, d: int) -> list[int]:
     return pivots
 
 
-# TODO: make sure it works for mixed qudits
 def get_linear_dependencies(vectors: np.ndarray,
-                            p: int
+                            p: int | list[int] | np.ndarray
                             ) -> tuple[list[int], dict[int, list[tuple[int, int]]]]:
     """
-    Analyze linear dependencies over GF(p).
+    Find linear dependencies among rows of `vectors` over finite fields.
 
-    Parameters:
-        vectors: List of n vectors (length m)
-        p: Prime modulus for GF(p)
+    Parameters
+    ----------
+    vectors : np.ndarray
+        Matrix of shape (n, m). Each row is a vector.
+    p : int | list[int]
+        - If int: All rows are over GF(p).
+        - If list[int]: p[i] is the prime field for row i.
 
-    Returns:
-        pivot_indices: List[int] — indices of linearly independent input vectors
-        dependencies: Dict[int, List[Tuple[int, int]]] — i: [(j, coeff)] means v_i = sum(coeff * v_j)
+    Returns
+    -------
+    pivot_indices : list[int]
+        Indices of linearly independent rows.
+    dependencies : dict[int, list[tuple[int, int]]]
+        Mapping: row index -> list of (pivot_index, coefficient) such that
+        row = sum(coeff * pivot).
     """
-    assert galois.is_prime(p)
-    GF = galois.GF(p)
+    n, m = vectors.shape
 
-    V = GF(vectors)  # (n x m)
-    R = V.row_reduce()
+    # Normalize p into a list
+    if isinstance(p, int):
+        ps = [p] * n
+    elif isinstance(p, list):
+        assert len(p) == n, "Length of p list must equal number of rows"
+        ps = p
+    else:
+        raise TypeError("p must be int or list[int]")
 
-    # Step 1: Identify pivot columns
-    pivot_cols = []
-    for row in R:
-        nz = np.nonzero(row)[0]
-        if len(nz) > 0:
-            pivot_cols.append(nz[0])
-
-    # Step 2: Pick the first rows from V that are linearly independent
     pivot_indices = []
-    seen = GF.Zeros((0, V.shape[1]))
-    for i in range(V.shape[0]):
-        candidate = V[i]
-        A = np.vstack([seen, candidate])
-        if np.linalg.matrix_rank(np.array(A, dtype=int)) > seen.shape[0]:
-            pivot_indices.append(i)
-            seen = A
-        if len(pivot_indices) == len(pivot_cols):
-            break
-
-    # Step 3: Decompose dependents using only pivot vectors
-    B = GF(V[pivot_indices, :])
     dependencies = {}
-    for i in range(V.shape[0]):
-        if i in pivot_indices:
+
+    # Group rows by prime
+    prime_groups = defaultdict(list)
+    for i, prime in enumerate(ps):
+        prime_groups[prime].append(i)
+
+    # Process each group
+    for prime, indices in prime_groups.items():
+        # If prime occurs once → row is trivially independent
+        if len(indices) == 1:
+            pivot_indices.append(indices[0])
             continue
-        v = GF(V[i])
-        coeffs = solve_modular_linear_system(B, v)
-        if coeffs is None:
-            dependencies[i] = None
-        else:
-            deps = [(pivot_indices[j], int(coeffs[j])) for j in range(len(coeffs)) if coeffs[j] != 0]
+
+        GF = galois.GF(prime)
+        V = GF(vectors[indices, :])  # rows with this prime
+
+        # Step 1: identify independent rows in this group
+        group_pivots = []
+        seen = GF.Zeros((0, V.shape[1]))
+        for idx_in_group, i in enumerate(indices):
+            candidate = V[idx_in_group]
+            A = GF(np.vstack([seen, candidate]))
+            R = A.row_reduce()
+            rank = sum(1 for row in R if np.any(row != 0))
+            if rank > seen.shape[0]:
+                group_pivots.append(i)
+                seen = A
+        pivot_indices.extend(group_pivots)
+
+        # Step 2: find dependencies within the group
+        B = V[[indices.index(j) for j in group_pivots], :]
+        for idx_in_group, i in enumerate(indices):
+            if i in group_pivots:
+                continue
+            x = solve_modular_linear_system(B, V[idx_in_group])
+            deps = [(group_pivots[j], int(x[j])) for j in range(len(x)) if x[j] != 0]
             dependencies[i] = deps
 
     return pivot_indices, dependencies

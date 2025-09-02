@@ -96,40 +96,28 @@ def solve_modular_linear_additive(x: int, z: int, d: int) -> int:
 
 def solve_modular_linear_system(B, v):
     """
-    Solve x @ B = v over GF(p) for x (coefficients of pivot rows).
-    B: shape (r, m)
-    v: shape (m,)
-    Returns: x (length r) or None if no solution
+    Solve x @ B = v over GF(p) using row-reduction (RREF)
     """
     GF = type(B)
-    r, m = B.shape
+    m, n = B.shape
+    # Transpose to solve B^T x^T = v^T
+    A = GF(np.hstack([B.T, v.reshape(-1, 1)]))
+    R = A.row_reduce()
 
-    # Solve: x @ B = v  <=>  B^T @ x^T = v^T
-    A = B.T          # shape (m x r)
-    b = v.reshape(-1, 1)  # shape (m x 1)
-
-    Ab = GF(np.hstack((A, b)))  # shape (m x (r+1))
-    R = Ab.row_reduce()
-
-    # Check for inconsistency: row of [0 ... 0 | nonzero]
-    for row in R:
-        if np.all(row[:-1] == 0) and row[-1] != 0:
-            raise Exception("Inconsistent system")  # inconsistent system
-
-    # Back-substitution
-    num_vars = A.shape[1]
+    num_vars = B.shape[0]
     x = GF.Zeros(num_vars)
-    pivot_rows = 0
-    for i in range(R.shape[0]):
-        row = R[i]
-        nz = np.nonzero(row[:-1])[0]
-        if len(nz) == 0:
-            continue  # skip zero row
-        pivot_col = nz[0]
-        x[pivot_col] = row[-1]
-        pivot_rows += 1
 
-    if np.array_equal(x @ B, v):
-        return x
-    else:
+    # Identify pivot columns and back-substitute
+    pivot_cols = []
+    for row in R:
+        nz = np.nonzero(row[:-1])[0]
+        if len(nz) > 0:
+            pivot_cols.append(nz[0])
+
+    for i, col in enumerate(pivot_cols):
+        x[col] = R[i, -1]
+
+    # Verify solution
+    if not np.array_equal(x @ B, v):
         raise Exception("Failed to solve linear system")
+    return x

@@ -126,6 +126,7 @@
         "SDDS",
         "SDSD",
         "seaborn",
+        "signedinteger",
         "sklearn",
         "snakeviz",
         "spacy",

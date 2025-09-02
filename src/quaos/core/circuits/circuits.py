@@ -182,30 +182,52 @@ class Circuit:
                 new_gate.qudit_indices = new_indexes
             self.add_gate(new_gate)
 
+    def _composite_phase_vector(self, F_1: np.ndarray, F_2: np.ndarray, h_2: np.ndarray, lcm: int) -> np.ndarray:
+        """
+        Returns the vector to add to h_1 to obtain h'' in PHYSICAL REVIEW A 71, 042315 (2005) - Eq. (8)
+
+        New phase vector is h_1 + h_c
+
+        """
+        U = np.zeros((2 * self.n_qudits(), 2 * self.n_qudits()), dtype=int)
+        U[self.n_qudits():, :self.n_qudits()] = np.eye(self.n_qudits(), dtype=int)
+
+        U_conjugated = F_2.T @ U @ F_2
+
+        p1 = np.dot(F_1, h_2)
+        # negative sign in below as definition in paper is strictly upper diagonal, not including diagonal part
+        p2 = np.diag(np.dot(F_1, np.dot((2 * np.triu(U_conjugated) - np.diag(np.diag(U_conjugated))), F_1.T)))
+        p3 = np.dot(F_1, np.diag(U_conjugated))
+
+        h_c = (p1 + p2 - p3) % (2 * lcm)
+
+        return h_c
+
     def composite_gate(self) -> Gate:
         """Composes the list of symplectics acting on all qudits to a single symplectic"""
 
         total_indexes = []
         total_symplectic = np.eye(2 * self.n_qudits(), dtype=np.uint8)
-        total_dimensions = []
-        total_phase_vector = np.zeros(2 * self.n_qudits(), dtype=np.uint8)
-        for gate in self.gates:
+        lcm = np.lcm.reduce(self.dimensions)
+        for i, gate in enumerate(self.gates):
             symplectic = gate.symplectic
             indexes = gate.qudit_indices
-            dimension = gate.dimension
             phase_vector = gate.phase_vector
 
-            F, h = embed_symplectic(symplectic, phase_vector, indexes, self.n_qudits(), dimension)
-            total_symplectic = np.mod(total_symplectic @ F.T, dimension)
-            total_phase_vector = np.mod(total_phase_vector @ F.T + h, dimension)
+            F, h = embed_symplectic(symplectic, phase_vector, indexes, self.n_qudits())  #
+            
+            if i == 0:
+                total_phase_vector = h
+            else:
+                total_phase_vector = np.mod(total_phase_vector + self._composite_phase_vector(total_symplectic, F, h,
+                                                                                              lcm),
+                                            2 * lcm)
+            print(phase_vector, total_phase_vector)
+
+            total_symplectic = np.mod(total_symplectic @ F.T, lcm)
 
             total_indexes.extend(indexes)
-            total_dimensions.append(dimension)
 
-        if np.all(np.array(total_dimensions) == total_dimensions[0]):
-            dimension = total_dimensions[0]
-        else:
-            NotImplementedError('Only composition of gates with constant dimension is supported')
         total_indexes = list(set(np.sort(total_indexes)))
         total_symplectic = total_symplectic.T
-        return Gate('CompositeGate', total_indexes, total_symplectic, dimension, total_phase_vector)
+        return Gate('CompositeGate', total_indexes, total_symplectic, self.dimensions, total_phase_vector)

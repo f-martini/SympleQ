@@ -851,7 +851,6 @@ class PauliSum:
         t2 = np.all(self.weights == other_pauli.weights)
         t3 = np.all(self.phases == other_pauli.phases)
         t4 = np.all(self.dimensions == other_pauli.dimensions)
-        print(t1, t2, t3, t4)
         return bool(t1 and t2 and t3 and t4)
 
     def __ne__(self,
