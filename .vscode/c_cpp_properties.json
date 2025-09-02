@@ -3,6 +3,8 @@
     {
       "name": "windows-gcc-x64",
       "includePath": [
+        "${workspaceFolder}/src/quaos/core/light/src/Base/include/**",
+        "${workspaceFolder}/src/quaos/core/light/src/Base/include/Base/**",
         "${workspaceFolder}/**"
       ],
       "compilerPath": "C:/Strawberry/c/bin/gcc.exe",

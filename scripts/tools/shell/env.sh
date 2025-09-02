@@ -20,7 +20,7 @@ export PYTHON_PY_SETUP=$CONFIGS_ROOT
 export PERSONAL_FOLDER=scripts/personal
 export DIST_FOLDER=dist/
 export DEV_REQUIREMENTS=scripts/configs/dev_requirements.txt
-export CMAKE_PRESET=windows-x86_64-RelWithDebInfo
+export CMAKE_PRESET=linux-x86_64-RelWithDebInfo
 
 # Clear notebooks env variables
 export NOTEBOOKS_ROOT_DIR=$PROJECT_ROOT

@@ -19,8 +19,8 @@
 
 #endif
 
-namespace Bindings {
+namespace Base {
 
-BASE_API const char* GetVersion() { return "1.0.0"; };
+BASE_API const char* GetVersion();
 
-}  // namespace Bindings
+}  // namespace Base

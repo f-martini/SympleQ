@@ -8,16 +8,20 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "$${sourceDir}/quaos/core/light",
+        "CMAKE_SRC_DIRECTORY": "${sourceDir}/quaos/core/light/src"
       }
     },
     {
-      "name": "Base-RelWithDebInfo",
-      "description": "Base RelWithDebInfo preset",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+    "name": "Base-RelWithDebInfo",
+    "description": "Base RelWithDebInfo preset",
+    "generator": "Ninja",
+    "binaryDir": "${sourceDir}/build/${presetName}",
+    "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/quaos/core/light",
+        "CMAKE_SRC_DIRECTORY": "${sourceDir}/quaos/core/light/src"
       }
     },
     {
@@ -111,6 +115,7 @@
     {
       "name": "windows-x86_64-RelWithDebInfo",
       "generator": "Ninja",
+      "inherits": "Base-RelWithDebInfo",
       "description": "Windows x86_64 RelWithDebInfo build",
       "hidden": false,
       "cacheVariables": {

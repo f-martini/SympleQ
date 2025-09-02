@@ -29,9 +29,10 @@ license = { text = "MIT" }
 requires-python = ">=3.11"
 
 [tool.scikit-build]
-build-dir = "../../src/quaos/core/light/build"
-cmake.define.CUDA_PATH = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9"
+build-dir = "../../build"
 cmake.source-dir = "../../src"
 cmake.version = ">=3.21"
+cmake.verbose = true
+cmake.args = ["-DCMAKE_MESSAGE_LOG_LEVEL=STATUS"]
 sdist.include = ["src", "CMakeLists.txt", "README.md"]
 wheel.packages = ["../../src/quaos"]
