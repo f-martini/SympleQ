@@ -1,6 +1,7 @@
 import random
 import numpy as np
 from quaos.core.paulis import PauliSum, PauliString
+from quaos.core.circuits import Gate
 
 
 def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
@@ -60,3 +61,144 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
 
     rand_ham = PauliSum(pauli_strings, weights=coefficients)
     return rand_ham
+
+
+def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=0,
+                                      n_conditional=0, weight_mode='uniform', phase_mode='zero'):
+    # 0: I, 1: X, 2: Z, 3: Y
+    """
+    Generate a random Pauli Hamiltonian with n_qudits qudits and n_paulis Pauli strings,
+    with n_redundant redundant qubits and n_conditional conditional qubits.
+
+    The Pauli strings are chosen randomly from the set of strings with the given
+    structure. The weights are chosen randomly from the set of real numbers.
+
+    Parameters
+    ----------
+    n_qudits : int
+        The number of qudits in the Hamiltonian.
+    n_paulis : int
+        The number of Pauli strings in the Hamiltonian.
+    n_redundant : int, optional
+        The number of redundant qubits. Default is 0.
+    n_conditional : int, optional
+        The number of conditional qubits. Default is 0.
+    weight_mode : str, optional
+        The mode of the weights. Can be 'uniform' (default) or 'random'.
+    phase_mode : str, optional
+        The mode of the phases. Can be 'zero' (default) or 'random'.
+    Returns
+    -------
+    P : PauliSum
+        The random Pauli Hamiltonian.
+
+    Examples
+    --------
+    >>> from quaos.models.random_hamiltonian import random_pauli_symmetry_hamiltonian
+    >>> random_pauli_symmetry_hamiltonian(2, 4)
+    PauliSum of size 4x2 with 4 terms and 0 redundant or conditional qubits.
+    """
+    # TODO: Implementation for Qudits
+
+    n_rest = n_qudits - n_redundant - n_conditional
+    if n_paulis < 2*n_rest:
+        raise ValueError('Too few paulis for full basis with this number of independent qubits')
+    # create general structure of the Pauli Hamiltonian before scrambeling it with clifford gates
+    # redundant qubits
+    P = np.zeros((n_paulis, n_qudits), dtype=int)
+
+    # conditional qubits
+    for i in range(n_conditional - n_redundant):
+        q = np.arange(n_redundant, n_conditional)[i]
+        P[2*n_rest + i, q] = 2  # Z
+        for j in range(1, n_paulis - (2*n_rest + i)):
+            P[2 * n_rest + i + j, q] = np.random.choice([0, 2])  # I, Z
+
+    # remaining qubits
+    for i in range(n_qudits - (n_redundant + n_conditional)):
+        q = np.arange(n_redundant + n_conditional, n_qudits)[i]
+        P[i, q] = 1
+        P[n_rest + i, q] = 2
+        for j in range(1, n_rest - i):
+            P[i + j, q] = np.random.choice([0, 1, 2, 3])
+            P[n_rest + i + j, q] = np.random.choice([0, 1, 2, 3])
+
+        for j in range(n_paulis - 2 * n_rest):
+            P[2 * n_rest + j, q] = np.random.choice([0, 1, 2, 3])
+
+    # Turn P-Matrix into PauliSum
+    paulistrings = ['' for _ in range(n_paulis)]
+    for i in range(n_paulis):
+        for j in range(n_qudits):
+            if P[i, j] == 0:
+                paulistrings[i] += 'x0z0'
+            elif P[i, j] == 1:
+                paulistrings[i] += 'x1z0'
+            elif P[i, j] == 2:
+                paulistrings[i] += 'x0z1'
+            elif P[i, j] == 3:
+                paulistrings[i] += 'x1z1'
+
+            paulistrings[i] += ' '
+        paulistrings[i] = paulistrings[i].strip()
+
+    if weight_mode == 'uniform':
+        weights = np.ones(n_paulis, dtype=float)
+    elif weight_mode == 'random':
+        weights = np.random.rand(n_paulis)
+
+    if phase_mode == 'zero':
+        phases = np.zeros(n_paulis, dtype=int)
+    elif phase_mode == 'random':
+        phases = np.random.randint(0, 2, size=n_paulis, dtype=int)
+
+    P = PauliSum(paulistrings, weights=weights, dimensions=[2]*n_qudits, phases=phases, standardise=False)
+
+    g = Gate.from_random(n_qudits, 2)
+    P = g.act(P)
+
+    return P
+
+
+def random_gate_symmetric_hamiltonian(G, n_qudits=None, n_paulis=None, weight_mode='uniform',scrambled = False):
+    """
+    Generate a random symmetric Hamiltonian from a gate G.
+
+    Parameters
+    ----------
+    G : Gate
+        The gate for which to generate the symmetric Hamiltonian.
+    n_qudits : int
+        The number of qudits in the resulting Hamiltonian. If None, it is set to G.dimension + 1.
+    n_paulis : int
+        The number of Pauli strings in the resulting Hamiltonian. If None, it is set to 2 * n_qudits.
+    weight_mode : str
+        Whether to use 'uniform' or 'random' weights in the Hamiltonian.
+
+    Returns
+    -------
+    P_sym : PauliSum
+        The symmetric Hamiltonian as a PauliSum.
+
+    Notes
+    -----
+    This function first generates a random Pauli string Hamiltonian, then applies the gate and its inverse to it. 
+    The sum of the two is the symmetric Hamiltonian. The weights are rounded to 10 decimal places and Pauli strings 
+    with zero weight are removed.
+    """
+    if n_qudits is None:
+        n_qudits = G.dimension + 1
+    if n_paulis is None:
+        n_paulis = 2 * n_qudits
+    P = random_pauli_symmetry_hamiltonian(n_qudits, n_paulis, 0, 0, weight_mode=weight_mode)
+    G_inv = G.inverse()
+    P_prime = G_inv.act(P)
+    P_sym = P + P_prime
+    P_sym.phase_to_weight()
+    P_sym.combine_equivalent_paulis()
+    P_sym.weights = np.around(P_sym.weights, decimals=10)
+    P_sym.remove_zero_weight_paulis()
+    if scrambled == True:
+        g = Gate.from_random(n_qudits, 2)
+        P_sym = g.act(P_sym)
+    return(P_sym)

@@ -968,7 +968,6 @@ class PauliSum:
                 to_delete.append(i)
         self._delete_qudits(to_delete)
 
-<<<<<<< HEAD
     def remove_zero_weight_paulis(self):
         # If weight of Pauli string is 0, remove it
         to_delete = []
@@ -977,9 +976,6 @@ class PauliSum:
                 to_delete.append(i)
         self._delete_paulis(to_delete)
 
-    def symplectic(self) -> np.ndarray:
-        symplectic = np.zeros([self.n_paulis(), 2 * self.n_qudits()], dtype=int)
-=======
     def tableau(self) -> np.ndarray:
         """
         Returns the tableau representation of the PauliSum.
@@ -992,7 +988,6 @@ class PauliSum:
         """
         tableau = np.zeros([self.n_paulis(), 2 * self.n_qudits()],
                            dtype=int)
->>>>>>> a5d3405167ab266889e7a86146cc158d1eb831e4
         for i, p in enumerate(self.pauli_strings):
             tableau[i, :] = p.tableau()
         return tableau
