@@ -27,8 +27,10 @@ def group_indices(lst):
     return [indices for indices in index_dict.values()]
 
 
-def Hadamard_Symmetric_PauliSum(n_paulis, n_qubits, n_sym_q, q_print=False, random_coefficients=False):
+def Hadamard_Symmetric_PauliSum(n_paulis, n_qubits, n_sym_q, q_print=False, random_coefficients=False, seed=None):
     # create coefficients
+    if seed is not None:
+        np.random.seed(seed)
     c_int_bands = np.sort(np.random.randint(n_paulis, size=n_paulis))
     c_bands = group_indices(c_int_bands)
 

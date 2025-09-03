@@ -2,36 +2,30 @@ from quaos.core.circuits.target import find_map_to_target_pauli_sum
 from quaos.core.paulis import PauliSum
 from quaos.utils import get_linear_dependencies
 import numpy as np
-from .graph_permutations import find_one_permutation, permutation_to_swaps, mapping_key, find_swapped_dependent_elements
+from quaos.graph_utils import find_one_permutation, permutation_to_swaps, mapping_key, find_swapped_dependent_elements
+from quaos.core.circuits.gates import Gate
+from quaos.models import Hadamard_Symmetric_PauliSum, SWAP_symmetric_PauliSum
 
 
-def symmetric_symplectic(pauli_sum: PauliSum, find_all=False, max_cycle=20):
-    if np.all(pauli_sum.dimensions == pauli_sum.dimensions[0]):
+def symmetric_symplectic(pauli_sum: PauliSum, max_cycle=20):
+    if not np.all(pauli_sum.dimensions == pauli_sum.dimensions[0]):
         raise NotImplementedError('Currently only implemented for qudits of the same dimension')
 
-    d = pauli_sum.dimensions[0]
+    d = int(pauli_sum.dimensions[0])
     cs = pauli_sum.weights
     independent_paulis, dependencies = get_linear_dependencies(pauli_sum.tableau(), d)
 
     graph_dict = make_graph_dictionary(independent_paulis, dependencies, cs)
-    permutations = _loop_through_permutations(graph_dict, pauli_sum, find_all=find_all, max_cycle=max_cycle)
+    permutations, target = _loop_through_permutations(graph_dict, pauli_sum, find_all=False, max_cycle=max_cycle)
 
-    # Now find symplectic
-    p_target =
-    if find_all:
-        for perm in permutations:
+    H_indep = pauli_sum[independent_paulis]
+    H_t_indep = target[independent_paulis]
 
-    else:
-        H_indep = H[independent_paulis]
-        H_t_indep = H_target[independent_paulis]
+    assert np.all(H_indep.symplectic_product_matrix() == H_t_indep.symplectic_product_matrix())
+    F, h, _, _ = find_map_to_target_pauli_sum(H_indep, H_t_indep)
 
-        assert np.all(H_indep.symplectic_product_matrix() == H_t_indep.symplectic_product_matrix())
+    return Gate('Symmetry', [i for i in range(pauli_sum.n_qudits())], F.T, 2, h)
 
-        # print(H_indep)
-        # print(H_t_indep)
-
-        F, _, _, _ = find_map_to_target_pauli_sum(H_indep, H_t_indep)
-        return F
 
 def _loop_through_permutations(graph_dict, pauli_sum, find_all=False, max_cycle=20):
     permutation = ()
@@ -39,33 +33,30 @@ def _loop_through_permutations(graph_dict, pauli_sum, find_all=False, max_cycle=
 
     permutations_attempted = set()
     found = False
-    targets = []
 
     i = 0
     # all_permutations = brute_force_all_permutations(graph_dict[1], np.ones(len(graph_dict[1]), dtype=int))
     # print([permutation_to_swaps(perm) for perm in all_permutations])
     while not found:
         i += 1
-        ##### SHOULD NOT JUST BE graph_dict[1]
+        # SHOULD NOT JUST BE graph_dict[1] - this just gets a single weight
         permutation = find_one_permutation(graph_dict[1], pauli_sum.weights, permutations_attempted,
                                            max_cycle_size=max_cycle)
         if permutation is None:
-            raise ValueError("No valid permutation found")
+            raise Exception("No valid permutation found")
 
-        print(permutation_to_swaps(permutation))
         pairs = permutation_to_swaps(permutation)
         swapped_dependents = find_swapped_dependent_elements(pairs, graph_dict[1])
-        print('sd = ', swapped_dependents)
         H_target = pauli_sum.copy()
 
-        ######################################
-        # THIS BIT IS BUGGY
+        ########################################
+        # THIS BIT IS POSSIBLY BUGGY
         for p in pairs:
             H_target.swap_paulis(p[0], p[1])
         for p in swapped_dependents:
             if p not in pairs:
                 H_target.swap_paulis(p[0], p[1])
-        ######################################
+        ########################################
 
         if np.array_equal(H_target.symplectic_product_matrix(), pauli_sum.symplectic_product_matrix()):
             found = True
@@ -75,13 +66,12 @@ def _loop_through_permutations(graph_dict, pauli_sum, find_all=False, max_cycle=
                                                        domain=sorted({x for lst in graph_dict[1] for x in lst})))
                 permutations_found.add(permutation_to_swaps(permutation))
             else:
+                print(permutation_to_swaps(permutation))
                 return permutation_to_swaps(permutation), H_target
         else:
-            print("Not an automorphism, trying next permutation")
-            permutations_attempted.add(mapping_key(
-                permutation, domain=sorted({x for lst in graph_dict[1] for x in lst})))
-
-    return permutations_found, H_target
+            permutations_attempted.add(mapping_key(permutation,
+                                                   domain=sorted({x for lst in graph_dict[1] for x in lst})))
+    return list(permutations_found), H_target
 
 
 def make_graph_dictionary(independent_paulis, dependencies, weights):
@@ -99,7 +89,7 @@ def make_graph_dictionary(independent_paulis, dependencies, weights):
         key = weights[i]
         dependency = dependencies[i]
         dependence_indices = [x[0] for x in dependency]
-        dependence_multiplicities = [x[1] for x in dependency]  # this will be needed for qudits! always 1 for now
+        # dependence_multiplicities = [x[1] for x in dependency]  # this will be needed for qudits! always 1 for now
         if key in graph_dict:
             graph_dict[key].append(dependence_indices)
         else:
@@ -108,3 +98,43 @@ def make_graph_dictionary(independent_paulis, dependencies, weights):
     return graph_dict
 
 
+def test_hadamard_symmetries():
+    correct = 0
+    n_tests = 10
+    seed = None
+    for i in range(n_tests):
+        print(f'Running Hadamard test {i + 1}/{n_tests}')
+        n_qubits = 5
+        n_sym_q = 2
+        n_paulis = 12
+        H, C = Hadamard_Symmetric_PauliSum(n_paulis, n_qubits, n_sym_q, seed=seed)
+        H.combine_equivalent_paulis()
+        F = symmetric_symplectic(H, max_cycle=4)
+        Fp = F.act(H)
+        Fp.standardise()
+        H.standardise()
+        if np.array_equal(Fp.tableau(), H.tableau()):
+            print('Success!')
+            correct += 1
+
+    print(f'Correct: {correct}/{n_tests}')
+
+
+def test_SWAP_symmetries():
+    correct = 0
+    n_tests = 10
+    for i in range(n_tests):
+        print(f'Running SWAP test {i+1}/{n_tests}')
+        n_qubits = 5
+        n_paulis = 12
+        H = SWAP_symmetric_PauliSum(n_paulis, n_qubits)
+        H.combine_equivalent_paulis()
+        F = symmetric_symplectic(H, max_cycle=4)
+        if np.all(F.act(H).tableau() == H.tableau()):
+            correct += 1
+    print(f'Correct: {correct}/{n_tests}')
+
+
+if __name__ == '__main__':
+    test_hadamard_symmetries()
+    # test_SWAP_symmetries()

@@ -215,7 +215,6 @@ class Circuit:
             phase_vector = gate.phase_vector
 
             F, h = embed_symplectic(symplectic, phase_vector, indexes, self.n_qudits())  #
-            
             if i == 0:
                 total_phase_vector = h
             else:
