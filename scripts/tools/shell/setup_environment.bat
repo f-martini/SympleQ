@@ -6,6 +6,9 @@ cd /d %~dp0
 call env.bat
 cd %PROJECT_ROOT%
 
+
+CALL %VCVARSALL_PATH% x64
+
 REM Initializing virtual environment...
 if not exist %SRC_VENV% (
     echo Creating virtual environment %SRC_VENV%...

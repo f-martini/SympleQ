@@ -21,6 +21,7 @@ set PERSONAL_FOLDER=scripts/personal
 set DIST_FOLDER=dist/
 set DEV_REQUIREMENTS=scripts/configs/dev_requirements.txt
 set CMAKE_X86_64_PRESET=windows-x86_64-RelWithDebInfo
+set VCVARSALL_PATH="C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"
 
 REM Clear notebooks env variables
 set NOTEBOOKS_ROOT_DIR=%PROJECT_ROOT%

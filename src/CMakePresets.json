@@ -110,6 +110,8 @@
       "description": "Windows x86_64 Release build",
       "hidden": false,
       "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl"
       }
     },
     {
@@ -119,6 +121,8 @@
       "description": "Windows x86_64 RelWithDebInfo build",
       "hidden": false,
       "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl"
       }
     }
   ]
