@@ -66,7 +66,7 @@ def symplectic_product_matrix(pauli_sum: np.ndarray) -> np.ndarray:
     return spm
 
 
-def construct_omega(n: int, p: int = 2) -> np.ndarray:
+def symplectic_form(n: int, p: int = 2) -> np.ndarray:
     """
     Construct the symplectic matrix Omega for a given dimension n over GF(p).
 
@@ -98,7 +98,7 @@ def transvection_matrix(h: np.ndarray, p=2, multiplier=1):
         The transvection matrix as a 2n x 2n matrix over integers modulo p
     """
     n = len(h) // 2
-    Omega = construct_omega(n, p)
+    Omega = symplectic_form(n, p)
 
     F_h = (np.eye(2 * n, dtype=int) + multiplier * Omega @ (np.outer(h.T, h))) % p
     return F_h

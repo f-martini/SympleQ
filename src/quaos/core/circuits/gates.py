@@ -2,9 +2,10 @@ import numpy as np
 from quaos.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
 from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
-from quaos.core.circuits.utils import transvection_matrix
+from quaos.core.circuits.utils import transvection_matrix, symplectic_form
 from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
 from quaos.utils import get_linear_dependencies
+from quaos.core.finite_field_solvers import mod_inv
 
 
 class Gate:
@@ -150,6 +151,25 @@ class Gate:
         if self.name[0] != "T":
             self.name = "T-" + self.name
         return Gate(self.name, self.qudit_indices, self.symplectic @ T, self.dimensions, self.phase_vector)
+
+    def inv(self) -> 'Gate':
+        print("Warning: inverse phase vector not working - PHASES MAY BE INCORRECT.")
+
+        C = self.symplectic.T
+
+        U = np.zeros((2 * self.n_qudits, 2 * self.n_qudits), dtype=int)
+        U[self.n_qudits:, :self.n_qudits] = np.eye(self.n_qudits, dtype=int)
+        Omega = symplectic_form(int(C.shape[0] / 2), p=self.lcm)
+
+        C_inv = -(Omega.T @ C.T @ Omega) % self.lcm
+        U_c = C_inv.T @ U @ C_inv % self.lcm
+
+        p1 = - C_inv.T @ self.phase_vector
+        p2 = - np.diag(C.T @ (2 * np.triu(U_c) - np.diag(np.diag(U_c))) @ C)
+        p3 = C.T @ np.diag(U_c)
+
+        phase_vector = (p1 + p2 + p3) % (2 * self.lcm)
+        return Gate(self.name + "-inv", self.qudit_indices, C_inv.T, self.dimensions, phase_vector)
 
 
 class SUM(Gate):

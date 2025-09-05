@@ -1,6 +1,7 @@
 import random
 import numpy as np
 from quaos.core.paulis import PauliSum, PauliString
+from quaos.core.circuits import Circuit, Gate
 
 
 def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
@@ -63,3 +64,78 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
 
     rand_ham = PauliSum(pauli_strings, weights=coefficients)
     return rand_ham
+
+
+
+def pauli_hamiltonian_row_reduced_form(n_qudits: int,
+                                       n_paulis: int,
+                                       n_redundant: int = 0,
+                                       n_conditional: int = 0,
+                                       weight_mode: str = 'uniform',
+                                       phase_mode: str = 'zero'):
+    # 0: I, 1: X, 2: Z, 3: Y
+    n_rest = n_qudits - n_redundant - n_conditional
+    # create general structure of the Pauli Hamiltonian before scrambling it with clifford gates
+    # redundant qubits
+    P = np.zeros((n_paulis, n_qudits), dtype=int)
+
+    # conditional qubits
+    for i in range(n_conditional - n_redundant):
+        q = np.arange(n_redundant, n_conditional)[i]
+        P[2 * n_rest + i, q] = 2  # Z
+        for j in range(1, n_paulis - (2 * n_rest + i)):
+            P[2 * n_rest + i + j, q] = np.random.choice([0, 2])  # I, Z
+
+    # remaining qubits
+    for i in range(n_qudits - (n_redundant + n_conditional)):
+        q = np.arange(n_redundant + n_conditional, n_qudits)[i]
+        P[i, q] = 1
+        P[n_rest + i, q] = 2
+        for j in range(1, n_rest - i):
+            P[i + j, q] = np.random.choice([0, 1, 2, 3])
+            P[n_rest + i + j, q] = np.random.choice([0, 1, 2, 3])
+
+        for j in range(n_paulis - 2 * n_rest):
+            P[2 * n_rest + j, q] = np.random.choice([0, 1, 2, 3])
+
+    # Turn P-Matrix into PauliSum
+    pauli_strings = ['' for _ in range(n_paulis)]
+    for i in range(n_paulis):
+        for j in range(n_qudits):
+            if P[i, j] == 0:
+                pauli_strings[i] += 'x0z0'
+            elif P[i, j] == 1:
+                pauli_strings[i] += 'x1z0'
+            elif P[i, j] == 2:
+                pauli_strings[i] += 'x0z1'
+            elif P[i, j] == 3:
+                pauli_strings[i] += 'x1z1'
+
+            pauli_strings[i] += ' '
+        pauli_strings[i] = pauli_strings[i].strip()
+
+    if weight_mode == 'uniform':
+        weights = np.ones(n_paulis, dtype=float)
+    elif weight_mode == 'random':
+        weights = np.random.rand(n_paulis)
+
+    if phase_mode == 'zero':
+        phases = np.zeros(n_paulis, dtype=int)
+    elif phase_mode == 'random':
+        phases = np.random.randint(0, 2, size=n_paulis, dtype=int)
+
+    P = PauliSum(pauli_strings, weights=weights, dimensions=[2] * n_qudits, phases=phases, standardise=False)
+
+    g = Circuit.from_random(n_qudits, 1000, [2] * n_qudits)
+    P = g.act(P)
+
+    return P
+
+
+def random_symmetric_pauli_sum(symmetry: 'Gate', n_qudits: int, n_paulis: int):
+
+    P = pauli_hamiltonian_row_reduced_form(n_qudits, n_paulis, 0, 0)
+    G_inv = symmetry.inv()
+    P_prime = G_inv.act(P)
+    P_sym = P + P_prime
+    return P_sym
