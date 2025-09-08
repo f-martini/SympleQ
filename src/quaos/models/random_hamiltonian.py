@@ -66,7 +66,6 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
     return rand_ham
 
 
-
 def pauli_hamiltonian_row_reduced_form(n_qudits: int,
                                        n_paulis: int,
                                        n_redundant: int = 0,
@@ -75,6 +74,10 @@ def pauli_hamiltonian_row_reduced_form(n_qudits: int,
                                        phase_mode: str = 'zero'):
     # 0: I, 1: X, 2: Z, 3: Y
     n_rest = n_qudits - n_redundant - n_conditional
+    if n_paulis < 2 * n_rest:
+        raise ValueError('Number of Paulis must be at least 2 * (n_qudits - n_redundant - n_conditional)')
+    if n_redundant + n_conditional > n_qudits:
+        raise ValueError('Number of redundant and conditional qudits exceeds total number of qudits.')
     # create general structure of the Pauli Hamiltonian before scrambling it with clifford gates
     # redundant qubits
     P = np.zeros((n_paulis, n_qudits), dtype=int)
@@ -90,6 +93,7 @@ def pauli_hamiltonian_row_reduced_form(n_qudits: int,
     for i in range(n_qudits - (n_redundant + n_conditional)):
         q = np.arange(n_redundant + n_conditional, n_qudits)[i]
         P[i, q] = 1
+        print(n_rest + i, q)
         P[n_rest + i, q] = 2
         for j in range(1, n_rest - i):
             P[i + j, q] = np.random.choice([0, 1, 2, 3])
