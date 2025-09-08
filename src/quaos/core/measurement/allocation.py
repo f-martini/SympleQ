@@ -1,0 +1,396 @@
+import numpy as np
+import random
+import itertools
+from quaos.core.paulis import PauliSum, PauliString
+from quaos.core.measurement.covariance_graph import graph
+from quaos.core.circuits import Circuit
+from quaos.core.circuits.gates import Gate, Hadamard as H, SUM as CX, PHASE as S
+
+def sort_hamiltonian(P:PauliSum):
+    """
+    Sorts the Hamiltonian's Pauli operators based on hermiticity, with hermitian ones first and then pairs of
+    Paulis and their hermitian conjugate. !!! Also removes identity !!!
+
+    Parameters:
+        P (pauli): A set of Pauli operators.
+        coefficients (list): Corresponding coefficients of the Pauli operators.
+
+    Returns:
+        tuple: Sorted Pauli operators, coefficients, and the size of Pauli blocks.
+    """
+    cc = P.weights
+    pauli_count = P.n_paulis()
+    indices = list(range(pauli_count))
+
+    hermitian_indices = []
+    non_hermitian_indices = []
+    paired_conjugates = []
+
+    while indices:
+        i = indices.pop(0)
+        P0 = P[i, :]
+        P0_str = str(P0)
+        P0_conjugate = P0.hermitian()
+        P0_conj_str = str(P0_conjugate)
+
+        if P0_str == P0_conj_str:
+            if P0.x_exp[0].any() or P0.z_exp[0].any():
+                hermitian_indices.append(i)
+            continue
+        else:
+            non_hermitian_indices.append(i)
+
+        for j in indices:
+            P1 = P[j,:]
+            P1_str = str(P1)
+            if P0_conj_str == P1_str:
+                paired_conjugates.append(j)
+                indices.remove(j)
+                break
+
+    # Rebuild Pauli set and coefficients
+    sorted_indices = []
+    pauli_block_sizes = []
+
+    # Handle hermitian indices
+    for i in hermitian_indices:
+        sorted_indices.append(i)
+        pauli_block_sizes.append(1)
+
+    # Handle non-hermitian indices and their conjugates
+    for i, j in zip(non_hermitian_indices, paired_conjugates):
+        sorted_indices.extend([i, j])
+        pauli_block_sizes.append(2)
+
+    # Extract and reorder Pauli strings and coefficients
+    pauli_strings = P.pauli_strings
+    dims = P.dimensions
+    phases = P.phases
+
+    sorted_strings = [PauliString.from_string(pauli_strings[i],dims) for i in sorted_indices]
+    sorted_phases = np.array([phases[i] for i in sorted_indices])
+    sorted_coeffs = np.array([cc[i] for i in sorted_indices])
+
+    sorted_paulis = PauliSum(sorted_strings, sorted_coeffs, phases=sorted_phases, dimensions=dims, standardise=False)
+
+    return sorted_paulis, np.array(pauli_block_sizes)
+
+def levi_civita(i, j, k):
+    if (i == j) or (j == k) or (i == k):
+        return 0
+    elif (i, j, k) in [(0, 1, 2), (1, 2, 0), (2, 0, 1)]:
+        return 1
+    else:
+        return -1
+
+def quditwise_inner_product(P0,P1):
+    P0_paulis = [int(2*P0.x_exp[i] + P0.z_exp[i]) for i in range(P0.qudits())]
+    P1_paulis = [int(2*P1.x_exp[i] + P1.z_exp[i]) for i in range(P1.qudits())]
+    result = np.zeros(P0.qudits(),dtype=np.complex128)
+    for i in range(P0.qudits()):
+        if P0_paulis[i] == P1_paulis[i]:
+            result[i] = 1
+        else:
+            if P0_paulis[i] == 0:
+                result[i] = 1
+            elif P1_paulis[i] == 0:
+                result[i] = 1
+            else:
+                result[i] = np.sum([1j * levi_civita(P0_paulis[i]-1, P1_paulis[i]-1, k) for k in range(3)])
+
+    phase = np.prod(result).real
+    if phase == 1:
+        return(0)
+    elif phase == -1:
+        return(1)
+    else:
+        return(0)
+
+def get_phase_matrix(P:PauliSum):
+    p = P.n_paulis()
+    q = P.n_qudits()
+    d = int(P.lcm)
+    k_phases = np.zeros((p, p))
+    dims = P.dimensions
+    for i in range(p):
+        for j in range(p):
+            Pi = P[i,:]
+            Pj = P[j,:]
+            if d == 2:
+                k_phases[i, j] = quditwise_inner_product(Pi,Pj)
+            else:
+                pauli_phases = []
+                for k in range(q):
+                    if dims[k] == 2:
+                        Pi_ind = int(2*Pi.x_exp[k] + Pi.z_exp[k])
+                        Pj_ind = int(2*Pj.x_exp[k] + Pj.z_exp[k])
+                        phase = 0
+                        if Pi_ind == 0:
+                            phase = 0
+                        elif Pj_ind == 0:
+                            phase = 0
+                        else:
+                            phase = np.sum([0.5 * levi_civita(Pi_ind-1, Pj_ind-1, _) for _ in range(3)])
+
+                        phase = phase * int(d / dims[k])
+                        pauli_phases.append(phase)
+                    else:
+                        pauli_phases.append(((Pi.z_exp[k] * (Pi.x_exp[k] - Pj.x_exp[k])) % dims[k]) * int(d / dims[k]))
+                k_phases[i, j] = np.sum(pauli_phases) % d
+
+    return(k_phases)
+
+
+def choose_measurement(S,V,aaa,allocation_mode):
+    p = S.shape[0]
+    Ones = [np.ones((i, i), dtype=int) for i in range(p + 1)]
+    index_set = set(range(p))
+    S1 = S + Ones[p]
+    s = 1 / (S.diagonal() | (S.diagonal() == 0))
+    s1 = 1 / S1.diagonal()
+    factor = p - np.count_nonzero(S.diagonal())
+    S1[range(p), range(p)] = [a if a != 1 else -factor for a in S1.diagonal()]
+    V1 = V * (S * s * s[:, None] - S1 * s1 * s1[:, None])
+    V2 = 2 * V * (S * s * s[:, None] - S * s * s1[:, None])
+    aaa,aaa1 = itertools.tee(aaa,2)
+    if allocation_mode == 'set':
+        aa = sorted(max(aaa1, key=lambda xx: np.abs(
+            V1[xx][:, xx].sum() + V2[xx][:, list(index_set.difference(xx))].sum())))
+    elif allocation_mode == 'rand':
+        aa = sorted(random.sample(list(set(frozenset(aa1) for aa1 in aaa1)), 1)[0])
+    return(aa)
+
+def construct_circuit_list(P,xxx,D):
+    circuit_list = []
+    for aa in xxx:
+        C, D = construct_diagonalization_circuit(P,aa,D=D)
+        circuit_list.append(C)
+    return(circuit_list,D)
+
+def construct_diagonalization_circuit(P:PauliSum,aa,D={}):
+    if str(aa) in D:
+        P1, C, k_dict = D[str(aa)]
+    else:
+        P1 = P.copy()
+        P1._delete_paulis([i for i in range(P.n_paulis()) if i not in aa])
+
+        # add products
+        k_dict = {str(j0): [(a0, a0)] for j0, a0 in enumerate(aa)}
+        for j0, a0 in enumerate(aa):
+            for j1, a1 in enumerate(aa):
+                if j0 != j1:
+                    # isolate a pair of paulis in the clique
+                    P_a0 = P1[j0,:]
+                    P_a0c = P_a0.hermitian()
+                    P_a1 = P1[j1,:]
+                    # compute their product pauli
+                    P2 = P_a0c * P_a1
+                    # check if the product is in the original pauli list
+                    P2_s = str(P2)
+
+                    if P2 not in P1:
+                        k_dict[str(P1.n_paulis()+1)] = [(a0, a1)]
+                        P1 = P1 + P2
+                    else:
+                        P1_s = [str(ps) for ps in P1.pauli_strings]
+                        k_dict[str(P1_s.index(str(P2)))].append((a0, a1))
+
+        C = diagonalize(P1)
+        P1 = C.act(P1)
+        D[str(aa)] = (P1, C, k_dict)
+    return(C,D)
+
+# TODO Update to framework
+# returns the circuit which diagonalizes a pairwise commuting pauli object
+def diagonalize(P:PauliSum):
+    # Inputs:
+    #     P - (pauli) - Pauli to be diagonalized
+    # Outputs:
+    #     (circuit) - circuit which diagonalizes P
+    dims = P.dimensions
+    q = P.n_qudits()
+
+    if not P.is_commuting():
+        raise Exception("Paulis must be pairwise commuting to be diagonalized")
+    P1 = P.copy()
+    C = Circuit(dims)
+
+    if P.is_quditwise_commuting():
+        # for each dimension, call diagonalize_iter_quditwise_ on the qudits of the same dimension
+        for d in sorted(set(dims)):
+            aa = [i for i in range(q) if dims[i]==d]
+            while aa:
+                C = diagonalize_iter_quditwise_(P1,C,aa)
+        P1 = C.act(P1)
+    else:
+        # for each dimension, call diagonalize_iter_ on the qudits of same dimension
+        for d in sorted(set(dims)):
+            aa = [i for i in range(q) if dims[i]==d]
+            while aa:
+                C = diagonalize_iter_(P1,C,aa)
+        P1 = C.act(P1)
+
+    # if any qudits are X rather than Z, apply H to make them Z
+    if [i for i in range(q) if any(P1.x_exp[:,i])]:
+        C1 = Circuit(dims)
+        for i in range(q):
+            if any(P1.x_exp[:,i]):
+                g = H(i,2)
+                C.add_gate(g)
+                C1.add_gate(g)
+        P1 = C1.act(P1)
+    return C
+
+# TODO Update to framework
+# an iterative function called within diagonalize()
+def diagonalize_iter_(P,C,aa):
+    # Inputs:
+    #     P  - (pauli)     - Pauli to be diagonalized
+    #     C  - (circuit)   - circuit which diagonalizes first a-1 qudits
+    #     aa - (list{int}) - remaining qudits of same dimension
+    # Outputs:
+    #     (circuit) - circuit which diagonalizes first a qudits
+    p,q = P.paulis(),P.qudits()
+    P = C.act(P)
+    a = aa.pop(0)
+
+    # if all Paulis have no X-part on qudit a, return C
+    if not any(P.x_exp[:,a]):
+        return C
+
+    # set a1 to be the index of the minimum Pauli with non-zero X-part of qudit a
+    a1 = min(i for i in range(p) if P.x_exp[i,a])
+
+    # add CNOT gates to cancel out all non-zero X-parts on Pauli a1, qudits in aa
+    while any(P.x_exp[a1,i] for i in aa):
+        C1 = Circuit(P.dimensions)
+        for i in aa:
+            if P.x_exp[a1,i]:
+                g = CX(a,i,P.dimensions[a])
+                C.add_gate(g)
+                C1.add_gate(g)
+        P = C1.act(P)
+
+    # check whether there are any non-zero Z-parts on Pauli a1, qudits in aa
+    while any(P.z_exp[a1,i] for i in aa):
+
+        # if Pauli a1, qudit a is X, apply S gate to make it Y
+        if not P.z_exp[a1,a]:
+            g = S(a,P.dimensions[a])
+            C.add_gates_(g)
+            P = g.act(P)
+
+        # add backwards CNOT gates to cancel out all non-zero Z-parts on Pauli a1, qudits in aa
+        gg = [CX(i,a,P.dimensions[a]) for i in aa if P.z_exp[a1,i]]
+        C.add_gate(gg)
+        for g in gg:
+            P = g.act(P)
+
+    # if Pauli a1, qudit a is Y, add S gate to make it X
+    while P.z_exp[a1,a]:
+        g = S(a,P.dimensions[a])
+        C.add_gate(g)
+        P = g.act(P)
+    return C
+
+# TODO Update to framework
+# an iterative function called within diagonalize()
+def diagonalize_iter_quditwise_(P,C,aa):
+    # Inputs:
+    #     P  - (pauli)     - Pauli to be diagonalized
+    #     C  - (circuit)   - circuit which diagonalizes first a-1 qudits
+    #     aa - (list{int}) - remaining qudits of same dimension
+    # Outputs:
+    #     (circuit) - circuit which diagonalizes first a qudits
+    p,q = P.paulis(),P.qudits()
+    P = C.act(P)
+    a = aa.pop(0)
+
+    # if all Paulis have no X-part on qudit a, return C
+    if not any(P.x_exp[:,a]):
+        return C
+
+    # set a1 to be the index of the minimum Pauli with non-zero X-part of qudit a
+    a1 = min(i for i in range(p) if P.x_exp[i,a])
+
+    # if Pauli a1, qudit a is Y, add S gate to make it X
+    while P.z_exp[a1,a]:
+        g = S(a,P.dimensions[a])
+        C.add_gate(g)
+        P = g.act(P)
+    return C
+
+# TODO Update to framework
+# checks whether circuit properly diagonalizes subset of Paulis
+def is_diagonalizing_circuit(P,C,aa):
+    P1 = P.copy()
+    P1._delete_paulis([i for i in range(P.paulis()) if not i in aa])
+    P1 = C.act(P1)
+    return P1.is_z()
+
+
+def update_X(xxx, rr, X, k_phases, D):
+    d = len(X[0,0])
+    for i,aa in enumerate(xxx):
+        (P1, C, k_dict) = D[str(aa)]
+        p1, q1, phases1, dims1 = P1.paulis(), P1.qudits(), P1.phases, P1.dims
+        #int_to_bases(rr[i], dims1) # or just rr[i] depending on how experimentalists want to input their results
+        bases_a1 = rr[i]
+        ss = [(phases1[i0] + sum((bases_a1[i1] * P1.Z[i0, i1] * P1.lcm) // P1.dims[i1]
+               for i1 in range(q1))) % P1.lcm for i0 in range(p1)]
+        for j0, s0 in enumerate(ss):
+            for a0, a1 in k_dict[str(j0)]:
+                if a0 != a1:
+                    X[a0, a1, int((s0 + k_phases[a0, a1]) % d)] += 1
+                else:
+                    X[a0, a1, s0] += 1
+    return(X)
+
+def scale_variances(A,S):
+    # Inputs:
+    #     A - (graph)       - variance matrix
+    #     S - (numpy.array) - array for tracking number of measurements
+    p = A.ord()
+    S1 = S.copy()
+    S1[range(p),range(p)] = [a if a != 0 else 1 for a in S1.diagonal()]
+    s1 = 1/S1.diagonal()
+    return graph(S1*A.adj*s1*s1[:,None])
+
+def diagnostic_circuits(circuit_list):
+    diagnostic_circuits = []
+    for circ in circuit_list:
+        C_diag = Circuit(dimensions = circ.dimensions)
+        for g in circ.gates:
+            C_diag.add_gate(g.copy())
+            if g.name == 'H':
+                C_diag.add_gate(g.copy())
+                C_diag.add_gate(g.copy())
+                C_diag.add_gate(g.copy())
+        diagnostic_circuits.append(C_diag)
+    return(diagnostic_circuits)
+
+def diagnostic_states(diagnostic_circuits: list[Circuit], mode = 'Zero'):
+    if mode == 'Zero':
+        state = [0]*np.prod(diagnostic_circuits[0].dimensions)
+        state[0] = 1
+        state_preparation_circuits = [Circuit(diagnostic_circuits[0].dimensions)]*len(diagnostic_circuits)
+        return([state]*len(diagnostic_circuits), state_preparation_circuits)
+    elif mode == 'Random':
+        raise Exception('Random diagnostic states not yet implemented')
+    else:
+        raise Exception('Diagnostic state mode not recognized')
+
+def standard_noise_probability_function(circuit, p_entangling = 0.03, p_local = 0.001, p_mes = 0.001):
+    n_local = 0
+    n_entangling = 0
+    for g in circuit.gates:
+        if g.name_string() == 'CX':
+            n_entangling += 1
+        else:
+            n_local += 1
+    noise_prob = 1 - ((1-p_mes) * (1-p_entangling)**n_entangling * (1-p_local)**n_local)
+    return(noise_prob)
+
+def standard_error_function(result, dims):
+    return np.array([np.random.randint(dims[j]) for j in range(len(dims))])
+
