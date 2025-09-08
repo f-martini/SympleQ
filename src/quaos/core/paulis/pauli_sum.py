@@ -985,6 +985,14 @@ class PauliSum:
                 to_delete.append(i)
         self._delete_qudits(to_delete)
 
+    def remove_zero_weight_paulis(self):
+        # If weight of Pauli string is 0, remove it
+        to_delete = []
+        for i in range(self.n_paulis()):
+            if np.abs(self.weights[i]) <= 1e-14:
+                to_delete.append(i)
+        self._delete_paulis(to_delete)
+
     def tableau(self) -> np.ndarray:
         """
         Returns the tableau representation of the PauliSum.

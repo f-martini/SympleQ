@@ -227,3 +227,68 @@ def is_symplectic_interleaved(F: np.ndarray) -> bool:
         Omega[ii + 1, ii] = 1
     lhs = (F.T @ Omega @ F) & 1
     return np.array_equal(lhs, Omega)
+
+def _isotropic_vector(n, d):
+    """
+    Sample an isotropic vector v = (a|b) in Z_d^{2n}.
+    For d=2 (qubits), every vector is isotropic.
+    For prime d, ensures <v,v> = 0 mod d.
+    """
+    if d == 2:
+        # Any vector works
+        return np.random.randint(0, 2, size=(2*n,), dtype=int)
+
+    # d prime
+    while True:
+        a = np.random.randint(0, d, size=(n,), dtype=int)
+        if np.all(a == 0):
+            continue  # avoid trivial a
+        # Find random b orthogonal to a
+        while True:
+            b = np.random.randint(0, d, size=(n,), dtype=int)
+            if (a @ b) % d == 0:
+                return np.concatenate([a, b])
+
+def _vector_to_transvection(v, J, d):
+    """
+    Return the symplectic transvection matrix T_v over Z_d:
+        T_v(w) = w + <v, w> * v (mod d).
+    """
+    v = v.reshape(-1, 1)
+    return (np.identity(len(v), dtype=int) + (J @ v) @ v.T) % d
+
+def symplectic_random_transvection(n_qudits, dimension=2, num_transvections=None):
+    """
+    Return a random 2n x 2n symplectic matrix over Z_d by composing
+    num_transvections random transvections.
+
+    Parameters
+    ----------
+    n_qudits : int
+        Number of qudits (i.e. pairs of rows/cols).
+    dimension : int
+        Dimension of each qudit (>=2).
+    num_transvections : int or None
+        Number of transvections to compose. If None, defaults to 2 * (2n).
+
+    Returns
+    -------
+    M : (2n x 2n) integer matrix
+        Random symplectic matrix over Z_d.
+    """
+    Id_n = np.identity(n_qudits, dtype=int)
+    Zero_n = np.zeros((n_qudits, n_qudits), dtype=int)
+    J = np.block([[Zero_n, Id_n], [-Id_n, Zero_n]]) % dimension
+
+    dim = 2 * n_qudits
+    M = np.identity(dim, dtype=int)
+
+    if num_transvections is None:
+        num_transvections = 2 * dim
+
+    for _ in range(num_transvections):
+        v = _isotropic_vector(n_qudits, dimension)
+        Mv = _vector_to_transvection(v, J, dimension)
+        M = (Mv @ M) % dimension
+
+    return M

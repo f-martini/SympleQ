@@ -46,15 +46,17 @@ class Gate:
         return cls(name, qudit_indices, symplectic.T, dimension, phase_vector)
 
     @classmethod
-    def from_random(cls, n_qudits: int, dimension: int, seed=None):
+    def from_random(cls, n_qudits: int, dimension: int, n_transvection=None, seed=None):
         np.random.seed(seed)
-        if dimension != 2:
-            raise NotImplementedError("Only implemented for dimension 2. GF(p) will be done asap.")
-
-        symp_int = np.random.randint(symplectic_group_size(n_qudits))
-        symplectic = symplectic_gf2(symp_int, n_qudits)
-        phase_vector = get_phase_vector(symplectic, dimension)
-        return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
+        if n_qudits < 4 and dimension == 2:
+            symp_int = np.random.randint(symplectic_group_size(n_qudits))
+            symplectic = symplectic_gf2(symp_int, n_qudits)
+            phase_vector = get_phase_vector(symplectic, dimension)
+            return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
+        else:
+            symplectic = symplectic_random_transvection(n_qudits, dimension=dimension, num_transvections=n_transvection)
+            phase_vector = get_phase_vector(symplectic, dimension)
+            return cls(f"R{n_transvection}", list(range(n_qudits)), symplectic, dimension, phase_vector)
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
         if np.all(self.dimensions != P.dimensions[self.qudit_indices]):
@@ -170,6 +172,38 @@ class Gate:
 
         phase_vector = (p1 + p2 + p3) % (2 * self.lcm)
         return Gate(self.name + "-inv", self.qudit_indices, C_inv.T, self.dimensions, phase_vector)
+
+    def inverse(self) -> 'Gate':
+        """
+        Returns the inverse of this gate.
+
+        The inverse of a gate G is another gate G' such that the composition G'G is the identity.
+
+        The inverse of a gate is computed using the formulae presented in PHYSICAL REVIEW A 71, 042315 (2005)
+
+        :return: A new Gate object, the inverse of this gate.
+        """
+
+        d = self.dimension
+        h = self.phase_vector
+        n = len(self.qudit_indices)
+
+        Id_n = np.eye(n)
+        Zero_n = np.zeros((n,n))
+        U = np.block([[Zero_n,Zero_n],[Id_n,Zero_n]])
+        Omega = (U - U.T)%d
+
+        C = self.symplectic
+        C_inv = (Omega.T @ C.T @ Omega)%d
+
+        U_trans = C_inv.T @ U @ C_inv
+        T1 = np.diag(C.T @ (2 * np.triu(U_trans, k=1) + np.diag(np.diag(U_trans))) @ C)
+        T2 = C.T @ np.diag(U_trans)
+
+        h_inv = (- C_inv.T @ (h + T1 + T2))%(2*d)
+
+        return Gate(self.name+'_inv', self.qudit_indices.copy(), C_inv, self.dimension,
+                    h_inv)
 
 
 class SUM(Gate):
