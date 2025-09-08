@@ -2,6 +2,9 @@ import numpy as np
 import galois
 from quaos.core.circuits.utils import symplectic_product
 from quaos.core.circuits.find_symplectic_qudits import *
+from quaos.utils import get_linear_dependencies
+from quaos.models import random_hamiltonian
+from quaos.core.circuits import  Circuit
 
 class TestSymplecticSolverQudits:
 
@@ -23,7 +26,7 @@ class TestSymplecticSolverQudits:
 
         return (symplectic_product(u, w, p) != 0 and symplectic_product(w, v, p) != 0)
 
-    def test_find_w(self):
+    def test_build_intermediate_ps(self):
         """Test function that checks for intermediate solution."""
         n = 10
         p=19
@@ -50,7 +53,7 @@ class TestSymplecticSolverQudits:
                                                     ' v={v}, w={w}: <u,w>={symplectic_product(u, w, p)},'\
                                                     ' <v,w>={symplectic_product(w,v,p)}")
 
-    def test_transvection_matrix(self):
+    def test_transvection_matrix_construct(self):
         n=10
         p=13
         u = np.random.randint(p, size=2 * n)
@@ -71,3 +74,68 @@ class TestSymplecticSolverQudits:
 
                 assert (u @ F_h %p == v).all(), (f"Mapping failed for u={u},'\
                                                     ' v={v}, w={w}: ")
+
+    def test_solve_for_intermediate_ps(self):
+        n= 10
+        for p in range(2, 20):
+            if galois.is_prime(p):
+                for _ in range(3000):
+                    u = np.random.randint(p, size=2 * n)
+                    v = np.random.randint(p, size=2 * n)
+
+                    is_zero_case = np.array_equal(u, np.zeros(2 * n)) or np.array_equal(v, np.zeros(2 * n))
+                    if is_zero_case:
+                        # Zero vector case - correctly identified as impossible
+                        continue
+                    elif symplectic_product(u, v, p) !=0:
+                        continue
+                    else:
+                        w= intermediate_transvection_solve(u, v, p)
+                        assert symplectic_product(u, w, p)!=0 and symplectic_product(
+                            w, v,p) !=0, f'{symplectic_product(u, w, p), symplectic_product(w, v, p)}'
+
+    def test_transvection_matrix_solve(self):
+        n=10
+        p=2
+        u = np.random.randint(p, size=2 * n)
+        v= np.random.randint(p, size=2 * n)
+
+        if not galois.is_prime(p):
+            raise NotImplementedError(f"Prime dimension expected, got p={p}")
+
+        for _ in range(10000):
+            is_zero_case = np.array_equal(u, np.zeros(2 * n)) or np.array_equal(v, np.zeros(2 * n))
+
+            if is_zero_case:
+                continue
+
+            else:
+                F_h= Find_transvection_map_solve(u, v, p)
+
+                assert (u @ F_h %p == v).all(), (f"Mapping failed for u={u},'\
+                                                    ' v={v}, w={w}: ")
+
+    def test_map_paulisum_to_paulisum(self):
+        n=2
+        p=2
+        m=10
+        allowed_dims = [2]  # can extend to [2, 3, 5, ...] if needed
+        dimensions = [int(np.random.choice(allowed_dims)) for _ in range(n)]
+        for _ in range(100):
+            pl_sum = random_hamiltonian.random_pauli_hamiltonian(m, dimensions)
+
+            basis_indices, _ = get_linear_dependencies(pl_sum.tableau(), int(pl_sum.lcm))
+            pl_sum = pl_sum[basis_indices]
+
+            # scramble input Hamiltonian to get target
+            C = Circuit.from_random(len(dimensions), 10 * n**2, dimensions=dimensions)
+            target_pl_sum = C.act(pl_sum)
+
+            input_tab = pl_sum.tableau()
+            output_tab = target_pl_sum.tableau()
+
+            if check_mappable_via_clifford(input_tab, output_tab):
+
+                F_total= map_paulisum_to_target_paulisum(input_tab, output_tab, p)
+
+                assert (input_tab @ F_total % p == output_tab).all(), f'could not map for {input_tab, output_tab}'

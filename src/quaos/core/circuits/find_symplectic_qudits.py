@@ -10,11 +10,81 @@ import numpy as np
 import galois
 from itertools import islice
 from quaos.core.circuits.utils import transvection_matrix, symplectic_product
+from quaos.core.circuits.find_symplectic import check_mappable_via_clifford
 
 
 def modinv(a, p):
-    """Modular inverse in GF(p)"""
-    return pow(int(a), p-2, p)
+    """Multiplicative inverse of a mod p (works for prime p)."""
+    return pow(int(a), -1, p)
+
+def solve_gfp(A: np.ndarray, b: np.ndarray, p: int):
+    """
+    Solve Ax = b over GF(p) using Gaussian elimination.
+    Returns one valid solution vector x (length n), or None if no solution exists.
+
+    Args:
+        A : coefficient matrix (m x n)
+        b : right-hand side vector (m,)
+        p : prime
+
+    Returns:
+        x : one solution in GF(p)^n as np.ndarray, or None
+    """
+    A = A.astype(int) % p
+    b = b.astype(int) % p
+    m, n = A.shape
+
+    # Augmented matrix
+    Ab = np.hstack([A, b.reshape(-1, 1)]) % p
+
+    pivot_row = 0
+    pivot_cols = []
+
+    for col in range(n):
+        # Find pivot
+        pivot = None
+        for row in range(pivot_row, m):
+            if Ab[row, col] != 0:
+                pivot = row
+                break
+        if pivot is None:
+            continue
+
+        # Swap into place
+        if pivot != pivot_row:
+            Ab[[pivot_row, pivot]] = Ab[[pivot, pivot_row]]
+
+        # Normalize pivot row
+        inv = modinv(Ab[pivot_row, col], p)
+        Ab[pivot_row] = (Ab[pivot_row] * inv) % p
+
+        # Eliminate other rows
+        for row in range(m):
+            if row != pivot_row and Ab[row, col] != 0:
+                factor = Ab[row, col]
+                Ab[row] = (Ab[row] - factor * Ab[pivot_row]) % p
+
+        pivot_cols.append(col)
+        pivot_row += 1
+        if pivot_row == m:
+            break
+
+    # Check inconsistency
+    for row in range(pivot_row, m):
+        if np.all(Ab[row, :-1] == 0) and Ab[row, -1] != 0:
+            return None  # no solution
+
+    # Build one solution: set free vars = 0
+    x = np.zeros(n, dtype=int)
+    for i, col in enumerate(pivot_cols):
+        row = i
+        val = Ab[row, -1]
+        for j in range(col + 1, n):
+            val = (val - Ab[row, j] * x[j]) % p
+        x[col] = val % p
+
+    return x
+
 
 def pair(vec, i, n):
     """Return 2x1 pair at index i"""
@@ -214,4 +284,215 @@ def Find_transvection_map(input_ps, output_ps, p):
     return F_h
 
 
+def intermediate_transvection_solve(u, v, p):
+    # solving in GF(p) instead of building for symplectic product = 0 case
+    # --- Input validation ---
+    if np.all(u == 0) or np.all(v == 0):
+        raise ValueError("Input vectors cannot be zero")
+    if not galois.is_prime(p):
+        raise NotImplementedError(f"Prime dimension expected, got p={p}")
+    if symplectic_product(u, v, p) != 0:
+        raise ValueError("Symplectic product must be zero")
 
+    n= int(len(u)//2)
+
+    A = np.zeros((2, 2 * n), dtype=int)           # The structure of A is such that [ux|-uz
+                                                                                    #  -vx|vz],
+                                                    #i.e, A @ w1 becomes [uxw1z- w1xuz
+                                                    #                      w1xvz- w1zvx]
+
+    w= np.zeros(2 * n, dtype=int)
+
+    A[0, :n] = u[:n]  # X part of u multiplies Z part of w
+    A[0, n:] = -u[n:]  # Z part of u multiplies X part of w
+
+    A[1, :n] = -v[:n]  # X part of v multiplies Z part of w
+    A[1, n:] = v[n:]  # Z part of v multiplies X part of w
+
+    for p1, p2 in zip(range(1, p), range(1, p)):
+        b = np.array([p1, p2])                 #The structure of b is : [symplectic product(u, w, p)
+                                                    #                         symplectic product(w, v, p)]
+        w1=solve_gfp(A, b, p)
+
+        if w1 is not None:                       # The solution will be [w1z
+            #                        w1x], so, we will change it to w]
+            w[:n]=w1[n:]
+            w[n:]= w1[:n]
+            break
+
+    #assert symplectic_product(u, w, p)!=0 and symplectic_product(w, v,p) !=0, f'{symplectic_product(u, w, p), symplectic_product(w, v, p)}'
+
+    return w
+
+
+def Find_transvection_map_solve(input_ps, output_ps, p):
+    """
+    Provides the map to transfer one PauliString in GF(p) to another PauliString.
+    Currently works only for prime dimension. 
+    Returns combined transvection (final map)
+    """
+
+    # --- Input validation ---
+    if np.all(input_ps == 0) or np.all(output_ps == 0):
+        raise ValueError("Vectors cannot be zero")
+    if not galois.is_prime(p):
+        raise NotImplementedError(f"Prime dimension expected, got p={p}")
+
+    a=symplectic_product(input_ps, output_ps,p)
+    if a != 0:
+        ainv = modinv(a, p)
+        h=(-input_ps + output_ps) % p
+        F_h= transvection_matrix(h, p, multiplier=ainv)
+        if (input_ps @ F_h % p != output_ps).all():
+            raise ValueError("Failed to construct valid transvection for nonzero symplectic product")
+
+    elif a == 0:
+        w=intermediate_transvection_solve(input_ps, output_ps, p)
+        a_w= symplectic_product(input_ps, w,p)
+        a_w_inv = modinv(a_w, p)
+        h=(-input_ps + w) % p
+        F_h_1= transvection_matrix(h, p, multiplier=a_w_inv)
+        if (input_ps @ F_h_1 % p != w).all():
+            raise ValueError("Failed to construct valid transvection for u->w")
+        b_w= symplectic_product(w, output_ps, p)
+        b_w_inv = modinv(b_w, p)
+        h=(-w + output_ps) % p
+        F_h_2= transvection_matrix(h, p, multiplier=b_w_inv)
+        if (w @ F_h_2 % p != output_ps).all():
+            raise ValueError("Failed to construct valid transvection for w->v")
+        F_h= F_h_1 @ F_h_2 %p
+        if (input_ps @ F_h %p != output_ps).all():
+            raise ValueError("Failed to construct valid transvection map: for u->v")
+
+    return F_h
+
+
+def intermediate_transvection_solve_extended(u, v, constraints, sps,  p):
+
+    # solving in GF(p) instead of building for symplectic product = 0 case
+    # --- Input validation ---
+    if np.all(u == 0) or np.all(v == 0):
+        raise ValueError("Input vectors cannot be zero")
+
+    if not galois.is_prime(p):
+        raise NotImplementedError(f"Prime dimension expected, got p={p}")
+
+    if symplectic_product(u, v, p) != 0:
+        raise ValueError("Symplectic product must be zero")
+
+    else:
+        t= len(constraints)
+        n= int(len(u)//2)
+        # Set up the linear system A @ w1 = b
+
+        A = np.zeros((2+t, 2 * n), dtype=int)           # The structure of A is such that [ux|-uz
+                                                                                        #  -vx|vz],
+                                                        #i.e, A @ w1 becomes [uxw1z- w1xuz
+                                                        #                      w1xvz- w1zvx]
+
+        w= np.zeros(2 * n, dtype=int)
+
+        A[0, :n] = u[:n]  # X part of u multiplies Z part of w
+        A[0, n:] = -u[n:]  # Z part of u multiplies X part of w
+
+        A[1, :n] = -v[:n]  # X part of v multiplies Z part of w
+        A[1, n:] = v[n:]  # Z part of v multiplies X part of w
+
+        for el in range(t):
+            A[2+el, :n] = constraints[el][:n]
+            A[2+el, n:]= -constraints[el][n:]
+
+        b= np.zeros(2+t, dtype=int)
+        for el in range(t):
+            b[2+el]= sps[el]
+
+        for p1, p2 in zip(range(1, p), range(1, p)):
+            b[0] = p1              #The structure of b is : [symplectic product(u, w, p)
+            b[1] = p2                                      #                         symplectic product(w, v, p)]
+            w1=solve_gfp(A, b, p)
+
+            if w1 is not None:                       # The solution will be [w1z
+                #                        w1x], so, we will change it to w]
+                w[:n]=w1[n:]
+                w[n:]= w1[:n]
+                break
+
+        assert symplectic_product(u, w, p)!=0 and symplectic_product(
+            w, v,p) !=0, f'{symplectic_product(u, w, p), symplectic_product(w, v, p)}'
+
+    return w
+
+def Find_transvection_map_solve_extended(input_ps, output_ps,constraints=[], sps=[], p=2):
+    """
+    Provides the map to transfer one PauliString in GF(p) to another PauliString, subject to some constraints.
+    Currently works only for prime dimension. 
+    Returns combined transvection (final map)
+    """
+
+    # --- Input validation ---
+    if np.all(input_ps == 0) or np.all(output_ps == 0):
+        raise ValueError("Vectors cannot be zero")
+    if not galois.is_prime(p):
+        raise NotImplementedError(f"Prime dimension expected, got p={p}")
+
+    a= symplectic_product(input_ps, output_ps,p)
+    if a != 0:
+        ainv = modinv(a, p)
+        h=(-input_ps + output_ps) % p
+        F_h= transvection_matrix(h, p, multiplier=ainv)
+        if (input_ps @ F_h % p != output_ps).all():
+            raise ValueError("Failed to construct valid transvection for nonzero symplectic product")
+
+    elif a == 0:
+        w=intermediate_transvection_solve_extended(input_ps, output_ps, constraints=constraints, sps=sps, p=p)
+        a_w= symplectic_product(input_ps, w,p)
+        a_w_inv = modinv(a_w, p)
+        h=(-input_ps + w) % p
+        F_h_1= transvection_matrix(h, p, multiplier=a_w_inv)
+        if (input_ps @ F_h_1 % p != w).all():
+            raise ValueError("Failed to construct valid transvection for u->w")
+        b_w= symplectic_product(w, output_ps, p)
+        b_w_inv = modinv(b_w, p)
+        h=(-w + output_ps) % p
+        F_h_2= transvection_matrix(h, p, multiplier=b_w_inv)
+        if (w @ F_h_2 % p != output_ps).all():
+            raise ValueError("Failed to construct valid transvection for w->v")
+        F_h= F_h_1 @ F_h_2 %p
+        if (input_ps @ F_h %p != output_ps).all():
+            raise ValueError("Failed to construct valid transvection map: for u->v")
+
+    return F_h
+
+
+def map_paulisum_to_target_paulisum(input_tab, output_tab, p):
+
+    if not check_mappable_via_clifford(input_tab, output_tab):
+        raise Exception(f'Cannot map these tabs')
+
+    # Map the first Pauli
+    F_total = Find_transvection_map_solve_extended(
+        input_tab[0], output_tab[0], constraints=[], sps=[], p=p
+    )
+    assert (input_tab[0] @ F_total % p == output_tab[0]).all()
+
+    # Iteratively map the rest of the Paulis
+    for k in range(1, len(input_tab)):
+        u_k = input_tab[k] @ F_total % p
+
+        # Constraints: previously mapped Paulis must stay fixed
+        constraints = [output_tab[j] for j in range(k)]
+        sps = [symplectic_product(input_tab[j], input_tab[k], p) for j in range(k)]
+
+        F_k = Find_transvection_map_solve_extended(
+            u_k, output_tab[k], constraints=constraints, sps=sps, p=p
+        )
+
+        # Update cumulative Clifford map
+        F_total = (F_total @ F_k) % p
+
+        # Verify this step
+        assert (u_k @ F_k % p == output_tab[k]).all()
+        for j in range(k):
+            assert (output_tab[j] @ F_k % p == output_tab[j]).all()
+
+    return F_total
