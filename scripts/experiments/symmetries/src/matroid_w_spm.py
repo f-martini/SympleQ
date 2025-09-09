@@ -122,45 +122,34 @@ def _check_code_automorphism(
 # ============================================================
 # WL (1-dimensional) color refinement on the edge-colored complete graph from S
 # ============================================================
-def _wl_colors_from_S(S: np.ndarray, p: int, max_rounds: int = 10) -> np.ndarray:
-    """
-    Compute stable WL-1 colors from the symplectic product matrix S (mod p).
-    Returns an array 'color' of shape (n,) with small consecutive integers.
-    """
-    # Numba: Speed up the histogram computations inside the loop.
+def _wl_colors_from_S(S: np.ndarray, p: int, max_rounds: int = 10,
+                      coeffs: Optional[np.ndarray] = None) -> np.ndarray:
     S = np.mod(S, p)
     n = S.shape[0]
-    # Seed colors: row histogram over GF(p)
-    # hist[i] = tuple(counts of values 0..p-1 in row i)
+
+    # Seed by (coefficient, row-histogram)
     hist = np.zeros((n, p), dtype=int)
     for i in range(n):
         counts = np.bincount(S[i], minlength=p)
         hist[i, :p] = counts[:p]
-    # map hist rows to initial color ids
-    # (use dict of tuples -> color id)
+
     palette = {}
     color = np.empty(n, dtype=int)
     for i in range(n):
-        key = tuple(hist[i].tolist())
-        color[i] = palette.setdefault(key, len(palette))
+        coeff_key = None if coeffs is None else (coeffs[i].item() if hasattr(coeffs[i], "item") else coeffs[i])
+        seed_key = (coeff_key, tuple(hist[i].tolist()))
+        color[i] = palette.setdefault(seed_key, len(palette))
 
+    # ... keep your refinement loop unchanged, using `color` as the starting partition ...
     for _ in range(max_rounds):
-        # neighbor histogram keyed by (neighbor_color, edge_value)
-        # Build composite keys per node; we’ll hash as tuple of pairs
         new_keys = []
         for i in range(n):
-            # count pairs (color[j], S[i,j])
-            # fast path: accumulate in dict
-            # (for very large n, consider counting by blocking in NumPy)
             d = {}
             row = S[i]
             for j in range(n):
                 key = (color[j], int(row[j]))
                 d[key] = d.get(key, 0) + 1
-            items = tuple(sorted(d.items()))
-            new_keys.append((int(color[i]), items))
-
-        # compress to new color ids
+            new_keys.append((int(color[i]), tuple(sorted(d.items()))))
         palette2 = {}
         new_color = np.empty(n, dtype=int)
         changed = False
@@ -190,12 +179,13 @@ def _color_classes(color: np.ndarray) -> Dict[int, List[int]]:
 def _find_k_permutations_complete(
     independent: List[int],
     dependencies: DepPairs,
-    S: np.ndarray,      # assumed aligned to 'labels' order
+    S: np.ndarray,
     labels: List[int],
     *,
     p: int,
     k: int,
     forbid_identity: bool = True,
+    coeffs: Optional[np.ndarray] = None,         # NEW
 ) -> List[Dict[int, int]]:
     """
     Complete search (won't miss) for permutations pi of indices:
@@ -209,7 +199,8 @@ def _find_k_permutations_complete(
     G, basis_order, _ = _build_generator_matrix(independent, dependencies, labels, p)
 
     # WL colors from S
-    colors = _wl_colors_from_S(S_mod, p)
+    colors = colors = _wl_colors_from_S(S_mod, p, coeffs=coeffs)  # colouring by spm and coeffs
+
     classes = _color_classes(colors)
 
     # Per-class used-target bookkeeping
@@ -292,6 +283,8 @@ def _find_k_permutations_complete(
             if y in used_by_class[ci]:
                 # already used within the class
                 continue
+            if coeffs is not None and coeffs[i] != coeffs[y]:
+                continue
             if not consistent(i, y):
                 continue
 
@@ -331,6 +324,8 @@ def find_k_automorphisms_symplectic(
     k: int = 1,
     S_labels: Optional[List[int]] = None,
     forbid_identity: bool = True,
+    coeffs: Optional[np.ndarray] = None,
+    coeff_labels: Optional[List[int]] = None,
 ) -> List[Dict[int, int]]:
     """
     Find up to k non-trivial automorphisms (label->label maps) that:
@@ -372,6 +367,18 @@ def find_k_automorphisms_symplectic(
     """
     # Establish our working label order
     pres_labels = _labels_union(independent, dependencies)
+    coeffs_aligned = None
+    # Align coeffs if given (otherwise ignored)
+    if coeffs is not None:
+        coeffs = np.asarray(coeffs)
+        if coeff_labels is not None:
+            lab_to_pos = {lab: i for i, lab in enumerate(coeff_labels)}
+            idx = np.array([lab_to_pos[lab] for lab in pres_labels], dtype=int)
+            coeffs_aligned = coeffs[idx]
+        else:
+            if coeffs.shape[0] != len(pres_labels):
+                raise ValueError("coeffs length does not match number of labels; supply coeff_labels.")
+            coeffs_aligned = coeffs
     if S_labels is not None:
         # Reorder S to match 'pres_labels'
         lab_to_pos = {lab: i for i, lab in enumerate(S_labels)}
@@ -387,8 +394,10 @@ def find_k_automorphisms_symplectic(
 
     # Run complete search
     sols = _find_k_permutations_complete(
-        independent, dependencies, S_aligned, pres_labels, p=p, k=k, forbid_identity=forbid_identity
-    )
+    independent, dependencies, S_aligned, pres_labels,
+    p=p, k=k, forbid_identity=forbid_identity,
+    coeffs=coeffs_aligned,                # NEW
+)
     return sols
 
 
