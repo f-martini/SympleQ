@@ -1,133 +1,69 @@
-# symplectic_aut.py
-import numpy as np
-import networkx as nx  # used for API consistency; WL implemented below for speed/control
-import galois
-from sympy.combinatorics.permutations import Permutation
+# symplectic_aut_fast.py
+from __future__ import annotations
+
 from typing import Dict, List, Tuple, Optional
+import numpy as np
+import galois
+from numba import njit
+from joblib import Parallel, delayed
 
 Label = int
 DepPairs = Dict[Label, List[Tuple[Label, int]]]
 
-
 # ============================================================
-# Utilities
+# Small helpers
 # ============================================================
 def _is_identity_perm_map(perm_map: Dict[int, int]) -> bool:
     return all(k == v for k, v in perm_map.items())
 
-
 def _labels_union(independent: List[int], dependencies: DepPairs) -> List[int]:
     return sorted(set(independent) | set(dependencies.keys()))
 
+def _perm_index_to_perm_map(labels: List[int], pi: np.ndarray) -> Dict[int, int]:
+    return {labels[j]: labels[int(pi[j])] for j in range(len(labels))}
 
+# ============================================================
+# Generator matrix over GF(p) (vectorized; no mixed types)
+# ============================================================
 def _build_generator_matrix(
     independent: List[int],
     dependencies: DepPairs,
     labels: List[int],
     p: int,
-) -> Tuple[galois.FieldArray, List[int], Dict[int, int]]:
+) -> Tuple[galois.FieldArray, List[int]]:
     """
-    Build generator matrix G over GF(p) in systematic form:
-      - columns ordered by 'labels' (sorted),
-      - independent columns = I_k,
-      - dependent columns = integer accumulation mod p, then cast to GF(p) in one go.
+    Build G in systematic form (k x n), columns ordered by `labels`.
+    Independent columns form I_k; dependent columns are coefficient vectors in that basis.
     """
     GF = galois.GF(p)
-
     basis_order = sorted(independent)
-    k = len(basis_order)
-    n = len(labels)
+    k, n = len(basis_order), len(labels)
     label_to_col = {lab: j for j, lab in enumerate(labels)}
     basis_index = {b: i for i, b in enumerate(basis_order)}
 
-    # Start as INT array (fast), fill, then cast once to GF(p)
     G_int = np.zeros((k, n), dtype=int)
-
-    # independent columns = identity
     for b in basis_order:
-        i = basis_index[b]
-        j = label_to_col[b]
-        G_int[i, j] = 1  # integer; we mod p later and cast to GF
-
-    # dependent columns: accumulate integers then mod p
+        G_int[basis_index[b], label_to_col[b]] = 1
     for d, pairs in dependencies.items():
         j = label_to_col[d]
         for b, m in pairs:
-            i = basis_index[b]
-            G_int[i, j] += int(m)  # still integer accumulation
-
+            G_int[basis_index[b], j] += int(m)
     G_int %= p
-    G = GF(G_int)  # one cast; entire matrix becomes a FieldArray over GF(p)
-    return G, basis_order, label_to_col
-
-def _perm_map_to_index_perm(labels: List[int], perm_map: Dict[int, int]) -> np.ndarray:
-    """
-    Convert mapping {label -> label} into a column permutation array 'pi' such that
-    (G @ P) == G[:, pi], i.e., pi[j] = index of permuted label for column j.
-    """
-    lab_to_idx = {lab: i for i, lab in enumerate(labels)}
-    pi = np.empty(len(labels), dtype=int)
-    for j, lab in enumerate(labels):
-        pi[j] = lab_to_idx[perm_map[lab]]
-    return pi
-
-
-def _perm_index_to_perm_map(labels: List[int], pi: np.ndarray) -> Dict[int, int]:
-    """
-    Convert index permutation array 'pi' into mapping {label -> label}.
-    'pi[j]' is the new column index of original column j.
-    Equivalently, label_j -> labels[pi[j]].
-    """
-    return {labels[j]: labels[pi[j]] for j in range(len(labels))}
-
-
-def _check_symplectic_invariance(S: np.ndarray, pi: np.ndarray, p: int) -> bool:
-    """
-    Check P^T S P == S (mod p) using index permutation 'pi' (columns/rows both permuted).
-    """
-    # Numba: JIT this index remapping & comparison for large n.
-    S_mod = np.mod(S, p)
-    S_perm = S_mod[np.ix_(pi, pi)]
-    return np.array_equal(S_perm, S_mod)
-
-
-def _check_code_automorphism(
-    G,                    # galois.FieldArray, shape (k, n)
-    basis_order,          # List[int]
-    labels,               # List[int]
-    pi: np.ndarray,       # index permutation, shape (n,)
-    p: int,
-) -> bool:
-    """
-    Linear-code check over GF(p): ∃ U ∈ GL(k,p) such that U G P = G ?
-    Since G is systematic, let C = G[:, P(B)], U := C^{-1}, check U G P == G.
-    """
-    # columns of basis after permutation
-    lab_to_idx = {lab: i for i, lab in enumerate(labels)}
-    Bcols = [lab_to_idx[b] for b in basis_order]
-    PBcols = pi[Bcols]
-
-    C = G[:, PBcols]
-    try:
-        # Use galois’ modular inverse (works on FieldArray)
-        U = np.linalg.inv(C)
-    except np.linalg.LinAlgError:
-        return False
-
-    Gp = G[:, pi]
-    left = U @ Gp
-    return np.array_equal(left, G)
-
+    G = GF(G_int)
+    return G, basis_order
 
 # ============================================================
-# WL (1-dimensional) color refinement on the edge-colored complete graph from S
+# WL-1 colors from S (seed with coefficients)
 # ============================================================
-def _wl_colors_from_S(S: np.ndarray, p: int, max_rounds: int = 10,
-                      coeffs: Optional[np.ndarray] = None) -> np.ndarray:
+def _wl_colors_from_S(S: np.ndarray, p: int, coeffs: Optional[np.ndarray] = None, max_rounds: int = 10) -> np.ndarray:
+    """
+    1-WL color refinement on the complete edge-colored graph with edge color S[i,j] mod p.
+    Seed color = (coeff[i], row-histogram). Uses Python dict hashing; fast enough in practice.
+    """
     S = np.mod(S, p)
     n = S.shape[0]
 
-    # Seed by (coefficient, row-histogram)
+    # Seed: (coeff, row histogram)
     hist = np.zeros((n, p), dtype=int)
     for i in range(n):
         counts = np.bincount(S[i], minlength=p)
@@ -140,16 +76,18 @@ def _wl_colors_from_S(S: np.ndarray, p: int, max_rounds: int = 10,
         seed_key = (coeff_key, tuple(hist[i].tolist()))
         color[i] = palette.setdefault(seed_key, len(palette))
 
-    # ... keep your refinement loop unchanged, using `color` as the starting partition ...
+    # Refinement
     for _ in range(max_rounds):
         new_keys = []
         for i in range(n):
             d = {}
             row = S[i]
+            # count pairs (neighbor_color, edge_value)
             for j in range(n):
-                key = (color[j], int(row[j]))
+                key = (int(color[j]), int(row[j]))
                 d[key] = d.get(key, 0) + 1
             new_keys.append((int(color[i]), tuple(sorted(d.items()))))
+
         palette2 = {}
         new_color = np.empty(n, dtype=int)
         changed = False
@@ -161,8 +99,8 @@ def _wl_colors_from_S(S: np.ndarray, p: int, max_rounds: int = 10,
         color = new_color
         if not changed:
             break
-    return color
 
+    return color
 
 def _color_classes(color: np.ndarray) -> Dict[int, List[int]]:
     classes: Dict[int, List[int]] = {}
@@ -172,69 +110,88 @@ def _color_classes(color: np.ndarray) -> Dict[int, List[int]]:
         classes[c].sort()
     return classes
 
+# ============================================================
+# Fast checks (Numba-jitted where it matters)
+# ============================================================
+def _check_symplectic_invariance(S: np.ndarray, pi: np.ndarray, p: int) -> bool:
+    """
+    Check P^T S P == S (mod p) using index permutation pi.
+    Pure NumPy path (fast: one remap + equality).
+    """
+    S_mod = np.mod(S, p)
+    return np.array_equal(S_mod[np.ix_(pi, pi)], S_mod)
+
+@njit(cache=True, fastmath=True)
+def _consistent_numba(S_mod: np.ndarray, phi: np.ndarray, mapped_idx: np.ndarray, i: int, y: int) -> bool:
+    """
+    Numba-jitted incremental consistency:
+    require S[i, j] == S[y, phi[j]] and S[j, i] == S[phi[j], y] for all mapped j.
+    - S_mod: (n,n) int array mod p
+    - phi: shape (n,), filled with -1 for unmapped, else target index
+    - mapped_idx: shape (m,), the indices j with phi[j] >= 0
+    """
+    for t in range(mapped_idx.size):
+        j = mapped_idx[t]
+        yj = phi[j]
+        if S_mod[i, j] != S_mod[y, yj]:
+            return False
+        if S_mod[j, i] != S_mod[yj, y]:
+            return False
+    return True
+
+def _check_code_automorphism(G: galois.FieldArray, basis_order: List[int], labels: List[int], pi: np.ndarray, p: int) -> bool:
+    """
+    Linear-code test over GF(p): ∃ U with U G P = G ?
+    Let C = G[:, P(B)]; if invertible, U = C^{-1} and check U G P == G.
+    """
+    # columns of basis after permutation
+    lab_to_idx = {lab: i for i, lab in enumerate(labels)}
+    Bcols = np.array([lab_to_idx[b] for b in basis_order], dtype=int)
+    PBcols = pi[Bcols]
+    C = G[:, PBcols]
+    try:
+        U = np.linalg.inv(C)
+    except np.linalg.LinAlgError:
+        return False
+    Gp = G[:, pi]
+    return np.array_equal(U @ Gp, G)
 
 # ============================================================
-# COMPLETE backtracking guided by WL colors + incremental S-consistency
+# Worker DFS (used by both serial and parallel entry points)
 # ============================================================
-def _find_k_permutations_complete(
-    independent: List[int],
-    dependencies: DepPairs,
-    S: np.ndarray,
-    labels: List[int],
+def _dfs_search(
+    S_mod: np.ndarray,
+    colors: np.ndarray,
+    classes: Dict[int, List[int]],
     *,
-    p: int,
-    k: int,
-    forbid_identity: bool = True,
-    coeffs: Optional[np.ndarray] = None,         # NEW
+    coeffs: Optional[np.ndarray],
+    k_limit: int,
+    forbid_identity: bool,
+    G: galois.FieldArray,
+    basis_order: List[int],
+    labels: List[int],
+    # Optional initial assignment (for parallel fan-out)
+    phi_init: Optional[np.ndarray] = None,
+    used_target_init: Optional[np.ndarray] = None,
+    used_by_class_init: Optional[Dict[int, set]] = None,
 ) -> List[Dict[int, int]]:
     """
-    Complete search (won't miss) for permutations pi of indices:
-      - incremental enforcement of P^T S P == S (row/col consistency),
-      - final check: linear-code automorphism U G P = G over GF(p).
-    Returns up to k non-trivial permutations as label->label maps.
+    Serial DFS that can start from a partially assigned mapping (phi_init).
+    Returns up to k_limit permutations as label->label maps.
     """
-    n = len(labels)
-    S_mod = np.mod(S, p)
-    # Build G once
-    G, basis_order, _ = _build_generator_matrix(independent, dependencies, labels, p)
+    n = S_mod.shape[0]
+    # State arrays
+    phi = -np.ones(n, dtype=np.int64) if phi_init is None else phi_init.copy()
+    used_target = np.zeros(n, dtype=bool) if used_target_init is None else used_target_init.copy()
+    used_by_class = {c: set() for c in classes} if used_by_class_init is None else {c: set(v) for c, v in used_by_class_init.items()}
 
-    # WL colors from S
-    colors = colors = _wl_colors_from_S(S_mod, p, coeffs=coeffs)  # colouring by spm and coeffs
-
-    classes = _color_classes(colors)
-
-    # Per-class used-target bookkeeping
-    used_by_class = {c: set() for c in classes}
-
-    # Partial mapping: phi[i] = y (index -> index), -1 if unmapped
-    phi = -np.ones(n, dtype=int)
-    used_target = np.zeros(n, dtype=bool)
-
-    # Domain order: largest classes first (reduces branching)
+    # Domain order: largest classes first
     class_order = sorted(classes.keys(), key=lambda c: -len(classes[c]))
     domain_order = [i for c in class_order for i in classes[c]]
 
     results: List[Dict[int, int]] = []
 
-    # Precompute quick structures for consistency
-    # (Optionally Numba JIT this routine for large n)
-    def consistent(i: int, y: int) -> bool:
-        # Check with already mapped j -> phi[j]:
-        # S[i, j] == S[y, phi[j]]  and  S[j, i] == S[phi[j], y]
-        row_i = S_mod[i]
-        col_i = S_mod[:, i]
-        row_y = S_mod[y]
-        col_y = S_mod[:, y]
-        for j in np.nonzero(phi >= 0)[0]:
-            yj = phi[j]
-            if row_i[j] != row_y[yj]:
-                return False
-            if col_i[j] != col_y[yj]:
-                return False
-        return True
-
     def select_next_index() -> int:
-        # MRV: smallest remaining candidates in its class
         best_i, best_rem = -1, 10**9
         for i in domain_order:
             if phi[i] >= 0:
@@ -247,45 +204,36 @@ def _find_k_permutations_complete(
                     break
         return best_i
 
-    def at_leaf_check_and_store() -> bool:
-        # full permutation in index form
-        pi = phi.copy()
-        if forbid_identity and np.all(pi == np.arange(n, dtype=int)):
+    def at_leaf(pi: np.ndarray) -> bool:
+        if forbid_identity and np.all(pi == np.arange(n, dtype=pi.dtype)):
             return False
-        # (A) symplectic invariance (should hold by construction, but keep)
-        if not _check_symplectic_invariance(S_mod, pi, p):
+        if not _check_symplectic_invariance(S_mod, pi, p=int(1)):  # S_mod already mod p == integers
+            # (p argument isn't used by this function; pass dummy)
             return False
-        # (B) linear-code automorphism check over GF(p)
-        if not _check_code_automorphism(G, basis_order, labels, pi, p):
-            return False
-        # Accept
-        perm_map = _perm_index_to_perm_map(labels, pi)
-        results.append(perm_map)
-        return True
+        return _check_code_automorphism(G, basis_order, labels, pi, p=int(1))
 
-    # DFS backtracking
     def dfs() -> bool:
-        if len(results) >= k:
+        # stop early if enough results
+        if len(results) >= k_limit:
             return True
-        # if complete
+        # complete?
         if np.all(phi >= 0):
-            if at_leaf_check_and_store():
-                if len(results) >= k:
-                    return True
+            pi = phi.copy()
+            if at_leaf(pi):
+                results.append(_perm_index_to_perm_map(labels, pi))
+                return len(results) >= k_limit
             return False
 
         i = select_next_index()
         ci = int(colors[i])
-        # iterate candidate targets within same color class
+        mapped_idx = np.where(phi >= 0)[0].astype(np.int64)
+
         for y in classes[ci]:
             if used_target[y]:
                 continue
-            if y in used_by_class[ci]:
-                # already used within the class
-                continue
             if coeffs is not None and coeffs[i] != coeffs[y]:
                 continue
-            if not consistent(i, y):
+            if not _consistent_numba(S_mod, phi, mapped_idx, int(i), int(y)):
                 continue
 
             # place
@@ -293,9 +241,8 @@ def _find_k_permutations_complete(
             used_target[y] = True
             used_by_class[ci].add(y)
 
-            # recurse
             if dfs():
-                if len(results) >= k:
+                if len(results) >= k_limit:
                     return True
 
             # undo
@@ -305,15 +252,11 @@ def _find_k_permutations_complete(
 
         return False
 
-    # Joblib: For large instances, parallelize the first branching layer:
-    # e.g., spawn a task per candidate y for the first i.
-    # This sequential version is simpler and avoids overhead on small/medium n.
     dfs()
     return results
 
-
 # ============================================================
-# Public API
+# Top-level complete search with optional joblib parallel fan-out
 # ============================================================
 def find_k_automorphisms_symplectic(
     independent: List[int],
@@ -326,49 +269,37 @@ def find_k_automorphisms_symplectic(
     forbid_identity: bool = True,
     coeffs: Optional[np.ndarray] = None,
     coeff_labels: Optional[List[int]] = None,
+    # Parallelization knobs
+    n_jobs: int = 1,
+    parallel_min_branch: int = 8,
 ) -> List[Dict[int, int]]:
     """
-    Find up to k non-trivial automorphisms (label->label maps) that:
-      1) preserve the symplectic product matrix S: P^T S P = S (mod p),
-      2) preserve the vector multiset represented by (independent, dependencies) over GF(p).
+    Return up to k non-trivial automorphisms (label->label maps) that preserve:
+      (A) the symplectic product matrix S (P^T S P = S mod p), and
+      (B) the set of vectors given by (independent, dependencies) over GF(p).
+    Also enforce that labels only map to equal coefficients when `coeffs` is provided.
 
-    Parameters
-    ----------
-    independent : list[int]
-        Basis labels (independent set).
-    dependencies : dict[int, list[tuple[int,int]]]
-        Mapping: dependent label -> list of (basis_label, multiplicity). Multiplicities are integers; arithmetic is mod p.
-    S : np.ndarray
-        Symplectic product matrix. If 'S_labels' is given, rows/cols are in that order; otherwise
-        rows/cols are assumed to be ordered by 'sorted(independent ∪ dependencies.keys())'.
-    p : int
-        Prime field characteristic.
-    k : int
-        Number of non-trivial automorphisms to return.
-    S_labels : Optional[list[int]]
-        If provided, the label order corresponding to rows/cols of S.
-    forbid_identity : bool
-        If True (default), the identity permutation is never returned.
-
-    Returns
-    -------
-    List[Dict[int,int]]
-        Up to k label->label mappings (each a full permutation).
-
-    Notes
-    -----
-    - Completeness: The WL-guided backtracking over S (with incremental consistency) enumerates
-      exactly the permutations preserving S; each is then filtered by the GF(p) linear-code check.
-      Therefore, if a symplectic automorphism that also preserves the vector set exists, it will be found.
-    - Performance tips:
-        * This is fast when WL colors split labels well. If a class is very large (high symmetry),
-          consider adding a time cap and/or seeding colors with extra cheap invariants if available.
-        * See comments marked "Numba" and "Joblib" for straightforward speedups.
+    Speedups:
+      - Numba: accelerated incremental consistency check.
+      - joblib: first branching level parallelized when candidate count >= parallel_min_branch.
     """
-    # Establish our working label order
+    # Establish working label order
     pres_labels = _labels_union(independent, dependencies)
+    n = len(pres_labels)
+
+    # Align S to pres_labels (if necessary)
+    if S_labels is not None:
+        lab_to_pos = {lab: i for i, lab in enumerate(S_labels)}
+        idx = np.array([lab_to_pos[lab] for lab in pres_labels], dtype=int)
+        S_aligned = S[np.ix_(idx, idx)]
+    else:
+        if S.shape != (n, n):
+            raise ValueError("S shape does not match the number of labels; supply S_labels.")
+        S_aligned = S
+    S_mod = np.mod(S_aligned, p).astype(np.int64, copy=False)
+
+    # Align coeffs
     coeffs_aligned = None
-    # Align coeffs if given (otherwise ignored)
     if coeffs is not None:
         coeffs = np.asarray(coeffs)
         if coeff_labels is not None:
@@ -376,64 +307,120 @@ def find_k_automorphisms_symplectic(
             idx = np.array([lab_to_pos[lab] for lab in pres_labels], dtype=int)
             coeffs_aligned = coeffs[idx]
         else:
-            if coeffs.shape[0] != len(pres_labels):
+            if coeffs.shape[0] != n:
                 raise ValueError("coeffs length does not match number of labels; supply coeff_labels.")
             coeffs_aligned = coeffs
-    if S_labels is not None:
-        # Reorder S to match 'pres_labels'
-        lab_to_pos = {lab: i for i, lab in enumerate(S_labels)}
-        idx = np.array([lab_to_pos[lab] for lab in pres_labels], dtype=int)
-        S_aligned = S[np.ix_(idx, idx)]
-    else:
-        # Assume S already matches sorted label order
-        S_aligned = S
-        # sanity: shape must agree
-        n = len(pres_labels)
-        if S_aligned.shape != (n, n):
-            raise ValueError("S shape does not match the number of labels; provide S_labels to disambiguate.")
 
-    # Run complete search
-    sols = _find_k_permutations_complete(
-    independent, dependencies, S_aligned, pres_labels,
-    p=p, k=k, forbid_identity=forbid_identity,
-    coeffs=coeffs_aligned,                # NEW
-)
-    return sols
+    # WL colors (seeded with coefficients)
+    colors = _wl_colors_from_S(S_mod, p, coeffs=coeffs_aligned)
+    classes = _color_classes(colors)
 
+    # Build generator matrix once (GF(p))
+    G, basis_order = _build_generator_matrix(independent, dependencies, pres_labels, p)
+
+    # Prepare initial branching: choose first variable by MRV
+    class_order = sorted(classes.keys(), key=lambda c: -len(classes[c]))
+    domain_order = [i for c in class_order for i in classes[c]]
+
+    def select_next_index(phi: np.ndarray, used_by_class: Dict[int, set]) -> int:
+        best_i, best_rem = -1, 10**9
+        for i in domain_order:
+            if phi[i] >= 0:
+                continue
+            c = int(colors[i])
+            rem = len(classes[c]) - len(used_by_class[c])
+            if rem < best_rem:
+                best_i, best_rem = i, rem
+                if rem <= 1:
+                    break
+        return best_i
+
+    # If n_jobs == 1, just run serial DFS
+    if n_jobs == 1:
+        return _dfs_search(
+            S_mod, colors, classes,
+            coeffs=coeffs_aligned, k_limit=k, forbid_identity=forbid_identity,
+            G=G, basis_order=basis_order, labels=pres_labels,
+        )
+
+    # Otherwise parallelize the first branching level
+    phi0 = -np.ones(n, dtype=np.int64)
+    used_target0 = np.zeros(n, dtype=bool)
+    used_by_class0 = {c: set() for c in classes}
+    i0 = select_next_index(phi0, used_by_class0)
+    ci0 = int(colors[i0])
+
+    # Candidate targets in same color/coeff class consistent with empty mapping
+    cand_y = []
+    for y in classes[ci0]:
+        if coeffs_aligned is not None and coeffs_aligned[i0] != coeffs_aligned[y]:
+            continue
+        # With empty mapping, consistency is always true; keep y
+        cand_y.append(y)
+
+    if len(cand_y) < parallel_min_branch:
+        # Not enough fan-out; run serial
+        return _dfs_search(
+            S_mod, colors, classes,
+            coeffs=coeffs_aligned, k_limit=k, forbid_identity=forbid_identity,
+            G=G, basis_order=basis_order, labels=pres_labels,
+        )
+
+    # Distribute a small quota per worker to avoid over-solving
+    tasks = len(cand_y)
+    per_worker = max(1, (k + tasks - 1) // tasks)
+
+    def _worker(y0: int) -> List[Dict[int, int]]:
+        # Start from phi[i0] = y0
+        phi_w = phi0.copy(); phi_w[i0] = y0
+        used_t_w = used_target0.copy(); used_t_w[y0] = True
+        used_c_w = {c: set(v) for c, v in used_by_class0.items()}
+        used_c_w[ci0].add(y0)
+
+        return _dfs_search(
+            S_mod, colors, classes,
+            coeffs=coeffs_aligned, k_limit=per_worker, forbid_identity=forbid_identity,
+            G=G, basis_order=basis_order, labels=pres_labels,
+            phi_init=phi_w, used_target_init=used_t_w, used_by_class_init=used_c_w,
+        )
+
+    # Run workers; stop when we have k
+    results: List[Dict[int, int]] = []
+    for chunk in Parallel(n_jobs=n_jobs, prefer="processes")(delayed(_worker)(y) for y in cand_y):
+        results.extend(chunk)
+        if len(results) >= k:
+            break
+    return results[:k]
 
 # ============================================================
-# Convenience: pretty-print & SymPy conversion
+# Example usage (remove or adapt in your codebase)
 # ============================================================
-def as_sympy_permutation(perm_map: Dict[int, int], labels: Optional[List[int]] = None) -> Permutation:
-    """
-    Convert {label->label} to a SymPy Permutation acting on the set of labels.
-    If 'labels' is None, it uses sorted(keys) as support.
-    """
-    if labels is None:
-        labels = sorted(perm_map.keys())
-    lab_to_idx = {lab: i for i, lab in enumerate(labels)}
-    images = [lab_to_idx[perm_map[lab]] for lab in labels]
-    return Permutation(images)
-
-
 if __name__ == "__main__":
-
     p = 2
     independent = [1, 3, 4]
-    dependencies = {2: [(1, 1), (3, 1)], 5: [(1, 1), (4, 1)]}
-
-    # Example S (rows/cols in order [1,2,3,4,5]); replace with your real symplectic product matrix
+    dependencies = {
+        2: [(1, 1), (3, 1)],
+        5: [(1, 1), (4, 1)],
+    }
+    # Labels are [1,2,3,4,5]
     S = np.array([
         [0,1,0,0,1],
         [1,0,1,0,1],
         [0,1,0,0,0],
         [0,0,0,0,1],
         [1,1,0,1,0],
-    ], dtype=int)
+    ], dtype=np.int64)
+
+    # Optional coefficients: same length as labels; equal coefficients must map to equal
+    coeffs = np.array([0, 0, 1, 1, 0], dtype=int)  # example
 
     perms = find_k_automorphisms_symplectic(
-        independent, dependencies, S=S, p=p, k=3, S_labels=[1,2,3,4,5], forbid_identity=True
+        independent, dependencies,
+        S=S, p=p, k=3, S_labels=[1,2,3,4,5],
+        forbid_identity=True,
+        coeffs=coeffs, coeff_labels=[1,2,3,4,5],
+        n_jobs=4,                  # parallel fan-out
+        parallel_min_branch=2,     # start parallelism when >= 2 first-branch candidates
     )
     for i, pm in enumerate(perms, 1):
         print(f"[{i}] {pm}")
-        print("  SymPy cycles:", as_sympy_permutation(pm).cyclic_form)

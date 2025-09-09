@@ -15,6 +15,7 @@
         "CNOT",
         "coeff",
         "coeffs",
+        "colouring",
         "coprime",
         "cuda",
         "DDSS",
