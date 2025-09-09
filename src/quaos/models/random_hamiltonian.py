@@ -4,7 +4,7 @@ from quaos.core.paulis import PauliSum, PauliString
 from quaos.core.circuits import Gate
 
 
-def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
+def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand'):
     """
     Generates a random Pauli Hamiltonian with the given number of Pauli operators plus their Hermitian conjugate pairs.
 
@@ -16,6 +16,7 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand', seed=None):
     Returns:
         tuple: A random PauliSum
     """
+
     n_qudits = len(qudit_dims)
     pauli_strings = []
     coefficients = []
@@ -101,17 +102,17 @@ def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=
     # TODO: Implementation for Qudits
 
     n_rest = n_qudits - n_redundant - n_conditional
-    if n_paulis < 2*n_rest:
+    if n_paulis < 2 * n_rest:
         raise ValueError('Too few paulis for full basis with this number of independent qubits')
-    # create general structure of the Pauli Hamiltonian before scrambeling it with clifford gates
+    # create general structure of the Pauli Hamiltonian before scrambling it with clifford gates
     # redundant qubits
     P = np.zeros((n_paulis, n_qudits), dtype=int)
 
     # conditional qubits
     for i in range(n_conditional - n_redundant):
         q = np.arange(n_redundant, n_conditional)[i]
-        P[2*n_rest + i, q] = 2  # Z
-        for j in range(1, n_paulis - (2*n_rest + i)):
+        P[2 * n_rest + i, q] = 2  # Z
+        for j in range(1, n_paulis - (2 * n_rest + i)):
             P[2 * n_rest + i + j, q] = np.random.choice([0, 2])  # I, Z
 
     # remaining qubits
@@ -127,20 +128,20 @@ def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=
             P[2 * n_rest + j, q] = np.random.choice([0, 1, 2, 3])
 
     # Turn P-Matrix into PauliSum
-    paulistrings = ['' for _ in range(n_paulis)]
+    pauli_strings = ['' for _ in range(n_paulis)]
     for i in range(n_paulis):
         for j in range(n_qudits):
             if P[i, j] == 0:
-                paulistrings[i] += 'x0z0'
+                pauli_strings[i] += 'x0z0'
             elif P[i, j] == 1:
-                paulistrings[i] += 'x1z0'
+                pauli_strings[i] += 'x1z0'
             elif P[i, j] == 2:
-                paulistrings[i] += 'x0z1'
+                pauli_strings[i] += 'x0z1'
             elif P[i, j] == 3:
-                paulistrings[i] += 'x1z1'
+                pauli_strings[i] += 'x1z1'
 
-            paulistrings[i] += ' '
-        paulistrings[i] = paulistrings[i].strip()
+            pauli_strings[i] += ' '
+        pauli_strings[i] = pauli_strings[i].strip()
 
     if weight_mode == 'uniform':
         weights = np.ones(n_paulis, dtype=float)
@@ -152,7 +153,7 @@ def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=
     elif phase_mode == 'random':
         phases = np.random.randint(0, 2, size=n_paulis, dtype=int)
 
-    P = PauliSum(paulistrings, weights=weights, dimensions=[2]*n_qudits, phases=phases, standardise=False)
+    P = PauliSum(pauli_strings, weights=weights, dimensions=[2] * n_qudits, phases=phases, standardise=False)
 
     g = Gate.from_random(n_qudits, 2)
     P = g.act(P)
@@ -160,7 +161,11 @@ def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=
     return P
 
 
-def random_gate_symmetric_hamiltonian(G, n_qudits=None, n_paulis=None, weight_mode='uniform',scrambled = False):
+def random_gate_symmetric_hamiltonian(G: 'Gate',
+                                      n_qudits: int | None = None,
+                                      n_paulis: int | None = None,
+                                      weight_mode: str = 'uniform',
+                                      scrambled: bool = False):
     """
     Generate a random symmetric Hamiltonian from a gate G.
 
@@ -182,12 +187,12 @@ def random_gate_symmetric_hamiltonian(G, n_qudits=None, n_paulis=None, weight_mo
 
     Notes
     -----
-    This function first generates a random Pauli string Hamiltonian, then applies the gate and its inverse to it. 
-    The sum of the two is the symmetric Hamiltonian. The weights are rounded to 10 decimal places and Pauli strings 
+    This function first generates a random Pauli string Hamiltonian, then applies the gate and its inverse to it.
+    The sum of the two is the symmetric Hamiltonian. The weights are rounded to 10 decimal places and Pauli strings
     with zero weight are removed.
     """
     if n_qudits is None:
-        n_qudits = G.dimension + 1
+        n_qudits = len(G.qudit_indices) + 1
     if n_paulis is None:
         n_paulis = 2 * n_qudits
     P = random_pauli_symmetry_hamiltonian(n_qudits, n_paulis, 0, 0, weight_mode=weight_mode)
@@ -198,7 +203,8 @@ def random_gate_symmetric_hamiltonian(G, n_qudits=None, n_paulis=None, weight_mo
     P_sym.combine_equivalent_paulis()
     P_sym.weights = np.around(P_sym.weights, decimals=10)
     P_sym.remove_zero_weight_paulis()
-    if scrambled == True:
+    if scrambled is True:
         g = Gate.from_random(n_qudits, 2)
         P_sym = g.act(P_sym)
-    return(P_sym)
+
+    return P_sym

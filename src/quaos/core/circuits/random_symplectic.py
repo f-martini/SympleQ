@@ -249,6 +249,7 @@ def _isotropic_vector(n, d):
             if (a @ b) % d == 0:
                 return np.concatenate([a, b])
 
+
 def _vector_to_transvection(v, J, d):
     """
     Return the symplectic transvection matrix T_v over Z_d:
@@ -256,6 +257,7 @@ def _vector_to_transvection(v, J, d):
     """
     v = v.reshape(-1, 1)
     return (np.identity(len(v), dtype=int) + (J @ v) @ v.T) % d
+
 
 def symplectic_random_transvection(n_qudits, dimension=2, num_transvections=None):
     """

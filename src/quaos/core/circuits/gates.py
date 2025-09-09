@@ -5,7 +5,7 @@ from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_v
 from quaos.core.circuits.utils import transvection_matrix, symplectic_form
 from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
 from quaos.utils import get_linear_dependencies
-from quaos.core.finite_field_solvers import mod_inv
+from quaos.core.circuits.random_symplectic import symplectic_random_transvection
 
 
 class Gate:
@@ -183,26 +183,28 @@ class Gate:
 
         :return: A new Gate object, the inverse of this gate.
         """
+        if not np.all(self.dimensions == self.dimensions[0]):
+            raise NotImplementedError("Inverse only implemented for gates with equal dimensions.")
 
-        d = self.dimension
+        d = self.dimensions[0]
         h = self.phase_vector
         n = len(self.qudit_indices)
 
         Id_n = np.eye(n)
-        Zero_n = np.zeros((n,n))
-        U = np.block([[Zero_n,Zero_n],[Id_n,Zero_n]])
-        Omega = (U - U.T)%d
+        Zero_n = np.zeros((n, n))
+        U = np.block([[Zero_n, Zero_n], [Id_n, Zero_n]])
+        Omega = (U - U.T) % d
 
-        C = self.symplectic
-        C_inv = (Omega.T @ C.T @ Omega)%d
+        C = self.symplectic.T
+        C_inv = (Omega.T @ C.T @ Omega) % d
 
         U_trans = C_inv.T @ U @ C_inv
         T1 = np.diag(C.T @ (2 * np.triu(U_trans, k=1) + np.diag(np.diag(U_trans))) @ C)
         T2 = C.T @ np.diag(U_trans)
 
-        h_inv = (- C_inv.T @ (h + T1 + T2))%(2*d)
+        h_inv = (- C_inv.T @ (h + T1 + T2)) % (2 * d)
 
-        return Gate(self.name+'_inv', self.qudit_indices.copy(), C_inv, self.dimension,
+        return Gate(self.name + '_inv', self.qudit_indices.copy(), C_inv.T, self.dimensions,
                     h_inv)
 
 
@@ -263,7 +265,7 @@ class Hadamard(Gate):
 
         phase_vector = np.array([0, 0], dtype=int)
 
-        name = "H" if not inverse else "Hdag"
+        name = "H" if not inverse else "H_inv"
         super().__init__(name, [index], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
 
