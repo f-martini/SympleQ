@@ -19,7 +19,7 @@ if not exist "%SRC_REQUIREMENTS%" (
     echo requirements.txt not found.
 ) else (
     call %SRC_VENV%/Scripts/activate
-    call python -m pip install -e %PYTHON_PY_SETUP%
+    call python -m pip install %PYTHON_PY_SETUP%
     call deactivate
 )
 

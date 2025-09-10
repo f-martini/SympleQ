@@ -1,7 +1,7 @@
 import numpy as np
 from quaos.core.paulis import PauliSum
 from quaos.core.measurement.allocation import (sort_hamiltonian, get_phase_matrix, choose_measurement,
-                                               construct_circuit_list, update_X, scale_variances,diagnostic_circuits,
+                                               construct_circuit_list, update_X, scale_variances, diagnostic_circuits,
                                                standard_error_function, diagnostic_states)
 from quaos.core.measurement.covariance_graph import (quditwise_commutation_graph, commutation_graph,
                                                      weighted_vertex_covering_maximal_cliques, graph)
@@ -137,9 +137,9 @@ class Aquire:
                                    self.n_paulis,
                                    self.pauli_block_sizes,
                                    self.dimension,
-                                   N_chain = self.N_chain,
-                                   N = self.N_mcmc + int(self.total_shots * self.mcmc_shot_scale),
-                                   N_max = self.N_mcmc_max + 4*int(self.total_shots * self.mcmc_shot_scale))
+                                   N_chain=self.N_chain,
+                                   N=self.N_mcmc + int(self.total_shots * self.mcmc_shot_scale),
+                                   N_max=self.N_mcmc_max + 4 * int(self.total_shots * self.mcmc_shot_scale))
 
         self.covariance_graph = graph(A)
         self.covariance_graph_checkpoints.append(self.covariance_graph.copy())
@@ -222,8 +222,6 @@ class Aquire:
                 simulated_diagnostic_results):]
         else:
             self.last_update_diagnostic_circuits = []
-
-
 
 
 
