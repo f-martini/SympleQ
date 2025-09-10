@@ -3,7 +3,6 @@ from quaos.core.paulis import PauliSum
 import galois
 from quaos.core.finite_field_solvers import solve_modular_linear_system
 from collections import defaultdict
-from typing import Union
 
 
 def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):

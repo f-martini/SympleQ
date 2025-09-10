@@ -1,8 +1,7 @@
 import numpy as np
 from quaos.core.paulis import PauliSum
-from quaos.core.circuits import Circuit, Hadamard as H, SUM as CX, PHASE as S
+from quaos.core.circuits import Circuit
 from collections import defaultdict
-import random
 
 
 def int_to_bases(a, dims):
@@ -150,9 +149,9 @@ def SWAP_symmetric_PauliSum(n_paulis, n_qubits):
     ps = PauliSum.from_random(n_paulis, n_qubits, dimensions=[2 for i in range(n_qubits)], rand_weights=False)
     ps[:, 1] = ps[:, 0]  # make qudit 2 equal to qudit 1
 
-    # C = random_clifford(n_qubits, depth=100)
+    C = Circuit.from_random(n_qubits, depth=100, dimensions=[2 for i in range(n_qubits)])
 
-    return ps  # C.act(ps)
+    return C.act(ps)
 
 
 # def random_clifford(n_qubits, depth=100) -> Circuit:

@@ -129,7 +129,8 @@ class PauliSum:
                     n_paulis: int,
                     n_qudits: int,
                     dimensions: list[int] | np.ndarray,
-                    rand_weights: bool = True) -> 'PauliSum':
+                    rand_weights: bool = True,
+                    seed: int | None = None) -> 'PauliSum':
         """
         Create a random PauliSum object.
 
@@ -150,14 +151,18 @@ class PauliSum:
             A PauliSum object.
         """
         # TODO: Eliminate n_qudits and set dimensions directly from len(dimensions)
+        if seed is not None:
+            np.random.seed(seed)
         weights = 2 * (np.random.rand(n_paulis) - 0.5) if rand_weights else np.ones(n_paulis)
-
+        string_seeds = np.random.randint(1000000, size=1000)
         # ensure no duplicate strings
         strings = []
-        for _ in range(n_paulis):
-            ps = PauliString.from_random(n_qudits, dimensions)
+        for i in range(n_paulis):
+            ps = PauliString.from_random(n_qudits, dimensions, seed=string_seeds[i])
+            j = 0
             while ps in strings:
-                ps = PauliString.from_random(n_qudits, dimensions)
+                j += 1
+                ps = PauliString.from_random(n_qudits, dimensions, seed=string_seeds[j])
             strings.append(ps)
 
         return cls(strings, weights=weights, phases=[0] * n_paulis, dimensions=dimensions, standardise=True)
@@ -353,6 +358,19 @@ class PauliSum:
             new_weights[i] = self.weights[i] * omega
         self.phases = np.zeros(self.n_paulis(), dtype=int)
         self.weights = new_weights
+
+    def standard_form(self) -> 'PauliSum':
+        """
+        Get the PauliSum in standard form.
+
+        Returns
+        -------
+        PauliSum
+            The PauliSum in standard form.
+        """
+        ps_out = self.copy()
+        ps_out.standardise()
+        return ps_out
 
     @overload
     def __getitem__(self,
@@ -966,6 +984,14 @@ class PauliSum:
             if np.all(self.x_exp[:, i] == 0) and np.all(self.z_exp[:, i] == 0):
                 to_delete.append(i)
         self._delete_qudits(to_delete)
+
+    def remove_zero_weight_paulis(self):
+        # If weight of Pauli string is 0, remove it
+        to_delete = []
+        for i in range(self.n_paulis()):
+            if np.abs(self.weights[i]) <= 1e-14:
+                to_delete.append(i)
+        self._delete_paulis(to_delete)
 
     def tableau(self) -> np.ndarray:
         """

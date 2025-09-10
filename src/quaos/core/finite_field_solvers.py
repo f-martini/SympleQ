@@ -1,5 +1,6 @@
 import numpy as np
 from math import gcd
+import galois
 
 
 def solve_gf2(A: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -121,3 +122,9 @@ def solve_modular_linear_system(B, v):
     if not np.array_equal(x @ B, v):
         raise Exception("Failed to solve linear system")
     return x
+
+
+def mod_inv(M: np.ndarray, p: int):
+    GFP = galois.GF(p)
+    M = GFP(M)
+    return np.linalg.inv(M)
