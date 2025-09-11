@@ -2,9 +2,10 @@ import numpy as np
 from quaos.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
 from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
-from quaos.core.circuits.utils import transvection_matrix
+from quaos.core.circuits.utils import transvection_matrix, symplectic_form
 from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
 from quaos.utils import get_linear_dependencies
+from quaos.core.circuits.random_symplectic import symplectic_random_transvection
 
 
 class Gate:
@@ -45,15 +46,17 @@ class Gate:
         return cls(name, qudit_indices, symplectic.T, dimension, phase_vector)
 
     @classmethod
-    def from_random(cls, n_qudits: int, dimension: int, seed=None):
+    def from_random(cls, n_qudits: int, dimension: int, n_transvection=None, seed=None):
         np.random.seed(seed)
-        if dimension != 2:
-            raise NotImplementedError("Only implemented for dimension 2. GF(p) will be done asap.")
-
-        symp_int = np.random.randint(symplectic_group_size(n_qudits))
-        symplectic = symplectic_gf2(symp_int, n_qudits)
-        phase_vector = get_phase_vector(symplectic, dimension)
-        return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
+        if n_qudits < 4 and dimension == 2:
+            symp_int = np.random.randint(symplectic_group_size(n_qudits))
+            symplectic = symplectic_gf2(symp_int, n_qudits)
+            phase_vector = get_phase_vector(symplectic, dimension)
+            return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
+        else:
+            symplectic = symplectic_random_transvection(n_qudits, dimension=dimension, num_transvections=n_transvection)
+            phase_vector = get_phase_vector(symplectic, dimension)
+            return cls(f"R{n_transvection}", list(range(n_qudits)), symplectic, dimension, phase_vector)
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
         if np.all(self.dimensions != P.dimensions[self.qudit_indices]):
@@ -151,6 +154,62 @@ class Gate:
             self.name = "T-" + self.name
         return Gate(self.name, self.qudit_indices, self.symplectic @ T, self.dimensions, self.phase_vector)
 
+    def inv(self) -> 'Gate':
+        print("Warning: inverse phase vector not working - PHASES MAY BE INCORRECT.")
+
+        C = self.symplectic.T
+
+        U = np.zeros((2 * self.n_qudits, 2 * self.n_qudits), dtype=int)
+        U[self.n_qudits:, :self.n_qudits] = np.eye(self.n_qudits, dtype=int)
+        Omega = symplectic_form(int(C.shape[0] / 2), p=self.lcm)
+
+        C_inv = -(Omega.T @ C.T @ Omega) % self.lcm
+        U_c = C_inv.T @ U @ C_inv % self.lcm
+
+        p1 = - C_inv.T @ self.phase_vector
+        p2 = - np.diag(C.T @ (2 * np.triu(U_c) - np.diag(np.diag(U_c))) @ C)
+        p3 = C.T @ np.diag(U_c)
+
+        phase_vector = (p1 + p2 + p3) % (2 * self.lcm)
+        return Gate(self.name + "-inv", self.qudit_indices, C_inv.T, self.dimensions, phase_vector)
+
+    def inverse(self) -> 'Gate':
+        """
+        Returns the inverse of this gate.
+
+        The inverse of a gate G is another gate G' such that the composition G'G is the identity.
+
+        The inverse of a gate is computed using the formulae presented in PHYSICAL REVIEW A 71, 042315 (2005)
+
+        :return: A new Gate object, the inverse of this gate.
+        """
+        if not np.all(self.dimensions == self.dimensions[0]):
+            raise NotImplementedError("Inverse only implemented for gates with equal dimensions.")
+
+        d = self.dimensions[0]
+        h = self.phase_vector
+        n = len(self.qudit_indices)
+
+        Id_n = np.eye(n)
+        Zero_n = np.zeros((n, n))
+        U = np.block([[Zero_n, Zero_n], [Id_n, Zero_n]])
+        Omega = (U - U.T) % d
+
+        C = self.symplectic.T
+        C_inv = (Omega.T @ C.T @ Omega) % d
+
+        U_trans = C_inv.T @ U @ C_inv
+        T1 = np.diag(C.T @ (2 * np.triu(U_trans, k=1) + np.diag(np.diag(U_trans))) @ C)
+        T2 = C.T @ np.diag(U_trans)
+
+        h_inv = (- C_inv.T @ (h + T1 + T2)) % (2 * d)
+
+        return Gate(self.name + '_inv', self.qudit_indices.copy(), C_inv.T, self.dimensions,
+                    h_inv)
+
+    def unitary(self):
+        raise NotImplementedError("Unitary not implemented for generic Gate. Use specific gate subclasses.")
+
 
 class SUM(Gate):
     def __init__(self, control, target, dimension):
@@ -164,6 +223,18 @@ class SUM(Gate):
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
         super().__init__("SUM", [control, target], symplectic, dimensions=dimension, phase_vector=phase_vector)
+        
+    def unitary(self):
+        # Implements |i, j> -> |i, j + i (mod d)| with basis ordering |i>⊗|j>,
+        # linear index idx(i, j) = i * d + j.
+        d = self.dimensions[0]
+        mat = np.zeros((d * d, d * d), dtype=complex)
+        for i in range(d):
+            for j in range(d):
+                row = i * d + ((j + i) % d)
+                col = i * d + j
+                mat[row, col] = 1
+        return mat
 
 
 class SWAP(Gate):
@@ -179,6 +250,23 @@ class SWAP(Gate):
 
         super().__init__("SWAP", [index1, index2], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
+    def unitary(self):
+        # SWAP on two qudits of equal dimension: |i, j> -> |j, i>.
+        # Basis ordering |i>⊗|j> with linear index idx(i, j) = i * d + j.
+        d0 = int(self.dimensions[0])
+        d1 = int(self.dimensions[1])
+        if d0 != d1:
+            raise NotImplementedError("SWAP unitary only defined for equal qudit dimensions.")
+        dim = d0 * d1
+        U = np.zeros((dim, dim), dtype=complex)
+        d = d0
+        for i in range(d):
+            for j in range(d):
+                col = i * d + j  # |i, j>
+                row = j * d + i  # |j, i>
+                U[row, col] = 1.0
+        return U
+
 
 class CNOT(Gate):
     def __init__(self, control, target):
@@ -192,6 +280,17 @@ class CNOT(Gate):
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
         super().__init__("SUM", [control, target], symplectic, dimensions=2, phase_vector=phase_vector)
+
+    def unitary(self):
+        # Standard qubit CNOT (control on the first, target on the second).
+        d0 = int(self.dimensions[0])
+        d1 = int(self.dimensions[1])
+        if d0 != 2 or d1 != 2:
+            raise NotImplementedError("CNOT unitary only defined for qubits (d=2). Use SUM for qudits.")
+        return np.array([[1, 0, 0, 0],
+                         [0, 1, 0, 0],
+                         [0, 0, 0, 1],
+                         [0, 0, 1, 0]], dtype=complex)
 
 
 class Hadamard(Gate):
@@ -209,8 +308,18 @@ class Hadamard(Gate):
 
         phase_vector = np.array([0, 0], dtype=int)
 
-        name = "H" if not inverse else "Hdag"
+        name = "H" if not inverse else "H_inv"
         super().__init__(name, [index], symplectic, dimensions=dimension, phase_vector=phase_vector)
+
+    def unitary(self):
+        d = self.dimensions[0]
+        omega = np.exp(2j * np.pi / d)
+        factor = 1 / np.sqrt(d)
+        mat = np.zeros((d, d), dtype=complex)
+        for i in range(d):
+            for j in range(d):
+                mat[i, j] = omega ** (i * j)
+        return factor * mat
 
 
 class PHASE(Gate):
@@ -224,3 +333,12 @@ class PHASE(Gate):
         phase_vector = np.array([dimension + 1, 0], dtype=int)
 
         super().__init__("S", [index], symplectic, dimensions=dimension, phase_vector=phase_vector)
+
+    def unitary(self):
+        # Qudit phase (Clifford) gate implementing X -> X Z, Z -> Z.
+        # A unified construction for all d uses a 2d-th root of unity ζ = exp(2πi/(2d)) and
+        # U = diag(ζ^{j^2}) for j in [0..d-1]. For d=2, this gives diag(1, i).
+        d = int(self.dimensions[0])
+        zeta = np.exp(1j * 2 * np.pi / (2 * d))
+        diag = np.array([zeta ** (j * j) for j in range(d)], dtype=complex)
+        return np.diag(diag)

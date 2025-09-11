@@ -3,7 +3,7 @@ from quaos.core.circuits.utils import is_symplectic
 from quaos.core.circuits.target import find_map_to_target_pauli_sum, map_pauli_sum_to_target_tableau
 from quaos.core.paulis import PauliSum, PauliString
 import numpy as np
-from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
+from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size, symplectic_random_transvection
 import random
 
 
@@ -301,15 +301,19 @@ class TestGates():
                 gate.symplectic.__str__()
             )
 
-    def test_random_symplectic(self, num_tests=20, max_n=5, primes=[2, 3, 5, 7]):
+    def test_random_symplectic(self, num_tests=20, max_n=10, primes=[2, 3, 5, 7]):
         """
         Test random_symplectic() across several n, p values using assertions only.
         """
         for n in range(2, max_n + 1):
-            for i in range(num_tests):
-                index = random.randint(0, symplectic_group_size(n))
-                F = symplectic_gf2(index, n)
-                assert is_symplectic(F, 2), f"Failed symplectic check: n={n}, test {i}"
+            for d in primes:
+                for i in range(num_tests):
+                    if n < 6 and d == 2:
+                        index = random.randint(0, symplectic_group_size(n))
+                        F = symplectic_gf2(index, n)
+                    else:
+                        F = symplectic_random_transvection(n, dimension=d)
+                    assert is_symplectic(F, d), f"Failed symplectic check: n={n}, test {i}"
 
     # def test_find_symplectic_map(self):
     #     # this just tests the underlying solver, not the Gate or Pauli... implementation
@@ -339,7 +343,7 @@ class TestGates():
         target_ps = circuit.act(input_ps)
         target_ps.phases = np.zeros(n_qudits)
 
-        gate_from_solver = Gate.solve_from_target('ArbGate', input_ps, target_ps)
+        gate_from_solver = Gate.solve_from_target('ArbGate', input_ps, target_ps, dimensions)
         output_ps = gate_from_solver.act(input_ps)
         output_ps.phases = np.zeros(n_qudits)
         assert output_ps == target_ps, (
@@ -357,7 +361,7 @@ class TestGates():
                     print(input_ps.tableau())
                     print('target')
                     print(target_ps.tableau())
-                    gate = Gate.solve_from_target('ArbGate', input_ps, target_ps)
+                    gate = Gate.solve_from_target('ArbGate', input_ps, target_ps, dimensions)
                     output_ps = gate.act(input_ps)
                     output_ps.phases = input_ps.phases  # So far it does not solve for phases as well
                     print('output')
@@ -386,3 +390,16 @@ class TestGates():
             g = Gate.from_random(5, 2)
             gt = g.transvection(np.random.randint(0, 1, size=10))
             assert is_symplectic(gt.symplectic, 2), 'Error in transvection'
+
+    # def test_gate_inverse(self):
+    #     n_qudits = 2
+    #     n_paulis = 3
+    #     dimension = 2
+    #     for _ in range(1):
+    #         g = Gate.from_random(n_qudits, dimension, seed=2)
+    #         gt = g.inv()
+    #         rps = PauliSum.from_random(n_paulis, n_qudits, [dimension] * n_qudits, False, seed=1)
+    #         print(rps)
+    #         assert rps == g.act(gt.act(rps)), 'Inversion Error:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
+
+
