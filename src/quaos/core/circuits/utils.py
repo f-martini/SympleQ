@@ -56,13 +56,13 @@ def symplectic_product(u: np.ndarray, v: np.ndarray, p: int = 2) -> int:
     return (np.sum(u[:n] * v[n:] - u[n:] * v[:n])) % p
 
 
-def symplectic_product_matrix(pauli_sum: np.ndarray) -> np.ndarray:
+def symplectic_product_matrix(pauli_sum: np.ndarray, p: int=2) -> np.ndarray:
     m = len(pauli_sum)
     spm = np.zeros((m, m), dtype=int)
 
     for i in range(m):
         for j in range(m):
-            spm[i, j] = symplectic_product(pauli_sum[i], pauli_sum[j])
+            spm[i, j] = symplectic_product(pauli_sum[i], pauli_sum[j], p)
 
     return spm
 

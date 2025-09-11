@@ -373,6 +373,8 @@ def intermediate_transvection_solve_extended(u, v, constraints, sps,  p):
     # --- Input validation ---
     if np.all(u == 0) or np.all(v == 0):
         raise ValueError("Input vectors cannot be zero")
+    if np.all(u==v):
+        raise ValueError("Input PauliSum == Output PauliSum")
 
     if not galois.is_prime(p):
         raise NotImplementedError(f"Prime dimension expected, got p={p}")
@@ -406,23 +408,28 @@ def intermediate_transvection_solve_extended(u, v, constraints, sps,  p):
         for el in range(t):
             b[2+el]= sps[el]
 
-        for p1, p2 in zip(range(1, p), range(1, p)):
-            b[0] = p1              #The structure of b is : [symplectic product(u, w, p)
-            b[1] = p2                                      #                         symplectic product(w, v, p)]
-            w1=solve_gfp(A, b, p)
+        for p1 in range(1, p):
+            for p2 in range(1, p):
+                b[0] = p1              #The structure of b is : [symplectic product(u, w, p)
+                b[1] = p2               #                         symplectic product(w, v, p)]
+                w1=solve_gfp(A, b, p)
+                if w1 is not None:
+                    break
+            break
 
-            if w1 is not None:                       # The solution will be [w1z
-                #                        w1x], so, we will change it to w]
-                w[:n]=w1[n:]
-                w[n:]= w1[:n]
-                break
+        w[:n]=w1[n:]              # The solution will be [w1z
+                                  #                        w1x], so, we will change it to w]
+        w[n:]= w1[:n]
 
-        assert symplectic_product(u, w, p)!=0 and symplectic_product(
-            w, v,p) !=0, f'{symplectic_product(u, w, p), symplectic_product(w, v, p)}'
+        if np.all(w==0):
+            raise ValueError('No solution found')
+        else:
+            assert symplectic_product(u, w, p)!=0 and symplectic_product(
+                w, v,p) !=0, f'{symplectic_product(u, w, p), symplectic_product(w, v, p)}'
 
     return w
 
-def Find_transvection_map_solve_extended(input_ps, output_ps,constraints=[], sps=[], p=2):
+def Find_transvection_map_solve_extended(input_ps, output_ps, constraints=[], sps=[], p=2):
     """
     Provides the map to transfer one PauliString in GF(p) to another PauliString, subject to some constraints.
     Currently works only for prime dimension. 
@@ -444,29 +451,33 @@ def Find_transvection_map_solve_extended(input_ps, output_ps,constraints=[], sps
             raise ValueError("Failed to construct valid transvection for nonzero symplectic product")
 
     elif a == 0:
-        w=intermediate_transvection_solve_extended(input_ps, output_ps, constraints=constraints, sps=sps, p=p)
-        a_w= symplectic_product(input_ps, w,p)
-        a_w_inv = modinv(a_w, p)
-        h=(-input_ps + w) % p
-        F_h_1= transvection_matrix(h, p, multiplier=a_w_inv)
-        if (input_ps @ F_h_1 % p != w).all():
-            raise ValueError("Failed to construct valid transvection for u->w")
-        b_w= symplectic_product(w, output_ps, p)
-        b_w_inv = modinv(b_w, p)
-        h=(-w + output_ps) % p
-        F_h_2= transvection_matrix(h, p, multiplier=b_w_inv)
-        if (w @ F_h_2 % p != output_ps).all():
-            raise ValueError("Failed to construct valid transvection for w->v")
-        F_h= F_h_1 @ F_h_2 %p
-        if (input_ps @ F_h %p != output_ps).all():
-            raise ValueError("Failed to construct valid transvection map: for u->v")
+        if np.all(input_ps==output_ps):
+            n=int(len(input_ps)//2)
+            F_h= np.eye(2 * n, dtype=int)
+        else:
+            w=intermediate_transvection_solve_extended(input_ps, output_ps, constraints=constraints, sps=sps, p=p)
+            a_w= symplectic_product(input_ps, w,p)
+            a_w_inv = modinv(a_w, p)
+            h=(-input_ps + w) % p
+            F_h_1= transvection_matrix(h, p, multiplier=a_w_inv)
+            if (input_ps @ F_h_1 % p != w).all():
+                raise ValueError("Failed to construct valid transvection for u->w")
+            b_w= symplectic_product(w, output_ps, p)
+            b_w_inv = modinv(b_w, p)
+            h=(-w + output_ps) % p
+            F_h_2= transvection_matrix(h, p, multiplier=b_w_inv)
+            if (w @ F_h_2 % p != output_ps).all():
+                raise ValueError("Failed to construct valid transvection for w->v")
+            F_h= F_h_1 @ F_h_2 %p
+            if (input_ps @ F_h %p != output_ps).all():
+                raise ValueError("Failed to construct valid transvection map: for u->v")
 
     return F_h
 
 
 def map_paulisum_to_target_paulisum(input_tab, output_tab, p):
 
-    if not check_mappable_via_clifford(input_tab, output_tab):
+    if not check_mappable_via_clifford(input_tab, output_tab, p):
         raise Exception(f'Cannot map these tabs')
 
     # Map the first Pauli

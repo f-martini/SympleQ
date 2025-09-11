@@ -116,11 +116,10 @@ class TestSymplecticSolverQudits:
                                                     ' v={v}, w={w}: ")
 
     def test_map_paulisum_to_paulisum(self):
-        n=2
-        p=2
-        m=10
-        allowed_dims = [2]  # can extend to [2, 3, 5, ...] if needed
-        dimensions = [int(np.random.choice(allowed_dims)) for _ in range(n)]
+        n=10 # number of qudits
+        p=7  #prime dimension
+        m=10 #number of paulis
+        dimensions = [p]*n
         for _ in range(100):
             pl_sum = random_hamiltonian.random_pauli_hamiltonian(m, dimensions)
 
@@ -134,7 +133,7 @@ class TestSymplecticSolverQudits:
             input_tab = pl_sum.tableau()
             output_tab = target_pl_sum.tableau()
 
-            if check_mappable_via_clifford(input_tab, output_tab):
+            if check_mappable_via_clifford(input_tab, output_tab, p):
 
                 F_total= map_paulisum_to_target_paulisum(input_tab, output_tab, p)
 
