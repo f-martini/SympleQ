@@ -207,6 +207,9 @@ class Gate:
         return Gate(self.name + '_inv', self.qudit_indices.copy(), C_inv.T, self.dimensions,
                     h_inv)
 
+    def unitary(self):
+        raise NotImplementedError("Unitary not implemented for generic Gate. Use specific gate subclasses.")
+
 
 class SUM(Gate):
     def __init__(self, control, target, dimension):
