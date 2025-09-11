@@ -1,13 +1,14 @@
 import numpy as np
 from quaos.core.paulis import PauliSum
 from quaos.core.measurement.allocation import (sort_hamiltonian, get_phase_matrix, choose_measurement,
-                                               construct_circuit_list, update_X, scale_variances, diagnostic_circuits,
-                                               standard_error_function, diagnostic_states)
+                                               construct_circuit_list, update_data, scale_variances, diagnostic_circuits,
+                                               standard_error_function, diagnostic_states, update_diagnostic_data)
 from quaos.core.measurement.covariance_graph import (quditwise_commutation_graph, commutation_graph,
                                                      weighted_vertex_covering_maximal_cliques, graph)
 from quaos.core.measurement.mcmc import bayes_covariance_graph
 from quaos.utils import int_to_bases
 from typing import Callable
+import pickle
 
 
 class Aquire:
@@ -19,7 +20,14 @@ class Aquire:
                  N_chain: int = 8,
                  N_mcmc: int = 500,
                  N_mcmc_max: int = 2001,
-                 mcmc_shot_scale: float = 1/10000):
+                 mcmc_shot_scale: float = 1 / 10000,
+                 diagnostic_mode: str = "Zero",
+                 noise_probability_function: Callable | None = None,
+                 error_function: Callable | None = None,
+                 noise_args=[],
+                 noise_kwargs={},
+                 error_args=[],
+                 error_kwargs={}):
 
         H, pauli_block_sizes = sort_hamiltonian(H)
 
@@ -32,6 +40,13 @@ class Aquire:
         self.n_qudits = H.n_qudits()
         self.dimension = int(H.lcm)
         self.k_phases = get_phase_matrix(H)
+        self.diagnostic_mode = diagnostic_mode
+        self.noise_probability_function = noise_probability_function
+        self.error_function = error_function
+        self.noise_args = noise_args
+        self.noise_kwargs = noise_kwargs
+        self.error_args = error_args
+        self.error_kwargs = error_kwargs
 
         # changeable if so desired
         self.N_chain = int(N_chain)
@@ -52,9 +67,11 @@ class Aquire:
         self.diagnostic_circuits = []
         self.diagnostic_states = []
         self.diagnostic_state_preparation_circuits = []
+        self.diagnostic_data = np.zeros((self.n_paulis, 2))
         self.total_shots = 0
         self.scaling_matrix = np.eye(self.n_paulis, dtype=int)
-        self.covariance_graph = graph(np.diag([np.conj(self.weights[_])*self.weights[_] for _ in range(self.n_paulis)]))
+        self.covariance_graph = graph(
+            np.diag([np.conj(self.weights[_]) * self.weights[_] for _ in range(self.n_paulis)]))
         self.circuit_dictionary = {}
         self.measurement_results = []
         self.diagnostic_results = []
@@ -72,6 +89,7 @@ class Aquire:
         self.data_checkpoints = []
         self.scaling_matrix_checkpoints = []
         self.covariance_graph_checkpoints = []
+        self.diagnostic_data_checkpoints = []
 
         # results
         self.estimated_mean = []
@@ -102,11 +120,9 @@ class Aquire:
         diagnostic_circuit_list = diagnostic_circuits(circuit_list)
         self.diagnostic_circuits += diagnostic_circuit_list
         self.last_update_diagnostic_circuits += diagnostic_circuit_list
-        diagnostic_state_list, dsp_circuits_list = diagnostic_states(diagnostic_circuit_list, mode='Zero')
+        diagnostic_state_list, dsp_circuits_list = diagnostic_states(diagnostic_circuit_list, mode=self.diagnostic_mode)
         self.diagnostic_states += diagnostic_state_list
         self.diagnostic_state_preparation_circuits += dsp_circuits_list
-
-        return new_cliques, circuit_list
 
     def calculate_mean_estimate(self):
         mean = 0
@@ -125,6 +141,28 @@ class Aquire:
         scaled_variance_graph = scale_variances(self.covariance_graph,self.scaling_matrix)
         stat_variance_estimate = np.sum(scaled_variance_graph.adj).real
         return stat_variance_estimate
+
+    def calculate_systematic_variance_estimate(self):
+        # estimate w_i
+        w = np.zeros((self.n_paulis,2))
+        for i in range(self.n_paulis):
+            w[i,0] = (self.diagnostic_data[i,0]+1)/(np.sum(self.diagnostic_data[i,:])+2)
+            w[i,1] = (self.diagnostic_data[i,1]+1)/(np.sum(self.diagnostic_data[i,:])+2)
+
+        # estimate theta_i
+        theta_est = np.zeros((self.n_paulis,self.dimension))
+        for i in range(self.n_paulis):
+            if np.sum(self.data[i,i,:]) > 0:
+                for j in range(self.dimension):
+                    theta_est[i,j] = (self.data[i,i,j]+1)/(np.sum(self.data[i,i,:])+2)
+            else:
+                theta_est[i,:] = 1/self.dimension
+
+        # eigenvalues
+        xis = [np.exp(2*1j*np.pi*beta/self.dimension) for beta in range(self.dimension)]
+        error_correction = np.sum([self.weights[i0] * np.sum([xis[beta]*(theta_est[i0,beta] - 1/self.dimension)
+                                  for beta in range(self.dimension)])* w[i0,0] for i0 in range(self.n_paulis)])
+        return np.abs(error_correction)**2
 
     def update_covariance_graph(self):
         self.update_steps.append(self.total_shots)
@@ -157,11 +195,11 @@ class Aquire:
         if len(measurement_results) < len(self.last_update_cliques):
             raise Exception(
                 "Not enough measurement results input. Please input at least as many results as the number of newly allocated measurements.")
-        self.data = update_X(self.last_update_cliques,
-                             measurement_results,
-                             self.data,
-                             self.k_phases,
-                             self.circuit_dictionary)
+        self.data = update_data(self.last_update_cliques,
+                                measurement_results,
+                                self.data,
+                                self.k_phases,
+                                self.circuit_dictionary)
 
         self.measurement_results += measurement_results
 
@@ -175,7 +213,19 @@ class Aquire:
         else:
             self.last_update_diagnostic_circuits = []
 
-    def simulate_measurement_results(self, noise_probability_function: Callable | None = None, error_function: Callable | None = None):
+        while len(self.diagnostic_data_checkpoints) < len(self.update_steps):
+            i = len(self.diagnostic_data_checkpoints)
+            if self.update_steps[i] > len(self.diagnostic_results):
+                break
+            new_cliques = self.cliques[self.update_steps[i - 1]:self.update_steps[i]]
+            new_diagnostic_results = self.diagnostic_results[self.update_steps[i - 1]:self.update_steps[i]]
+            self.diagnostic_data = update_diagnostic_data(new_cliques,
+                                                          new_diagnostic_results,
+                                                          self.diagnostic_data,
+                                                          mode=self.diagnostic_mode)
+            self.diagnostic_data_checkpoints.append(self.diagnostic_data.copy())
+
+    def simulate_measurement_results(self):
         simulated_measurement_results = []
         for aa in self.last_update_cliques:
             P1, C, k_dict = self.circuit_dictionary[str(aa)]
@@ -184,23 +234,23 @@ class Aquire:
             p1, q1, phases1, dims1 = P1.paulis(), P1.qudits(), P1.phases, P1.dims
             a1 = np.random.choice(np.prod(dims1), p=pdf)
             result = int_to_bases(a1, dims1)
-            if noise_probability_function is not None:
-                noise_probability = noise_probability_function(C)
+            if self.noise_probability_function is not None:
+                noise_probability = self.noise_probability_function(C, *self.noise_args, **self.noise_kwargs)
                 if np.random.rand() < noise_probability:
-                    if error_function is not None:
-                        result = error_function(result)
+                    if self.error_function is not None:
+                        result = self.error_function(result, *self.error_args, **self.error_kwargs)
                     else:
                         result = standard_error_function(result, self.H.dimensions)
             simulated_measurement_results.append(result)
-        self.data = update_X(self.last_update_cliques,
-                             simulated_measurement_results,
-                             self.data,
-                             self.k_phases,
-                             self.circuit_dictionary)
+        self.data = update_data(self.last_update_cliques,
+                                simulated_measurement_results,
+                                self.data,
+                                self.k_phases,
+                                self.circuit_dictionary)
 
         self.measurement_results += simulated_measurement_results
 
-    def simulate_diagnostic_results(self, noise_probability_function: Callable | None = None, error_function: Callable | None = None):
+    def simulate_diagnostic_results(self):
         simulated_diagnostic_results = []
         for dsp_circuit in self.last_update_diagnostic_state_preparation_circuits:
             psi_diag = dsp_circuit.unitary() @ self.psi
@@ -208,11 +258,11 @@ class Aquire:
             dims = [self.dimension] * self.n_qudits
             a1 = np.random.choice(np.prod(dims), p=pdf)
             result = int_to_bases(a1, dims)
-            if noise_probability_function is not None:
-                noise_probability = noise_probability_function(dsp_circuit)
+            if self.noise_probability_function is not None:
+                noise_probability = self.noise_probability_function(dsp_circuit, *self.noise_args, **self.noise_kwargs)
                 if np.random.rand() < noise_probability:
-                    if error_function is not None:
-                        result = error_function(result)
+                    if self.error_function is not None:
+                        result = self.error_function(result, *self.error_args, **self.error_kwargs)
                     else:
                         result = standard_error_function(result, self.H.dimensions)
             simulated_diagnostic_results.append(result)
@@ -223,7 +273,58 @@ class Aquire:
         else:
             self.last_update_diagnostic_circuits = []
 
+        while len(self.diagnostic_data_checkpoints) < len(self.update_steps):
+            i = len(self.diagnostic_data_checkpoints)
+            if self.update_steps[i] > len(self.diagnostic_results):
+                break
+            new_cliques = self.cliques[self.update_steps[i - 1]:self.update_steps[i]]
+            new_diagnostic_results = self.diagnostic_results[self.update_steps[i - 1]:self.update_steps[i]]
+            self.diagnostic_data = update_diagnostic_data(new_cliques,
+                                                          new_diagnostic_results,
+                                                          self.diagnostic_data,
+                                                          mode=self.diagnostic_mode)
+            self.diagnostic_data_checkpoints.append(self.diagnostic_data.copy())
 
+    def save(self,filename:str):
+        with open(filename,'wb') as f:
+            pickle.dump(self,f)
 
+    @classmethod
+    def load(cls,filename:str):
+        with open(filename,'rb') as f:
+            return pickle.load(f)
 
+    # TODO: Decide which of these one usually wants to save
+    def save_results(self,filename:str):
+        results = {
+            'estimated_mean':self.estimated_mean,
+            'statistical_variance':self.statistical_variance,
+            'systematic_variariance':self.systematic_variance,
+            'data_checkpoints':self.data_checkpoints,
+            'scaling_matrix_checkpoints':self.scaling_matrix_checkpoints,
+            'covariance_graph_checkpoints':[cg.adj for cg in self.covariance_graph_checkpoints],
+            'update_steps':self.update_steps,
+            'total_shots':self.total_shots,
+            'cliques':self.cliques,
+            'circuits':[circuit.gates for circuit in self.circuits],
+            'diagnostic_circuits':[circuit.gates for circuit in self.diagnostic_circuits],
+            'diagnostic_states':self.diagnostic_states,
+            'diagnostic_state_preparation_circuits':[circuit.gates for circuit in self.diagnostic_state_preparation_circuits],
+            'measurement_results':self.measurement_results,
+            'diagnostic_results':self.diagnostic_results
+        }
+        with open(filename,'wb') as f:
+            pickle.dump(results,f)
 
+    def simulate_observable(self, update_steps: list[int]):
+        initial_shots = update_steps[0]
+        rounds = len(update_steps) - 1
+        shots_per_round = [update_steps[i + 1] - update_steps[i] for i in range(rounds)]
+        self.choose_cliques(initial_shots)
+        self.simulate_measurement_results()
+        self.update_covariance_graph()
+        for i in range(rounds):
+            self.choose_cliques(shots_per_round[i])
+            self.simulate_measurement_results()
+            self.update_covariance_graph()
+            self.simulate_diagnostic_results()

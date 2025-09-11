@@ -161,9 +161,9 @@ def weighted_vertex_covering_maximal_cliques(A,A1=None,cc=None,k=1):
     # Outputs:
     #     (list{list{int}}) - a list containing cliques which cover A
     p = A.ord()
-    if A1 == None and cc == None:
+    if A1 is None and cc is None:
         return vertex_covering_maximal_cliques(A,k=k)
-    elif A1 == None:
+    elif A1 is None:
         cc2 = [np.abs(cc[i])**2 for i in range(p)]
         N = {}
         for i in range(p):
@@ -282,8 +282,8 @@ def LDF(A):
         remaining -= aa0
     return [sorted(list(aa)) for aa in aaa]
 
-def commutation_graph(P):
-    G = graph(P.symplectic_product_matrix())
+def commutation_graph(P:PauliSum):
+    G = graph((P.symplectic_product_matrix()-1)%P.lcm)
     return G
 
 def quditwise_inner_product(PS1,PS2):

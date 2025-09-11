@@ -63,7 +63,7 @@ def sort_hamiltonian(P:PauliSum):
         pauli_block_sizes.append(2)
 
     # Extract and reorder Pauli strings and coefficients
-    pauli_strings = P.pauli_strings
+    pauli_strings = [str(ps) for ps in P.pauli_strings]
     dims = P.dimensions
     phases = P.phases
 
@@ -84,10 +84,10 @@ def levi_civita(i, j, k):
         return -1
 
 def quditwise_inner_product(P0,P1):
-    P0_paulis = [int(2*P0.x_exp[i] + P0.z_exp[i]) for i in range(P0.qudits())]
-    P1_paulis = [int(2*P1.x_exp[i] + P1.z_exp[i]) for i in range(P1.qudits())]
-    result = np.zeros(P0.qudits(),dtype=np.complex128)
-    for i in range(P0.qudits()):
+    P0_paulis = [int(2*P0.x_exp[i] + P0.z_exp[i]) for i in range(P0.n_qudits())]
+    P1_paulis = [int(2*P1.x_exp[i] + P1.z_exp[i]) for i in range(P1.n_qudits())]
+    result = np.zeros(P0.n_qudits(),dtype=np.complex128)
+    for i in range(P0.n_qudits()):
         if P0_paulis[i] == P1_paulis[i]:
             result[i] = 1
         else:
@@ -189,7 +189,7 @@ def construct_diagonalization_circuit(P:PauliSum,aa,D={}):
                     P2_s = str(P2)
 
                     if P2 not in P1:
-                        k_dict[str(P1.n_paulis()+1)] = [(a0, a1)]
+                        k_dict[str(P1.n_paulis())] = [(a0, a1)]
                         P1 = P1 + P2
                     else:
                         P1_s = [str(ps) for ps in P1.pauli_strings]
@@ -250,7 +250,7 @@ def diagonalize_iter_(P,C,aa):
     #     aa - (list{int}) - remaining qudits of same dimension
     # Outputs:
     #     (circuit) - circuit which diagonalizes first a qudits
-    p,q = P.paulis(),P.qudits()
+    p,q = P.n_paulis(),P.n_qudits()
     P = C.act(P)
     a = aa.pop(0)
 
@@ -277,7 +277,7 @@ def diagonalize_iter_(P,C,aa):
         # if Pauli a1, qudit a is X, apply S gate to make it Y
         if not P.z_exp[a1,a]:
             g = S(a,P.dimensions[a])
-            C.add_gates_(g)
+            C.add_gate(g)
             P = g.act(P)
 
         # add backwards CNOT gates to cancel out all non-zero Z-parts on Pauli a1, qudits in aa
@@ -295,14 +295,14 @@ def diagonalize_iter_(P,C,aa):
 
 # TODO Update to framework
 # an iterative function called within diagonalize()
-def diagonalize_iter_quditwise_(P,C,aa):
+def diagonalize_iter_quditwise_(P:PauliSum,C:Circuit,aa:list[int]):
     # Inputs:
     #     P  - (pauli)     - Pauli to be diagonalized
     #     C  - (circuit)   - circuit which diagonalizes first a-1 qudits
     #     aa - (list{int}) - remaining qudits of same dimension
     # Outputs:
     #     (circuit) - circuit which diagonalizes first a qudits
-    p,q = P.paulis(),P.qudits()
+    p,q = P.n_paulis(),P.n_qudits()
     P = C.act(P)
     a = aa.pop(0)
 
@@ -329,7 +329,7 @@ def is_diagonalizing_circuit(P,C,aa):
     return P1.is_z()
 
 
-def update_X(xxx, rr, X, k_phases, D):
+def update_data(xxx, rr, X, k_phases, D):
     d = len(X[0,0])
     for i,aa in enumerate(xxx):
         (P1, C, k_dict) = D[str(aa)]
@@ -345,6 +345,19 @@ def update_X(xxx, rr, X, k_phases, D):
                 else:
                     X[a0, a1, s0] += 1
     return(X)
+
+def update_diagnostic_data(cliques,diagnostic_results, diagnostic_data, mode='Zero'):
+    if mode == 'Zero':
+        for i in range(len(diagnostic_results)):
+            if np.any(diagnostic_results[i]):
+                diagnostic_data[cliques[i],0] += 1
+            else:
+                diagnostic_data[cliques[i],1] += 1
+    elif mode == 'Random':
+        raise Exception('Random diagnostic states not yet implemented')
+    else:
+        raise Exception('Diagnostic state mode not recognized')
+    return(diagnostic_data)
 
 def scale_variances(A,S):
     # Inputs:
