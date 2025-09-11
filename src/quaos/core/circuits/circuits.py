@@ -1,9 +1,10 @@
 from typing import overload
 import numpy as np
 from qiskit import QuantumCircuit
-from .gates import Gate
+from .gates import Gate, Hadamard, PHASE, SUM, SWAP, CNOT
 from quaos.core.paulis import PauliSum, PauliString, Pauli
-from .utils import embed_symplectic
+from .utils import embed_symplectic, left_multiply_local_unitary
+import scipy.sparse as sp
 from .gates import Hadamard as H, SUM as CX, PHASE as S
 import random
 
@@ -47,16 +48,24 @@ class Circuit:
         Returns:
             Circuit: A new Circuit object.
         """
+        # check if all dimensions are the different
+        if len(set(dimensions)) != len(dimensions):
+            g_max = 3  # only single qudit gates if not all dimensions are different (never selects CX)
+        else:
+            g_max = 2  # all gates possible
+
         gate_list = [H, S, CX]
         gg = []
         for i in range(depth):
-            g_i = np.random.randint(3)
+            g_i = np.random.randint(g_max)
             if g_i == 2:
                 aa = list(random.sample(range(n_qudits), 2))
-                gg += [gate_list[g_i](aa[0], aa[1], 2)]
+                while aa[0] == aa[1] or dimensions[aa[0]] != dimensions[aa[1]]:
+                    aa = list(random.sample(range(n_qudits), 2))
+                gg += [gate_list[g_i](aa[0], aa[1], dimensions[aa[0]])]
             else:
                 aa = list(random.sample(range(n_qudits), 1))
-                gg += [gate_list[g_i](aa[0], 2)]
+                gg += [gate_list[g_i](aa[0], dimensions[aa[0]])]
 
         return cls(dimensions, gg)
 
@@ -230,3 +239,35 @@ class Circuit:
         total_indexes = list(set(np.sort(total_indexes)))
         total_symplectic = total_symplectic.T
         return Gate('CompositeGate', total_indexes, total_symplectic, self.dimensions, total_phase_vector)
+    
+    def unitary(self):
+        # TODO: Implement tests. Should check that action of the unitary gives the same as action of the symplectic
+        known_unitaries = (Hadamard, PHASE, SUM, SWAP, CNOT)
+        if not np.all([isinstance(gate, known_unitaries) for gate in self.gates]):
+            raise NotImplementedError("Unitary not implemented for all gates in the circuit.")
+        
+        # Start from identity on full Hilbert space
+        D_total = int(np.prod(self.dimensions))
+        U = np.eye(D_total, dtype=complex)
+        for gate in self.gates:
+            # Ensure local gate unitary uses the circuit's local dimensions
+            local_dims = [int(self.dimensions[i]) for i in gate.qudit_indices]
+            needs_override = True
+            try:
+                gd = list(map(int, gate.dimensions))
+                needs_override = (gd != local_dims)
+            except Exception:
+                needs_override = True
+
+            if needs_override:
+                saved_dims = getattr(gate, 'dimensions', None)
+                gate.dimensions = np.array(local_dims, dtype=int)
+                try:
+                    U_local = gate.unitary()
+                finally:
+                    gate.dimensions = saved_dims
+            else:
+                U_local = gate.unitary()
+
+            U = left_multiply_local_unitary(U, U_local, gate.qudit_indices, self.dimensions)
+        return sp.csr_matrix(U)
