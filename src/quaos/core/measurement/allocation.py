@@ -333,17 +333,17 @@ def update_data(xxx, rr, X, k_phases, D):
     d = len(X[0,0])
     for i,aa in enumerate(xxx):
         (P1, C, k_dict) = D[str(aa)]
-        p1, q1, phases1, dims1 = P1.paulis(), P1.qudits(), P1.phases, P1.dims
+        p1, q1, phases1, dims1 = P1.n_paulis(), P1.n_qudits(), P1.phases, P1.dimensions
         #int_to_bases(rr[i], dims1) # or just rr[i] depending on how experimentalists want to input their results
         bases_a1 = rr[i]
-        ss = [(phases1[i0] + sum((bases_a1[i1] * P1.Z[i0, i1] * P1.lcm) // P1.dims[i1]
+        ss = [(phases1[i0] + sum((bases_a1[i1] * P1.z_exp[i0, i1] * P1.lcm) // P1.dimensions[i1]
                for i1 in range(q1))) % P1.lcm for i0 in range(p1)]
         for j0, s0 in enumerate(ss):
             for a0, a1 in k_dict[str(j0)]:
                 if a0 != a1:
-                    X[a0, a1, int((s0 + k_phases[a0, a1]) % d)] += 1
+                    X[int(a0), int(a1), int((s0 + k_phases[a0, a1]) % d)] += 1
                 else:
-                    X[a0, a1, s0] += 1
+                    X[int(a0), int(a1), int(s0)] += 1
     return(X)
 
 def update_diagnostic_data(cliques,diagnostic_results, diagnostic_data, mode='Zero'):

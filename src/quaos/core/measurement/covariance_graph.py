@@ -119,7 +119,7 @@ class graph:
     def copy(self):
         # Outputs:
         #     (graph) - deep copy of self
-        return graph(np.array([[self.adj[i0,i1] for i1 in range(self.ord())] for i0 in range(self.ord)]))
+        return graph(np.array([[self.adj[i0,i1] for i1 in range(self.ord())] for i0 in range(self.ord())]))
 
 # returns all non-empty cliques in a graph
 def nonempty_cliques(A):

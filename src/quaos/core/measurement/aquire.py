@@ -1,21 +1,27 @@
 import numpy as np
 from quaos.core.paulis import PauliSum
 from quaos.core.measurement.allocation import (sort_hamiltonian, get_phase_matrix, choose_measurement,
-                                               construct_circuit_list, update_data, scale_variances, diagnostic_circuits,
-                                               standard_error_function, diagnostic_states, update_diagnostic_data)
+                                               construct_circuit_list, update_data,
+                                               diagnostic_circuits, standard_error_function, diagnostic_states,
+                                               update_diagnostic_data)
 from quaos.core.measurement.covariance_graph import (quditwise_commutation_graph, commutation_graph,
                                                      weighted_vertex_covering_maximal_cliques, graph)
 from quaos.core.measurement.mcmc import bayes_covariance_graph
+from quaos.core.measurement.aquire_utils import (calculate_mean_estimate, calculate_statistical_variance_estimate,
+                                                 calculate_systematic_variance_estimate, true_mean,
+                                                 true_statistical_variance)
 from quaos.utils import int_to_bases
 from typing import Callable
 import pickle
+import matplotlib.pyplot as plt
 
 
 class Aquire:
     def __init__(self,
                  H: PauliSum,
-                 psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,
+                 psi: list[float | complex] | list[float] | list[complex] | np.ndarray,
                  general_commutation: bool = False,
+                 true_values: bool = True,
                  allocation_mode: str = "set",
                  N_chain: int = 8,
                  N_mcmc: int = 500,
@@ -35,7 +41,7 @@ class Aquire:
         self.H = H
         self.weights = H.weights
         self.pauli_block_sizes = pauli_block_sizes
-        self.psi = psi
+        self.psi = np.array(psi)
         self.n_paulis = H.n_paulis()
         self.n_qudits = H.n_qudits()
         self.dimension = int(H.lcm)
@@ -47,6 +53,7 @@ class Aquire:
         self.noise_kwargs = noise_kwargs
         self.error_args = error_args
         self.error_kwargs = error_kwargs
+        self.true_values_flag = true_values
 
         # changeable if so desired
         self.N_chain = int(N_chain)
@@ -55,6 +62,10 @@ class Aquire:
         self.mcmc_shot_scale = mcmc_shot_scale
         self.general_commutation = general_commutation
         self.allocation_mode = allocation_mode
+        if noise_probability_function is not None or error_function is not None:
+            self.diagnostic_flag = True
+        else:
+            self.diagnostic_flag = False
 
         # dependent on changeable parameters
         self.CG = commutation_graph(H) if general_commutation else quditwise_commutation_graph(H)
@@ -64,46 +75,67 @@ class Aquire:
         self.data = np.zeros((self.n_paulis, self.n_paulis, self.dimension))
         self.cliques = []
         self.circuits = []
-        self.diagnostic_circuits = []
-        self.diagnostic_states = []
-        self.diagnostic_state_preparation_circuits = []
-        self.diagnostic_data = np.zeros((self.n_paulis, 2))
         self.total_shots = 0
         self.scaling_matrix = np.eye(self.n_paulis, dtype=int)
         self.covariance_graph = graph(
             np.diag([np.conj(self.weights[_]) * self.weights[_] for _ in range(self.n_paulis)]))
         self.circuit_dictionary = {}
         self.measurement_results = []
-        self.diagnostic_results = []
         self.update_steps = []
 
         # variables that track changes since last covariance update
         self.last_update_shots = 0
         self.last_update_cliques = []
         self.last_update_circuits = []
-        self.last_update_diagnostic_circuits = []
-        self.last_update_diagnostic_states = []
-        self.last_update_diagnostic_state_preparation_circuits = []
 
         # checkpoints (some of the above data collected at specific points)
         self.data_checkpoints = []
         self.scaling_matrix_checkpoints = []
         self.covariance_graph_checkpoints = []
-        self.diagnostic_data_checkpoints = []
 
         # results
         self.estimated_mean = []
         self.statistical_variance = []
+
+        # Diagnostic values
+        self.diagnostic_circuits = []
+        self.diagnostic_states = []
+        self.diagnostic_state_preparation_circuits = []
+        self.diagnostic_data = np.zeros((self.n_paulis, 2))
+        self.diagnostic_results = []
+        self.diagnostic_data_checkpoints = []
+        self.last_update_diagnostic_circuits = []
+        self.last_update_diagnostic_states = []
+        self.last_update_diagnostic_state_preparation_circuits = []
         self.systematic_variance = []
 
+        # Comparison values: not used in the algorithm
+        # initially set to None, can be set later if desired and H not too large
+        if self.true_values_flag:
+            self.true_mean_value = true_mean(H, self.psi)
+            self.true_statistical_variance_value = []
+
     def choose_cliques(self, shots):
+        """
+        Choose new cliques to measure according to the allocation mode and
+        construct new circuits to measure the cliques.
+
+        Parameters
+        ----------
+        shots : int
+            The number of new cliques to choose.
+
+        Returns
+        -------
+        None
+        """
         self.total_shots += shots
         self.last_update_shots += shots
         Ones = [np.ones((i, i), dtype=int) for i in range(self.n_paulis + 1)]
         new_cliques = []
         for i in range(shots):
-            aa = choose_measurement(self.scaling_matrix,self.covariance_graph.adj,
-                                    self.clique_covering,self.allocation_mode)
+            aa = choose_measurement(self.scaling_matrix, self.covariance_graph.adj,
+                                    self.clique_covering, self.allocation_mode)
             new_cliques.append(aa)
             self.scaling_matrix[np.ix_(aa, aa)] += Ones[len(aa)]
 
@@ -112,57 +144,20 @@ class Aquire:
         self.scaling_matrix[range(self.n_paulis), range(self.n_paulis)] -= np.ones(self.n_paulis, dtype=int)
 
         # construct list of circuits
-        circuit_list, self.circuit_dictionary = construct_circuit_list(self.H,new_cliques,self.circuit_dictionary)
+        circuit_list, self.circuit_dictionary = construct_circuit_list(self.H, new_cliques, self.circuit_dictionary)
         self.circuits += circuit_list
         self.last_update_circuits += circuit_list
 
+    def choose_diagnostic_circuits(self):
+        self.diagnostic_flag = True
         # construct list of diagnostic circuits
-        diagnostic_circuit_list = diagnostic_circuits(circuit_list)
+        n = len(self.diagnostic_circuits)
+        diagnostic_circuit_list = diagnostic_circuits(self.circuits[n:])
         self.diagnostic_circuits += diagnostic_circuit_list
         self.last_update_diagnostic_circuits += diagnostic_circuit_list
         diagnostic_state_list, dsp_circuits_list = diagnostic_states(diagnostic_circuit_list, mode=self.diagnostic_mode)
         self.diagnostic_states += diagnostic_state_list
         self.diagnostic_state_preparation_circuits += dsp_circuits_list
-
-    def calculate_mean_estimate(self):
-        mean = 0
-        for i0 in range(self.n_paulis):
-            total_counts = sum(self.data[i0, i0, i1] for i1 in range(self.dimension))
-            if total_counts > 0:
-                weighted_sum = sum(
-                    self.data[i0, i0, i1] * np.exp(2j * np.pi * i1 / self.dimension)
-                    for i1 in range(self.dimension)
-                )
-            mean += self.weights[i0] * (weighted_sum / total_counts)
-        mean = mean.real
-        return mean
-
-    def calculate_statistical_variance_estimate(self):
-        scaled_variance_graph = scale_variances(self.covariance_graph,self.scaling_matrix)
-        stat_variance_estimate = np.sum(scaled_variance_graph.adj).real
-        return stat_variance_estimate
-
-    def calculate_systematic_variance_estimate(self):
-        # estimate w_i
-        w = np.zeros((self.n_paulis,2))
-        for i in range(self.n_paulis):
-            w[i,0] = (self.diagnostic_data[i,0]+1)/(np.sum(self.diagnostic_data[i,:])+2)
-            w[i,1] = (self.diagnostic_data[i,1]+1)/(np.sum(self.diagnostic_data[i,:])+2)
-
-        # estimate theta_i
-        theta_est = np.zeros((self.n_paulis,self.dimension))
-        for i in range(self.n_paulis):
-            if np.sum(self.data[i,i,:]) > 0:
-                for j in range(self.dimension):
-                    theta_est[i,j] = (self.data[i,i,j]+1)/(np.sum(self.data[i,i,:])+2)
-            else:
-                theta_est[i,:] = 1/self.dimension
-
-        # eigenvalues
-        xis = [np.exp(2*1j*np.pi*beta/self.dimension) for beta in range(self.dimension)]
-        error_correction = np.sum([self.weights[i0] * np.sum([xis[beta]*(theta_est[i0,beta] - 1/self.dimension)
-                                  for beta in range(self.dimension)])* w[i0,0] for i0 in range(self.n_paulis)])
-        return np.abs(error_correction)**2
 
     def update_covariance_graph(self):
         self.update_steps.append(self.total_shots)
@@ -182,11 +177,15 @@ class Aquire:
         self.covariance_graph = graph(A)
         self.covariance_graph_checkpoints.append(self.covariance_graph.copy())
 
-        self.estimated_mean.append(self.calculate_mean_estimate())
-        self.statistical_variance.append(self.calculate_statistical_variance_estimate())
+        self.estimated_mean.append(calculate_mean_estimate(self.data, self.weights))
+        self.statistical_variance.append(calculate_statistical_variance_estimate(
+            self.covariance_graph, self.scaling_matrix))
         self.last_update_shots = 0
         self.last_update_cliques = []
         self.last_update_circuits = []
+        if self.true_values_flag:
+            self.true_statistical_variance_value.append(true_statistical_variance(
+                self.H, self.psi, self.scaling_matrix,self.weights))
 
     def input_measurement_data(self, measurement_results: list):
         if len(self.data) == len(self.circuits):
@@ -194,7 +193,8 @@ class Aquire:
                 "Data already input for all circuits. Please allocate more measurements before inputting more data.")
         if len(measurement_results) < len(self.last_update_cliques):
             raise Exception(
-                "Not enough measurement results input. Please input at least as many results as the number of newly allocated measurements.")
+                ("Not enough measurement results input. Please input at least as many results as the number of newly "
+                 "allocated measurements."))
         self.data = update_data(self.last_update_cliques,
                                 measurement_results,
                                 self.data,
@@ -204,12 +204,14 @@ class Aquire:
         self.measurement_results += measurement_results
 
     def input_diagnostic_data(self, diagnostic_results: list):
+        self.diagnostic_flag = True
         self.diagnostic_results += diagnostic_results
         if len(diagnostic_results) < len(self.last_update_diagnostic_circuits):
             self.last_update_diagnostic_circuits = self.last_update_diagnostic_circuits[len(diagnostic_results):]
         elif len(diagnostic_results) > len(self.last_update_diagnostic_circuits):
             raise Exception(
-                "Too many diagnostic results input. Please input at most as many results as the number of newly allocated diagnostic measurements.")
+                ("Too many diagnostic results input. Please input at most as many results as the number of newly "
+                 "allocated diagnostic measurements."))
         else:
             self.last_update_diagnostic_circuits = []
 
@@ -224,23 +226,26 @@ class Aquire:
                                                           self.diagnostic_data,
                                                           mode=self.diagnostic_mode)
             self.diagnostic_data_checkpoints.append(self.diagnostic_data.copy())
+            self.systematic_variance.append(calculate_systematic_variance_estimate(self.data, self.weights,
+                                                                                   self.diagnostic_data))
 
     def simulate_measurement_results(self):
         simulated_measurement_results = []
         for aa in self.last_update_cliques:
-            P1, C, k_dict = self.circuit_dictionary[str(aa)]
+            P1, C, _ = self.circuit_dictionary[str(aa)]
             psi_diag = C.unitary() @ self.psi
             pdf = np.abs(psi_diag * psi_diag.conj())
-            p1, q1, phases1, dims1 = P1.paulis(), P1.qudits(), P1.phases, P1.dims
+            dims1 = P1.dimensions
             a1 = np.random.choice(np.prod(dims1), p=pdf)
             result = int_to_bases(a1, dims1)
-            if self.noise_probability_function is not None:
-                noise_probability = self.noise_probability_function(C, *self.noise_args, **self.noise_kwargs)
-                if np.random.rand() < noise_probability:
-                    if self.error_function is not None:
-                        result = self.error_function(result, *self.error_args, **self.error_kwargs)
-                    else:
-                        result = standard_error_function(result, self.H.dimensions)
+            if self.diagnostic_flag:
+                if self.noise_probability_function is not None:
+                    noise_probability = self.noise_probability_function(C, *self.noise_args, **self.noise_kwargs)
+                    if np.random.rand() < noise_probability:
+                        if self.error_function is not None:
+                            result = self.error_function(result, *self.error_args, **self.error_kwargs)
+                        else:
+                            result = standard_error_function(result, self.H.dimensions)
             simulated_measurement_results.append(result)
         self.data = update_data(self.last_update_cliques,
                                 simulated_measurement_results,
@@ -251,6 +256,7 @@ class Aquire:
         self.measurement_results += simulated_measurement_results
 
     def simulate_diagnostic_results(self):
+        self.diagnostic_flag = True
         simulated_diagnostic_results = []
         for dsp_circuit in self.last_update_diagnostic_state_preparation_circuits:
             psi_diag = dsp_circuit.unitary() @ self.psi
@@ -284,47 +290,129 @@ class Aquire:
                                                           self.diagnostic_data,
                                                           mode=self.diagnostic_mode)
             self.diagnostic_data_checkpoints.append(self.diagnostic_data.copy())
+            self.systematic_variance.append(calculate_systematic_variance_estimate(self.data, self.weights,
+                                                                                   self.diagnostic_data))
 
-    def save(self,filename:str):
-        with open(filename,'wb') as f:
-            pickle.dump(self,f)
+    def save(self, filename: str):
+        with open(filename, 'wb') as f:
+            pickle.dump(self, f)
 
     @classmethod
-    def load(cls,filename:str):
-        with open(filename,'rb') as f:
+    def load(cls, filename: str):
+        with open(filename, 'rb') as f:
             return pickle.load(f)
 
     # TODO: Decide which of these one usually wants to save
-    def save_results(self,filename:str):
+    def save_results(self, filename: str):
         results = {
-            'estimated_mean':self.estimated_mean,
-            'statistical_variance':self.statistical_variance,
-            'systematic_variariance':self.systematic_variance,
-            'data_checkpoints':self.data_checkpoints,
-            'scaling_matrix_checkpoints':self.scaling_matrix_checkpoints,
-            'covariance_graph_checkpoints':[cg.adj for cg in self.covariance_graph_checkpoints],
-            'update_steps':self.update_steps,
-            'total_shots':self.total_shots,
-            'cliques':self.cliques,
-            'circuits':[circuit.gates for circuit in self.circuits],
-            'diagnostic_circuits':[circuit.gates for circuit in self.diagnostic_circuits],
-            'diagnostic_states':self.diagnostic_states,
-            'diagnostic_state_preparation_circuits':[circuit.gates for circuit in self.diagnostic_state_preparation_circuits],
-            'measurement_results':self.measurement_results,
-            'diagnostic_results':self.diagnostic_results
+            'estimated_mean': self.estimated_mean,
+            'statistical_variance': self.statistical_variance
         }
-        with open(filename,'wb') as f:
-            pickle.dump(results,f)
+        if self.diagnostic_flag:
+            results['systematic_variance'] = self.systematic_variance
+        if self.true_values_flag:
+            results['true_mean'] = self.true_mean_value
+            results['true_statistical_variance'] = self.true_statistical_variance_value
+        with open(filename, 'wb') as f:
+            pickle.dump(results, f)
 
-    def simulate_observable(self, update_steps: list[int]):
+    def simulate_observable(self, update_steps: list[int], hardware_noise: bool = False):
         initial_shots = update_steps[0]
         rounds = len(update_steps) - 1
         shots_per_round = [update_steps[i + 1] - update_steps[i] for i in range(rounds)]
         self.choose_cliques(initial_shots)
         self.simulate_measurement_results()
         self.update_covariance_graph()
+        if hardware_noise:
+            self.choose_diagnostic_circuits()
+            self.simulate_diagnostic_results()
         for i in range(rounds):
             self.choose_cliques(shots_per_round[i])
             self.simulate_measurement_results()
             self.update_covariance_graph()
-            self.simulate_diagnostic_results()
+            if hardware_noise:
+                self.choose_diagnostic_circuits()
+                self.simulate_diagnostic_results()
+
+    def plot(self, filename: str | None = None):
+        # common data stuff
+        cm = 1 / 2.54
+        fig, ax = plt.subplots(ncols=2, nrows=1, figsize=(23 * cm, 11 * cm))
+        c_stat = '#4FCB8D'
+        c_dev = '#D93035'
+        cs = 1.75               # capsize
+        ct = 1.5                  # capthickness
+        ms = 5.5                 # marker size
+        ew = 1.5                  # errorbar linewidth
+        mew = 1.5               # marker edge width
+        ec = c_stat  # bitwise errorbar edgecolor
+        mec = '#ffffff'         # marker edge color
+        mfc = c_stat  # bitwise marker face color
+        fmt = 'o'            # bitwise marker type
+        label_fontsize = 14
+
+        M = np.array(self.update_steps)
+        est_mean = np.array(self.estimated_mean)
+        stat_var = np.array(self.statistical_variance)
+        if self.diagnostic_flag:
+            sys_var = np.array(self.systematic_variance)
+
+        # Mean Plot
+        if self.true_values_flag:
+            H_mean = self.true_mean_value
+            mean = np.abs(est_mean - H_mean)
+            ax[0].plot([M[0], M[-1]], [0, 0], 'k--')
+            ax[0].set_ylabel(r'$|\widetilde{O} - \langle \hat{O} \rangle|$', fontsize=label_fontsize)
+        else:
+            mean = est_mean
+            ax[0].set_ylabel(r'$\widetilde{O}$', fontsize=label_fontsize)
+
+        if self.diagnostic_flag:
+            errorbar = np.sqrt(stat_var + sys_var)
+        else:
+            errorbar = np.sqrt(stat_var)
+
+        ax[0].errorbar(M, mean, yerr=errorbar,
+                       fmt=fmt, ecolor=ec,
+                       capsize=cs, capthick=ct, markersize=ms, elinewidth=ew,
+                       mec=mec, mew=mew, mfc=mfc)
+
+        ax[0].set_xscale('log')
+        ax[0].set_xlabel(r'shots $M$', fontsize=label_fontsize)
+        ax[0].legend()
+
+        # Error Plot
+        if self.true_values_flag:
+            stat_error = stat_var * M / (H_mean)**2
+            if self.diagnostic_flag:
+                phys_error = sys_var * M / (H_mean)**2
+        else:
+            stat_error = stat_var * M
+            if self.diagnostic_flag:
+                phys_error = sys_var * M 
+
+        r = 1.25  # ~±22% in log10
+        lefts = M / np.sqrt(r)
+        rights = M * np.sqrt(r)
+        widths = rights - lefts
+
+        ax[1].bar(lefts, stat_error, width=widths, align='edge',
+                  label='Statistical Variance', color=c_stat)
+        if self.diagnostic_flag:
+            ax[1].bar(lefts, phys_error, width=widths, align='edge',
+                    bottom=stat_error, label='Systematic Variance',
+                    color=c_dev)
+
+        if self.true_values_flag:
+            ax[1].plot(M, self.true_statistical_variance_value * M / (H_mean)**2, 'k--', label='True Stat. Variance')
+
+        ax[1].set_xscale('log')
+        ax[1].set_ylabel(r'$M \cdot (\widetilde{\Delta O})^2$', fontsize=label_fontsize)
+        ax[1].set_xlabel(r'shots $M$', fontsize=label_fontsize)
+        ax[1].legend()
+
+        plt.tight_layout(pad=1, w_pad=1, h_pad=1)
+        if filename is not None:
+            plt.savefig(filename, dpi=1200)
+
+        plt.show()
