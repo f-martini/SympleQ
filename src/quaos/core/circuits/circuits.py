@@ -47,16 +47,24 @@ class Circuit:
         Returns:
             Circuit: A new Circuit object.
         """
+        # check if all dimensions are the different
+        if len(set(dimensions)) != len(dimensions):
+            g_max = 3  # only single qudit gates if not all dimensions are different (never selects CX)
+        else:
+            g_max = 2  # all gates possible
+
         gate_list = [H, S, CX]
         gg = []
         for i in range(depth):
-            g_i = np.random.randint(3)
+            g_i = np.random.randint(g_max)
             if g_i == 2:
                 aa = list(random.sample(range(n_qudits), 2))
-                gg += [gate_list[g_i](aa[0], aa[1], 2)]
+                while aa[0] == aa[1] or dimensions[aa[0]] != dimensions[aa[1]]:
+                    aa = list(random.sample(range(n_qudits), 2))
+                gg += [gate_list[g_i](aa[0], aa[1], dimensions[aa[0]])]
             else:
                 aa = list(random.sample(range(n_qudits), 1))
-                gg += [gate_list[g_i](aa[0], 2)]
+                gg += [gate_list[g_i](aa[0], dimensions[aa[0]])]
 
         return cls(dimensions, gg)
 

@@ -221,10 +221,12 @@ def get_linear_dependencies(vectors: np.ndarray,
     Parameters
     ----------
     vectors : np.ndarray
-        Matrix of shape (n, m). Each row is a vector.
-    p : int | list[int]
-        - If int: All rows are over GF(p).
-        - If list[int]: p[i] is the prime field for row i.
+        Matrix of shape (m, n). Each row is a vector.
+    p : int | list[int] | np.ndarray
+        - If int: all columns are over GF(p).
+        - If list/array of length n: p[j] is the prime for column j.
+        - If list/array of length n//2: per-qudit primes; each value is duplicated for X/Z columns.
+        - If list/array of length m: p[i] is the prime field per row (legacy mode).
 
     Returns
     -------
@@ -234,55 +236,134 @@ def get_linear_dependencies(vectors: np.ndarray,
         Mapping: row index -> list of (pivot_index, coefficient) such that
         row = sum(coeff * pivot).
     """
-    n, m = vectors.shape
+    m, n = vectors.shape  # m = rows (vectors), n = columns
 
-    # Normalize p into a list
+    # Normalize p into per-column primes when possible.
+    p_cols: list[int]
+    mode: str
     if isinstance(p, int):
-        ps = [p] * n
-    elif isinstance(p, list):
-        assert len(p) == n, "Length of p list must equal number of rows"
-        ps = p
+        p_cols = [int(p)] * n
+        mode = "per-column"
+    elif isinstance(p, (list, np.ndarray)):
+        lp = len(p)
+        if lp == n:
+            p_cols = [int(x) for x in p]
+            mode = "per-column"
+        elif lp == n // 2 and n % 2 == 0:
+            # Per-qudit list provided; duplicate for X/Z halves
+            p_cols = [int(x) for x in np.repeat(p, 2)]
+            mode = "per-column"
+        elif lp == m:
+            # Legacy behavior: per-row primes
+            ps = [int(x) for x in p]
+            mode = "per-row"
+        else:
+            raise AssertionError(
+                f"Length of p must be either rows={m}, cols={n}, or cols/2={n//2} (for qudits). Got {lp}"
+            )
     else:
-        raise TypeError("p must be int or list[int]")
+        raise TypeError("p must be int or list/np.ndarray of ints")
 
-    pivot_indices = []
-    dependencies = {}
+    pivot_indices: list[int] = []
+    dependencies: dict[int, list[tuple[int, int]]] = {}
 
-    # Group rows by prime
-    prime_groups = defaultdict(list)
-    for i, prime in enumerate(ps):
-        prime_groups[prime].append(i)
+    if mode == "per-row":
+        # Group rows by prime and process each group independently
+        prime_groups = defaultdict(list)
+        for i, prime in enumerate(ps):
+            prime_groups[prime].append(i)
 
-    # Process each group
-    for prime, indices in prime_groups.items():
-        # If prime occurs once → row is trivially independent
-        if len(indices) == 1:
-            pivot_indices.append(indices[0])
+        for prime, indices in prime_groups.items():
+            if len(indices) == 1:
+                pivot_indices.append(indices[0])
+                continue
+
+            GF = galois.GF(prime)
+            V = GF(vectors[indices, :])
+
+            # Identify group pivots incrementally
+            group_pivots = []
+            seen = GF.Zeros((0, V.shape[1]))
+            for idx_in_group, i in enumerate(indices):
+                candidate = V[idx_in_group]
+                A = GF(np.vstack([seen, candidate]))
+                R = A.row_reduce()
+                rank = sum(1 for row in R if np.any(row != 0))
+                if rank > seen.shape[0]:
+                    group_pivots.append(i)
+                    seen = A
+            pivot_indices.extend(group_pivots)
+
+            # Dependencies within the group
+            if len(group_pivots) > 0:
+                B = V[[indices.index(j) for j in group_pivots], :]
+                for idx_in_group, i in enumerate(indices):
+                    if i in group_pivots:
+                        continue
+                    x = solve_modular_linear_system(B, V[idx_in_group])
+                    deps = [(group_pivots[j], int(x[j])) for j in range(len(x)) if x[j] != 0]
+                    dependencies[i] = deps
+
+        return pivot_indices, dependencies
+
+    # Per-column primes path
+    # Build prime -> column indices map
+    prime_cols: dict[int, list[int]] = defaultdict(list)
+    for j, prime in enumerate(p_cols):
+        prime_cols[int(prime)].append(j)
+
+    unique_primes = list(prime_cols.keys())
+
+    # Track seen rows per-prime on the respective column subsets
+    seen_per_prime: dict[int, np.ndarray] = {}
+    for q in unique_primes:
+        GFq = galois.GF(q)
+        seen_per_prime[q] = GFq.Zeros((0, len(prime_cols[q])))
+
+    # Select pivots: a row is independent if it increases rank for any prime on its column subset
+    for i in range(m):
+        increases_any = False
+        updated_seen = {}
+        for q in unique_primes:
+            cols = prime_cols[q]
+            if len(cols) == 0:
+                continue
+            GFq = galois.GF(q)
+            candidate = GFq(vectors[i, cols])
+            A_prev = seen_per_prime[q]
+            A = GFq(np.vstack([A_prev, candidate]))
+            R = A.row_reduce()
+            rank_new = sum(1 for row in R if np.any(row != 0))
+            if rank_new > A_prev.shape[0]:
+                increases_any = True
+                updated_seen[q] = A
+            else:
+                updated_seen[q] = A_prev
+
+        if increases_any:
+            pivot_indices.append(i)
+            for q in unique_primes:
+                seen_per_prime[q] = updated_seen[q]
+        else:
+            # Mark as dependent; coefficients are computed later as best-effort
             continue
 
-        GF = galois.GF(prime)
-        V = GF(vectors[indices, :])  # rows with this prime
-
-        # Step 1: identify independent rows in this group
-        group_pivots = []
-        seen = GF.Zeros((0, V.shape[1]))
-        for idx_in_group, i in enumerate(indices):
-            candidate = V[idx_in_group]
-            A = GF(np.vstack([seen, candidate]))
-            R = A.row_reduce()
-            rank = sum(1 for row in R if np.any(row != 0))
-            if rank > seen.shape[0]:
-                group_pivots.append(i)
-                seen = A
-        pivot_indices.extend(group_pivots)
-
-        # Step 2: find dependencies within the group
-        B = V[[indices.index(j) for j in group_pivots], :]
-        for idx_in_group, i in enumerate(indices):
-            if i in group_pivots:
+    # Compute dependencies best-effort:
+    # If all columns share the same prime, compute exact coefficients as before.
+    if len(unique_primes) == 1:
+        q = unique_primes[0]
+        GFq = galois.GF(q)
+        cols = prime_cols[q]
+        Vq = GFq(vectors[:, cols])
+        Bq = Vq[pivot_indices, :]
+        for i in range(m):
+            if i in pivot_indices:
                 continue
-            x = solve_modular_linear_system(B, V[idx_in_group])
-            deps = [(group_pivots[j], int(x[j])) for j in range(len(x)) if x[j] != 0]
+            x = solve_modular_linear_system(Bq, Vq[i])
+            deps = [(pivot_indices[j], int(x[j])) for j in range(len(x)) if x[j] != 0]
             dependencies[i] = deps
+    else:
+        # Mixed primes: return independent set; dependency coefficients are non-unique across fields.
+        dependencies = {}
 
     return pivot_indices, dependencies

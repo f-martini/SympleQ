@@ -343,7 +343,7 @@ class TestGates():
         target_ps = circuit.act(input_ps)
         target_ps.phases = np.zeros(n_qudits)
 
-        gate_from_solver = Gate.solve_from_target('ArbGate', input_ps, target_ps)
+        gate_from_solver = Gate.solve_from_target('ArbGate', input_ps, target_ps, dimensions)
         output_ps = gate_from_solver.act(input_ps)
         output_ps.phases = np.zeros(n_qudits)
         assert output_ps == target_ps, (
@@ -361,7 +361,7 @@ class TestGates():
                     print(input_ps.tableau())
                     print('target')
                     print(target_ps.tableau())
-                    gate = Gate.solve_from_target('ArbGate', input_ps, target_ps)
+                    gate = Gate.solve_from_target('ArbGate', input_ps, target_ps, dimensions)
                     output_ps = gate.act(input_ps)
                     output_ps.phases = input_ps.phases  # So far it does not solve for phases as well
                     print('output')
@@ -401,3 +401,5 @@ class TestGates():
     #         rps = PauliSum.from_random(n_paulis, n_qudits, [dimension] * n_qudits, False, seed=1)
     #         print(rps)
     #         assert rps == g.act(gt.act(rps)), 'Inversion Error:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
+
+

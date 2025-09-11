@@ -157,6 +157,16 @@ class TestCircuits():
         # show that the composed gate returns the same thing as the circuit when acting on the pauli sum
         assert output_composite == output_sequential
 
+    def test_random_circuit(self):
+        # test that a random circuit can be generated with the correct dimensions on mixed qudits
+        for _ in range(1000):
+            n_qudits = np.random.randint(2, 10)
+            dimensions = np.random.randint(2, 5, size=n_qudits)
+            C = Circuit.from_random(n_qudits=n_qudits, depth=10, dimensions=dimensions)
+            ps = PauliSum.from_random(10, n_qudits, dimensions)
+            out = C.act(ps)
+            assert np.all(out.dimensions == dimensions)
+
 
 if __name__ == '__main__':
-    TestCircuits().test_circuit_composition()
+    TestCircuits().test_random_circuit()
