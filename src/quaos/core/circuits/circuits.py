@@ -250,6 +250,24 @@ class Circuit:
         D_total = int(np.prod(self.dimensions))
         U = np.eye(D_total, dtype=complex)
         for gate in self.gates:
-            U_local = gate.unitary()
+            # Ensure local gate unitary uses the circuit's local dimensions
+            local_dims = [int(self.dimensions[i]) for i in gate.qudit_indices]
+            needs_override = True
+            try:
+                gd = list(map(int, gate.dimensions))
+                needs_override = (gd != local_dims)
+            except Exception:
+                needs_override = True
+
+            if needs_override:
+                saved_dims = getattr(gate, 'dimensions', None)
+                gate.dimensions = np.array(local_dims, dtype=int)
+                try:
+                    U_local = gate.unitary()
+                finally:
+                    gate.dimensions = saved_dims
+            else:
+                U_local = gate.unitary()
+
             U = left_multiply_local_unitary(U, U_local, gate.qudit_indices, self.dimensions)
         return sp.csr_matrix(U)

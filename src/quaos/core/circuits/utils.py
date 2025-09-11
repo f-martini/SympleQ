@@ -214,8 +214,8 @@ def left_multiply_local_unitary(U_full: np.ndarray,
                                 qudit_indices: list[int] | np.ndarray,
                                 total_dimensions: list[int] | np.ndarray) -> np.ndarray:
     """
-    Efficiently left-multiply a full unitary U_full by a local unitary U_local acting
-    on `qudit_indices` without forming explicit permutation or Kronecker matrices.
+    Left-multiply a full unitary U_full by a local unitary U_local acting
+    on `qudit_indices`.
 
     Shapes:
       - U_full: (D_total, D_total), with D_total = prod(total_dimensions)
@@ -241,12 +241,9 @@ def left_multiply_local_unitary(U_full: np.ndarray,
     # Reshape U_full to [out_dims..., in_dims...]
     U = U_full.reshape([*dims, *dims])
 
-    # Permute output axes so selected come first
+    # Permute output axes so selected come first: move axes in order (sel + rest) to positions 0..N-1
     perm_out = sel + rest
-    # Build permutation for the first N axes only (outputs); inputs remain in place
-    axes_out = list(range(N))
-    axes_in = list(range(N, 2 * N))
-    U = np.moveaxis(U, axes_out, perm_out)
+    U = np.moveaxis(U, perm_out, list(range(N)))
 
     # Now U shape is [d_sel..., d_rest..., in_dims...]
     rest_out_dims = [dims[i] for i in rest]
@@ -257,8 +254,7 @@ def left_multiply_local_unitary(U_full: np.ndarray,
 
     # Reshape back to tensor form with outputs in permuted order, then invert permutation
     V = V.reshape([*d_sel, *rest_out_dims, *dims])
-    # Invert permutation of output axes
-    inv_perm = np.argsort(perm_out)
-    V = np.moveaxis(V, list(range(N)), list(inv_perm))
+    # Restore original output axis order
+    V = np.moveaxis(V, list(range(N)), perm_out)
 
     return V.reshape(int(np.prod(dims)), int(np.prod(dims)))

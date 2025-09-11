@@ -4,6 +4,7 @@ from quaos.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
 from quaos.core.circuits.utils import embed_symplectic
 from quaos.core.paulis import PauliSum, PauliString
 import numpy as np
+import scipy.sparse as sp
 
 
 class TestCircuits():
@@ -166,6 +167,89 @@ class TestCircuits():
             ps = PauliSum.from_random(10, n_qudits, dimensions)
             out = C.act(ps)
             assert np.all(out.dimensions == dimensions)
+
+    def test_single_hadamard_unitary(self):
+        # For a single-qudit circuit with one Hadamard, the circuit unitary
+        # should equal the gate's local unitary.
+        for d in [2, 3, 5, 11]:
+            gate = Hadamard(0, d)
+            circuit = Circuit([d], [gate])
+            U_circ = circuit.unitary()
+            assert sp.issparse(U_circ)
+            U_circ = U_circ.toarray()
+            U_gate = gate.unitary()
+            assert U_circ.shape == U_gate.shape
+            assert np.allclose(U_circ, U_gate)
+
+    @staticmethod
+    def _linear_index(dims, idxs):
+        # Row-major: idx = sum_k idxs[k] * prod_{l>k} dims[l]
+        strides = [1] * len(dims)
+        for k in range(len(dims) - 2, -1, -1):
+            strides[k] = strides[k + 1] * dims[k + 1]
+        return sum(idxs[k] * strides[k] for k in range(len(dims)))
+
+    def test_swap_embedding_on_equal_dims(self):
+        # Verify SWAP on qudits (0,1) within a 2-qudit system with equal dimensions.
+        dims = [3, 3]
+        c = Circuit(dims, [SWAP(0, 1, 3)])
+        U = c.unitary().toarray()
+
+        # Start in |i,j> with i=1, j=2
+        i, j = 1, 2
+        D = np.prod(dims)
+        psi = np.zeros(D, dtype=complex)
+        psi[self._linear_index(dims, [i, j])] = 1.0
+
+        # Expected after SWAP: |j,i>
+        phi = U @ psi
+        expected = np.zeros(D, dtype=complex)
+        expected[self._linear_index(dims, [j, i])] = 1.0
+
+        assert np.allclose(phi, expected)
+
+    def test_sum_embedding_on_three_qudits(self):
+        # Verify SUM on qudits (1,2) inside a 3-qudit system.
+        d = 5
+        dims = [d, d, d]
+        c = Circuit(dims, [SUM(1, 2, d)])
+        U = c.unitary().toarray()
+
+        # Start in |i,j,k> = |3,1,4>
+        i, j, k = 3, 1, 4
+        D = np.prod(dims)
+        psi = np.zeros(D, dtype=complex)
+        psi[self._linear_index(dims, [i, j, k])] = 1.0
+
+        # After SUM(1->2): |i, j, k+j mod d>
+        phi = U @ psi
+        expected = np.zeros(D, dtype=complex)
+        expected[self._linear_index(dims, [i, j, (k + j) % d])] = 1.0
+
+        assert np.allclose(phi, expected)
+
+    def test_phase_embedding_on_middle_qudit(self):
+        # Verify PHASE acting on middle qudit multiplies amplitude appropriately.
+        d0, d1, d2 = 3, 5, 2
+        dims = [d0, d1, d2]
+        c = Circuit(dims, [PHASE(1, d1)])
+        U = c.unitary().toarray()
+
+        # Basis |i,j,k> = |2,3,1>
+        i, j, k = 2, 3, 1
+        D = np.prod(dims)
+        psi = np.zeros(D, dtype=complex)
+        psi[self._linear_index(dims, [i, j, k])] = 1.0
+
+        phi = U @ psi
+
+        # PHASE unitary is diag(zeta^{j^2}) on that qudit, with zeta = exp(2πi/(2d)).
+        zeta = np.exp(1j * 2 * np.pi / (2 * d1))
+        factor = zeta ** (j * j)
+        expected = np.zeros(D, dtype=complex)
+        expected[self._linear_index(dims, [i, j, k])] = factor
+
+        assert np.allclose(phi, expected)
 
 
 if __name__ == '__main__':

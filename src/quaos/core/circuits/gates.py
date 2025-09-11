@@ -251,16 +251,19 @@ class SWAP(Gate):
         super().__init__("SWAP", [index1, index2], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
     def unitary(self):
-        # General SWAP on two qudits: |i, j> -> |j, i>.
-        # Basis ordering |i>⊗|j> with linear index idx(i, j) = i * d1 + j.
+        # SWAP on two qudits of equal dimension: |i, j> -> |j, i>.
+        # Basis ordering |i>⊗|j> with linear index idx(i, j) = i * d + j.
         d0 = int(self.dimensions[0])
         d1 = int(self.dimensions[1])
+        if d0 != d1:
+            raise NotImplementedError("SWAP unitary only defined for equal qudit dimensions.")
         dim = d0 * d1
         U = np.zeros((dim, dim), dtype=complex)
-        for i in range(d0):
-            for j in range(d1):
-                row = j * d0 + i  # |j, i>
-                col = i * d1 + j  # |i, j>
+        d = d0
+        for i in range(d):
+            for j in range(d):
+                col = i * d + j  # |i, j>
+                row = j * d + i  # |j, i>
                 U[row, col] = 1.0
         return U
 
