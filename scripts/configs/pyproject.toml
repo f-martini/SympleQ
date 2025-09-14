@@ -5,7 +5,7 @@ build-backend = "scikit_build_core.build"
 [project]
 dependencies = [
     "build==1.3.0",
-    "nanobind==2.8.0",
+    "nanobind==2.9.2",
     "scikit-build-core>=0.11.5",
     "numpy==2.1.3",
     "ipykernel==6.29.5",
@@ -33,6 +33,6 @@ build-dir = "../../build"
 cmake.source-dir = "../../src"
 cmake.version = ">=3.21"
 cmake.verbose = true
-cmake.args = ["-DCMAKE_MESSAGE_LOG_LEVEL=STATUS"]
+cmake.args = ["-DCMAKE_MESSAGE_LOG_LEVEL=STATUS", "-DCMAKE_VERBOSE_MAKEFILE=ON"]
 sdist.include = ["src", "CMakeLists.txt", "README.md"]
 wheel.packages = ["../../src/quaos"]

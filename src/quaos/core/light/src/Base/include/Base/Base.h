@@ -21,6 +21,6 @@
 
 namespace Base {
 
-BASE_API const char* GetVersion();
+BASE_API const int GetVersion();
 
 }  // namespace Base

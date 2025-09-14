@@ -7,7 +7,7 @@ include(FetchContent)
 FetchContent_Declare(
     nanobind
     GIT_REPOSITORY https://github.com/wjakob/nanobind.git
-    GIT_TAG v2.8.0
+    GIT_TAG v2.9.2
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE
 )
@@ -57,11 +57,16 @@ list(REMOVE_ITEM INTERNAL_HEADERS
 "${CMAKE_CURRENT_SOURCE_DIR}/include/${CURRENT_FOLDER_NAME}/${CURRENT_FOLDER_NAME}.h"
 )
 target_sources(${LIB_NAME} PRIVATE ${INTERNAL_HEADERS})
+
 target_include_directories(${LIB_NAME}
 PUBLIC
 $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 $<INSTALL_INTERFACE:include>
 )
+
+target_precompile_headers(${LIB_NAME}
+    PRIVATE 
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/${CURRENT_FOLDER_NAME}/pch.h)
 
 target_include_directories(${LIB_NAME} PRIVATE ${nanobind_SOURCE_DIR}/include)
 target_link_libraries(${LIB_NAME} PRIVATE Base)

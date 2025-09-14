@@ -5,12 +5,13 @@
       "includePath": [
         "${workspaceFolder}/src/quaos/core/light/src/Base/include/**",
         "${workspaceFolder}/src/quaos/core/light/src/Base/include/Base/**",
-        "${workspaceFolder}/**"
+        "${workspaceFolder}/**",
+        "${env:LOCALAPPDATA}/Programs/Python/Python311/include"
       ],
-      "compilerPath": "C:/Strawberry/c/bin/gcc.exe",
+      "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/<version>/bin/Hostx64/x64/cl.exe",
       "cStandard": "${default}",
       "cppStandard": "${default}",
-      "intelliSenseMode": "windows-gcc-x64",
+      "intelliSenseMode": "windows-msvc-x64",
       "compilerArgs": [
         ""
       ]

@@ -16,6 +16,8 @@
 #include <thread>
 #include <vector>
 
+#include <mkl.h>
+
 #ifdef _WIN32
 #include <windows.h>
 #endif

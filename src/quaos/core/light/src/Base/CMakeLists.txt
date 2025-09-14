@@ -1,7 +1,13 @@
 get_filename_component(CURRENT_FOLDER_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
 
+# Find Intel MKL via vcpkg
+find_package(MKL REQUIRED)
+get_target_property(MKL_INCLUDE_DIRS MKL::MKL INTERFACE_INCLUDE_DIRECTORIES)
+message(STATUS "MKL INTERFACE_INCLUDE_DIRECTORIES: ${MKL_INCLUDE_DIRS}")
+
 add_library(${CURRENT_FOLDER_NAME} SHARED)
 target_compile_definitions(${CURRENT_FOLDER_NAME} PRIVATE BASE_BUILD)
+target_link_libraries(${CURRENT_FOLDER_NAME} PRIVATE MKL::MKL)
 
 file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
@@ -23,6 +29,8 @@ target_include_directories(${CURRENT_FOLDER_NAME}
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
+
+target_include_directories(${CURRENT_FOLDER_NAME} INTERFACE ${MKL_INCLUDE_DIRS})
 
 target_precompile_headers(${CURRENT_FOLDER_NAME} 
     PRIVATE 

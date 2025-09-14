@@ -1,6 +1,6 @@
 import os
 os.add_dll_directory(os.path.dirname(__file__))
 
-from .light import cuda_add
+from .light import dot, kron
 
-__all__ = ["cuda_add"]
+__all__ = ["dot, kron"]

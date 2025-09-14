@@ -3,6 +3,9 @@
 
 namespace Base {
 
-const char* GetVersion() { return "1.0.0"; }
+const int GetVersion() {
+    int mkl_threads = mkl_get_max_threads();  // Suppress unused variable warning
+    return mkl_threads;
+}
 
 }  // namespace Base

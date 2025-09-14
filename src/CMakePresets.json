@@ -9,8 +9,8 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "$${sourceDir}/quaos/core/light",
-        "CMAKE_SRC_DIRECTORY": "${sourceDir}/quaos/core/light/src"
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/quaos/core/light",
+        "LIGHT_SRC_DIRECTORY": "${sourceDir}/quaos/core/light/src"
       }
     },
     {
@@ -21,7 +21,7 @@
     "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/quaos/core/light",
-        "CMAKE_SRC_DIRECTORY": "${sourceDir}/quaos/core/light/src"
+        "LIGHT_SRC_DIRECTORY": "${sourceDir}/quaos/core/light/src"
       }
     },
     {
@@ -31,7 +31,8 @@
       "hidden": false,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "gcc",
-        "CMAKE_CXX_COMPILER": "g++"
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_Fortran_COMPILER": "gfortran"
       }
     },
     {
@@ -41,7 +42,8 @@
       "hidden": false,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "gcc",
-        "CMAKE_CXX_COMPILER": "g++"
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_Fortran_COMPILER": "gfortran"
       }
     },
     {
@@ -51,7 +53,8 @@
       "hidden": false,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "aarch64-linux-gnu-gcc",
-        "CMAKE_CXX_COMPILER": "aarch64-linux-gnu-g++"
+        "CMAKE_CXX_COMPILER": "aarch64-linux-gnu-g++",
+        "CMAKE_Fortran_COMPILER": "gfortran"
       }
     },
     {
@@ -71,7 +74,8 @@
       "hidden": false,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
-        "CMAKE_CXX_COMPILER": "clang++"
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_Fortran_COMPILER": "gfortran"
       }
     },
     {
@@ -81,7 +85,8 @@
       "hidden": false,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
-        "CMAKE_CXX_COMPILER": "clang++"
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_Fortran_COMPILER": "gfortran"
       }
     },
     {
@@ -91,7 +96,8 @@
       "hidden": false,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
-        "CMAKE_CXX_COMPILER": "clang++"
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_Fortran_COMPILER": "gfortran"
       }
     },
     {
@@ -101,7 +107,8 @@
       "hidden": false,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
-        "CMAKE_CXX_COMPILER": "clang++"
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_Fortran_COMPILER": "gfortran"
       }
     },
     {
@@ -111,7 +118,8 @@
       "hidden": false,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl",
-        "CMAKE_CXX_COMPILER": "cl"
+        "CMAKE_CXX_COMPILER": "cl",
+        "CMAKE_TOOLCHAIN_FILE": "$env{USERPROFILE}/vcpkg/scripts/buildsystems/vcpkg.cmake"
       }
     },
     {
@@ -122,7 +130,8 @@
       "hidden": false,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl",
-        "CMAKE_CXX_COMPILER": "cl"
+        "CMAKE_CXX_COMPILER": "cl",
+        "CMAKE_TOOLCHAIN_FILE": "$env{USERPROFILE}/vcpkg/scripts/buildsystems/vcpkg.cmake"
       }
     }
   ]
