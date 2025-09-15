@@ -6,6 +6,8 @@ from quaos.core.measurement.covariance_graph import graph
 from quaos.core.circuits import Circuit
 from quaos.core.circuits.gates import Gate, Hadamard as H, SUM as CX, PHASE as S
 
+
+#works
 def sort_hamiltonian(P:PauliSum):
     """
     Sorts the Hamiltonian's Pauli operators based on hermiticity, with hermitian ones first and then pairs of
@@ -34,7 +36,7 @@ def sort_hamiltonian(P:PauliSum):
         P0_conj_str = str(P0_conjugate)
 
         if P0_str == P0_conj_str:
-            if P0.x_exp[0].any() or P0.z_exp[0].any():
+            if P0.x_exp.any() or P0.z_exp.any():
                 hermitian_indices.append(i)
             continue
         else:
@@ -67,7 +69,7 @@ def sort_hamiltonian(P:PauliSum):
     dims = P.dimensions
     phases = P.phases
 
-    sorted_strings = [PauliString.from_string(pauli_strings[i],dims) for i in sorted_indices]
+    sorted_strings = [PauliString.from_string(pauli_strings[i], dims) for i in sorted_indices]
     sorted_phases = np.array([phases[i] for i in sorted_indices])
     sorted_coeffs = np.array([cc[i] for i in sorted_indices])
 
@@ -75,6 +77,7 @@ def sort_hamiltonian(P:PauliSum):
 
     return sorted_paulis, np.array(pauli_block_sizes)
 
+# should be fine since get_phase_matrix is fine
 def levi_civita(i, j, k):
     if (i == j) or (j == k) or (i == k):
         return 0
@@ -83,6 +86,7 @@ def levi_civita(i, j, k):
     else:
         return -1
 
+# should be fine since get_phase_matrix is fine
 def quditwise_inner_product(P0,P1):
     P0_paulis = [int(2*P0.x_exp[i] + P0.z_exp[i]) for i in range(P0.n_qudits())]
     P1_paulis = [int(2*P1.x_exp[i] + P1.z_exp[i]) for i in range(P1.n_qudits())]
@@ -106,7 +110,8 @@ def quditwise_inner_product(P0,P1):
     else:
         return(0)
 
-def get_phase_matrix(P:PauliSum):
+# fine
+def get_phase_matrix(P:PauliSum,CG:graph):
     p = P.n_paulis()
     q = P.n_qudits()
     d = int(P.lcm)
@@ -114,29 +119,30 @@ def get_phase_matrix(P:PauliSum):
     dims = P.dimensions
     for i in range(p):
         for j in range(p):
-            Pi = P[i,:]
-            Pj = P[j,:]
-            if d == 2:
-                k_phases[i, j] = quditwise_inner_product(Pi,Pj)
-            else:
-                pauli_phases = []
-                for k in range(q):
-                    if dims[k] == 2:
-                        Pi_ind = int(2*Pi.x_exp[k] + Pi.z_exp[k])
-                        Pj_ind = int(2*Pj.x_exp[k] + Pj.z_exp[k])
-                        phase = 0
-                        if Pi_ind == 0:
+            if CG.adj[i,j]:
+                Pi = P[i,:]
+                Pj = P[j,:]
+                if d == 2:
+                    k_phases[i, j] = quditwise_inner_product(Pi,Pj)
+                else:
+                    pauli_phases = []
+                    for k in range(q):
+                        if dims[k] == 2:
+                            Pi_ind = int(2*Pi.x_exp[k] + Pi.z_exp[k])
+                            Pj_ind = int(2*Pj.x_exp[k] + Pj.z_exp[k])
                             phase = 0
-                        elif Pj_ind == 0:
-                            phase = 0
-                        else:
-                            phase = np.sum([0.5 * levi_civita(Pi_ind-1, Pj_ind-1, _) for _ in range(3)])
+                            if Pi_ind == 0:
+                                phase = 0
+                            elif Pj_ind == 0:
+                                phase = 0
+                            else:
+                                phase = np.sum([0.5 * levi_civita(Pi_ind-1, Pj_ind-1, _) for _ in range(3)])
 
-                        phase = phase * int(d / dims[k])
-                        pauli_phases.append(phase)
-                    else:
-                        pauli_phases.append(((Pi.z_exp[k] * (Pi.x_exp[k] - Pj.x_exp[k])) % dims[k]) * int(d / dims[k]))
-                k_phases[i, j] = np.sum(pauli_phases) % d
+                            phase = phase * int(d / dims[k])
+                            pauli_phases.append(phase)
+                        else:
+                            pauli_phases.append(((Pi.z_exp[k] * (Pi.x_exp[k] - Pj.x_exp[k])) % dims[k]) * int(d / dims[k]))
+                    k_phases[i, j] = np.sum(pauli_phases) % d
 
     return(k_phases)
 

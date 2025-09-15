@@ -36,6 +36,7 @@ class Aquire:
                  error_kwargs={}):
 
         H, pauli_block_sizes = sort_hamiltonian(H)
+        H.phase_to_weight()
 
         # supposed to be permanent
         self.H = H
@@ -45,7 +46,6 @@ class Aquire:
         self.n_paulis = H.n_paulis()
         self.n_qudits = H.n_qudits()
         self.dimension = int(H.lcm)
-        self.k_phases = get_phase_matrix(H)
         self.diagnostic_mode = diagnostic_mode
         self.noise_probability_function = noise_probability_function
         self.error_function = error_function
@@ -70,6 +70,7 @@ class Aquire:
         # dependent on changeable parameters
         self.CG = commutation_graph(H) if general_commutation else quditwise_commutation_graph(H)
         self.clique_covering = weighted_vertex_covering_maximal_cliques(self.CG, cc=self.weights, k=3)
+        self.k_phases = get_phase_matrix(H, self.CG)
 
         # supposed to change during experiment
         self.data = np.zeros((self.n_paulis, self.n_paulis, self.dimension))
@@ -97,7 +98,7 @@ class Aquire:
         self.estimated_mean = []
         self.statistical_variance = []
 
-        # Diagnostic values
+        # Diagnostic variables
         self.diagnostic_circuits = []
         self.diagnostic_states = []
         self.diagnostic_state_preparation_circuits = []
@@ -112,7 +113,7 @@ class Aquire:
         # Comparison values: not used in the algorithm
         # initially set to None, can be set later if desired and H not too large
         if self.true_values_flag:
-            self.true_mean_value = true_mean(H, self.psi)
+            self.true_mean_value = true_mean(self.H, self.psi)
             self.true_statistical_variance_value = []
 
     def choose_cliques(self, shots):
@@ -185,7 +186,7 @@ class Aquire:
         self.last_update_circuits = []
         if self.true_values_flag:
             self.true_statistical_variance_value.append(true_statistical_variance(
-                self.H, self.psi, self.scaling_matrix,self.weights))
+                self.H, self.psi, self.scaling_matrix, self.weights))
 
     def input_measurement_data(self, measurement_results: list):
         if len(self.data) == len(self.circuits):
@@ -389,7 +390,7 @@ class Aquire:
         else:
             stat_error = stat_var * M
             if self.diagnostic_flag:
-                phys_error = sys_var * M 
+                phys_error = sys_var * M
 
         r = 1.25  # ~±22% in log10
         lefts = M / np.sqrt(r)
@@ -400,8 +401,8 @@ class Aquire:
                   label='Statistical Variance', color=c_stat)
         if self.diagnostic_flag:
             ax[1].bar(lefts, phys_error, width=widths, align='edge',
-                    bottom=stat_error, label='Systematic Variance',
-                    color=c_dev)
+                      bottom=stat_error, label='Systematic Variance',
+                      color=c_dev)
 
         if self.true_values_flag:
             ax[1].plot(M, self.true_statistical_variance_value * M / (H_mean)**2, 'k--', label='True Stat. Variance')

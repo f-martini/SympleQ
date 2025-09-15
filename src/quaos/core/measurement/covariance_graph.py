@@ -283,7 +283,18 @@ def LDF(A):
     return [sorted(list(aa)) for aa in aaa]
 
 def commutation_graph(P:PauliSum):
-    G = graph((P.symplectic_product_matrix()-1)%P.lcm)
+    # TODO Update with real symplectic product matrix, once mixed species supported
+    spm = np.zeros([P.n_paulis(), P.n_paulis()], dtype=int)
+    for i in range(P.n_paulis()):
+        for j in range(i + 1, P.n_paulis()):
+            P0 = P[i, :]
+            P1 = P[j, :]
+            xz = (P0.x_exp * P1.z_exp - P0.z_exp * P1.x_exp)
+            spm[i, j] = np.sum(xz * np.array([P0.lcm] * len(P0.dimensions)) // P0.dimensions) % P0.lcm
+
+    P_sym = spm + spm.T
+    Spm_binary = P_sym.astype(bool)
+    G = graph(np.array(1 - Spm_binary))
     return G
 
 def quditwise_inner_product(PS1,PS2):

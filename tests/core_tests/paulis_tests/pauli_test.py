@@ -296,3 +296,36 @@ class TestPaulis:
         ps = PauliSum.from_tableau(np.array(shuffled_basis), [d] * n_qudits)
 
         assert np.all(ps.tableau() == symplectic_basis), 'Error in PauliSum ordering to symplectic basis'
+
+    def test_symplectic_product(self):
+        P1 = PauliString.from_string('x1z0', dimensions=[2])
+        P2 = PauliString.from_string('x0z1', dimensions=[2])
+        assert P1.symplectic_product(P2) == 1
+
+        P1 = PauliString.from_string('x1z0', dimensions=[2])
+        P2 = PauliString.from_string('x1z0', dimensions=[2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x0z1', dimensions=[2])
+        P2 = PauliString.from_string('x0z1', dimensions=[2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z0 x1z0', dimensions=[2, 2])
+        P2 = PauliString.from_string('x0z1 x0z1', dimensions=[2, 2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z0 x0z1', dimensions=[2, 2])
+        P2 = PauliString.from_string('x1z0 x1z0', dimensions=[2, 2])
+        assert P1.symplectic_product(P2) == 1
+
+        P1 = PauliString.from_string('x1z0', dimensions=[3])
+        P2 = PauliString.from_string('x2z0', dimensions=[3])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z2', dimensions=[3])
+        P2 = PauliString.from_string('x2z1', dimensions=[3])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z2 x1z1', dimensions=[3, 2])
+        P2 = PauliString.from_string('x2z1 x1z1', dimensions=[3, 2])
+        assert P1.symplectic_product(P2) == 0
