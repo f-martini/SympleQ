@@ -78,11 +78,14 @@ class PauliSum:
             self.standardise()
 
     @classmethod
-    def from_tableau(cls, tableau: np.ndarray, dimensions: list[int] | np.ndarray) -> 'PauliSum':
+    def from_tableau(cls, tableau: np.ndarray,
+                     dimensions: list[int] | np.ndarray,
+                     weights: np.ndarray | None = None
+                     ) -> 'PauliSum':
         p_strings = []
         for row in tableau:
             p_strings.append(PauliString(x_exp=row[:len(row) // 2], z_exp=row[len(row) // 2:], dimensions=dimensions))
-        return cls(p_strings, dimensions=dimensions)
+        return cls(p_strings, dimensions=dimensions, weights=weights)
 
     @classmethod
     def from_pauli(cls,

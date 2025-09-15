@@ -479,10 +479,10 @@ def _full_dfs_complete(
 # Public API with toggles
 # =============================================================================
 
+
 def find_k_automorphisms_symplectic(
     independent: List[int],
     dependencies: DepPairs,
-    *,
     S: np.ndarray,
     p: int,
     k: int = 1,
@@ -491,17 +491,12 @@ def find_k_automorphisms_symplectic(
     # Strategy
     basis_first: str = "any",          # "off" | "any" (complete) | "basis_only" (heuristic)
     fallback_full_if_empty: bool = True,   # <-- NEW
-    # Base partition / refinement
-    base_partition: str = "1WL",
     dynamic_refine_every: int = 0,
-    # Coeffs
     coeffs: Optional[np.ndarray] = None,
     coeff_labels: Optional[List[int]] = None,
     extra_column_invariants: str = "none",
-    # p=2 optimization
     p2_bitset: str = "auto",
-    # NEW: control whether dependents must respect base WL class
-    enforce_base_on_dependents: bool = False,   # <-- NEW (passed to basis-first)
+    enforce_base_on_dependents: bool = False,
 ) -> List[Dict[int,int]]:
     """
     Return up to k automorphisms preserving S and the vector set. See flags above.
@@ -534,19 +529,15 @@ def find_k_automorphisms_symplectic(
             coeffs_aligned = coeffs
 
     # Extra invariants from G? Be careful: these are *not* invariants under left GL(k,p)!
-    col_invariants = None
     if extra_column_invariants != "none":
         # Strong advice: leave this as "none" unless you know left GL(k,p) preserves your chosen invariants.
         G_for_inv, _, _ = _build_generator_matrix(independent, dependencies, pres_labels, p)
-        if extra_column_invariants == "support":
-            col_invariants = np.array([(G_for_inv[:, j] != 0).sum() for j in range(G_for_inv.shape[1])], dtype=np.int64)[:, None]
-        elif extra_column_invariants == "hist":
+        if extra_column_invariants == "hist":
             inv = np.zeros((n, min(p,16)), dtype=np.int64)
             for j in range(n):
                 col = np.array([int(x) for x in G_for_inv[:, j]])
                 cnt = np.bincount(col, minlength=p)
                 inv[j, :min(p,16)] = cnt[:min(p,16)]
-            col_invariants = inv
         else:
             raise ValueError("extra_column_invariants must be 'none', 'support', or 'hist'.")
 
