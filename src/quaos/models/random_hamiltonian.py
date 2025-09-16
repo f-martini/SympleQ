@@ -29,7 +29,7 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand'):
         while np.all(np.array(x_exp) == 0) and np.all(np.array(z_exp) == 0):
             x_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]
             z_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]
-        
+
         x_exp_H = np.zeros_like(x_exp)
         z_exp_H = np.zeros_like(z_exp)
         phase_factor = 1
@@ -104,6 +104,7 @@ def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=
     PauliSum of size 4x2 with 4 terms and 0 redundant or conditional qubits.
     """
     # TODO: Implementation for Qudits
+    # TODO: Make sure that remaining paulis are always unique
 
     n_rest = n_qudits - n_redundant - n_conditional
     if n_paulis < 2 * n_rest:

@@ -1,5 +1,5 @@
 import numpy as np
-from quaos.core.paulis import PauliSum, PauliString, Pauli
+from quaos.core.paulis import PauliSum, PauliString, Pauli, Xnd, Ynd, Znd, Id
 
 
 class TestPaulis:
@@ -181,6 +181,16 @@ class TestPaulis:
 
         assert x1 * z1 == y1
         assert x1 * x1 * x1 == id
+
+    def test_pauli_equality(self):
+        dims = 3
+        p1 = Pauli.from_string('x1z0', dimension=dims)
+        p2 = Pauli.from_string('x0z1', dimension=dims)
+        p3 = Pauli.from_string('x1z1', dimension=dims)
+
+        assert Xnd(1, dims) == p1
+        assert Znd(1, dims) == p2
+        assert Ynd(1, dims) == p3
 
     def test_pauli_string_construction(self):
         dims = [3, 3]
@@ -404,3 +414,37 @@ class TestPaulis:
         # Spot-check against pairwise method:
         ps = S.pauli_strings
         assert SPM[1, 3] % L == ps[1].symplectic_product(ps[3], as_scalar=True) % L
+
+
+    def test_symplectic_product(self):
+        P1 = PauliString.from_string('x1z0', dimensions=[2])
+        P2 = PauliString.from_string('x0z1', dimensions=[2])
+        assert P1.symplectic_product(P2) == 1
+
+        P1 = PauliString.from_string('x1z0', dimensions=[2])
+        P2 = PauliString.from_string('x1z0', dimensions=[2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x0z1', dimensions=[2])
+        P2 = PauliString.from_string('x0z1', dimensions=[2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z0 x1z0', dimensions=[2, 2])
+        P2 = PauliString.from_string('x0z1 x0z1', dimensions=[2, 2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z0 x0z1', dimensions=[2, 2])
+        P2 = PauliString.from_string('x1z0 x1z0', dimensions=[2, 2])
+        assert P1.symplectic_product(P2) == 1
+
+        P1 = PauliString.from_string('x1z0', dimensions=[3])
+        P2 = PauliString.from_string('x2z0', dimensions=[3])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z2', dimensions=[3])
+        P2 = PauliString.from_string('x2z1', dimensions=[3])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z2 x1z1', dimensions=[3, 2])
+        P2 = PauliString.from_string('x2z1 x1z1', dimensions=[3, 2])
+        assert P1.symplectic_product(P2) == 0
