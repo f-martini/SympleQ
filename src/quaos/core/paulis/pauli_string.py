@@ -559,7 +559,32 @@ class PauliString:
         symp[self.n_qudits():2 * self.n_qudits()] = self.z_exp
         return symp
 
-    def symplectic_product(self, A: PauliString) -> np.ndarray:
+    def symplectic_residues(self, A: "PauliString") -> np.ndarray:
+        """
+        Per-qudit symplectic residues r_j = x_j z'_j - z_j x'_j  (mod d_j).
+        Returns a length-n int array with entrywise mod d_j.
+        """
+        if self.n_qudits() != A.n_qudits() or not np.array_equal(self.dimensions, A.dimensions):
+            raise ValueError(
+                f"Incompatible PauliStrings: must have the same number of qudits "
+                f"(currently {self.n_qudits()} and {A.n_qudits()}) and identical dimensions "
+                f"(currently {self.dimensions} and {A.dimensions})."
+            )
+
+        n = self.n_qudits()
+        dims = np.asarray(self.dimensions, dtype=int)
+
+        v = np.asarray(self.tableau(), dtype=int)
+        vA = np.asarray(A.tableau(), dtype=int)
+
+        x, z = v[:n] % dims, v[n:] % dims
+        xA, zA = vA[:n] % dims, vA[n:] % dims
+
+        # Per-site residue, reduced mod the local dimension
+        residues = (x * zA - z * xA) % dims
+        return residues.astype(int)
+
+    def symplectic_product(self, A: "PauliString", *, as_scalar: bool = True) -> np.ndarray | int:
         """
         Compute the symplectic product between this PauliString and another.
         The symplectic product is defined as the sum over all qudits of the difference between
@@ -569,29 +594,29 @@ class PauliString:
         `Phys. Rev. A 70, 052328 (2004) <https://doi.org/10.1103/PhysRevA.70.052328>`_
         for more details.
 
-        Parameters
-        ----------
-        A : PauliString
-            The other PauliString to compute the symplectic product with.
+        We generalise to mixed dimensions as follows:
+
+        If as_scalar=True (default): return a single integer r (mod LCM),
+        defined by the phase-preserving lift
+            r = sum_j (L / d_j) * r_j   (mod L),   L = lcm(d_j),  r_j as in symplectic_residues().
+
+        If as_scalar=False: return the per-qudit residue vector r_j (mod d_j).
 
         Returns
         -------
-        np.ndarray
-            The symplectic product as a NumPy array, modulo the lcm.
-
-        Notes
-        -----
-        The symplectic representation is used to efficiently compute commutation relations
-        between Pauli operators in quantum information theory.
+        int or np.ndarray
+            - int in [0, L-1] when as_scalar=True
+            - length-n array of residues when as_scalar=False
         """
-        if self.n_qudits() != A.n_qudits() or not np.array_equal(self.dimensions, A.dimensions):
-            raise ValueError(
-                f"Incompatible PauliStrings: must have the same number of qudits (currently {self.n_qudits()} and {A.n_qudits()}) and dimensions (currently {self.dimensions} and {A.dimensions}).")
-        n = self.n_qudits()
-        symp = self.tableau()
-        symp_A = A.tableau()
-        prod = sum([symp[i] * symp_A[i + n] - symp[i + n] * symp_A[i] for i in range(n)]) % self.lcm
-        return prod
+        residues = self.symplectic_residues(A)           # length-n residues mod d_j
+        if not as_scalar:
+            return residues
+
+        L = self.lcm
+        dims = np.asarray(self.dimensions, dtype=int)
+        weights = (L // dims).astype(int)
+        r = int(np.sum((weights * residues) % L) % L)    # this is the number for acquired phase
+        return r
 
     def amend(self, qudit_index: int, new_x: int, new_z: int) -> PauliString:
         """

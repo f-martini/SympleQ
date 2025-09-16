@@ -3,23 +3,6 @@ import numpy as np
 import scipy.sparse as sp
 
 
-# def is_symplectic(F, p):
-#     GF = galois.GF(p)
-#     if isinstance(F, np.ndarray):
-#         F = GF(F)
-#     n = F.shape[0] // 2
-#     Id = GF.Identity(n)
-#     if p == 2:
-#         Omega = GF.Zeros((2 * n, 2 * n))
-#         Omega[:n, n:] = Id
-#         Omega[n:, :n] = Id
-#     else:
-#         Omega = GF.Zeros((2 * n, 2 * n))
-#         Omega[:n, n:] = Id
-#         Omega[n:, :n] = -Id
-#     lhs = F.T @ Omega @ F
-#     return np.array_equal(lhs, Omega)
-
 def is_symplectic(F, p: int) -> bool:
     """
     Check if matrix F is symplectic over GF(p).

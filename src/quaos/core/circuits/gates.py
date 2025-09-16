@@ -155,6 +155,7 @@ class Gate:
         return Gate(self.name, self.qudit_indices, self.symplectic @ T, self.dimensions, self.phase_vector)
 
     def inv(self) -> 'Gate':
+        # TODO: Test for mixed dimensions - not clear that the symplectic form here is correct.
         print("Warning: inverse phase vector not working - PHASES MAY BE INCORRECT.")
 
         C = self.symplectic.T

@@ -4,6 +4,7 @@ from quaos.core.circuits import Gate
 from quaos.core.paulis import PauliSum
 from quaos.utils import get_linear_dependencies
 from scripts.experiments.symmetries.src.matroid_w_spm import find_k_automorphisms_symplectic
+from .phase_correction import pauli_phase_correction
 
 
 def clifford_symmetry(pauli_sum: PauliSum, n_symmetries: int = 1, check_symmetry: bool = True) -> Gate:
@@ -29,7 +30,13 @@ def clifford_symmetry(pauli_sum: PauliSum, n_symmetries: int = 1, check_symmetry
     F, h, _, _ = find_map_to_target_pauli_sum(H_i, H_t)
     G = Gate('Symmetry', [i for i in range(pauli_sum.n_qudits())], F.T, 2, h)
 
+    # phase correction - add Pauli to make circuit, collapse to single Gate
+
     if check_symmetry:
         assert np.array_equal(G.act(pauli_sum).standard_form().tableau(), pauli_sum.standard_form().tableau())
 
     return G
+
+
+def phase_correction(pauli_sum: PauliSum, delta_phi: np.ndarray, p: int, minimize: bool = False, passes: int = 1):
+    return pauli_phase_correction(pauli_sum.tableau(), delta_phi, p, minimize=minimize, passes=passes)
