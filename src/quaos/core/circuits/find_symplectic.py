@@ -230,7 +230,7 @@ def map_pauli_sum_to_target_tableau(pauli_sum_tableau: np.ndarray, target_pauli_
     Map a Pauli sum to a target Pauli sum using symplectic transvections.
     """
     if not check_mappable_via_clifford(pauli_sum_tableau, target_pauli_sum_tableau):
-        raise Exception(f'Cannot map\n{pauli_sum_tableau} to\n{target_pauli_sum_tableau}')
+        raise Exception(f'SPM not equal. Cannot map\n{pauli_sum_tableau} to\n{target_pauli_sum_tableau}')
     # Find a vector w such that <w, pauli_sum> = <w, target_pauli_sum> = 1
 
     m = len(pauli_sum_tableau)

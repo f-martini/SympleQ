@@ -1,9 +1,10 @@
 from typing import overload
 import numpy as np
 from qiskit import QuantumCircuit
-from .gates import Gate
+from .gates import Gate, Hadamard, PHASE, SUM, SWAP, CNOT
 from quaos.core.paulis import PauliSum, PauliString, Pauli
-from .utils import embed_symplectic
+from .utils import embed_symplectic, left_multiply_local_unitary
+import scipy.sparse as sp
 from .gates import Hadamard as H, SUM as CX, PHASE as S
 import random
 
@@ -68,16 +69,24 @@ class Circuit:
         Single-qudit gates (H, S) are applied to a randomly chosen qudit, while the two-qudit gate (CX)
         is applied to a randomly chosen pair of distinct qudits.
         """
+        # check if all dimensions are the different
+        if len(set(dimensions)) != len(dimensions):
+            g_max = 3  # only single qudit gates if not all dimensions are different (never selects CX)
+        else:
+            g_max = 2  # all gates possible
+
         gate_list = [H, S, CX]
         gg = []
-        for _ in range(depth):
-            g_i = np.random.randint(3)
+        for i in range(depth):
+            g_i = np.random.randint(g_max)
             if g_i == 2:
                 aa = list(random.sample(range(n_qudits), 2))
-                gg += [gate_list[g_i](aa[0], aa[1], 2)]
+                while aa[0] == aa[1] or dimensions[aa[0]] != dimensions[aa[1]]:
+                    aa = list(random.sample(range(n_qudits), 2))
+                gg += [gate_list[g_i](aa[0], aa[1], dimensions[aa[0]])]
             else:
                 aa = list(random.sample(range(n_qudits), 1))
-                gg += [gate_list[g_i](aa[0], 2)]
+                gg += [gate_list[g_i](aa[0], dimensions[aa[0]])]
 
         return cls(dimensions, gg)
 
@@ -364,6 +373,27 @@ class Circuit:
                 new_gate.qudit_indices = new_indexes
             self.add_gate(new_gate)
 
+    def _composite_phase_vector(self, F_1: np.ndarray, F_2: np.ndarray, h_2: np.ndarray, lcm: int) -> np.ndarray:
+        """
+        Returns the vector to add to h_1 to obtain h'' in PHYSICAL REVIEW A 71, 042315 (2005) - Eq. (8)
+
+        New phase vector is h_1 + h_c
+
+        """
+        U = np.zeros((2 * self.n_qudits(), 2 * self.n_qudits()), dtype=int)
+        U[self.n_qudits():, :self.n_qudits()] = np.eye(self.n_qudits(), dtype=int)
+
+        U_conjugated = F_2.T @ U @ F_2
+
+        p1 = np.dot(F_1, h_2)
+        # negative sign in below as definition in paper is strictly upper diagonal, not including diagonal part
+        p2 = np.diag(np.dot(F_1, np.dot((2 * np.triu(U_conjugated) - np.diag(np.diag(U_conjugated))), F_1.T)))
+        p3 = np.dot(F_1, np.diag(U_conjugated))
+
+        h_c = (p1 + p2 - p3) % (2 * lcm)
+
+        return h_c
+
     def composite_gate(self) -> Gate:
         """
         Constructs a composite gate by sequentially combining all gates in the circuit.
@@ -391,25 +421,57 @@ class Circuit:
         # TODO: Generalize to qudits with different dimensions
         total_indexes = []
         total_symplectic = np.eye(2 * self.n_qudits(), dtype=np.uint8)
-        total_dimensions = []
-        total_phase_vector = np.zeros(2 * self.n_qudits(), dtype=np.uint8)
-        for gate in self.gates:
+        lcm = np.lcm.reduce(self.dimensions)
+        for i, gate in enumerate(self.gates):
             symplectic = gate.symplectic
             indexes = gate.qudit_indices
-            dimension = gate.dimension
             phase_vector = gate.phase_vector
 
-            F, h = embed_symplectic(symplectic, phase_vector, indexes, self.n_qudits(), dimension)
-            total_symplectic = np.mod(total_symplectic @ F.T, dimension)
-            total_phase_vector = np.mod(total_phase_vector @ F.T + h, dimension)
+            F, h = embed_symplectic(symplectic, phase_vector, indexes, self.n_qudits())  #
+            if i == 0:
+                total_phase_vector = h
+            else:
+                total_phase_vector = np.mod(total_phase_vector + self._composite_phase_vector(total_symplectic, F, h,
+                                                                                              lcm),
+                                            2 * lcm)
+            print(phase_vector, total_phase_vector)
+
+            total_symplectic = np.mod(total_symplectic @ F.T, lcm)
 
             total_indexes.extend(indexes)
-            total_dimensions.append(dimension)
 
-        if np.all(np.array(total_dimensions) == total_dimensions[0]):
-            dimension = total_dimensions[0]
-        else:
-            NotImplementedError('Only composition of gates with constant dimension is supported')
         total_indexes = list(set(np.sort(total_indexes)))
         total_symplectic = total_symplectic.T
-        return Gate('CompositeGate', total_indexes, total_symplectic, dimension, total_phase_vector)
+        return Gate('CompositeGate', total_indexes, total_symplectic, self.dimensions, total_phase_vector)
+    
+    def unitary(self):
+        # TODO: Implement tests. Should check that action of the unitary gives the same as action of the symplectic
+        known_unitaries = (Hadamard, PHASE, SUM, SWAP, CNOT)
+        if not np.all([isinstance(gate, known_unitaries) for gate in self.gates]):
+            raise NotImplementedError("Unitary not implemented for all gates in the circuit.")
+        
+        # Start from identity on full Hilbert space
+        D_total = int(np.prod(self.dimensions))
+        U = np.eye(D_total, dtype=complex)
+        for gate in self.gates:
+            # Ensure local gate unitary uses the circuit's local dimensions
+            local_dims = [int(self.dimensions[i]) for i in gate.qudit_indices]
+            needs_override = True
+            try:
+                gd = list(map(int, gate.dimensions))
+                needs_override = (gd != local_dims)
+            except Exception:
+                needs_override = True
+
+            if needs_override:
+                saved_dims = getattr(gate, 'dimensions', None)
+                gate.dimensions = np.array(local_dims, dtype=int)
+                try:
+                    U_local = gate.unitary()
+                finally:
+                    gate.dimensions = saved_dims
+            else:
+                U_local = gate.unitary()
+
+            U = left_multiply_local_unitary(U, U_local, gate.qudit_indices, self.dimensions)
+        return sp.csr_matrix(U)

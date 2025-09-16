@@ -1,110 +1,42 @@
+import numpy as np
 from quaos.core.circuits.target import find_map_to_target_pauli_sum
+from quaos.core.circuits import Gate
 from quaos.core.paulis import PauliSum
 from quaos.utils import get_linear_dependencies
-import numpy as np
-from .graph_permutations import find_one_permutation, permutation_to_swaps, mapping_key, find_swapped_dependent_elements
+from scripts.experiments.symmetries.src.matroid_w_spm import find_k_automorphisms_symplectic
+from .phase_correction import pauli_phase_correction
 
 
-def symmetric_symplectic(pauli_sum: PauliSum, find_all=False, max_cycle=20):
-    if np.all(pauli_sum.dimensions == pauli_sum.dimensions[0]):
-        raise NotImplementedError('Currently only implemented for qudits of the same dimension')
-
-    d = pauli_sum.dimensions[0]
-    cs = pauli_sum.weights
+def clifford_symmetry(pauli_sum: PauliSum, n_symmetries: int = 1, check_symmetry: bool = True) -> Gate:
+    d = pauli_sum.dimensions
     independent_paulis, dependencies = get_linear_dependencies(pauli_sum.tableau(), d)
 
-    graph_dict = make_graph_dictionary(independent_paulis, dependencies, cs)
-    permutations = _loop_through_permutations(graph_dict, pauli_sum, find_all=find_all, max_cycle=max_cycle)
-
-    # Now find symplectic
-    p_target =
-    if find_all:
-        for perm in permutations:
-
-    else:
-        H_indep = H[independent_paulis]
-        H_t_indep = H_target[independent_paulis]
-
-        assert np.all(H_indep.symplectic_product_matrix() == H_t_indep.symplectic_product_matrix())
-
-        # print(H_indep)
-        # print(H_t_indep)
-
-        F, _, _, _ = find_map_to_target_pauli_sum(H_indep, H_t_indep)
-        return F
-
-def _loop_through_permutations(graph_dict, pauli_sum, find_all=False, max_cycle=20):
-    permutation = ()
-    permutations_found = set()
-
-    permutations_attempted = set()
-    found = False
-    targets = []
-
-    i = 0
-    # all_permutations = brute_force_all_permutations(graph_dict[1], np.ones(len(graph_dict[1]), dtype=int))
-    # print([permutation_to_swaps(perm) for perm in all_permutations])
-    while not found:
-        i += 1
-        ##### SHOULD NOT JUST BE graph_dict[1]
-        permutation = find_one_permutation(graph_dict[1], pauli_sum.weights, permutations_attempted,
-                                           max_cycle_size=max_cycle)
-        if permutation is None:
-            raise ValueError("No valid permutation found")
-
-        print(permutation_to_swaps(permutation))
-        pairs = permutation_to_swaps(permutation)
-        swapped_dependents = find_swapped_dependent_elements(pairs, graph_dict[1])
-        print('sd = ', swapped_dependents)
-        H_target = pauli_sum.copy()
-
-        ######################################
-        # THIS BIT IS BUGGY
-        for p in pairs:
-            H_target.swap_paulis(p[0], p[1])
-        for p in swapped_dependents:
-            if p not in pairs:
-                H_target.swap_paulis(p[0], p[1])
-        ######################################
-
-        if np.array_equal(H_target.symplectic_product_matrix(), pauli_sum.symplectic_product_matrix()):
-            found = True
-            if find_all:
-
-                permutations_attempted.add(mapping_key(permutation,
-                                                       domain=sorted({x for lst in graph_dict[1] for x in lst})))
-                permutations_found.add(permutation_to_swaps(permutation))
-            else:
-                return permutation_to_swaps(permutation), H_target
-        else:
-            print("Not an automorphism, trying next permutation")
-            permutations_attempted.add(mapping_key(
-                permutation, domain=sorted({x for lst in graph_dict[1] for x in lst})))
-
-    return permutations_found, H_target
-
-
-def make_graph_dictionary(independent_paulis, dependencies, weights):
-
-    graph_dict = {}
-
+    S = pauli_sum.symplectic_product_matrix()
+    perms = find_k_automorphisms_symplectic(independent_paulis, dependencies,
+                                            S=S, p=2, k=n_symmetries,
+                                            require_nontrivial=True,
+                                            basis_first="any",
+                                            dynamic_refine_every=0,           # or a small number like 8 if helpful
+                                            extra_column_invariants="none",   # or "hist" if k is modest
+                                            )
+    automorphism = []
     for i in independent_paulis:
-        key = weights[i]
-        if key in graph_dict:
-            graph_dict[key].append([i])
-        else:
-            graph_dict[key] = [[i]]
+        automorphism.append(perms[0][i])
 
-    for i in dependencies.keys():
-        key = weights[i]
-        dependency = dependencies[i]
-        dependence_indices = [x[0] for x in dependency]
-        dependence_multiplicities = [x[1] for x in dependency]  # this will be needed for qudits! always 1 for now
-        if key in graph_dict:
-            graph_dict[key].append(dependence_indices)
-        else:
-            graph_dict[key] = [dependence_indices]
+    H_t = pauli_sum.copy()
+    H_t = H_t[automorphism]
+    H_i = pauli_sum[independent_paulis]
 
-    return graph_dict
+    F, h, _, _ = find_map_to_target_pauli_sum(H_i, H_t)
+    G = Gate('Symmetry', [i for i in range(pauli_sum.n_qudits())], F.T, 2, h)
+
+    # phase correction - add Pauli to make circuit, collapse to single Gate
+
+    if check_symmetry:
+        assert np.array_equal(G.act(pauli_sum).standard_form().tableau(), pauli_sum.standard_form().tableau())
+
+    return G
 
 
+def phase_correction(pauli_sum: PauliSum, delta_phi: np.ndarray, p: int, minimize: bool = False, passes: int = 1):
+    return pauli_phase_correction(pauli_sum.tableau(), delta_phi, p, minimize=minimize, passes=passes)

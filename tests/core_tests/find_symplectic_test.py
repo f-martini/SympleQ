@@ -182,22 +182,19 @@ class TestSymplecticSolver:
 
     def test_map_pauli_sum_to_target(self):
 
-        for i in range(100):
+        for i in range(1000):
             print(i)
             # choose random properties of the system
-            n = np.random.randint(2, 4)  # , 50)  # Number of qudits
+            n = np.random.randint(2, 5)  # , 50)  # Number of qudits
             allowed_dims = [2]  # , 3, 5, 7, 11]  # allowed dimensions
             dimensions = []  # dimensions
             for _ in range(n):
-                dimensions.append(
-                    int(
-                        np.random.choice(allowed_dims)
-                    )
-                )
+                dimensions.append(int(np.random.choice(allowed_dims)))
             m = int(np.random.randint(2, 2 * n - 1))  # Number of Paulis
 
             # define input hamiltonian
             pl_sum = random_hamiltonian.random_pauli_hamiltonian(m, dimensions)
+
             basis_indices, _ = get_linear_dependencies(pl_sum.tableau(), int(pl_sum.lcm))
             pl_sum = pl_sum[basis_indices]
 
@@ -207,14 +204,6 @@ class TestSymplecticSolver:
             # target hamiltonian
             sym_sum = pl_sum.tableau()
             target_sym_sum = target_pl_sum.tableau()
-
-            # print()
-            # print(pl_sum)
-            # print(pl_sum.symplectic_product_matrix())
-            # print()
-            # print(target_pl_sum)
-            # print(target_pl_sum.symplectic_product_matrix())
-            # print()
 
             check_pl_sum = pl_sum.copy()
             check_pl_sum.combine_equivalent_paulis()

@@ -78,11 +78,14 @@ class PauliSum:
             self.standardise()
 
     @classmethod
-    def from_tableau(cls, tableau: np.ndarray, dimensions: list[int] | np.ndarray) -> 'PauliSum':
+    def from_tableau(cls, tableau: np.ndarray,
+                     dimensions: list[int] | np.ndarray,
+                     weights: np.ndarray | None = None
+                     ) -> 'PauliSum':
         p_strings = []
         for row in tableau:
             p_strings.append(PauliString(x_exp=row[:len(row) // 2], z_exp=row[len(row) // 2:], dimensions=dimensions))
-        return cls(p_strings, dimensions=dimensions)
+        return cls(p_strings, dimensions=dimensions, weights=weights)
 
     @classmethod
     def from_pauli(cls,
@@ -129,7 +132,8 @@ class PauliSum:
                     n_paulis: int,
                     n_qudits: int,
                     dimensions: list[int] | np.ndarray,
-                    rand_weights: bool = True) -> 'PauliSum':
+                    rand_weights: bool = True,
+                    seed: int | None = None) -> 'PauliSum':
         """
         Create a random PauliSum object.
 
@@ -150,14 +154,18 @@ class PauliSum:
             A PauliSum object.
         """
         # TODO: Eliminate n_qudits and set dimensions directly from len(dimensions)
+        if seed is not None:
+            np.random.seed(seed)
         weights = 2 * (np.random.rand(n_paulis) - 0.5) if rand_weights else np.ones(n_paulis)
-
+        string_seeds = np.random.randint(1000000, size=1000)
         # ensure no duplicate strings
         strings = []
-        for _ in range(n_paulis):
-            ps = PauliString.from_random(n_qudits, dimensions)
+        for i in range(n_paulis):
+            ps = PauliString.from_random(n_qudits, dimensions, seed=string_seeds[i])
+            j = 0
             while ps in strings:
-                ps = PauliString.from_random(n_qudits, dimensions)
+                j += 1
+                ps = PauliString.from_random(n_qudits, dimensions, seed=string_seeds[j])
             strings.append(ps)
 
         return cls(strings, weights=weights, phases=[0] * n_paulis, dimensions=dimensions, standardise=True)
@@ -353,6 +361,19 @@ class PauliSum:
             new_weights[i] = self.weights[i] * omega
         self.phases = np.zeros(self.n_paulis(), dtype=int)
         self.weights = new_weights
+
+    def standard_form(self) -> 'PauliSum':
+        """
+        Get the PauliSum in standard form.
+
+        Returns
+        -------
+        PauliSum
+            The PauliSum in standard form.
+        """
+        ps_out = self.copy()
+        ps_out.standardise()
+        return ps_out
 
     @overload
     def __getitem__(self,
@@ -851,7 +872,6 @@ class PauliSum:
         t2 = np.all(self.weights == other_pauli.weights)
         t3 = np.all(self.phases == other_pauli.phases)
         t4 = np.all(self.dimensions == other_pauli.dimensions)
-        print(t1, t2, t3, t4)
         return bool(t1 and t2 and t3 and t4)
 
     def __ne__(self,
@@ -889,7 +909,7 @@ class PauliSum:
         )
 
     def __dict__(self) -> dict:
-        """
+        """`
         Returns a dictionary representation of the object's attributes.
 
         Returns
@@ -967,6 +987,14 @@ class PauliSum:
             if np.all(self.x_exp[:, i] == 0) and np.all(self.z_exp[:, i] == 0):
                 to_delete.append(i)
         self._delete_qudits(to_delete)
+
+    def remove_zero_weight_paulis(self):
+        # If weight of Pauli string is 0, remove it
+        to_delete = []
+        for i in range(self.n_paulis()):
+            if np.abs(self.weights[i]) <= 1e-14:
+                to_delete.append(i)
+        self._delete_paulis(to_delete)
 
     def tableau(self) -> np.ndarray:
         """
@@ -1113,30 +1141,47 @@ class PauliSum:
 
     def symplectic_product_matrix(self) -> np.ndarray:
         """
-        The symplectic product matrix S associated to the PauliSum.
-        It is an n x n matrix, n being the number of Paulis.
-        The entry S[i, j] is the symplectic product of the ith Pauli and the jth Pauli.
-
-        Returns
-        -------
-        np.ndarray
-            The symplectic product matrix S.
+        Scalar (phase-preserving) symplectic product matrix S (n x n), entries mod LCM(dimensions).
+        S[i, j] = sum_j (L/d_j) * r_j( P_i, P_j )  (mod L), symmetric with zeros on diagonal.
         """
         n = self.n_paulis()
-        # list_of_symplectics = self.symplectic_matrix()
+        L = self.lcm
+        S = np.zeros((n, n), dtype=int)
 
-        spm = np.zeros([n, n], dtype=int)
         for i in range(n):
-            for j in range(n):
-                if i > j:
-                    spm[i, j] = self.pauli_strings[i].symplectic_product(self.pauli_strings[j])
-        spm = spm + spm.T
-        return spm
+            for j in range(i):  # fill lower triangle
+                val = self.pauli_strings[i].symplectic_product(self.pauli_strings[j], as_scalar=True)
+                S[i, j] = val
 
-    # TODO: What's the difference between the next two functions?
+        S = (S + S.T) % L
+        # optional: ensure diagonal zeros (they should be)
+        np.fill_diagonal(S, 0)
+        return S
+
+    def symplectic_residue_tensor(self) -> np.ndarray:
+        """
+        Per-qudit residue tensor R of shape (n_paulis, n_paulis, n_qudits),
+        where R[i, j, k] = r_k(P_i, P_j) mod d_k. Symmetric in (i, j) and zero on diagonal.
+        """
+        n = self.n_paulis()
+        nq = len(self.dimensions)
+        R = np.zeros((n, n, nq), dtype=int)
+
+        for i in range(n):
+            for j in range(i):  # lower triangle
+                r = self.pauli_strings[i].symplectic_residues(self.pauli_strings[j])  # length-nq
+                R[i, j, :] = r
+
+        # symmetrize and clear diagonal
+        R = R + np.transpose(R, (1, 0, 2))
+        for i in range(n):
+            R[i, i, :] = 0
+        # optional: reduce explicitly mod dims (already reduced in PauliString)
+        return R
+
     def __str__(self) -> str:
         """
-        Returns a string representation of the PauliSum.
+        Returns a more readable string representation of the PauliSum.
 
         Returns
         -------
@@ -1155,7 +1200,7 @@ class PauliSum:
 
     def __repr__(self) -> str:
         """
-        Returns a string representation of the PauliSum.
+        Returns an unambiguous string representation of the PauliSum.
 
         Returns
         -------

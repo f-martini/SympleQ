@@ -43,9 +43,7 @@
   "esbonio.sphinx.confDir": "${workspaceFolder}/docs",
   "esbonio.sphinx.buildDir": "${workspaceFolder}/docs/_build",
   "python.analysis.typeCheckingMode": "basic",
-  "python.testing.pytestArgs": [
-    "tests"
-  ],
+  "python.testing.pytestArgs": ["tests"],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
   "jupyter.notebookFileRoot": "${workspaceFolder}",

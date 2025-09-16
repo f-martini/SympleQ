@@ -5,6 +5,8 @@ from .pauli import Pauli
 from .pauli_string import PauliString
 from .pauli_sum import PauliSum
 import networkx as nx
+from itertools import product
+import sympy as sp
 
 
 def ground_state_TMP(P: PauliSum,
@@ -170,70 +172,6 @@ def string_to_symplectic(string: str
     return symplectic.flatten(), sum(phases)
 
 
-# TODO: The previous and following functions do not seem super useful...
-#       I would say one can create a PauliString/Sum object from the string and
-#       then use that object for any further processing.
-def symplectic_to_string(symplectic: np.ndarray,
-                         dimension: int
-                         ) -> str:
-    """
-    Convert a symplectic representation of a PauliString into its string form.
-
-    Parameters
-    ----------
-    symplectic : np.ndarray
-        The symplectic representation of the PauliString.
-    dimension : int
-        The dimension of the PauliString.
-
-    Returns
-    -------
-    str
-        The string representation of the PauliString.
-    """
-    if dimension == 2:
-        if symplectic[0] == 0 and symplectic[1] == 0:
-            return 'x0z0'
-        elif symplectic[0] == 1 and symplectic[1] == 0:
-            return 'x1z0'
-        elif symplectic[0] == 0 and symplectic[1] == 1:
-            return 'x0z1'
-        elif symplectic[0] == 1 and symplectic[1] == 1:
-            return 'x1z1'
-        else:
-            raise Exception("Symplectic vector must be of the form (0, 0), (1, 0), (0, 1), or (1, 1)")
-    else:
-        return f'x{symplectic[0]}z{symplectic[1]}'
-
-
-def random_pauli_string(dimensions: list[int]
-                        ) -> PauliString:
-    """
-    Generates a random PauliString with dimensions specified by `dimensions'.
-    Each qudit is assigned a random exponent both for its `x' and `z' components,
-    that is uniformly distributed between 0 and d-1, d being the dimension of the qudit.
-
-    Parameters
-    ----------
-    dimensions : list[int]
-        The dimensions of the PauliString.
-
-    Returns
-    -------
-    PauliString
-        A random PauliString with the specified dimensions.
-    """
-    n_qudits = len(dimensions)
-    x_array = np.zeros(n_qudits, dtype=int)
-    z_array = np.zeros(n_qudits, dtype=int)
-    for i in range(n_qudits):
-        x_array[i] = np.random.randint(0, dimensions[i])
-        z_array[i] = np.random.randint(0, dimensions[i])
-    p_string = PauliString(x_array, z_array, dimensions=dimensions)
-
-    return p_string
-
-
 def check_mappable_via_clifford(PauliSum: PauliSum,
                                 target_PauliSum: PauliSum
                                 ) -> bool:
@@ -367,9 +305,9 @@ def commutation_graph(PauliSum: PauliSum,
     return gr
 
 
-def modinv(a : int,
-           d: int
-           ) -> int:
+def mod_inv(a: int,
+            d: int
+            ) -> int:
     """
     Compute the modular multiplicative inverse of an integer.
 
@@ -395,9 +333,9 @@ def modinv(a : int,
 
     Examples
     --------
-    >>> modinv(3, 11)
+    >>> mod_inv(3, 11)
     4
-    >>> modinv(10, 17)
+    >>> mod_inv(10, 17)
     12
     """
     for i in range(1, d):
@@ -434,9 +372,12 @@ def row_reduce_mod_d(A: np.ndarray,
     Notes
     -----
     - The input matrix `A` must have integer dtype (e.g., np.int32, np.int64).
-    - The function assumes that `modinv` is defined elsewhere and computes modular inverses.
+    - The function assumes that `mod_inv` is defined elsewhere and computes modular inverses.
     - The input matrix `A` is not modified; a copy is used internally.
     - All arithmetic is performed modulo `d`.
+
+    TODO: This is a place where we should test if galois is faster and/or more stable.
+    It has inbuilt row_reduce over GF(p)
     """
     A = A.copy() % d
     m, n = A.shape
@@ -450,7 +391,7 @@ def row_reduce_mod_d(A: np.ndarray,
             continue
         if row != rank:
             A[[row, rank]] = A[[rank, row]]
-        inv = modinv(A[rank, col], d)
+        inv = mod_inv(A[rank, col], d)
         A[rank] = (A[rank] * inv) % d
         for r in range(m):
             if r != rank and A[r, col] != 0:
@@ -501,10 +442,6 @@ def solve_mod_d(A: np.ndarray,
     >>> solve_mod_d(A, b, 5)
     [array([3, 4]), array([0, 2]), array([2, 0]), array([4, 3]), array([1, 1])]
     """
-    # TODO: is it better to import at the beginning of this
-    #       entire .py file rather than only within this function?
-    from itertools import product
-    import sympy as sp
 
     A_sym = sp.Matrix(A.tolist())
     b_sym = sp.Matrix(b.tolist())
@@ -533,96 +470,3 @@ def solve_mod_d(A: np.ndarray,
             break
 
     return solutions
-
-
-def is_symplectic(M: np.ndarray,
-                  d: int
-                  ) -> bool:
-    """
-    Check if a given matrix is symplectic over the finite field Z_d.
-    A matrix M is symplectic if it preserves the symplectic form J under the transformation
-    M.T @ J @ M ≡ J (mod d), where J is the standard symplectic matrix.
-
-    Parameters
-    ----------
-    M : np.ndarray
-        A square 2n x 2n integer matrix to be checked for the symplectic property.
-    d : int
-        The modulus for the finite field Z_d.
-
-    Returns
-    -------
-    bool
-        True if M is symplectic over Z_d, False otherwise.
-
-    Notes
-    -----
-    - The input matrix M must be square and have even dimensions (2*n_qudits).
-    - The function checks the symplectic condition modulo d.
-    """
-    n = M.shape[0] // 2
-    if M.shape[0] != M.shape[1] or M.shape[0] % 2 != 0:
-        return False
-    J = np.block([[np.zeros((n, n), dtype=int), np.eye(n, dtype=int)],
-                  [-np.eye(n, dtype=int), np.zeros((n, n), dtype=int)]]) % d
-    return np.array_equal((M.T @ J @ M) % d, J % d)
-
-
-def find_symplectic_maps(H: np.ndarray,
-                         H_prime: np.ndarray,
-                         d: int,
-                         max_solutions=1000
-                         ) -> list[np.ndarray]:
-    """
-    Find symplectic matrices M such that :math:`H M^T = H_prime %d`.
-    This function attempts to find all symplectic matrices :math:`M` that satisfy the equation
-    :math:`H M^T = H_prime %d`, where :math:`H` and :math:`H_prime` are given matrices,
-    :math:`M^T` is the transpose of :math:`M`, and :math:`d` is the modulus.
-    Only symplectic matrices :math:`M` are returned.
-
-    Parameters
-    ----------
-    H : np.ndarray
-        The left-hand side matrix in the equation, of shape (n, k).
-    H_prime : np.ndarray
-        The right-hand side matrix in the equation, with the same shape as ``H``.
-    d : int
-        The modulus for the equation.
-    max_solutions : int, optional
-        The maximum number of solutions to return. Default is 1000.
-
-    Returns
-    -------
-    List[np.ndarray]
-        A list of symplectic matrices ``M`` (each of shape (k, k)) that satisfy the equation.
-
-    Raises
-    ------
-    AssertionError
-        If ``H_prime`` does not have the same shape as ``H``.
-
-    Notes
-    -----
-    - A symplectic matrix is a matrix that preserves the symplectic form under matrix multiplication.
-    This function relies on ``solve_mod_d`` to solve the modular linear system and ``is_symplectic``
-    to check the symplectic property.
-    - k is twice the number of qudits n_qudits
-    """
-    n, k = H.shape
-    assert H_prime.shape == (n, k)
-    num_vars = k * k  # because M is k x k, and we are solving for M^T
-
-    A = np.zeros((n * k, num_vars), dtype=int)
-    b = H_prime.flatten()
-
-    for H_row in range(n):       # row index of H, H'
-        for H_col in range(k):   # column index of H'
-            row_idx = H_row * k + H_col
-            for idx in range(k):  # column index of H, row index of M^T
-                col_idx = H_col * k + idx  # since M^T[H_col, idx] = M[idx, H_col]
-                A[row_idx, col_idx] = H[H_row, idx]
-
-    raw_solutions = solve_mod_d(A, b, d, max_solutions)
-    Ms = [sol.reshape((k, k)).T for sol in raw_solutions]  # Transpose back to M
-    Ms_symp = [M for M in Ms if is_symplectic(M, d)]
-    return Ms_symp
