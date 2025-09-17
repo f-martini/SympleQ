@@ -239,13 +239,13 @@ class Circuit:
         total_indexes = list(set(np.sort(total_indexes)))
         total_symplectic = total_symplectic.T
         return Gate('CompositeGate', total_indexes, total_symplectic, self.dimensions, total_phase_vector)
-    
+
     def unitary(self):
         # TODO: Implement tests. Should check that action of the unitary gives the same as action of the symplectic
         known_unitaries = (Hadamard, PHASE, SUM, SWAP, CNOT)
         if not np.all([isinstance(gate, known_unitaries) for gate in self.gates]):
             raise NotImplementedError("Unitary not implemented for all gates in the circuit.")
-        
+
         # Start from identity on full Hilbert space
         D_total = int(np.prod(self.dimensions))
         U = np.eye(D_total, dtype=complex)

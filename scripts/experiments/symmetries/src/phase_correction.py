@@ -1,17 +1,10 @@
-"""
-This file takes care of phase correction for symplectic automorphisms.
-
-It uses H\\Omega P = \\Delta \\phi
-
-Finds P for some target phase changes \\Delta \\phi, given the tableau H and symplectic form \\Omega.
-"""
-
 import numpy as np
 import galois
-from quaos.core.circuits.utils import symplectic_form
+from quaos.core.circuits.utils import symplectic_form  # not used in calibration path, but kept if you want
+from quaos.core.paulis import PauliSum, PauliString
+from quaos.core.circuits.gates import PauliGate
 
-
-# --- RREF / solve / nullspace over GF(p) ---
+# ---------- finite-field helpers ----------
 
 def gf_rref(A, GF):
     A = GF(A)
@@ -23,8 +16,7 @@ def gf_rref(A, GF):
         piv = None
         for rr in range(r, m):
             if R[rr, c] != GF(0):
-                piv = rr
-                break
+                piv = rr; break
         if piv is None:
             continue
         if piv != r:
@@ -40,140 +32,120 @@ def gf_rref(A, GF):
             break
     return R, pivots
 
-
-def gf_rank(A, GF):
-    _, piv = gf_rref(A, GF)
-    return len(piv)
-
-
-def gf_nullspace(A, GF):
-    A = GF(A)
-    m, n = A.shape
-    R, piv = gf_rref(A, GF)
-    piv = set(piv)
-    free = [j for j in range(n) if j not in piv]
-    if not free:
-        return []
-    basis = []
-    for f in free:
-        x = GF.Zeros(n)
-        x[f] = GF(1)
-        row = 0
-        for c in range(n):
-            if c in piv:
-                s = GF(0)
-                for j in range(c + 1, n):
-                    if R[row, j] != GF(0) and x[j] != GF(0):
-                        s += R[row, j] * x[j]
-                x[c] = -s
-                row += 1
-                if row == m:
-                    break
-        basis.append(x.reshape(n, 1))
-    return basis
-
-
-def gf_solve_particular(A, b, GF):
-    """
-    Solve A x = b over GF(p). Return one particular solution or raise ValueError if inconsistent.
-    """
+def gf_solve(A, b, GF):
     A = GF(A)
     b = GF(b).reshape(-1, 1)
     m, n = A.shape
     M = np.hstack((A, b))
-    R, piv = gf_rref(M, GF)
-    # Check consistency
+    R, _ = gf_rref(M, GF)
     for i in range(m):
         if np.all(R[i, :n] == GF(0)) and R[i, n] != GF(0):
-            raise ValueError("No solution: system A x = b is inconsistent over GF(p).")
-    # Reconstruct one solution with all free vars set to 0
+            raise ValueError("Inconsistent linear system over GF(p).")
     x = GF.Zeros(n)
     row = 0
     for c in range(n):
         if row < m and R[row, c] == GF(1) and np.all(R[row, :c] == GF(0)):
             s = GF(0)
-            for j in range(c + 1, n):
+            for j in range(c+1, n):
                 s += R[row, j] * x[j]
             x[c] = R[row, n] - s
             row += 1
-    return x.reshape(n, 1)
+    return np.asarray(x).reshape(n, 1)
 
-# --- Optional: greedy sparsifier to reduce Hamming weight of P ---
+# ---------- convention-agnostic calibration ----------
 
-
-def hamming_weight(x, GF):
-    return int(np.count_nonzero(x != GF(0)))
-
-
-def sparsify_solution(x0, N_basis, p, GF, passes=1):
+def calibrate_A_impl(H_int, p):
     """
-    Given particular solution x0 and nullspace basis vectors N_i,
-    greedily pick coefficients \\alpha_i ∈ GF(p) to reduce Hamming weight of x.
+    Given an integer tableau H (k x 2n) over GF(p), empirically build A_impl (k x 2n) over GF(p)
+    such that for any Pauli vector P over GF(p), the phase kick observed from PauliGate.act is
+    Δφ (mod 2p) = 2 * (A_impl @ P) (mod 2p).
     """
-    if not N_basis:
-        return x0
-    x = x0.copy()
-    for _ in range(passes):
-        improved = False
-        for N in N_basis:
-            best_alpha = GF(0)
-            best_w = hamming_weight(x, GF)
-            for a_int in range(p):
-                a = GF(a_int)
-                x_try = x + a * N
-                w = hamming_weight(x_try, GF)
-                if w < best_w:
-                    best_w = w
-                    best_alpha = a
-            if best_alpha != GF(0):
-                x = x + best_alpha * N
-                improved = True
-        if not improved:
-            break
-    return x
-
-
-def pauli_phase_correction(pauli_sum_tableau, delta_phi, p, minimize=False, passes=1):
-    """
-    Solve H Ω P = Δφ over GF(p).
-    Returns:
-        P             : (2n x 1) GF vector (one solution)
-        is_unique     : True iff solution is unique
-        nullity       : dim Null(H Ω)
-    Args:
-        minimize : if True, greedily reduce Hamming weight using the nullspace
-        passes   : number of greedy passes (if minimize=True)
-    """
+    H_int = np.asarray(H_int, dtype=int)
+    k, two_n = H_int.shape
+    n = two_n // 2
     GF = galois.GF(p)
-    pauli_sum_tableau = GF(pauli_sum_tableau)
-    Omega = GF(symplectic_form(pauli_sum_tableau.shape[1] // 2))
-    A = pauli_sum_tableau @ Omega
-    b = GF(delta_phi).reshape(-1, 1)
-    # Particular solution (or raises if inconsistent)
-    P0 = gf_solve_particular(A, b, GF)
-    # Nullspace and uniqueness
-    N = gf_nullspace(A, GF)  # list of (2n x 1)
-    nullity = len(N)
-    is_unique = (nullity == 0)
-    if minimize and nullity > 0:
-        P = sparsify_solution(P0, N, p, GF, passes=passes)
-    else:
-        P = P0
-    # Sanity check
-    assert np.all((A @ P) == b), "Internal: solution check failed over GF(p)."
-    return P, is_unique, nullity
 
+    # Build a PauliSum with zero phases so we can read pure increments
+    ps0 = PauliSum.from_tableau(H_int.copy(), dimensions=[p]*n)
+
+    Acols = []
+    for j in range(two_n):
+        # Standard basis Pauli: P = e_j
+        x = np.zeros(n, dtype=int)
+        z = np.zeros(n, dtype=int)
+        if j < n:
+            x[j] = 1
+        else:
+            z[j - n] = 1
+        pauli = PauliString(x % p, z % p, dimensions=[p]*n)
+        pg = PauliGate(pauli)
+
+        # Apply and measure phase increment
+        ps_after = pg.act(ps0)
+        # Δφ_j (mod 2p)
+        delta = (np.asarray(ps_after.phases) - np.asarray(ps0.phases)) % (2*p)
+
+        # Must be even; divide by 2 to get A_impl column over GF(p)
+        if np.any(delta % 2 != 0):
+            raise RuntimeError("Internal: observed odd phase increment from a basis Pauli?!")
+        col = ((delta // 2) % p).astype(int)  # k-vector in GF(p)
+        Acols.append(col)
+
+    A_impl = np.stack(Acols, axis=1) % p  # shape (k, 2n)
+    return A_impl
+
+def pauli_phase_correction_calibrated(H, delta_phi_2p, p, A_impl=None):
+    """
+    Solve for P over GF(p) using the empirically calibrated A_impl so that:
+        2 * (A_impl @ P) ≡ delta_phi_2p (mod 2p)
+    Raises ValueError if the target is unachievable.
+    """
+    H = np.asarray(H, dtype=int)
+    delta_phi_2p = (np.asarray(delta_phi_2p).reshape(-1)) % (2*p)
+
+    # Necessary condition: evenness mod 2p
+    if np.any(delta_phi_2p % 2 != 0):
+        raise ValueError("Unachievable target: Δφ has odd entries mod 2p.")
+
+    # Build A_impl if not provided (cost: one pass of 2n Pauli conjugations)
+    if A_impl is None:
+        A_impl = calibrate_A_impl(H, p)
+
+    rhs = ((delta_phi_2p // 2) % p).astype(int)  # GF(p) RHS
+
+    GF = galois.GF(p)
+    P = gf_solve(A_impl, rhs, GF)  # (2n,1) over GF(p)
+    return np.asarray(P, dtype=int), A_impl
+
+# ---------- demo that matches your environment ----------
 
 if __name__ == "__main__":
-    p = 5
+    p = 2  # works for qubits and odd primes
     GF = galois.GF(p)
 
-    # Dimensions: H is m x 2n, Omega is 2n x 2n, delta_phi is m x 1
-    # Example (replace with your real H, Omega, dphi):
-    m, n = 4, 3
-    H = GF.Random((m, 2 * n))
-    delta_phi = GF.Random(m)
+    n_qudits = 3
+    n_paulis = 5
 
-    P, is_unique, nullity = pauli_phase_correction(H, delta_phi, p, minimize=True, passes=2)
-    print("P:", P.reshape(-1))
-    print("unique?", is_unique, "nullity:", nullity)
+    H = GF.Random((n_paulis, 2*n_qudits)).view(np.ndarray).astype(int)
+
+    # Random Δφ in Z_{2p}^k (may be unachievable; we error out cleanly)
+    rng = np.random.default_rng()
+    delta_phi_2p = rng.integers(0, p, size=n_paulis, dtype=int) * 2
+
+    print("Target phases:", delta_phi_2p.tolist())
+
+    try:
+        P, A_impl = pauli_phase_correction_calibrated(H, delta_phi_2p, p)
+
+        # Verify against your actual PauliGate.act()
+        ps = PauliSum.from_tableau(H, dimensions=[p]*n_qudits)
+        pauli = PauliString(P[:n_qudits].reshape(-1), P[n_qudits:].reshape(-1), dimensions=[p]*n_qudits)
+        ps_after = PauliGate(pauli).act(ps)
+
+        print(ps_after)
+
+        got = (np.asarray(ps_after.phases) - np.asarray(ps.phases)) % (2*p)
+        assert np.array_equal(got, delta_phi_2p), f"Mismatch: got {got}, want {delta_phi_2p}"
+        print("Success: solver matches random target.")
+    except ValueError as e:
+        print("ERROR:", e)

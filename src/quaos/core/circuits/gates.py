@@ -124,7 +124,6 @@ class Gate:
         # negative sign in below as definition in paper is strictly upper diagonal, not including diagonal part
         p_part = 2 * np.triu(U_conjugated) - np.diag(np.diag(U_conjugated))
         p2 = np.dot(a.T, np.dot(p_part, a))
-
         return (np.dot(h, a) - p1 + p2) % (2 * P.lcm)
 
     def copy(self) -> 'Gate':
@@ -224,7 +223,7 @@ class SUM(Gate):
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
         super().__init__("SUM", [control, target], symplectic, dimensions=dimension, phase_vector=phase_vector)
-        
+
     def unitary(self):
         # Implements |i, j> -> |i, j + i (mod d)| with basis ordering |i>⊗|j>,
         # linear index idx(i, j) = i * d + j.
@@ -343,3 +342,31 @@ class PHASE(Gate):
         zeta = np.exp(1j * 2 * np.pi / (2 * d))
         diag = np.array([zeta ** (j * j) for j in range(d)], dtype=complex)
         return np.diag(diag)
+
+
+def PauliGate(pauli: PauliString) -> Gate:
+    """
+    Convert a PauliString to its symplectic representation [x|z].
+
+    Parameters
+    ----------
+    pauli : PauliString
+        The PauliString to convert.
+
+    Returns
+    -------
+    Gate
+        The corresponding Pauli gate.
+        The symplectic representation of the PauliString.
+    """
+    if not np.all(pauli.dimensions == pauli.dimensions[0]):
+        # To add this is simple, though the symplectic form must be either not used or a different one used for each
+        # dimension
+        raise NotImplementedError("Mixed dimensions not supported yet.")
+    Omega = symplectic_form(pauli.n_qudits(), p=2)
+    symplectic = np.eye(2 * pauli.n_qudits(), dtype=int)  # Pauli conjugation does not change other Paulis
+    phase_vector = 2 * Omega @ pauli.tableau() % (2 * pauli.lcm)    # It does change phases
+
+    # TODO Can be made more efficient by extracting the qudits it acts on and having only those as qudit indices
+    return Gate("Pauli", [i for i in range(pauli.n_qudits())], symplectic, dimensions=pauli.dimensions,
+                phase_vector=phase_vector)

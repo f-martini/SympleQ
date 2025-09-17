@@ -554,15 +554,15 @@ class PauliString:
             A 1D numpy array of length 2 * n_qudits representing the tableau
             form of the Pauli string.
         """
-        symp = np.zeros(2 * self.n_qudits())
-        symp[0:self.n_qudits()] = self.x_exp
-        symp[self.n_qudits():2 * self.n_qudits()] = self.z_exp
-        return symp
+        tableau_vec = np.zeros(2 * self.n_qudits())
+        tableau_vec[0:self.n_qudits()] = self.x_exp
+        tableau_vec[self.n_qudits():2 * self.n_qudits()] = self.z_exp
+        return tableau_vec
 
     def symplectic_residues(self, A: "PauliString") -> np.ndarray:
         """
         Per-qudit symplectic residues r_j = x_j z'_j - z_j x'_j  (mod d_j).
-        Returns a length-n int array with entrywise mod d_j.
+        Returns a length-n int array with entry-wise mod d_j.
         """
         if self.n_qudits() != A.n_qudits() or not np.array_equal(self.dimensions, A.dimensions):
             raise ValueError(
