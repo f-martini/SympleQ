@@ -3,7 +3,6 @@ from quaos.core.measurement.allocation import scale_variances
 from quaos.core.measurement.covariance_graph import graph
 
 
-# checked for correctness
 def calculate_mean_estimate(data: np.ndarray, weights: np.ndarray):
     p = data.shape[0]
     d = data.shape[2]
@@ -21,14 +20,12 @@ def calculate_mean_estimate(data: np.ndarray, weights: np.ndarray):
     return mean
 
 
-# checked for correctness
 def calculate_statistical_variance_estimate(covariance_graph: graph, scaling_matrix: np.ndarray):
     scaled_variance_graph = scale_variances(covariance_graph, scaling_matrix)
     stat_variance_estimate = np.sum(scaled_variance_graph.adj).real
     return stat_variance_estimate
 
 
-# Checked for Correctness
 def calculate_systematic_variance_estimate(data: np.ndarray, weights: np.ndarray, diagnostic_data: np.ndarray):
     p = data.shape[0]
     d = data.shape[2]
@@ -54,13 +51,11 @@ def calculate_systematic_variance_estimate(data: np.ndarray, weights: np.ndarray
     return np.abs(error_correction)**2
 
 
-# seems to be fine
 def true_mean(H, psi):
     mu = np.real(np.transpose(np.conjugate(psi)) @ H.matrix_form() @ psi)
     return mu
 
 
-# seems to be fine
 def true_covariance_graph(H, psi):
     weights = H.weights
     p = H.n_paulis()
@@ -77,7 +72,6 @@ def true_covariance_graph(H, psi):
     return graph(cm)
 
 
-# should be fine if true_covariance_graph is fine
 def true_statistical_variance(H, psi, S, weights):
     sigma = np.sum(scale_variances(true_covariance_graph(H, psi), S).adj).real
     return sigma

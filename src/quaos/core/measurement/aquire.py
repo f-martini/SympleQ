@@ -34,18 +34,128 @@ class Aquire:
                  noise_kwargs={},
                  error_args=[],
                  error_kwargs={}):
+        """
+        Constructor for the Aquire class.
 
-        H, pauli_block_sizes = sort_hamiltonian(H)
-        H.phase_to_weight()
+        Parameters:
+            H (PauliSum): Hamiltonian of the system
+            psi (list[float | complex] | list[float] | list[complex] | np.ndarray): Initial state of the system
+            general_commutation (bool): Whether to use general commutation or qudit-wise commutation
+            true_values (bool): Whether to calculate true mean and statistical variance
+            allocation_mode (str): Allocation mode for measurements
+            N_chain (int): Number of measurement chains
+            N_mcmc (int): Number of MCMC steps per chain
+            N_mcmc_max (int): Maximum number of MCMC steps
+            mcmc_shot_scale (float): Scale for MCMC steps
+            diagnostic_mode (str): Diagnostic mode for the experiment
+            noise_probability_function (Callable): Function to calculate the probability of a noisy measurement
+            error_function (Callable): Function to calculate the error correction
+            noise_args (list): Arguments for the noise probability function
+            noise_kwargs (dict): Keyword arguments for the noise probability function
+            error_args (list): Arguments for the error correction function
+            error_kwargs (dict): Keyword arguments for the error correction function
+
+        Attributes:
+            # Permanent attributes
+            H (PauliSum): Hamiltonian of the system
+            weights (np.ndarray): Weights of the Pauli terms in the Hamiltonian
+            pauli_block_sizes (list): Sizes of the Pauli blocks in the Hamiltonian
+            psi (np.ndarray): State to calculate estimates for
+            n_paulis (int): Number of Pauli terms in the Hamiltonian
+            n_qudits (int): Number of qudits in the Hamiltonian
+            dimension (int): Dimension of the system
+            diagnostic_mode (str): Diagnostic mode for the experiment
+            noise_probability_function (Callable): Function to calculate the probability of a noisy measurement
+            error_function (Callable): Function to calculate the error applied to a measurement result
+            noise_args (list): Arguments for the noise probability function
+            noise_kwargs (dict): Keyword arguments for the noise probability function
+            error_args (list): Arguments for the error correction function
+            error_kwargs (dict): Keyword arguments for the error correction function
+            true_values_flag (bool): Whether to calculate true mean and statistical variance
+
+            # Changeable attributes
+            N_chain (int): Number of measurement chains
+            N_mcmc (int): Number of MCMC steps per chain
+            N_mcmc_max (int): Maximum number of MCMC steps
+            mcmc_shot_scale (float): Scale for MCMC steps
+            general_commutation (bool): Whether to use general commutation or qudit-wise commutation
+            allocation_mode (str): Allocation mode for measurements
+            diagnostic_flag (bool): Whether diagnostics for systematic errors are enabled (automatically set to True if
+                                    noise or error functions are provided or if diagnostic circuits are constructed)
+
+            # Dependent on changeable parameters
+            CG (graph): Commutation graph of the Hamiltonian
+            clique_covering (list): List of cliques covering the commutation graph
+            k_phases (np.ndarray): Matrix of phase of the products of Paulistrings in the Hamiltonian (could probably
+                                   be improved with new PauliSum and PauliString methods)
+
+            # Supposed to change during experiment
+            data (np.ndarray): Measurement outcome data collected so far for each Paulistring
+            cliques (list): List of cliques measured so far
+            circuits (list): List of circuits used for measurements of cliques
+            total_shots (int): Total number of measurements allocated so far
+            scaling_matrix (np.ndarray): Number of measurements allocated for each pair of Paulistrings
+            covariance_graph (graph): Covariance graph of the Hamiltonian given the measurement data collected so far
+            circuit_dictionary (dict): Dictionary mapping cliques to circuits used for their measurement
+            measurement_results (list): List of measurement results collected so far
+            update_steps (list): List of total shots at which covariance graph updates were performed
+            diagnostic_circuits (list): List of diagnostic circuits constructed so far (only if diagnostics enabled)
+            diagnostic_states (list): List of diagnostic states constructed so far (only if diagnostics enabled)
+            diagnostic_state_preparation_circuits (list): List of circuits used to prepare diagnostic states (only if
+                                                          diagnostics enabled)
+            diagnostic_data (np.ndarray): Measurement outcome data collected so far for each Paulistring in
+                                          diagnostic measurements (only if diagnostics enabled)
+            diagnostic_results (list): List of diagnostic measurement results collected so far (only if diagnostics
+                                       enabled)
+
+            # Variables that track changes since last covariance update
+            last_update_shots (int): Number of measurements allocated since last covariance graph update
+            last_update_cliques (list): List of cliques measured since last covariance graph update
+            last_update_circuits (list): List of circuits used for measurements since last covariance graph update
+
+            # Checkpoints (some of the above data collected at specific points)
+            data_checkpoints (list): Measurement outcome data at each covariance graph update
+            scaling_matrix_checkpoints (list): Scaling matrix at each covariance graph update
+            covariance_graph_checkpoints (list): Covariance graph at each covariance graph update
+            diagnostic_data_checkpoints (list): Diagnostic measurement outcome data at each covariance graph update
+                                                (only if diagnostics enabled)
+            last_update_diagnostic_circuits (list): List of diagnostic circuits constructed since last covariance graph
+                                                    update (only if diagnostics enabled)
+            last_update_diagnostic_states (list): List of diagnostic states constructed since last covariance graph
+                                                  update (only if diagnostics enabled)
+            last_update_diagnostic_state_preparation_circuits (list): List of circuits used to prepare diagnostic states
+                                                                      since last covariance graph update (only if
+                                                                      diagnostics enabled)
+
+            # Results
+            estimated_mean (list): Estimated mean of the Hamiltonian at each covariance graph update
+            statistical_variance (list): Estimated statistical variance of the Hamiltonian at each covariance graph
+                                         update
+            systematic_variance (list): Estimated systematic variance of the Hamiltonian at each covariance graph update
+                                        (only if diagnostics enabled)
+
+            # Comparison Values: not used in the algorithm
+            true_mean_value (float): True mean of the Hamiltonian with respect to the state psi (only if
+                                     true_values_flag is True)
+            true_statistical_variance_value (list): True statistical variance of the Hamiltonian with respect to the
+                                                    state psi at each covariance graph update (only if true_values_flag
+                                                    is True)
+
+
+        """
+        P, pauli_block_sizes = sort_hamiltonian(H)
+        P.phase_to_weight()
+        if P.n_paulis() < H.n_paulis():
+            print("Warning: Identity in input Hamiltonian. This is ignored in the measurement process.")
 
         # supposed to be permanent
-        self.H = H
-        self.weights = H.weights
+        self.H = P
+        self.weights = P.weights
         self.pauli_block_sizes = pauli_block_sizes
         self.psi = np.array(psi)
-        self.n_paulis = H.n_paulis()
-        self.n_qudits = H.n_qudits()
-        self.dimension = int(H.lcm)
+        self.n_paulis = P.n_paulis()
+        self.n_qudits = P.n_qudits()
+        self.dimension = int(P.lcm)
         self.diagnostic_mode = diagnostic_mode
         self.noise_probability_function = noise_probability_function
         self.error_function = error_function
@@ -83,6 +193,11 @@ class Aquire:
         self.circuit_dictionary = {}
         self.measurement_results = []
         self.update_steps = []
+        self.diagnostic_circuits = []
+        self.diagnostic_states = []
+        self.diagnostic_state_preparation_circuits = []
+        self.diagnostic_data = np.zeros((self.n_paulis, 2))
+        self.diagnostic_results = []
 
         # variables that track changes since last covariance update
         self.last_update_shots = 0
@@ -93,21 +208,14 @@ class Aquire:
         self.data_checkpoints = []
         self.scaling_matrix_checkpoints = []
         self.covariance_graph_checkpoints = []
-
-        # results
-        self.estimated_mean = []
-        self.statistical_variance = []
-
-        # Diagnostic variables
-        self.diagnostic_circuits = []
-        self.diagnostic_states = []
-        self.diagnostic_state_preparation_circuits = []
-        self.diagnostic_data = np.zeros((self.n_paulis, 2))
-        self.diagnostic_results = []
         self.diagnostic_data_checkpoints = []
         self.last_update_diagnostic_circuits = []
         self.last_update_diagnostic_states = []
         self.last_update_diagnostic_state_preparation_circuits = []
+
+        # results
+        self.estimated_mean = []
+        self.statistical_variance = []
         self.systematic_variance = []
 
         # Comparison values: not used in the algorithm
@@ -116,7 +224,7 @@ class Aquire:
             self.true_mean_value = true_mean(self.H, self.psi)
             self.true_statistical_variance_value = []
 
-    def choose_cliques(self, shots):
+    def allocate_measurements(self, shots):
         """
         Choose new cliques to measure according to the allocation mode and
         construct new circuits to measure the cliques.
@@ -124,11 +232,28 @@ class Aquire:
         Parameters
         ----------
         shots : int
-            The number of new cliques to choose.
+            The number of new cliques to measure.
 
-        Returns
+        Changes
         -------
-        None
+        self.scaling_matrix : np.ndarray
+            Incremented on the diagonal by 1 for each Pauli before allocation,
+            incremented on submatrices corresponding to new cliques during allocation,
+            and decremented on the diagonal by 1 for each Pauli after allocation.
+        self.total_shots : int
+            Increased by the value of `shots`.
+        self.last_update_shots : int
+            Increased by the value of `shots`.
+        self.cliques : list
+            Extended with the newly chosen cliques.
+        self.last_update_cliques : list
+            Extended with the newly chosen cliques.
+        self.circuit_dictionary : dict
+            Updated with new circuits constructed for the new cliques.
+        self.circuits : list
+            Extended with the new circuits.
+        self.last_update_circuits : list
+            Extended with the new circuits.
         """
         if self.total_shots > 0:
             self.scaling_matrix[range(self.n_paulis), range(self.n_paulis)] += np.ones(self.n_paulis, dtype=int)
@@ -146,15 +271,30 @@ class Aquire:
         self.cliques += new_cliques
         self.last_update_cliques += new_cliques
         self.scaling_matrix[range(self.n_paulis), range(self.n_paulis)] -= np.ones(self.n_paulis, dtype=int)
-
-        # construct list of circuits
         circuit_list, self.circuit_dictionary = construct_circuit_list(self.H, new_cliques, self.circuit_dictionary)
         self.circuits += circuit_list
         self.last_update_circuits += circuit_list
 
-    def choose_diagnostic_circuits(self):
+    def construct_diagnostic_circuits(self):
+        """
+        Construct diagnostic circuits based on the last allocated circuits.
+
+        Parameters
+        ----------
+        None
+
+        Changes
+        -------
+        self.diagnostic_circuits : list
+            Extended with the newly constructed diagnostic circuits.
+        self.last_update_diagnostic_circuits : list
+            Extended with the newly constructed diagnostic circuits.
+        self.diagnostic_states : list
+            Extended with the newly constructed diagnostic states.
+        self.diagnostic_state_preparation_circuits : list
+            Extended with the newly constructed diagnostic state preparation-circuits.
+        """
         self.diagnostic_flag = True
-        # construct list of diagnostic circuits
         n = len(self.diagnostic_circuits)
         diagnostic_circuit_list = diagnostic_circuits(self.circuits[n:])
         self.diagnostic_circuits += diagnostic_circuit_list
@@ -164,6 +304,38 @@ class Aquire:
         self.diagnostic_state_preparation_circuits += dsp_circuits_list
 
     def update_covariance_graph(self):
+        """
+        Update the covariance graph.
+
+        Parameters
+        ----------
+        None
+
+        Changes
+        -------
+        self.update_steps : list
+            Extended with the current total number of shots.
+        self.data_checkpoints : list
+            Extended with a copy of the current data.
+        self.scaling_matrix_checkpoints : list
+            Extended with a copy of the current scaling matrix.
+        self.covariance_graph : graph
+            Updated with the new covariance graph.
+        self.covariance_graph_checkpoints : list
+            Extended with a copy of the current covariance graph.
+        self.estimated_mean : list
+            Extended with the estimated mean of the current data.
+        self.statistical_variance : list
+            Extended with the estimated statistical variance of the current data.
+        self.last_update_shots : int
+            Reset to 0.
+        self.last_update_cliques : list
+            Reset to an empty list.
+        self.last_update_circuits : list
+            Reset to an empty list.
+        self.true_statistical_variance_value : list
+            Extended with the true statistical variance of the current data if true_values_flag is True.
+        """
         self.update_steps.append(self.total_shots)
         self.data_checkpoints.append(self.data.copy())
         self.scaling_matrix_checkpoints.append(self.scaling_matrix.copy())
@@ -192,6 +364,26 @@ class Aquire:
                 self.H, self.psi, self.scaling_matrix, self.weights))
 
     def input_measurement_data(self, measurement_results: list):
+        """
+        Input new measurement data.
+
+        Parameters
+        ----------
+        measurement_results : list
+            List of measurement results for newly allocated measurements.
+
+        Changes
+        -------
+        self.data : np.ndarray
+            Updated with the input measurement results.
+        self.measurement_results : list
+            Extended with the input measurement results.
+
+        Raises
+        ------
+        Exception
+            If data already input for all circuits or not enough measurement results input.
+        """
         if len(self.data) == len(self.circuits):
             raise Exception(
                 "Data already input for all circuits. Please allocate more measurements before inputting more data.")
@@ -208,6 +400,32 @@ class Aquire:
         self.measurement_results += measurement_results
 
     def input_diagnostic_data(self, diagnostic_results: list):
+        """
+        Input new diagnostic data.
+
+        Parameters
+        ----------
+        diagnostic_results : list
+            List of diagnostic results for newly allocated diagnostic measurements.
+
+        Changes
+        -------
+        self.diagnostic_flag : bool
+            Set to True.
+        self.diagnostic_results : list
+            Extended with the input diagnostic results.
+        self.last_update_diagnostic_circuits : list
+            Updated with the newly allocated diagnostic circuits.
+        self.diagnostic_data_checkpoints : list
+            Updated with the new diagnostic data.
+        self.systematic_variance : list
+            Updated with the new systematic variance estimate.
+
+        Raises
+        ------
+        Exception
+            If too many diagnostic results input.
+        """
         self.diagnostic_flag = True
         self.diagnostic_results += diagnostic_results
         if len(diagnostic_results) < len(self.last_update_diagnostic_circuits):
@@ -234,6 +452,20 @@ class Aquire:
                                                                                    self.diagnostic_data))
 
     def simulate_measurement_results(self):
+        """
+        Simulate measurement results for newly allocated measurements.
+
+        Returns
+        -------
+        None
+
+        Changes
+        -------
+        self.data : np.ndarray
+            Updated with the simulated measurement results.
+        self.measurement_results : list
+            Extended with the simulated measurement results.
+        """
         simulated_measurement_results = []
         for aa in self.last_update_cliques:
             P1, C, _ = self.circuit_dictionary[str(aa)]
@@ -260,6 +492,25 @@ class Aquire:
         self.measurement_results += simulated_measurement_results
 
     def simulate_diagnostic_results(self):
+        """
+        Simulate diagnostic results for newly allocated diagnostic measurements.
+
+        Returns
+        -------
+        None
+
+        Changes
+        -------
+        self.diagnostic_results : list
+            Extended with the simulated diagnostic results.
+        self.last_update_diagnostic_circuits : list
+            Trimmed to the length of the simulated diagnostic results if the length of the simulated
+            diagnostic results is less than the length of self.last_update_diagnostic_circuits.
+        self.diagnostic_data_checkpoints : list
+            Extended with the diagnostic data at each measurement step.
+        self.systematic_variance : list
+            Extended with the estimated systematic variance at each measurement step.
+        """
         self.diagnostic_flag = True
         simulated_diagnostic_results = []
         for dsp_circuit in self.last_update_diagnostic_state_preparation_circuits:
@@ -298,16 +549,63 @@ class Aquire:
                                                                                    self.diagnostic_data))
 
     def save(self, filename: str):
+        """
+        Save the current state of the Aquire object to a file.
+
+        Parameters
+        ----------
+        filename : str
+            The name of the file to save the Aquire object to.
+
+        Returns
+        -------
+        None
+        """
+
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
 
     @classmethod
     def load(cls, filename: str):
+        """
+        Load an Aquire object from a file.
+
+        Parameters
+        ----------
+        filename : str
+            The name of the file to load the Aquire object from.
+
+        Returns
+        -------
+        Aquire
+            The loaded Aquire object.
+        """
         with open(filename, 'rb') as f:
             return pickle.load(f)
 
-    # TODO: Decide which of these one usually wants to save
     def save_results(self, filename: str):
+        """
+        Save the results of the Aquire object to a file.
+
+        Parameters
+        ----------
+        filename : str
+            The name of the file to save the results to.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        The saved results include the estimated mean, statistical variance, and
+        optionally the systematic variance, true mean, and true statistical
+        variance.
+
+        Examples
+        --------
+        >>> acquire.save_results('results.pkl')
+        """
         results = {
             'estimated_mean': self.estimated_mean,
             'statistical_variance': self.statistical_variance
@@ -321,25 +619,74 @@ class Aquire:
             pickle.dump(results, f)
 
     def simulate_observable(self, update_steps: list[int], hardware_noise: bool = False):
+        """
+        Simulate the measurement of an observable adaptively changing the underlying covariance graph at each value in
+        update_steps.
+
+        Parameters
+        ----------
+        update_steps : list[int]
+            A list of integers representing the total number of shots to take at each measurement step.
+        hardware_noise : bool
+            A boolean indicating whether to include hardware noise in the simulation.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        The simulate_observable method allocates measurements, simulates measurement results, updates the covariance
+        graph, and optionally constructs and simulates diagnostic circuits. It repeats this process for the number of
+        rounds specified by the update_steps list. The estimated mean, statistical variance, and optionally the
+        systematic variance are recorded at each measurement step.
+
+        Examples
+        --------
+        >>> acquire.simulate_observable([1000, 2000, 3000])
+        """
+
         initial_shots = update_steps[0]
         rounds = len(update_steps) - 1
         shots_per_round = [update_steps[i + 1] - update_steps[i] for i in range(rounds)]
-        self.choose_cliques(initial_shots)
+        self.allocate_measurements(initial_shots)
         self.simulate_measurement_results()
         self.update_covariance_graph()
         if hardware_noise:
-            self.choose_diagnostic_circuits()
+            self.construct_diagnostic_circuits()
             self.simulate_diagnostic_results()
         for i in range(rounds):
-            self.choose_cliques(shots_per_round[i])
+            self.allocate_measurements(shots_per_round[i])
             self.simulate_measurement_results()
             self.update_covariance_graph()
             if hardware_noise:
-                self.choose_diagnostic_circuits()
+                self.construct_diagnostic_circuits()
                 self.simulate_diagnostic_results()
 
     def plot(self, filename: str | None = None):
-        # common data stuff
+        """
+        Plot the estimated mean value and statistical/systematic variance as a function of the number of shots taken.
+
+        Parameters
+        ----------
+        filename : str | None
+            The filename to save the plot to. If None, the plot will not be saved.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        The plot shows the estimated mean value and statistical/systematic variance as a function of the number of
+        shots taken. The estimated mean value is plotted with error bars representing the statistical/systematic
+        variance. The true mean value and statistical/systematic variance can be plotted as dashed lines if the
+        true_values_flag is True. The plot is saved to the specified filename if it is not None.
+
+        Examples
+        --------
+        >>> acquire.plot('plot.png')
+        """
         cm = 1 / 2.54
         fig, ax = plt.subplots(ncols=2, nrows=1, figsize=(23 * cm, 11 * cm))
         c_stat = '#4FCB8D'
@@ -364,7 +711,7 @@ class Aquire:
         # Mean Plot
         if self.true_values_flag:
             H_mean = self.true_mean_value
-            plot_mean = np.abs(est_mean - H_mean)/np.abs(H_mean)
+            plot_mean = np.abs(est_mean - H_mean) / np.abs(H_mean)
             ax[0].plot([M[0], M[-1]], [0, 0], 'k--')
             ax[0].set_ylabel(r'$|\widetilde{O} - \langle \hat{O} \rangle|$', fontsize=label_fontsize)
             if self.diagnostic_flag:
@@ -423,13 +770,4 @@ class Aquire:
         if filename is not None:
             plt.savefig(filename, dpi=1200)
 
-        plt.show()
-
-    def simple_plot(self):
-
-        plt.errorbar(self.update_steps, self.estimated_mean, yerr=np.sqrt(self.statistical_variance))
-        plt.plot([self.update_steps[0], self.update_steps[-1]], [self.true_mean_value,self.true_mean_value], 'k--')
-        plt.xscale('log')
-        plt.xlabel('shots M')
-        plt.ylabel(r'$\widetilde{O}$')
         plt.show()
