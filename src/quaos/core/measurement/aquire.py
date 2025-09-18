@@ -469,7 +469,7 @@ class Aquire:
         simulated_measurement_results = []
         for aa in self.last_update_cliques:
             P1, C, _ = self.circuit_dictionary[str(aa)]
-            psi_diag = C.unitary_andrew() @ self.psi
+            psi_diag = C.unitary() @ self.psi
             pdf = np.abs(psi_diag * psi_diag.conj())
             dims1 = P1.dimensions
             a1 = np.random.choice(np.prod(dims1), p=pdf)

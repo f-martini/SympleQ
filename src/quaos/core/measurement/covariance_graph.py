@@ -152,7 +152,7 @@ def all_maximal_cliques(A):
     return nx.algorithms.clique.find_cliques(nxG)
 
 
-def weighted_vertex_covering_maximal_cliques(A, A1: graph | None=None, cc=None, k=1):
+def weighted_vertex_covering_maximal_cliques(A, A1: graph | None = None, cc=None, k=1):
     # Inputs:
     #     A  - (graph)     - commutation graph for which covering should be found
     #     A1 - (graph)     - variance graph for which covering should be found

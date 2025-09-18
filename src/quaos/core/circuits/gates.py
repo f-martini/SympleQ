@@ -2,10 +2,12 @@ import numpy as np
 from quaos.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
 from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
-from quaos.core.circuits.utils import transvection_matrix, symplectic_form
+from quaos.core.circuits.utils import (transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func,
+                                       SWAP_func)
 from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
 from quaos.utils import get_linear_dependencies
 from quaos.core.circuits.random_symplectic import symplectic_random_transvection
+import scipy.sparse as sp
 
 
 class Gate:
@@ -207,7 +209,9 @@ class Gate:
         return Gate(self.name + '_inv', self.qudit_indices.copy(), C_inv.T, self.dimensions,
                     h_inv)
 
-    def unitary(self):
+    def unitary(self, dims=None):
+        if dims is None:
+            dims = self.dimensions
         raise NotImplementedError("Unitary not implemented for generic Gate. Use specific gate subclasses.")
 
 
@@ -223,18 +227,18 @@ class SUM(Gate):
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
         super().__init__("SUM", [control, target], symplectic, dimensions=dimension, phase_vector=phase_vector)
-        
-    def unitary(self):
-        # Implements |i, j> -> |i, j + i (mod d)| with basis ordering |i>⊗|j>,
-        # linear index idx(i, j) = i * d + j.
-        d = self.dimensions[0]
-        mat = np.zeros((d * d, d * d), dtype=complex)
-        for i in range(d):
-            for j in range(d):
-                row = i * d + ((j + i) % d)
-                col = i * d + j
-                mat[row, col] = 1
-        return mat
+
+    def unitary(self, dims=None):
+        if dims is None:
+            dims = self.dimensions
+        D = np.prod(dims)
+        aa = self.qudit_indices
+        a0 = aa[0]
+        a1 = aa[1]
+        aa2 = np.array([1 for i in range(D)])
+        aa3 = np.array([CX_func(i, a0, a1, dims) for i in range(D)])
+        aa4 = np.array([i for i in range(D)])
+        return sp.csr_matrix((aa2, (aa3, aa4)))
 
 
 class SWAP(Gate):
@@ -250,22 +254,20 @@ class SWAP(Gate):
 
         super().__init__("SWAP", [index1, index2], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self):
+    def unitary(self, dims=None):
         # SWAP on two qudits of equal dimension: |i, j> -> |j, i>.
         # Basis ordering |i>⊗|j> with linear index idx(i, j) = i * d + j.
-        d0 = int(self.dimensions[0])
-        d1 = int(self.dimensions[1])
-        if d0 != d1:
-            raise NotImplementedError("SWAP unitary only defined for equal qudit dimensions.")
-        dim = d0 * d1
-        U = np.zeros((dim, dim), dtype=complex)
-        d = d0
-        for i in range(d):
-            for j in range(d):
-                col = i * d + j  # |i, j>
-                row = j * d + i  # |j, i>
-                U[row, col] = 1.0
-        return U
+        if dims is None:
+            dims = self.dimensions
+        aa = self.qudit_indices
+        q = len(dims)
+        D = np.prod(dims)
+        a0 = q - 1 - aa[0]
+        a1 = q - 1 - aa[1]
+        aa2 = np.array([1 for i in range(D)])
+        aa3 = np.array([i for i in range(D)])
+        aa4 = np.array([SWAP_func(i, a0, a1, dims) for i in range(D)])
+        return sp.csr_matrix((aa2, (aa3, aa4)))
 
 
 class CNOT(Gate):
@@ -281,16 +283,17 @@ class CNOT(Gate):
 
         super().__init__("SUM", [control, target], symplectic, dimensions=2, phase_vector=phase_vector)
 
-    def unitary(self):
-        # Standard qubit CNOT (control on the first, target on the second).
-        d0 = int(self.dimensions[0])
-        d1 = int(self.dimensions[1])
-        if d0 != 2 or d1 != 2:
-            raise NotImplementedError("CNOT unitary only defined for qubits (d=2). Use SUM for qudits.")
-        return np.array([[1, 0, 0, 0],
-                         [0, 1, 0, 0],
-                         [0, 0, 0, 1],
-                         [0, 0, 1, 0]], dtype=complex)
+    def unitary(self, dims=None):
+        if dims is None:
+            dims = self.dimensions
+        D = np.prod(dims)
+        aa = self.qudit_indices
+        a0 = aa[0]
+        a1 = aa[1]
+        aa2 = np.array([1 for i in range(D)])
+        aa3 = np.array([CX_func(i, a0, a1, dims) for i in range(D)])
+        aa4 = np.array([i for i in range(D)])
+        return sp.csr_matrix((aa2, (aa3, aa4)))
 
 
 class Hadamard(Gate):
@@ -311,15 +314,10 @@ class Hadamard(Gate):
         name = "H" if not inverse else "H_inv"
         super().__init__(name, [index], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self):
-        d = self.dimensions[0]
-        omega = np.exp(2j * np.pi / d)
-        factor = 1 / np.sqrt(d)
-        mat = np.zeros((d, d), dtype=complex)
-        for i in range(d):
-            for j in range(d):
-                mat[i, j] = omega ** (i * j)
-        return factor * mat
+    def unitary(self, dims=None):
+        if dims is None:
+            dims = self.dimensions
+        return tensor([H_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])
 
 
 class PHASE(Gate):
@@ -334,11 +332,7 @@ class PHASE(Gate):
 
         super().__init__("S", [index], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self):
-        # Qudit phase (Clifford) gate implementing X -> X Z, Z -> Z.
-        # A unified construction for all d uses a 2d-th root of unity ζ = exp(2πi/(2d)) and
-        # U = diag(ζ^{j^2}) for j in [0..d-1]. For d=2, this gives diag(1, i).
-        d = int(self.dimensions[0])
-        zeta = np.exp(1j * 2 * np.pi / (2 * d))
-        diag = np.array([zeta ** (j * j) for j in range(d)], dtype=complex)
-        return np.diag(diag)
+    def unitary(self, dims=None):
+        if dims is None:
+            dims = self.dimensions
+        return tensor([S_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])

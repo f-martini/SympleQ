@@ -1,6 +1,7 @@
 from __future__ import annotations
 import numpy as np
 import scipy.sparse as sp
+from quaos.utils import int_to_bases, bases_to_int
 
 
 # def is_symplectic(F, p):
@@ -259,6 +260,7 @@ def left_multiply_local_unitary(U_full: np.ndarray,
 
     return V.reshape(int(np.prod(dims)), int(np.prod(dims)))
 
+
 def tensor(mm):
     # Inputs:
     #     mm - (list{scipy.sparse.csr_matrix}) - matrices to tensor
@@ -269,73 +271,33 @@ def tensor(mm):
     elif len(mm) == 1:
         return mm[0]
     else:
-        return sp.kron(mm[0],tensor(mm[1:]),format="csr")
+        return sp.kron(mm[0], tensor(mm[1:]), format="csr")
+
 
 def I_mat(d):
     #
     return sp.csr_matrix(np.diag([1]*d))
 
+
 def H_mat(d):
-    omega = np.exp(2*np.pi*1j/d)
-    return sp.csr_matrix(1/np.sqrt(d)*np.array([[omega**(i0*i1) for i0 in range(d)] for i1 in range(d)]))
+    omega = np.exp(2 * np.pi * 1j / d)
+    return sp.csr_matrix(1 / np.sqrt(d) * np.array([[omega ** (i0 * i1) for i0 in range(d)] for i1 in range(d)]))
+
 
 def S_mat(d):
     if d == 2:
-        return sp.csr_matrix(np.diag([1,1j]))
-    omega = np.exp(2*np.pi*1j/d)
-    return sp.csr_matrix(np.diag([omega**(i*(i-1)/2) for i in range(d)]))
+        return sp.csr_matrix(np.diag([1, 1j]))
+    omega = np.exp(2 * np.pi * 1j / d)
+    return sp.csr_matrix(np.diag([omega ** (i * (i - 1) / 2) for i in range(d)]))
 
-def H_unitary(aa,dims):
-    # Inputs:
-    #     aa - (list{int}) - indices for Hadamard tensors
-    #     q  - (int)       - number of qudits
-    # Outputs:
-    #     (scipy.sparse.csr_matrix) - matrix representation of q-dimensional H(aa)
-    return tensor([H_mat(dims[i]) if i in aa else I_mat(dims[i]) for i in range(len(dims))])
 
-def S_unitary(aa,dims):
-    # Inputs:
-    #     aa - (list{int}) - indices for phase gate tensors
-    #     q  - (int)       - number of qudits
-    # Outputs:
-    #     (scipy.sparse.csr_matrix) - matrix representation of q-dimensional S(aa)
-    return tensor([S_mat(dims[i]) if i in aa else I_mat(dims[i]) for i in range(len(dims))])
+def CX_func(i, a0, a1, dims):
+    aa = int_to_bases(i, dims)
+    aa[a1] = (aa[a1] + aa[a0]) % dims[a1]
+    return bases_to_int(aa, dims)
 
-def bases_to_int(aa,dims):
-    dims = np.flip(dims)
-    aa = np.flip(aa)
-    a = aa[0]+sum([aa[i1]*np.prod(dims[:i1]) for i1 in range(1,len(dims))])
-    dims = np.flip(dims)
-    aa = np.flip(aa)
-    return a
 
-def int_to_bases(a,dims):
-    dims = np.flip(dims)
-    aa = [a%dims[0]]
-    for i in range(1,len(dims)):
-        s0 = aa[0]+sum([aa[i1]*dims[i1-1] for i1 in range(1,i)])
-        s1 = np.prod(dims[:i])
-        aa.append(((a-s0)//s1)%dims[i])
-    dims = np.flip(dims)
-    return np.flip(np.array(aa))
-
-def CX_func(i,a0,a1,dims):
-    aa = int_to_bases(i,dims)
-    aa[a1] = (aa[a1]+aa[a0])%dims[a1]
-    return bases_to_int(aa,dims)
-
-# function for mapping CNOT gate to corresponding unitary matrix
-def CX_unitary(aa,dims):
-    # Inputs:
-    #     aa - (list{int}) - control aa[0] and target aa[1]
-    #     q  - (int)       - number of qudits
-    # Outputs:
-    #     (scipy.sparse.csr_matrix) - matrix representation of q-dimensional CNOT(aa[0],aa[1])
-    q = len(dims)
-    D = np.prod(dims)
-    a0 = aa[0]
-    a1 = aa[1]
-    aa2 = np.array([1 for i in range(D)])
-    aa3 = np.array([CX_func(i,a0,a1,dims) for i in range(D)])
-    aa4 = np.array([i for i in range(D)])
-    return sp.csr_matrix((aa2,(aa3,aa4)))
+def SWAP_func(i, a0, a1, dims):
+    aa = int_to_bases(i, dims)
+    aa[a0], aa[a1] = aa[a1], aa[a0]
+    return sum([aa[i] * int(np.prod(dims[:i])) for i in range(len(aa))])
