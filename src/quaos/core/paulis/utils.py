@@ -80,7 +80,7 @@ def ground_state_TMP(P: PauliSum,
     assert np.max(abs(en - exp_en)) < 10**-10, \
         "The ground state does not yield a real value <gs | H |gs> = {}".format(exp_en)
     # Return
-    return en, gs
+    return en, gs_out
 
 
 def to_pauli_sum(P: Pauli | PauliString

@@ -130,8 +130,11 @@ class Aquire:
         -------
         None
         """
+        if self.total_shots > 0:
+            self.scaling_matrix[range(self.n_paulis), range(self.n_paulis)] += np.ones(self.n_paulis, dtype=int)
         self.total_shots += shots
         self.last_update_shots += shots
+
         Ones = [np.ones((i, i), dtype=int) for i in range(self.n_paulis + 1)]
         new_cliques = []
         for i in range(shots):
@@ -234,7 +237,7 @@ class Aquire:
         simulated_measurement_results = []
         for aa in self.last_update_cliques:
             P1, C, _ = self.circuit_dictionary[str(aa)]
-            psi_diag = C.unitary() @ self.psi
+            psi_diag = C.unitary_andrew() @ self.psi
             pdf = np.abs(psi_diag * psi_diag.conj())
             dims1 = P1.dimensions
             a1 = np.random.choice(np.prod(dims1), p=pdf)
@@ -361,19 +364,23 @@ class Aquire:
         # Mean Plot
         if self.true_values_flag:
             H_mean = self.true_mean_value
-            mean = np.abs(est_mean - H_mean)
+            plot_mean = np.abs(est_mean - H_mean)/np.abs(H_mean)
             ax[0].plot([M[0], M[-1]], [0, 0], 'k--')
             ax[0].set_ylabel(r'$|\widetilde{O} - \langle \hat{O} \rangle|$', fontsize=label_fontsize)
+            if self.diagnostic_flag:
+                plot_errorbar = np.sqrt(stat_var + sys_var) / np.abs(H_mean)
+            else:
+                plot_errorbar = np.sqrt(stat_var) / np.abs(H_mean)
         else:
-            mean = est_mean
+            plot_mean = est_mean
             ax[0].set_ylabel(r'$\widetilde{O}$', fontsize=label_fontsize)
-
-        if self.diagnostic_flag:
-            errorbar = np.sqrt(stat_var + sys_var)
-        else:
-            errorbar = np.sqrt(stat_var)
-
-        ax[0].errorbar(M, mean, yerr=errorbar,
+            if self.diagnostic_flag:
+                plot_errorbar = np.sqrt(stat_var + sys_var)
+            else:
+                plot_errorbar = np.sqrt(stat_var)
+        print(plot_mean)
+        print(plot_errorbar)
+        ax[0].errorbar(M, plot_mean, yerr=plot_errorbar,
                        fmt=fmt, ecolor=ec,
                        capsize=cs, capthick=ct, markersize=ms, elinewidth=ew,
                        mec=mec, mew=mew, mfc=mfc)
@@ -416,4 +423,13 @@ class Aquire:
         if filename is not None:
             plt.savefig(filename, dpi=1200)
 
+        plt.show()
+
+    def simple_plot(self):
+
+        plt.errorbar(self.update_steps, self.estimated_mean, yerr=np.sqrt(self.statistical_variance))
+        plt.plot([self.update_steps[0], self.update_steps[-1]], [self.true_mean_value,self.true_mean_value], 'k--')
+        plt.xscale('log')
+        plt.xlabel('shots M')
+        plt.ylabel(r'$\widetilde{O}$')
         plt.show()

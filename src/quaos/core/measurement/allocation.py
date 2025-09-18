@@ -141,7 +141,8 @@ def get_phase_matrix(P:PauliSum,CG:graph):
                             phase = phase * int(d / dims[k])
                             pauli_phases.append(phase)
                         else:
-                            pauli_phases.append(((Pi.z_exp[k] * (Pi.x_exp[k] - Pj.x_exp[k])) % dims[k]) * int(d / dims[k]))
+                            pauli_phases.append(((Pi.z_exp[k] * (Pi.x_exp[k] - Pj.x_exp[k])) %
+                                                dims[k]) * int(d / dims[k]))
                     k_phases[i, j] = np.sum(pauli_phases) % d
 
     return(k_phases)
@@ -216,8 +217,10 @@ def diagonalize(P:PauliSum):
     dims = P.dimensions
     q = P.n_qudits()
 
-    if not P.is_commuting():
-        raise Exception("Paulis must be pairwise commuting to be diagonalized")
+    if len(set(P.dimensions)) == 1:
+        # Currently commutation check is not working for mixed species
+        if not P.is_commuting():
+            raise Exception("Paulis must be pairwise commuting to be diagonalized")
     P1 = P.copy()
     C = Circuit(dims)
 
@@ -241,9 +244,10 @@ def diagonalize(P:PauliSum):
         C1 = Circuit(dims)
         for i in range(q):
             if any(P1.x_exp[:,i]):
-                g = H(i,2)
+                g = H(i,dims[i])
                 C.add_gate(g)
                 C1.add_gate(g)
+        #print(C1)
         P1 = C1.act(P1)
     return C
 
