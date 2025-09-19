@@ -393,7 +393,7 @@ def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.00
     n_local = 0
     n_entangling = 0
     for g in circuit.gates:
-        if g.name_string() == 'CX':
+        if g.name == 'SUM':
             n_entangling += 1
         else:
             n_local += 1

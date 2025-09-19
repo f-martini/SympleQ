@@ -3,7 +3,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from .gates import Gate, Hadamard, PHASE, SUM, SWAP, CNOT
 from quaos.core.paulis import PauliSum, PauliString, Pauli
-from .utils import embed_symplectic, left_multiply_local_unitary
+from .utils import embed_symplectic
 import scipy.sparse as sp
 from .gates import Hadamard as H, SUM as CX, PHASE as S
 import random
@@ -243,6 +243,7 @@ class Circuit:
     def unitary(self):
         known_unitaries = (Hadamard, PHASE, SUM, SWAP, CNOT)
         if not np.all([isinstance(gate, known_unitaries) for gate in self.gates]):
+            print(self.gates)
             raise NotImplementedError("Unitary not implemented for all gates in the circuit.")
         q = self.dimensions
         m = sp.csr_matrix(([1] * (np.prod(q)), (range(np.prod(q)), range(np.prod(q)))))

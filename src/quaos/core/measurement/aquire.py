@@ -3,7 +3,7 @@ from quaos.core.paulis import PauliSum
 from quaos.core.measurement.allocation import (sort_hamiltonian, get_phase_matrix, choose_measurement,
                                                construct_circuit_list, update_data,
                                                diagnostic_circuits, standard_error_function, diagnostic_states,
-                                               update_diagnostic_data)
+                                               update_diagnostic_data, standard_noise_probability_function)
 from quaos.core.measurement.covariance_graph import (quditwise_commutation_graph, commutation_graph,
                                                      weighted_vertex_covering_maximal_cliques, graph)
 from quaos.core.measurement.mcmc import bayes_covariance_graph
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 class Aquire:
     def __init__(self,
                  H: PauliSum,
-                 psi: list[float | complex] | list[float] | list[complex] | np.ndarray,
+                 psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,
                  general_commutation: bool = False,
                  true_values: bool = True,
                  allocation_mode: str = "set",
@@ -147,6 +147,9 @@ class Aquire:
         P.phase_to_weight()
         if P.n_paulis() < H.n_paulis():
             print("Warning: Identity in input Hamiltonian. This is ignored in the measurement process.")
+            for i in range(H.n_paulis()):
+                if H.weights[i] != 0 and H[i].is_identity():
+                    print("  Identity term with weight", H.weights[i].real, "ignored.")
 
         # supposed to be permanent
         self.H = P
@@ -178,9 +181,9 @@ class Aquire:
             self.diagnostic_flag = False
 
         # dependent on changeable parameters
-        self.CG = commutation_graph(H) if general_commutation else quditwise_commutation_graph(H)
+        self.CG = commutation_graph(self.H) if general_commutation else quditwise_commutation_graph(H)
         self.clique_covering = weighted_vertex_covering_maximal_cliques(self.CG, cc=self.weights, k=3)
-        self.k_phases = get_phase_matrix(H, self.CG)
+        self.k_phases = get_phase_matrix(self.H, self.CG)
 
         # supposed to change during experiment
         self.data = np.zeros((self.n_paulis, self.n_paulis, self.dimension))
@@ -220,9 +223,14 @@ class Aquire:
 
         # Comparison values: not used in the algorithm
         # initially set to None, can be set later if desired and H not too large
-        if self.true_values_flag:
+        if self.true_values_flag and self.psi is not None:
             self.true_mean_value = true_mean(self.H, self.psi)
             self.true_statistical_variance_value = []
+        elif self.true_values_flag and self.psi is None:
+            print("Warning: true values not available without state psi, true_values_flag set to False.")
+            self.true_values_flag = False
+        else:
+            pass
 
     def allocate_measurements(self, shots):
         """
@@ -302,6 +310,8 @@ class Aquire:
         diagnostic_state_list, dsp_circuits_list = diagnostic_states(diagnostic_circuit_list, mode=self.diagnostic_mode)
         self.diagnostic_states += diagnostic_state_list
         self.diagnostic_state_preparation_circuits += dsp_circuits_list
+        self.last_update_diagnostic_states += diagnostic_state_list
+        self.last_update_diagnostic_state_preparation_circuits += dsp_circuits_list
 
     def update_covariance_graph(self):
         """
@@ -466,6 +476,8 @@ class Aquire:
         self.measurement_results : list
             Extended with the simulated measurement results.
         """
+        if self.psi is None:
+            raise Exception("State psi not provided, cannot simulate measurement results.")
         simulated_measurement_results = []
         for aa in self.last_update_cliques:
             P1, C, _ = self.circuit_dictionary[str(aa)]
@@ -477,11 +489,14 @@ class Aquire:
             if self.diagnostic_flag:
                 if self.noise_probability_function is not None:
                     noise_probability = self.noise_probability_function(C, *self.noise_args, **self.noise_kwargs)
-                    if np.random.rand() < noise_probability:
-                        if self.error_function is not None:
-                            result = self.error_function(result, *self.error_args, **self.error_kwargs)
-                        else:
-                            result = standard_error_function(result, self.H.dimensions)
+                else:
+                    noise_probability = standard_noise_probability_function(C)
+
+                if np.random.rand() < noise_probability:
+                    if self.error_function is not None:
+                        result = self.error_function(result, *self.error_args, **self.error_kwargs)
+                    else:
+                        result = standard_error_function(result, self.H.dimensions)
             simulated_measurement_results.append(result)
         self.data = update_data(self.last_update_cliques,
                                 simulated_measurement_results,
@@ -511,21 +526,29 @@ class Aquire:
         self.systematic_variance : list
             Extended with the estimated systematic variance at each measurement step.
         """
+        if self.psi is None:
+            raise Exception("State psi not provided, cannot simulate measurement results.")
         self.diagnostic_flag = True
         simulated_diagnostic_results = []
-        for dsp_circuit in self.last_update_diagnostic_state_preparation_circuits:
-            psi_diag = dsp_circuit.unitary() @ self.psi
+        for i, dsp_circuit in enumerate(self.last_update_diagnostic_circuits):
+            psi_diag = dsp_circuit.unitary() @ self.diagnostic_states[i]
             pdf = np.abs(psi_diag * psi_diag.conj())
-            dims = [self.dimension] * self.n_qudits
+            dims = dsp_circuit.dimensions
             a1 = np.random.choice(np.prod(dims), p=pdf)
             result = int_to_bases(a1, dims)
             if self.noise_probability_function is not None:
                 noise_probability = self.noise_probability_function(dsp_circuit, *self.noise_args, **self.noise_kwargs)
-                if np.random.rand() < noise_probability:
-                    if self.error_function is not None:
-                        result = self.error_function(result, *self.error_args, **self.error_kwargs)
-                    else:
-                        result = standard_error_function(result, self.H.dimensions)
+            else:
+                noise_probability = standard_noise_probability_function(dsp_circuit)
+
+            if np.random.rand() < noise_probability:
+                if self.error_function is not None:
+                    result = self.error_function(result, *self.error_args, **self.error_kwargs)
+                else:
+                    result = standard_error_function(result, self.H.dimensions)
+            else:
+                pass
+
             simulated_diagnostic_results.append(result)
         self.diagnostic_results += simulated_diagnostic_results
         if len(simulated_diagnostic_results) < len(self.last_update_diagnostic_circuits):
@@ -645,7 +668,10 @@ class Aquire:
         --------
         >>> acquire.simulate_observable([1000, 2000, 3000])
         """
-
+        if self.psi is None:
+            raise Exception("State psi not provided, cannot simulate observable.")
+        if hardware_noise:
+            self.diagnostic_flag = True
         initial_shots = update_steps[0]
         rounds = len(update_steps) - 1
         shots_per_round = [update_steps[i + 1] - update_steps[i] for i in range(rounds)]
@@ -725,8 +751,6 @@ class Aquire:
                 plot_errorbar = np.sqrt(stat_var + sys_var)
             else:
                 plot_errorbar = np.sqrt(stat_var)
-        print(plot_mean)
-        print(plot_errorbar)
         ax[0].errorbar(M, plot_mean, yerr=plot_errorbar,
                        fmt=fmt, ecolor=ec,
                        capsize=cs, capthick=ct, markersize=ms, elinewidth=ew,
@@ -734,7 +758,6 @@ class Aquire:
 
         ax[0].set_xscale('log')
         ax[0].set_xlabel(r'shots $M$', fontsize=label_fontsize)
-        ax[0].legend()
 
         # Error Plot
         if self.true_values_flag:

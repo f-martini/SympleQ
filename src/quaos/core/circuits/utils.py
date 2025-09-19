@@ -148,7 +148,7 @@ def _multi_index_to_linear(index: list[int] | np.ndarray, dims: list[int] | np.n
     """
     dims = list(map(int, dims))
     idx = 0
-    stride = 1
+    # stride = 1
     # Compute strides from right to left
     strides = [1] * len(dims)
     for k in range(len(dims) - 2, -1, -1):
@@ -210,57 +210,6 @@ def embed_unitary(U_local: np.ndarray,
     return P.conj().T @ U_kron @ P
 
 
-def left_multiply_local_unitary(U_full: np.ndarray,
-                                U_local: np.ndarray,
-                                qudit_indices: list[int] | np.ndarray,
-                                total_dimensions: list[int] | np.ndarray) -> np.ndarray:
-    """
-    Left-multiply a full unitary U_full by a local unitary U_local acting
-    on `qudit_indices`.
-
-    Shapes:
-      - U_full: (D_total, D_total), with D_total = prod(total_dimensions)
-      - U_local: (D_sel, D_sel), with D_sel = prod(total_dimensions[i] for i in qudit_indices)
-
-    Returns a dense ndarray of shape (D_total, D_total). Convert to sparse outside if desired.
-    """
-    dims = list(map(int, total_dimensions))
-    N = len(dims)
-    sel = list(map(int, qudit_indices))
-    rest = [i for i in range(N) if i not in sel]
-
-    if len(sel) == 0:
-        return U_full
-
-    d_sel = [dims[i] for i in sel]
-    D_sel = int(np.prod(d_sel))
-    if U_local.shape != (D_sel, D_sel):
-        raise ValueError(
-            f"U_local shape {U_local.shape} doesn't match product of selected dims {D_sel}"
-        )
-
-    # Reshape U_full to [out_dims..., in_dims...]
-    U = U_full.reshape([*dims, *dims])
-
-    # Permute output axes so selected come first: move axes in order (sel + rest) to positions 0..N-1
-    perm_out = sel + rest
-    U = np.moveaxis(U, perm_out, list(range(N)))
-
-    # Now U shape is [d_sel..., d_rest..., in_dims...]
-    rest_out_dims = [dims[i] for i in rest]
-    U = U.reshape([D_sel, int(np.prod(rest_out_dims)) if rest_out_dims else 1, int(np.prod(dims))])
-
-    # Apply U_local on the first axis (selected outputs): V(y, r, in) = sum_x U_local(y, x) * U(x, r, in)
-    V = np.tensordot(U_local, U, axes=(1, 0))  # shape (D_sel, R, D_total)
-
-    # Reshape back to tensor form with outputs in permuted order, then invert permutation
-    V = V.reshape([*d_sel, *rest_out_dims, *dims])
-    # Restore original output axis order
-    V = np.moveaxis(V, list(range(N)), perm_out)
-
-    return V.reshape(int(np.prod(dims)), int(np.prod(dims)))
-
-
 def tensor(mm):
     # Inputs:
     #     mm - (list{scipy.sparse.csr_matrix}) - matrices to tensor
@@ -276,7 +225,7 @@ def tensor(mm):
 
 def I_mat(d):
     #
-    return sp.csr_matrix(np.diag([1]*d))
+    return sp.csr_matrix(np.diag([1] * d))
 
 
 def H_mat(d):

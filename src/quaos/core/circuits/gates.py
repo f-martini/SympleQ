@@ -240,6 +240,12 @@ class SUM(Gate):
         aa4 = np.array([i for i in range(D)])
         return sp.csr_matrix((aa2, (aa3, aa4)))
 
+    def copy(self) -> 'Gate':
+        """
+        Returns a copy of the SUM gate.
+        """
+        return SUM(self.qudit_indices[0], self.qudit_indices[1], self.dimensions)
+
 
 class SWAP(Gate):
     def __init__(self, index1, index2, dimension):
@@ -269,6 +275,12 @@ class SWAP(Gate):
         aa4 = np.array([SWAP_func(i, a0, a1, dims) for i in range(D)])
         return sp.csr_matrix((aa2, (aa3, aa4)))
 
+    def copy(self) -> 'Gate':
+        """
+        Returns a copy of the SWAP gate.
+        """
+        return SWAP(self.qudit_indices[0], self.qudit_indices[1], self.dimensions)
+
 
 class CNOT(Gate):
     def __init__(self, control, target):
@@ -295,6 +307,12 @@ class CNOT(Gate):
         aa4 = np.array([i for i in range(D)])
         return sp.csr_matrix((aa2, (aa3, aa4)))
 
+    def copy(self) -> 'Gate':
+        """
+        Returns a copy of the CNOT gate.
+        """
+        return CNOT(self.qudit_indices[0], self.qudit_indices[1])
+
 
 class Hadamard(Gate):
     def __init__(self, index: int, dimension: int, inverse: bool = False):
@@ -319,6 +337,12 @@ class Hadamard(Gate):
             dims = self.dimensions
         return tensor([H_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])
 
+    def copy(self) -> 'Gate':
+        """
+        Returns a copy of the Hadamard gate.
+        """
+        return Hadamard(self.qudit_indices[0], self.dimensions[0])
+
 
 class PHASE(Gate):
 
@@ -336,3 +360,9 @@ class PHASE(Gate):
         if dims is None:
             dims = self.dimensions
         return tensor([S_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])
+
+    def copy(self) -> 'Gate':
+        """
+        Returns a copy of the PHASE gate.
+        """
+        return PHASE(self.qudit_indices[0], self.dimensions[0])
