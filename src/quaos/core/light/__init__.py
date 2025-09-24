@@ -1,6 +1,6 @@
 import os
 os.add_dll_directory(os.path.dirname(__file__))
 
-from .light import dot, kron
+from .light import Aquire
 
-__all__ = ["dot, kron"]
+__all__ = ["Aquire"]

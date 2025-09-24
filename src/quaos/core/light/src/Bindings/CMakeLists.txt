@@ -13,35 +13,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nanobind)
 
-# find_program(NVCC_EXECUTABLE nvcc HINTS "$ENV{CUDA_PATH}/bin")
-# if(NOT NVCC_EXECUTABLE)
-#    message(FATAL_ERROR "nvcc not found! Please set CUDA_PATH or install CUDA.")
-# endif()
-# message(STATUS "Found nvcc at ${NVCC_EXECUTABLE}")
-
-# find_library(CUDA_CUDART_LIBRARY cudart HINTS "$ENV{CUDA_PATH}/lib/x64")
-# if(NOT CUDA_CUDART_LIBRARY)
-#     message(FATAL_ERROR "Could not find cudart library")
-# endif()
-# message(STATUS "Found cudart library: ${CUDA_CUDART_LIBRARY}")
-
-# file(GLOB CUDA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cu")
-# set(CUDA_LIB "${CMAKE_BINARY_DIR}/kernels_static.lib")
-
-# add_custom_command(
-    #     OUTPUT ${CUDA_LIB}
-    #     COMMAND "${NVCC_EXECUTABLE}" -lib ${CUDA_SOURCES} -o ${CUDA_LIB}
-    #             --compiler-options "/MD" 
-    #     DEPENDS ${CUDA_SOURCES}
-#     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/kernels
-#     COMMENT "Building CUDA static library"
-#     VERBATIM
-# )
-
-# add_custom_target(kernels_static ALL DEPENDS ${CUDA_LIB})
-
-
-nanobind_add_module(${LIB_NAME} "${CMAKE_CURRENT_SOURCE_DIR}/bindings.cpp")
+nanobind_add_module(${LIB_NAME} "${CMAKE_CURRENT_SOURCE_DIR}/light.cpp")
 
 file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS
 "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
@@ -64,13 +36,14 @@ $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 $<INSTALL_INTERFACE:include>
 )
 
+message(STATUS "${CMAKE_CURRENT_SOURCE_DIR}/include/${CURRENT_FOLDER_NAME}/pch.h")
 target_precompile_headers(${LIB_NAME}
     PRIVATE 
         ${CMAKE_CURRENT_SOURCE_DIR}/include/${CURRENT_FOLDER_NAME}/pch.h)
 
 target_include_directories(${LIB_NAME} PRIVATE ${nanobind_SOURCE_DIR}/include)
 target_link_libraries(${LIB_NAME} PRIVATE Base)
-# target_link_libraries(${LIB_NAME} PRIVATE ${CUDA_LIB} ${CUDA_CUDART_LIBRARY})
+target_link_libraries(${LIB_NAME} PRIVATE Measurement)
 
 install(TARGETS ${LIB_NAME}
     LIBRARY DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"

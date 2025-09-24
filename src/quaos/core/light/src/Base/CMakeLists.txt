@@ -9,6 +9,16 @@ add_library(${CURRENT_FOLDER_NAME} SHARED)
 target_compile_definitions(${CURRENT_FOLDER_NAME} PRIVATE BASE_BUILD)
 target_link_libraries(${CURRENT_FOLDER_NAME} PRIVATE MKL::MKL)
 
+include(FetchContent)
+FetchContent_Declare(
+    nanobind
+    GIT_REPOSITORY https://github.com/wjakob/nanobind.git
+    GIT_TAG v2.9.2
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE
+)
+FetchContent_MakeAvailable(nanobind)
+
 file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
