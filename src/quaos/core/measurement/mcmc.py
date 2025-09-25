@@ -4,6 +4,7 @@ from numba import jit, prange
 
 # GENERAL MONTE-CARLO FUNCTIONS (USED ALL THROUGHOUT)
 
+
 @jit(nopython=True)
 def xi(a, d):
     """
@@ -17,6 +18,7 @@ def xi(a, d):
         complex: The computed eigenvalue.
     """
     return np.exp(2 * np.pi * 1j * a / d)
+
 
 @jit(nopython=True)
 def rand_state(d):
@@ -63,35 +65,36 @@ def get_p_matrix(d):
     Returns:
         np.ndarray: The matrix A with dimensions ((2+1)*d, d^2) to assist in probability calculation.
     """
-    # Constant factor, replace 2+1 with a more meaningful variable name
     num_blocks = 3
     A = np.zeros((num_blocks * d, d**2))
 
     for k in range(num_blocks):
-        for l in range(d):
+        for id in range(d):
             if k == 0:
-                A[k * d + l, l * d:(l + 1) * d] = 1
+                A[k * d + id, id * d:(id + 1) * d] = 1
             elif k == 1:
                 for i in range(d):
-                    A[k * d + l, d * i + l] = 1
+                    A[k * d + id, d * i + id] = 1
             else:
                 mu, nu = 1, 1
                 for i in range(d):
                     for j in range(d):
-                        if (-mu * i + nu * j) % d == l:
-                            A[k * d + l, i * d + j] = 1
+                        if (-mu * i + nu * j) % d == id:
+                            A[k * d + id, i * d + j] = 1
     return A
+
 
 @jit(nopython=True)
 def get_psi(p):
-    d = int(len(p)/3)
-    two_qudit_probabilities = np.zeros(d**2,dtype=np.complex128)
+    d = int(len(p) / 3)
+    two_qudit_probabilities = np.zeros(d**2, dtype=np.complex128)
     for i in range(d):
         for j in range(d):
-            two_qudit_probabilities[i*d + j] = p[i] * p[d+j]
+            two_qudit_probabilities[i * d + j] = p[i] * p[d + j]
 
-    psi = np.sqrt(two_qudit_probabilities) + 0*1j
-    return(psi)
+    psi = np.sqrt(two_qudit_probabilities) + 0 * 1j
+    return psi
+
 
 @jit(nopython=True)
 def get_p(psi, A):
@@ -123,9 +126,9 @@ def mcmc_starting_point(d, c, A):
         tuple: Probability distribution and the corresponding quantum state vector psi.
     """
     p_try = np.zeros(len(c))
-    p_try[0:d] = (c[0:d]+1)/np.sum(c[0:d]+1)
-    p_try[d:2*d] = (c[d:2*d]+1)/np.sum(c[d:2*d]+1)
-    p_try[2*d:3*d] = (c[2*d:3*d]+1)/np.sum(c[2*d:3*d]+1)
+    p_try[0:d] = (c[0:d] + 1) / np.sum(c[0:d] + 1)
+    p_try[d:2 * d] = (c[d:2 * d] + 1) / np.sum(c[d:2 * d] + 1)
+    p_try[2 * d:3 * d] = (c[2 * d:3 * d] + 1) / np.sum(c[2 * d:3 * d] + 1)
 
     psi = get_psi(p_try)
     p = get_p(psi, A)
@@ -169,7 +172,7 @@ def log_posterior_ratio(p1, p2, c):
     """
     return np.sum(c * np.log(p1 / p2))
 
-# Calculate the covariance of different Paulis from the given Monte Carlo chains
+
 @jit(nopython=True)
 def mcmc_covariance_estimate(grid, d):
     """
@@ -231,13 +234,13 @@ def gelman_rubin_test(grid):
     N, N_theta, N_chain = len(grid[:, 0, 0]), len(grid[0, :, 0]), len(grid[0, 0, :])
 
     for i_theta in range(N_theta):
-        chain_means = np.array([np.mean(grid[:,i_theta,i_chain]) for i_chain in range(N_chain)])
-        chain_vars = np.array([np.sum(np.abs(grid[:,i_theta,i_chain] - chain_means[i_chain])**2)/(N - 1)
+        chain_means = np.array([np.mean(grid[:, i_theta, i_chain]) for i_chain in range(N_chain)])
+        chain_vars = np.array([np.sum(np.abs(grid[:, i_theta, i_chain] - chain_means[i_chain])**2) / (N - 1)
                               for i_chain in range(N_chain)])
         mean_chain_means = np.mean(chain_means)
 
         d2 = np.abs(chain_means - mean_chain_means)**2
-        B = N * np.sum(d2)/(N_chain - 1)
+        B = N * np.sum(d2) / (N_chain - 1)
         W = np.mean(chain_vars)
         R = ((N - 1) / N * W + B / N) / W
 
@@ -246,6 +249,7 @@ def gelman_rubin_test(grid):
 
     return True
 
+
 @jit(nopython=True)
 def update_chain(p, psi, c, alpha, d, A):
     psi_prime = psi_sample(psi, alpha, d)
@@ -253,9 +257,10 @@ def update_chain(p, psi, c, alpha, d, A):
     ratio = log_posterior_ratio(p_prime, p, c)
     accept_prob = 1 if ratio >= 0 else np.exp(ratio)
     if np.random.uniform(0, 1) <= accept_prob:
-        return(p_prime,psi_prime,accept_prob)
+        return p_prime, psi_prime, accept_prob
     else:
-        return(p,psi,accept_prob)
+        return p, psi, accept_prob
+
 
 @jit(nopython=True)
 def mcmc_integration(N, psi_list, p_list, alpha, d, c, A, N_max=10000):
@@ -286,24 +291,25 @@ def mcmc_integration(N, psi_list, p_list, alpha, d, c, A, N_max=10000):
 
         for ic in range(N_chain):
             for j in range(N):
-                p_list[ic], psi_list[ic], accept_prob = update_chain(p_list[ic],psi_list[ic],c,alpha,d,A)
+                p_list[ic], psi_list[ic], accept_prob = update_chain(p_list[ic], psi_list[ic], c, alpha, d, A)
                 grid_new[j, :, ic] = p_list[ic]
 
         grid = np.concatenate((grid, grid_new)) if runs > 0 else grid_new
         runs += 1
 
-        BI_cond = gelman_rubin_test(grid[N_low:,:,:]) and geweke_test(grid[N_low:,:,:])
+        BI_cond = gelman_rubin_test(grid[N_low:, :, :]) and geweke_test(grid[N_low:, :, :])
         if not BI_cond:
             N_low += int(N / 10)
             N = 2 * N + N_low
 
     return grid, N_low
 
+
 @jit(nopython=True)
-def get_alpha(p_list, psi_list, d, A, c, N_chain, Q_alpha_test=True, target_accept = 0.25,
-              N_accepts = 30, b=10, run_max=1000):
+def get_alpha(p_list, psi_list, d, A, c, N_chain, Q_alpha_test=True, target_accept=0.25,
+              N_accepts=30, b=10, run_max=1000):
     # initial guess for alpha
-    ns = np.concatenate((c[0:d], c[d:2*d], c[2*d:3*d]))
+    ns = np.concatenate((c[0:d], c[d:2 * d], c[2 * d:3 * d]))
     alpha = 1 - 1 / np.min(ns[:3]) if np.min(ns) != 0 else 0
     alpha_list = np.array([alpha] * N_chain)
 
@@ -315,7 +321,8 @@ def get_alpha(p_list, psi_list, d, A, c, N_chain, Q_alpha_test=True, target_acce
                 # tune alpha
                 a_probs = np.zeros(N_accepts)
                 for i in range(N_accepts):
-                    p_list[ic], psi_list[ic], a_probs[i] = update_chain(p_list[ic],psi_list[ic],c,alpha_list[ic],d,A)
+                    p_list[ic], psi_list[ic], a_probs[i] = update_chain(
+                        p_list[ic], psi_list[ic], c, alpha_list[ic], d, A)
 
                 accept_avg = np.mean(a_probs)
                 runs += 1
@@ -332,7 +339,7 @@ def get_alpha(p_list, psi_list, d, A, c, N_chain, Q_alpha_test=True, target_acce
 
     alpha = np.max(alpha_list)
 
-    return(p_list,psi_list,alpha)
+    return p_list, psi_list, alpha
 
 
 @jit(nopython=True)
@@ -363,6 +370,7 @@ def bayes_Var_estimate(xDict):
 
     return np.sum(variance_matrix)
 
+
 @jit(nopython=True)
 def bayes_covariance_estimation(xy, x, y, d, N_chain=8, N=100, N_max=100000, Q_alpha_test=True):
     """
@@ -389,7 +397,7 @@ def bayes_covariance_estimation(xy, x, y, d, N_chain=8, N=100, N_max=100000, Q_a
     psi_list = [psi] * N_chain
 
     # Tune scaling Monte Carlo step-length parameter alpha
-    p_list,psi_list,alpha = get_alpha(p_list,psi_list,d,A,c,N_chain,Q_alpha_test=Q_alpha_test)
+    p_list, psi_list, alpha = get_alpha(p_list, psi_list, d, A, c, N_chain, Q_alpha_test=Q_alpha_test)
 
     # Perform Monte Carlo integration
     grid, N_low = mcmc_integration(N, psi_list, p_list, alpha, d, c, A, N_max=N_max)
@@ -403,6 +411,7 @@ def bayes_covariance_estimation(xy, x, y, d, N_chain=8, N=100, N_max=100000, Q_a
     # Estimate covariance
     cov = mcmc_covariance_estimate(grid_unified, d)
     return cov
+
 
 @jit(nopython=True, parallel=True, nogil=True)
 def bayes_covariance_graph(X, cc, CG, p, size_list, d, N_chain=8, N=100, N_max=801):
@@ -434,7 +443,7 @@ def bayes_covariance_graph(X, cc, CG, p, size_list, d, N_chain=8, N=100, N_max=8
             ind_list[i0, 0] = ind1
             ind_list[i0, 1] = ind2
             ind_list2[i0, 0] = i1
-            ind_list2[i0, 1] = i2+i1
+            ind_list2[i0, 1] = i2 + i1
             i0 += 1
 
     # Initialize covariance matrix
@@ -454,12 +463,12 @@ def bayes_covariance_graph(X, cc, CG, p, size_list, d, N_chain=8, N=100, N_max=8
                 A[j0, j0] = cc[j0] * cc_conj[j0] * bayes_Var_estimate(X[j0, j0, :])
             elif i1 == 2:
                 A[j0, j0] = cc[j0] * cc_conj[j0] * bayes_Var_estimate(X[j0, j0, :])
-                A[j0+1, j0+1] = np.conj(A[j0, j0])
+                A[j0 + 1, j0 + 1] = np.conj(A[j0, j0])
 
-                A[j0, j0+1] = cc_conj[j0] * cc[j1+1] * \
-                    bayes_covariance_estimation(X[j0, j1+1, :], X[j0, j0, :],
-                                                X[j1+1, j1+1, :], d, N_chain=N_chain, N=N, N_max=N_max)
-                A[j0+1, j0] = np.conj(A[j0, j0+1])
+                A[j0, j0 + 1] = cc_conj[j0] * cc[j1 + 1] * \
+                    bayes_covariance_estimation(X[j0, j1 + 1, :], X[j0, j0, :],
+                                                X[j1 + 1, j1 + 1, :], d, N_chain=N_chain, N=N, N_max=N_max)
+                A[j0 + 1, j0] = np.conj(A[j0, j0 + 1])
         else:  # Off-diagonal elements (covariance)
             if CG[j0, j1] == 1:
                 if i1 == 1 and i2 == 1:
@@ -471,22 +480,22 @@ def bayes_covariance_graph(X, cc, CG, p, size_list, d, N_chain=8, N=100, N_max=8
                     A[j0, j1] = cc_conj[j0] * cc[j1] * \
                         bayes_covariance_estimation(X[j0, j1, :], X[j0, j0, :], X[j1, j1, :],
                                                     d, N_chain=N_chain, N=N, N_max=N_max)
-                    A[j0, j1+1] = np.conj(A[j0, j1])
+                    A[j0, j1 + 1] = np.conj(A[j0, j1])
 
                     A[j1, j0] = np.conj(A[j0, j1])
-                    A[j1+1, j0] = A[j0, j1]
+                    A[j1 + 1, j0] = A[j0, j1]
                 elif i1 == 2 and i2 == 2:
                     A[j0, j1] = cc_conj[j0] * cc[j1] * \
                         bayes_covariance_estimation(X[j0, j1, :], X[j0, j0, :], X[j1, j1, :],
                                                     d, N_chain=N_chain, N=N, N_max=N_max)
                     A[j1, j0] = np.conj(A[j0, j1])
-                    A[j0+1, j1+1] = np.conj(A[j0, j1])
-                    A[j1+1, j0+1] = A[j0, j1]
+                    A[j0 + 1, j1 + 1] = np.conj(A[j0, j1])
+                    A[j1 + 1, j0 + 1] = A[j0, j1]
 
-                    A[j0, j1+1] = cc_conj[j0] * cc[j1+1] * bayes_covariance_estimation(
-                        X[j0, j1+1, :], X[j0, j0, :], X[j1+1, j1+1, :], d, N_chain=N_chain, N=N, N_max=N_max)
-                    A[j1+1, j0] = np.conj(A[j0, j1+1])
-                    A[j0+1, j1] = np.conj(A[j0, j1+1])
-                    A[j1, j0+1] = A[j0, j1+1]
+                    A[j0, j1 + 1] = cc_conj[j0] * cc[j1 + 1] * bayes_covariance_estimation(
+                        X[j0, j1 + 1, :], X[j0, j0, :], X[j1 + 1, j1 + 1, :], d, N_chain=N_chain, N=N, N_max=N_max)
+                    A[j1 + 1, j0] = np.conj(A[j0, j1 + 1])
+                    A[j0 + 1, j1] = np.conj(A[j0, j1 + 1])
+                    A[j1, j0 + 1] = A[j0, j1 + 1]
 
     return A
