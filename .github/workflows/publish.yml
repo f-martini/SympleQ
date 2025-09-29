@@ -9,7 +9,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         python-version: [3.11, 3.12, 3.13]
-        arch: [x64] # Changed from x86_64 to x64 to match your bat script
+        arch: [x64]
         exclude:
           - os: windows-latest
             arch: arm64
@@ -33,16 +33,32 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.arch }}
 
+      - name: Install CUDA Toolkit (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
+          sudo add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /"
+          sudo apt-get update
+          sudo apt-get install -y cuda
+
+      - name: Install CUDA Toolkit (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install cuda -y
+
+      - name: Verify CUDA installation
+        run: nvcc --version
+
       - name: Set environment variables
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             echo "ARCH=AMD64" >> $GITHUB_ENV
-            echo "PRESET=windows-x86_64-Release" >> $GITHUB_ENV  # Adjust to your actual preset name
+            echo "PRESET=windows-x86_64-Release" >> $GITHUB_ENV
             echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
           else
             echo "ARCH=x86_64" >> $GITHUB_ENV
-            echo "PRESET=linux-x86_64-Release" >> $GITHUB_ENV   # Adjust to your actual preset name
+            echo "PRESET=linux-x86_64-Release" >> $GITHUB_ENV
             echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
           fi
 
