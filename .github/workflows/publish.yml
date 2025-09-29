@@ -8,6 +8,7 @@ env:
   WHEEL_OUT_DIR: "dist"
   GITHUB_REF: "refs/heads/main"
   CMAKE_TOOLCHAIN_FILE_PATH: "${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+  SOURCE_DIR: "${{ github.workspace }}/src"
 
 jobs:
   build-and-publish:
@@ -97,11 +98,25 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel cibuildwheel scikit-build-core nanobind twine
 
+      - name: Set CIBW_BUILD environment variable
+        shell: bash
+        run: |
+          PYTHON_VERSION="${{ matrix.python-version }}"
+          CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
+          echo "CIBW_BUILD_VALUE=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
+
       - name: Build wheel
         working-directory: ${{ env.WHEEL_WORKING_DIR }}
         env:
-          CIBW_ENVIRONMENT: "PRESET=${{ env.PRESET }} CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}"
-          CIBW_BEFORE_BUILD: "cmake --preset=${{ env.PRESET }}"
+          CIBW_ARCHS: ${{ env.ARCH }}
+          CIBW_ENVIRONMENT: >
+            PRESET=${{ env.PRESET }}
+            CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
+            SOURCE_DIR=${{ env.SOURCE_DIR }}
+          CIBW_BEFORE_BUILD: >
+            pip install scikit-build-core nanobind cmake ninja &&
+            cmake --preset=${{ env.PRESET }}
+          CIBW_BUILD_VERBOSITY: 1
         run: python -m cibuildwheel --output-dir ../../${{ env.WHEEL_OUT_DIR }}
 
       - name: Publish wheel to Test PyPI
