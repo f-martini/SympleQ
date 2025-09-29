@@ -1,13 +1,5 @@
 name: Build and Publish QuAOS Wheels
 
-# on:
-#   push:
-#     branches: [main, develop]
-#   pull_request:
-#     branches: [main]
-#   release:
-#     types: [published]
-
 on: push
 
 env:
@@ -15,23 +7,14 @@ env:
   VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
 
 jobs:
-  build:
-    name: Build ${{ matrix.os }} - ${{ matrix.arch }} - Python ${{ matrix.python }}
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    name: Build Linux - ${{ matrix.arch }} - Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        arch: [x64] #, arm64]
+        arch: [x64] # arm64 can be added later
         python: ["3.11", "3.12", "3.13"]
-        exclude:
-          # Exclude arm64 for Windows (not supported on GitHub runners)
-          - os: windows-latest
-            arch: arm64
-          # Exclude arm64 for Ubuntu on Python 3.13 (if needed, remove this exclusion)
-          - os: ubuntu-latest
-            arch: arm64
-            python: "3.13"
 
     env:
       TWINE_USERNAME: __token__
@@ -45,7 +28,6 @@ jobs:
 
       # ===== Free up disk space =====
       - name: Free up disk space (Linux)
-        if: runner.os == 'Linux'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo apt-get clean
@@ -53,8 +35,131 @@ jobs:
           docker system prune -af
           df -h
 
+      # ===== Set up Python =====
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.arch }}
+
+      # ===== Set environment variables =====
+      - name: Set build environment variables
+        shell: bash
+        run: |
+          if [[ "${{ matrix.arch }}" == "x64" ]]; then
+            echo "CMAKE_PRESET=linux-x86_64-Release" >> $GITHUB_ENV
+            echo "CIBW_ARCHS=x86_64" >> $GITHUB_ENV
+          else
+            echo "CMAKE_PRESET=linux-arm64-Release" >> $GITHUB_ENV
+            echo "CIBW_ARCHS=aarch64" >> $GITHUB_ENV
+          fi
+
+          # Set common variables
+          echo "CMAKE_TOOLCHAIN_FILE=/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+          echo "SOURCE_DIR=${{ github.workspace }}/src" >> $GITHUB_ENV
+          echo "BUILD_DIR=${{ github.workspace }}/build" >> $GITHUB_ENV
+
+      - name: Set CIBW_BUILD for Python version
+        shell: bash
+        run: |
+          PYTHON_VERSION="${{ matrix.python }}"
+          CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
+          echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
+
+      # ===== Install build dependencies =====
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install cibuildwheel twine
+
+      # ===== Build wheels with cibuildwheel =====
+      - name: Build wheels (Linux)
+        working-directory: scripts/configs
+        env:
+          # Python and architecture settings
+          CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
+          CIBW_ARCHS: ${{ env.CIBW_ARCHS }}
+
+          # Skip problematic builds
+          CIBW_SKIP: "pp* *-musllinux*"
+
+          # Environment variables for the build
+          CIBW_ENVIRONMENT: >-
+            CMAKE_PRESET=${{ env.CMAKE_PRESET }}
+            CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
+            SOURCE_DIR=${{ env.SOURCE_DIR }}
+            BUILD_DIR=${{ env.BUILD_DIR }}
+            CUDA_PATH=/usr/local/cuda
+            VCPKG_ROOT=/tmp/vcpkg
+            PATH=/usr/local/cuda/bin:$PATH
+            LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+          # Install CUDA and vcpkg before build
+          CIBW_BEFORE_ALL_LINUX: >-
+            echo "Installing CUDA..." &&
+            wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb &&
+            dpkg -i cuda-keyring_1.0-1_all.deb &&
+            apt-get update &&
+            apt-get install -y cuda-toolkit-12-5 cuda-compiler-12-5 cuda-libraries-dev-12-5 &&
+            echo "Installing vcpkg..." &&
+            git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
+            cd /tmp/vcpkg &&
+            git checkout ${{ env.VCPKG_COMMIT_ID }} &&
+            ./bootstrap-vcpkg.sh &&
+            echo "CUDA and vcpkg installation complete"
+
+          # Install Python dependencies before build
+          CIBW_BEFORE_BUILD: >-
+            pip install scikit-build-core[pyproject] nanobind cmake ninja &&
+            echo "CMake version:" && cmake --version &&
+            echo "CUDA version:" && nvcc --version &&
+            echo "Available CMake presets:" && cmake --list-presets=configure || true
+
+          # Build settings
+          CIBW_BUILD_VERBOSITY: 1
+
+          # Test the built wheel
+          CIBW_TEST_COMMAND: 'python -c "import quaos; print(''QuAOS import successful'')"'
+
+          # Repair settings for Linux
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: "auditwheel repair -w {dest_dir} {wheel}"
+
+        run: python -m cibuildwheel --output-dir ../../dist
+
+      # ===== Upload artifacts =====
+      - name: List built wheels
+        run: |
+          echo "Built wheels:"
+          ls -la dist/
+
+      - name: Upload wheels as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
+          path: dist/*.whl
+          retention-days: 30
+
+  build-windows:
+    name: Build Windows - ${{ matrix.arch }} - Python ${{ matrix.python }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64] # arm64 can be added later if needed
+        python: ["3.11", "3.12", "3.13"]
+
+    env:
+      TWINE_USERNAME: __token__
+      TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # ===== Free up disk space =====
       - name: Free up disk space (Windows)
-        if: runner.os == 'Windows'
         run: |
           Get-PSDrive
           Remove-Item -Path "C:\Program Files\dotnet" -Recurse -Force -ErrorAction SilentlyContinue
@@ -72,19 +177,17 @@ jobs:
           architecture: ${{ matrix.arch }}
 
       # ===== Set up CUDA Toolkit =====
-      - name: Set up CUDA Toolkit
+      - name: Set up CUDA Toolkit (Windows)
         uses: Jimver/cuda-toolkit@v0.2.24
         id: cuda-toolkit
         with:
           cuda: ${{ env.CUDA_VERSION }}
           method: "network"
-          sub-packages: '["nvcc", "cudart", "cublas", "curand", "cusparse", "cusolver"]'
-          log-file-suffix: ${{ matrix.os }}-${{ matrix.arch }}-py${{ matrix.python }}
 
       - name: Verify CUDA installation
         run: |
           nvcc --version
-          nvidia-smi || echo "nvidia-smi not available (expected on GitHub runners)"
+          echo "CUDA installation path: $env:CUDA_PATH"
 
       # ===== Set up vcpkg =====
       - name: Cache vcpkg
@@ -96,9 +199,9 @@ jobs:
             !vcpkg/buildtrees
             !vcpkg/packages
             !vcpkg/downloads
-          key: vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ env.VCPKG_COMMIT_ID }}
+          key: vcpkg-windows-${{ matrix.arch }}-${{ env.VCPKG_COMMIT_ID }}
           restore-keys: |
-            vcpkg-${{ runner.os }}-${{ matrix.arch }}-
+            vcpkg-windows-${{ matrix.arch }}-
 
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
@@ -111,22 +214,12 @@ jobs:
       - name: Set build environment variables
         shell: bash
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            if [[ "${{ matrix.arch }}" == "x64" ]]; then
-              echo "CMAKE_PRESET=windows-x86_64-Release" >> $GITHUB_ENV
-              echo "CIBW_ARCHS=AMD64" >> $GITHUB_ENV
-            else
-              echo "CMAKE_PRESET=windows-arm64-Release" >> $GITHUB_ENV
-              echo "CIBW_ARCHS=ARM64" >> $GITHUB_ENV
-            fi
+          if [[ "${{ matrix.arch }}" == "x64" ]]; then
+            echo "CMAKE_PRESET=windows-x86_64-Release" >> $GITHUB_ENV
+            echo "CIBW_ARCHS=AMD64" >> $GITHUB_ENV
           else
-            if [[ "${{ matrix.arch }}" == "x64" ]]; then
-              echo "CMAKE_PRESET=linux-x86_64-Release" >> $GITHUB_ENV
-              echo "CIBW_ARCHS=x86_64" >> $GITHUB_ENV
-            else
-              echo "CMAKE_PRESET=linux-arm64-Release" >> $GITHUB_ENV
-              echo "CIBW_ARCHS=aarch64" >> $GITHUB_ENV
-            fi
+            echo "CMAKE_PRESET=windows-arm64-Release" >> $GITHUB_ENV
+            echo "CIBW_ARCHS=ARM64" >> $GITHUB_ENV
           fi
 
           # Set common variables
@@ -148,7 +241,7 @@ jobs:
           python -m pip install cibuildwheel twine
 
       # ===== Build wheels with cibuildwheel =====
-      - name: Build wheels
+      - name: Build wheels (Windows)
         working-directory: scripts/configs
         env:
           # Python and architecture settings
@@ -156,7 +249,7 @@ jobs:
           CIBW_ARCHS: ${{ env.CIBW_ARCHS }}
 
           # Skip problematic builds
-          CIBW_SKIP: "pp* *-musllinux*"
+          CIBW_SKIP: "pp*"
 
           # Environment variables for the build
           CIBW_ENVIRONMENT: >-
@@ -170,8 +263,9 @@ jobs:
           # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
-            echo "CMake version:" && cmake --version &&
-            echo "Available CMake presets:" && cmake --list-presets=configure || true
+            cmake --version &&
+            nvcc --version &&
+            cmake --list-presets=configure || echo "No presets found"
 
           # Build settings
           CIBW_BUILD_VERBOSITY: 1
@@ -179,8 +273,7 @@ jobs:
           # Test the built wheel
           CIBW_TEST_COMMAND: 'python -c "import quaos; print(''QuAOS import successful'')"'
 
-          # Repair settings for different platforms
-          CIBW_REPAIR_WHEEL_COMMAND_LINUX: "auditwheel repair -w {dest_dir} {wheel}"
+          # Repair settings for Windows
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
 
         run: python -m cibuildwheel --output-dir ../../dist
@@ -189,18 +282,18 @@ jobs:
       - name: List built wheels
         run: |
           echo "Built wheels:"
-          ls -la dist/
+          ls dist/
 
       - name: Upload wheels as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}-${{ matrix.arch }}-py${{ matrix.python }}
+          name: wheels-windows-${{ matrix.arch }}-py${{ matrix.python }}
           path: dist/*.whl
           retention-days: 30
 
   # ===== Collect and publish wheels =====
   publish:
-    needs: build
+    needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
 
