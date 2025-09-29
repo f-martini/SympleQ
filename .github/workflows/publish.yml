@@ -21,11 +21,31 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up vcpkg
-        uses: lukka/run-vcpkg@v11
+      - name: Cache vcpkg
+        uses: actions/cache@v3
         with:
-          vcpkgDirectory: "${{ github.workspace }}/vcpkg"
-          vcpkgGitCommitId: "b3dd708d38df5c856fe1c18dc0d59ab771f93921"
+          path: |
+            ${{ github.workspace }}/vcpkg
+            !${{ github.workspace }}/vcpkg/buildtrees
+            !${{ github.workspace }}/vcpkg/packages
+            !${{ github.workspace }}/vcpkg/downloads
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
+      - name: Set up vcpkg manually
+        shell: bash
+        run: |
+          if [ ! -d "${{ github.workspace }}/vcpkg" ]; then
+            git clone https://github.com/Microsoft/vcpkg.git ${{ github.workspace }}/vcpkg
+            cd ${{ github.workspace }}/vcpkg
+            git checkout b3dd708d38df5c856fe1c18dc0d59ab771f93921
+            if [[ "${{ runner.os }}" == "Windows" ]]; then
+              ./bootstrap-vcpkg.bat
+            else
+              ./bootstrap-vcpkg.sh
+            fi
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v4
