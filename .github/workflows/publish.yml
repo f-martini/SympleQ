@@ -96,11 +96,14 @@ jobs:
 
           # Install CUDA and vcpkg before build
           CIBW_BEFORE_ALL_LINUX: >-
+            echo "Installing system dependencies..." &&
+            yum update -y &&
+            yum install -y wget git &&
             echo "Installing CUDA..." &&
-            wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb &&
-            dpkg -i cuda-keyring_1.0-1_all.deb &&
-            apt-get update &&
-            apt-get install -y cuda-toolkit-12-5 cuda-compiler-12-5 cuda-libraries-dev-12-5 &&
+            curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-keyring-1.0-1.noarch.rpm -o cuda-keyring.rpm &&
+            rpm -i cuda-keyring.rpm &&
+            yum clean all &&
+            yum install -y cuda-toolkit-12-5 &&
             echo "Installing vcpkg..." &&
             git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
             cd /tmp/vcpkg &&
