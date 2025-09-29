@@ -14,13 +14,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest] #, windows-latest]
+        os: [ubuntu-latest, windows-latest]
         python-version: [3.13]
         arch: [x64]
 
     env:
       TWINE_USERNAME: __token__
-      TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN }}
+      TWINE_PASSWORD: ${{ secrets.PYPI_TEST }}
 
     steps:
       - uses: actions/checkout@v3
