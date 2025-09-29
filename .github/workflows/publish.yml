@@ -25,7 +25,7 @@ jobs:
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: "${{ github.workspace }}/vcpkg"
-          vcpkgGitCommitId: "latest"
+          vcpkgGitCommitId: "b3dd708d38df5c856fe1c18dc0d59ab771f93921"
 
       - name: Set up Python
         uses: actions/setup-python@v4
