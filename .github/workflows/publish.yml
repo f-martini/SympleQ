@@ -25,6 +25,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Free up space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
         with:
