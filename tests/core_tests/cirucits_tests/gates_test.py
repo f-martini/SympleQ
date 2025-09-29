@@ -148,7 +148,7 @@ class TestGates():
         # TODO: Be certain of inverse convention - ultimately arbitrary but should match prevalent literature
         for d in [2, 5, 11]:
             # test pauli_strings
-            gate = Hadamard(0, d, inverse=True)  # Hadamard on qubit 0
+            gate = Hadamard(0, d, inverse=False)  # Hadamard on qubit 0
 
             for i in range(100):
                 input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
@@ -159,7 +159,7 @@ class TestGates():
                     output_str_correct, dimensions=[d, d]
                 ), 'Error in Hadamard gate 0'
 
-            gate = Hadamard(1, d, inverse=True)  # Hadamard on qudit 1
+            gate = Hadamard(1, d, inverse=False)  # Hadamard on qudit 1
             for i in range(100):
                 input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
                 output_str_correct = f"x{r1}z{s1} x{(-s2) % d}z{r2}"
@@ -169,7 +169,7 @@ class TestGates():
                     output_str_correct, dimensions=[d, d]
                 ), 'Error in Hadamard gate 1'
             # test pauli_sums
-            gate = Hadamard(0, d, inverse=True)  # Hadamard on qubit 0
+            gate = Hadamard(0, d, inverse=False)  # Hadamard on qubit 0
 
             for i in range(100):
                 ps_list_in = []

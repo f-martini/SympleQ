@@ -85,7 +85,7 @@ class PauliSum:
         p_strings = []
         for row in tableau:
             p_strings.append(PauliString(x_exp=row[:len(row) // 2], z_exp=row[len(row) // 2:], dimensions=dimensions))
-        return cls(p_strings, dimensions=dimensions, weights=weights)
+        return cls(p_strings, dimensions=dimensions, weights=weights, standardise=False)
 
     @classmethod
     def from_pauli(cls,

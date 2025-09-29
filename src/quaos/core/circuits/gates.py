@@ -46,17 +46,25 @@ class Gate:
         return cls(name, qudit_indices, symplectic.T, dimension, phase_vector)
 
     @classmethod
-    def from_random(cls, n_qudits: int, dimension: int, n_transvection=None, seed=None):
-        np.random.seed(seed)
-        if n_qudits < 4 and dimension == 2:
-            symp_int = np.random.randint(symplectic_group_size(n_qudits))
-            symplectic = symplectic_gf2(symp_int, n_qudits)
-            phase_vector = get_phase_vector(symplectic, dimension)
-            return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
-        else:
-            symplectic = symplectic_random_transvection(n_qudits, dimension=dimension, num_transvections=n_transvection)
-            phase_vector = get_phase_vector(symplectic, dimension)
-            return cls(f"R{n_transvection}", list(range(n_qudits)), symplectic, dimension, phase_vector)
+    def from_random(cls, n_qudits: int, dimension: int, n_transvection: int = 10, seed: int | None = None):
+        if seed is not None:
+            np.random.seed(seed)
+        seed_vec = np.random.randint(0, 100000, size=n_transvection)
+        # if n_qudits < 4 and dimension == 2:
+        #     symp_int = np.random.randint(symplectic_group_size(n_qudits))
+        #     symplectic = symplectic_gf2(symp_int, n_qudits)
+        #     phase_vector = get_phase_vector(symplectic, dimension)
+        #     return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
+        # else:
+        symplectic = np.eye(2 * n_qudits, dtype=int)
+
+        for i in range(n_transvection):
+            np.random.seed(seed_vec[i])
+            Tv = transvection_matrix(np.random.randint(0, dimension, size=2 * n_qudits), dimension) % dimension
+            symplectic = symplectic @ Tv % dimension
+
+        phase_vector = get_phase_vector(symplectic, dimension)
+        return cls(f"R{n_transvection}", list(range(n_qudits)), symplectic, dimension, phase_vector)
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
         if np.all(self.dimensions != P.dimensions[self.qudit_indices]):
@@ -299,12 +307,12 @@ class Hadamard(Gate):
             symplectic = np.array([
                 [0, 1],    # image of X:  X -> Z
                 [-1, 0]    # image of Z:  Z -> -X
-            ], dtype=int).T
+            ], dtype=int)
         else:
             symplectic = np.array([
                 [0, -1],   # image of X:  X -> -Z
                 [1, 0]     # image of Z:  Z -> X
-            ], dtype=int).T
+            ], dtype=int)
 
         phase_vector = np.array([0, 0], dtype=int)
 
@@ -344,29 +352,30 @@ class PHASE(Gate):
         return np.diag(diag)
 
 
-def PauliGate(pauli: PauliString) -> Gate:
-    """
-    Convert a PauliString to its symplectic representation [x|z].
+class PauliGate(Gate):
+    def __init__(self, pauli: PauliString):
+        """
+        Convert a PauliString to its symplectic representation [x|z].
 
-    Parameters
-    ----------
-    pauli : PauliString
-        The PauliString to convert.
+        Parameters
+        ----------
+        pauli : PauliString
+            The PauliString to convert.
 
-    Returns
-    -------
-    Gate
-        The corresponding Pauli gate.
-        The symplectic representation of the PauliString.
-    """
-    if not np.all(pauli.dimensions == pauli.dimensions[0]):
-        # To add this is simple, though the symplectic form must be either not used or a different one used for each
-        # dimension
-        raise NotImplementedError("Mixed dimensions not supported yet.")
-    Omega = symplectic_form(pauli.n_qudits(), p=2)
-    symplectic = np.eye(2 * pauli.n_qudits(), dtype=int)  # Pauli conjugation does not change other Paulis
-    phase_vector = 2 * Omega @ pauli.tableau() % (2 * pauli.lcm)    # It does change phases
+        Returns
+        -------
+        Gate
+            The corresponding Pauli gate.
+            The symplectic representation of the PauliString.
+        """
+        if not np.all(pauli.dimensions == pauli.dimensions[0]):
+            # To add this is simple, though the symplectic form must be either not used or a different one used for each
+            # dimension
+            raise NotImplementedError("Mixed dimensions not supported yet.")
+        Omega = symplectic_form(pauli.n_qudits(), p=2)
+        symplectic = np.eye(2 * pauli.n_qudits(), dtype=int)  # Pauli conjugation does not change other Paulis
+        phase_vector = 2 * Omega @ pauli.tableau() % (2 * pauli.lcm)    # It does change phases
 
-    # TODO Can be made more efficient by extracting the qudits it acts on and having only those as qudit indices
-    return Gate("Pauli", [i for i in range(pauli.n_qudits())], symplectic, dimensions=pauli.dimensions,
-                phase_vector=phase_vector)
+        # TODO Can be made more efficient by extracting the qudits it acts on and having only those as qudit indices
+        super().__init__("Pauli", [i for i in range(pauli.n_qudits())], symplectic, dimensions=pauli.dimensions,
+                         phase_vector=phase_vector)

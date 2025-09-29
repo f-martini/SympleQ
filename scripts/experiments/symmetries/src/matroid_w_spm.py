@@ -1,17 +1,8 @@
-# symplectic_aut_configurable.py
 from __future__ import annotations
-from typing import Dict, List, Tuple, Optional, Iterable
+from typing import Dict, List, Tuple, Optional
 import numpy as np
 import galois
-
-try:
-    from numba import njit
-    NUMBA_OK = True
-except Exception:
-    def njit(*args, **kwargs):
-        def wrap(f): return f
-        return wrap
-    NUMBA_OK = False
+from numba import njit
 
 Label = int
 DepPairs = Dict[Label, List[Tuple[Label, int]]]
@@ -20,18 +11,18 @@ DepPairs = Dict[Label, List[Tuple[Label, int]]]
 # Utilities
 # =============================================================================
 
+
 def _labels_union(independent: List[int], dependencies: DepPairs) -> List[int]:
     return sorted(set(independent) | set(dependencies.keys()))
+
 
 def _perm_index_to_perm_map(labels: List[int], pi: np.ndarray) -> Dict[int, int]:
     return {labels[j]: labels[int(pi[j])] for j in range(len(labels))}
 
-def _is_identity_perm_map(perm_map: Dict[int,int]) -> bool:
-    return all(k == v for k, v in perm_map.items())
-
 # =============================================================================
 # Generator matrix over GF(p) (vectorized; no mixed types)
 # =============================================================================
+
 
 def _build_generator_matrix(
     independent: List[int],
@@ -67,6 +58,7 @@ def _build_generator_matrix(
 # =============================================================================
 # WL-1 base partition (safe). You can extend the seed with extra invariants.
 # =============================================================================
+
 
 def _wl_colors_from_S(
     S_mod: np.ndarray,
@@ -119,6 +111,7 @@ def _wl_colors_from_S(
             break
     return color
 
+
 def _color_classes(color: np.ndarray) -> Dict[int, List[int]]:
     classes: Dict[int, List[int]] = {}
     for i, c in enumerate(color):
@@ -130,6 +123,7 @@ def _color_classes(color: np.ndarray) -> Dict[int, List[int]]:
 # =============================================================================
 # Incremental S-consistency (p-agnostic and p=2 bitset variant)
 # =============================================================================
+
 
 @njit(cache=True, fastmath=True)
 def _consistent_numba(S_mod: np.ndarray, phi: np.ndarray, mapped_idx: np.ndarray, i: int, y: int) -> bool:
@@ -144,6 +138,7 @@ def _consistent_numba(S_mod: np.ndarray, phi: np.ndarray, mapped_idx: np.ndarray
         if S_mod[j, i] != S_mod[yj, y]:
             return False
     return True
+
 
 # ---- Optional p=2 bitset kernel --------------------------------------------
 
@@ -160,6 +155,7 @@ def _build_bitrows_binary(S_mod: np.ndarray) -> Tuple[np.ndarray, int]:
             if S_mod[i, j] & 1:
                 bits[i, j >> 6] |= (1 << (j & 63))
     return bits, C
+
 
 @njit(cache=True, fastmath=True)
 def _consistent_bitset(bits: np.ndarray, phi: np.ndarray, mapped_idx: np.ndarray, i: int, y: int) -> bool:
@@ -182,12 +178,14 @@ def _consistent_bitset(bits: np.ndarray, phi: np.ndarray, mapped_idx: np.ndarray
             return False
     return True
 
+
 # =============================================================================
 # Full checks at a leaf
 # =============================================================================
 
 def _check_symplectic_invariance_mod(S_mod: np.ndarray, pi: np.ndarray) -> bool:
     return np.array_equal(S_mod[np.ix_(pi, pi)], S_mod)
+
 
 def _check_code_automorphism(
     G: galois.FieldArray,
@@ -200,8 +198,8 @@ def _check_code_automorphism(
     Let C = G[:, P(B)]; if invertible, U = C^{-1} and check U G P == G.
     """
     lab_to_idx = {lab: i for i, lab in enumerate(labels)}
-    Bcols = np.array([lab_to_idx[b] for b in basis_order], dtype=int)
-    PBcols = pi[Bcols]
+    B_cols = np.array([lab_to_idx[b] for b in basis_order], dtype=int)
+    PBcols = pi[B_cols]
     C = G[:, PBcols]
     try:
         U = np.linalg.inv(C)  # works on galois.FieldArray
@@ -209,6 +207,7 @@ def _check_code_automorphism(
         return False
     Gp = G[:, pi]
     return np.array_equal(U @ Gp, G)
+
 
 # =============================================================================
 # Basis-first (complete) solver: basis_first="any"
@@ -228,7 +227,7 @@ def _basis_first_any(
     require_nontrivial: bool,
     p2_bitset: bool,
     enforce_base_on_dependents: bool = False,   # <-- NEW: relaxed by default
-) -> List[Dict[int,int]]:
+) -> List[Dict[int, int]]:
     """
     Complete search that branches only on basis labels (images can be any labels).
     After basis images fixed and C invertible, compute U=C^{-1} and place dependents
@@ -236,7 +235,7 @@ def _basis_first_any(
     If enforce_base_on_dependents is True, y must also lie in the *base* WL class of i.
     """
     n = S_mod.shape[0]
-    results: List[Dict[int,int]] = []
+    results: List[Dict[int, int]] = []
 
     # Order basis variables by increasing base-class size (MRV-ish)
     lab_to_idx = {lab: i for i, lab in enumerate(labels)}
@@ -246,6 +245,7 @@ def _basis_first_any(
     # Prepared consistency kernel
     if p2_bitset:
         bits, _ = _build_bitrows_binary(S_mod)
+
         def consistent(phi, mapped, i, y):
             return _consistent_bitset(bits, phi, mapped, int(i), int(y))
     else:
@@ -267,11 +267,11 @@ def _basis_first_any(
 
         # precompute exact column tuples (int) for equality check
         sig_y = [tuple(int(v) for v in UG[:, y]) for y in range(ncols)]
-        sig_i = [tuple(int(v) for v in G[:, i])  for i in range(ncols)]
+        sig_i = [tuple(int(v) for v in G[:, i]) for i in range(ncols)]
 
         dependents = [i for i in range(n) if not basis_mask[i]]
         # candidate lists per dependent
-        dep_cands: Dict[int, List[int]] = {}
+        dep_candidates: Dict[int, List[int]] = {}
         for i in dependents:
             # pool: either all unused labels, or only the base class
             if enforce_base_on_dependents:
@@ -287,10 +287,10 @@ def _basis_first_any(
                 if sig_y[y] != sig_i[i]:
                     continue
                 lst.append(y)
-            dep_cands[i] = lst
+            dep_candidates[i] = lst
 
         # order by fewest candidates
-        dep_order = sorted(dependents, key=lambda i: len(dep_cands[i]))
+        dep_order = sorted(dependents, key=lambda i: len(dep_candidates[i]))
 
         def dfs_dep(t: int) -> bool:
             if t >= len(dep_order):
@@ -307,7 +307,7 @@ def _basis_first_any(
             i = dep_order[t]
             mapped_idx = np.where(phi >= 0)[0].astype(np.int64)
 
-            for y in dep_cands[i]:
+            for y in dep_candidates[i]:
                 if used[y]:
                     continue
                 if not consistent(phi, mapped_idx, i, y):
@@ -334,6 +334,7 @@ def _basis_first_any(
             C = G[:, PBcols]
             try:
                 U = np.linalg.inv(C)
+                U = G.__class__(U)  # Convert to galois.FieldArray
             except np.linalg.LinAlgError:
                 return False
             return place_dependents_with_U(U)
@@ -343,11 +344,11 @@ def _basis_first_any(
         mapped_idx = np.where(phi >= 0)[0].astype(np.int64)
 
         # Feasible candidates for this basis variable (base partition + coeffs)
-        cands = [y for y in base_classes[bi] if not used[y]]
+        candidates = [y for y in base_classes[bi] if not used[y]]
         if coeffs is not None:
-            cands = [y for y in cands if coeffs[i] == coeffs[y]]
+            candidates = [y for y in candidates if coeffs[i] == coeffs[y]]
 
-        for y in cands:
+        for y in candidates:
             if not consistent(phi, mapped_idx, i, y):
                 continue
             phi[i] = y
@@ -365,6 +366,7 @@ def _basis_first_any(
 # Fallback full DFS (feasible by base partition; complete). Kept simple/serial.
 # =============================================================================
 
+
 def _full_dfs_complete(
     S_mod: np.ndarray,
     *,
@@ -379,17 +381,18 @@ def _full_dfs_complete(
     require_nontrivial: bool,
     p2_bitset: bool,
     dynamic_refine_every: int = 0,
-) -> List[Dict[int,int]]:
+) -> List[Dict[int, int]]:
     """
     Complete interleaved DFS that maps all labels with feasibility constrained ONLY by base partition.
     Dynamic WL (if enabled) is used only for ordering every `dynamic_refine_every` steps.
     """
     n = S_mod.shape[0]
-    results: List[Dict[int,int]] = []
+    results: List[Dict[int, int]] = []
 
     # Prepared consistency kernel
     if p2_bitset:
         bits, _ = _build_bitrows_binary(S_mod)
+
         def consistent(phi, mapped, i, y):
             return _consistent_bitset(bits, phi, mapped, int(i), int(y))
     else:
@@ -413,7 +416,7 @@ def _full_dfs_complete(
             if phi[i] >= 0:
                 continue
             bi = int(base_colors[i])
-            rem = sum((not used[y] and (coeffs is None or coeffs[i]==coeffs[y])) for y in base_classes[bi])
+            rem = sum((not used[y] and (coeffs is None or coeffs[i] == coeffs[y])) for y in base_classes[bi])
             if rem < best_rem:
                 best_i, best_rem = i, rem
                 if rem <= 1:
@@ -456,12 +459,12 @@ def _full_dfs_complete(
         mapped_idx = np.where(phi >= 0)[0].astype(np.int64)
 
         # Order candidates by current colors (ordering heuristic only)
-        cand = [y for y in base_classes[bi] if not used[y]]
+        candidate = [y for y in base_classes[bi] if not used[y]]
         if coeffs is not None:
-            cand = [y for y in cand if coeffs[i] == coeffs[y]]
-        cand.sort(key=lambda y: cur_colors[y])
+            candidate = [y for y in candidate if coeffs[i] == coeffs[y]]
+        candidate.sort(key=lambda y: cur_colors[y])
 
-        for y in cand:
+        for y in candidate:
             if not consistent(phi, mapped_idx, i, y):
                 continue
             phi[i] = y
@@ -497,7 +500,7 @@ def find_k_automorphisms_symplectic(
     extra_column_invariants: str = "none",
     p2_bitset: str = "auto",
     enforce_base_on_dependents: bool = False,
-) -> List[Dict[int,int]]:
+) -> List[Dict[int, int]]:
     """
     Return up to k automorphisms preserving S and the vector set. See flags above.
     """
@@ -533,16 +536,16 @@ def find_k_automorphisms_symplectic(
         # Strong advice: leave this as "none" unless you know left GL(k,p) preserves your chosen invariants.
         G_for_inv, _, _ = _build_generator_matrix(independent, dependencies, pres_labels, p)
         if extra_column_invariants == "hist":
-            inv = np.zeros((n, min(p,16)), dtype=np.int64)
+            inv = np.zeros((n, min(p, 16)), dtype=np.int64)
             for j in range(n):
                 col = np.array([int(x) for x in G_for_inv[:, j]])
                 cnt = np.bincount(col, minlength=p)
-                inv[j, :min(p,16)] = cnt[:min(p,16)]
+                inv[j, :min(p, 16)] = cnt[:min(p, 16)]
         else:
             raise ValueError("extra_column_invariants must be 'none', 'support', or 'hist'.")
 
     # Base (safe) partition from S (+coeffs only)
-    base_colors  = _wl_colors_from_S(S_mod, p, coeffs=coeffs_aligned, col_invariants=None, max_rounds=10)
+    base_colors = _wl_colors_from_S(S_mod, p, coeffs=coeffs_aligned, col_invariants=None, max_rounds=10)
     base_classes = _color_classes(base_colors)
 
     # Build G & basis mask
@@ -598,3 +601,39 @@ def find_k_automorphisms_symplectic(
         )
 
     raise ValueError("basis_first must be 'off', 'any', or 'basis_only'.")
+
+
+if __name__ == "__main__":
+    from quaos.utils import get_linear_dependencies
+    from quaos.models.random_hamiltonian import random_gate_symmetric_hamiltonian
+    from quaos.core.circuits import SWAP
+
+    # sym = SWAP(0, 1, 2)
+    # H = random_gate_symmetric_hamiltonian(sym, 2, 4, scrambled=True)
+
+    # independent, dependencies = get_linear_dependencies(H.tableau(), H.dimensions)
+
+    # S = H.symplectic_product_matrix()
+    # coeffs = H.weights
+
+    independent = [0, 1, 2, 3]
+    dependencies = {4: [(1, 1), (3, 1)], 5: [(0, 1), (2, 1)], 6: [(0, 1), (1, 1)]}
+    S = np.array([[0, 0, 0, 1, 1, 0, 0],
+         [0, 0, 1, 0, 0, 1, 0],
+         [0, 1, 0, 1, 0, 0, 1],
+         [1, 0, 1, 0, 0, 0, 1],
+         [1, 0, 0, 0, 0, 1, 1],
+         [0, 1, 0, 0, 1, 0, 1],
+         [0, 0, 1, 1, 1, 1, 0]])
+    coeffs = np.array([ 0.+1.j,  0.+1.j, -1.+0.j,  1.+0.j, -1.+0.j,  1.+0.j,  2.+0.j])
+    print('independent = ', independent)
+    print('dependencies = ', dependencies)
+
+    print('S = ', S)
+    print('coeffs = ', coeffs)
+
+    perms = find_k_automorphisms_symplectic(independent, dependencies,
+                                            S=S, p=2, k=1,
+                                            coeffs=coeffs)
+
+    print('permutations = ', perms)  # either [{'perm':..., 'h':...}] when return_phase=True, or [perm_dict]

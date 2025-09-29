@@ -84,7 +84,7 @@ def transvection_matrix(h: np.ndarray, p=2, multiplier=1):
     n = len(h) // 2
     Omega = symplectic_form(n, p)
 
-    F_h = (np.eye(2 * n, dtype=int) + multiplier * Omega @ (np.outer(h.T, h))) % p
+    F_h = (np.eye(2 * n, dtype=int) + multiplier * (Omega @ np.outer(h.T, h))) % p
     return F_h
 
 
@@ -130,7 +130,6 @@ def _multi_index_to_linear(index: list[int] | np.ndarray, dims: list[int] | np.n
     """
     dims = list(map(int, dims))
     idx = 0
-    stride = 1
     # Compute strides from right to left
     strides = [1] * len(dims)
     for k in range(len(dims) - 2, -1, -1):

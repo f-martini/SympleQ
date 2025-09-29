@@ -89,7 +89,7 @@ class TestSymplecticSolver:
     def test_map_single_pauli_string_to_target(self):
         n = 14
         p = 2
-        for _ in range(1000):
+        for _ in range(10000):
             input_ps = np.random.randint(p, size=2 * n)
             target_ps = np.random.randint(p, size=2 * n)
             if np.array_equal(input_ps, np.zeros(2 * n)):
@@ -183,7 +183,7 @@ class TestSymplecticSolver:
     def test_map_pauli_sum_to_target(self):
 
         for i in range(1000):
-            print(i)
+            # print(i)
             # choose random properties of the system
             n = np.random.randint(2, 5)  # , 50)  # Number of qudits
             allowed_dims = [2]  # , 3, 5, 7, 11]  # allowed dimensions
