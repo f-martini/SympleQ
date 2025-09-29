@@ -25,13 +25,23 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Free up space
+      - name: Free up space (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Free up space (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Remove-Item -Recurse -Force "C:\Program Files\dotnet"
+          Remove-Item -Recurse -Force "C:\Program Files (x86)\Android"
+          Remove-Item -Recurse -Force "C:\ghc"
+          Write-Host "Windows cleanup complete."
+        shell: pwsh
 
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
