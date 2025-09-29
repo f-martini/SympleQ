@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Base/Base.h>
-#include <Measurement/Measurement.h>
+#include <Measurements/Measurements.h>
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/array.h>
 #include <nanobind/stl/chrono.h>

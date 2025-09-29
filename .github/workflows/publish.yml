@@ -7,19 +7,25 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
         python-version: [3.11, 3.12, 3.13]
-        arch: [x86_64, arm64]
+        arch: [x64] # Changed from x86_64 to x64 to match your bat script
         exclude:
           - os: windows-latest
             arch: arm64
 
     env:
-      TWINE_USERNAME: __token__ # Use GitHub secret for PyPI token
+      TWINE_USERNAME: __token__
       TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN }}
 
     steps:
       - uses: actions/checkout@v3
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: "${{ github.workspace }}/vcpkg"
+          vcpkgGitCommitId: "latest"
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -27,18 +33,26 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.arch }}
 
+      - name: Set environment variables
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            echo "ARCH=AMD64" >> $GITHUB_ENV
+            echo "PRESET=windows-x86_64-Release" >> $GITHUB_ENV  # Adjust to your actual preset name
+            echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+          else
+            echo "ARCH=x86_64" >> $GITHUB_ENV
+            echo "PRESET=linux-x86_64-Release" >> $GITHUB_ENV   # Adjust to your actual preset name
+            echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+          fi
+
       - name: Install build dependencies
         run: |
-          python -m pip install --upgrade pip setuptools wheel scikit-build cmake ninja twine
-
-      - name: Configure CMake
-        run: cmake --preset ${{ matrix.os }}-${{ matrix.arch }}
-
-      - name: Build
-        run: cmake --build build
+          python -m pip install --upgrade pip setuptools wheel scikit-build-core nanobind twine
 
       - name: Build wheel
-        run: python -m pip wheel . -w dist/
+        working-directory: scripts/configs
+        run: python -m pip wheel ../.. -w ../../dist/ --config-settings=cmake.args="--preset;${{ env.PRESET }}" --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="${{ env.CMAKE_TOOLCHAIN_FILE }}"
 
       - name: Publish wheel to Test PyPI
         if: github.ref == 'refs/heads/main'

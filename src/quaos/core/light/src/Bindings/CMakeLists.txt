@@ -43,7 +43,7 @@ target_precompile_headers(${LIB_NAME}
 
 target_include_directories(${LIB_NAME} PRIVATE ${nanobind_SOURCE_DIR}/include)
 target_link_libraries(${LIB_NAME} PRIVATE Base)
-target_link_libraries(${LIB_NAME} PRIVATE Measurement)
+target_link_libraries(${LIB_NAME} PRIVATE Measurements)
 
 install(TARGETS ${LIB_NAME}
     LIBRARY DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"

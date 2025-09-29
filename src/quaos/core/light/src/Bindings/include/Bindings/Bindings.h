@@ -1,3 +1,3 @@
 #pragma once
 
-#include "Bindings/Measurement/Aquire/AquireAdaptor.h"
+#include "Bindings/Measurements/Aquire/AquireAdaptor.h"
