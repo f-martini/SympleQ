@@ -41,6 +41,7 @@ jobs:
         id: cuda-toolkit
         with:
           cuda: "12.5.0"
+          artifact-name: cuda-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.arch }}
 
       - name: Verify CUDA installation
         run: nvcc --version
