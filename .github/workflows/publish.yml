@@ -3,52 +3,14 @@ name: Build and Publish Python Wheels
 on: push
 
 env:
-  CUDA_VERSION: "12.5.0"
+  CUDA_VERSION: 12.5.0
   WHEEL_WORKING_DIR: "scripts/configs"
   WHEEL_OUT_DIR: "dist"
   GITHUB_REF: "refs/heads/main"
   CMAKE_TOOLCHAIN_FILE_PATH: "${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
 
 jobs:
-  # Pre-job to download CUDA Toolkit
-  download-cuda:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      # Download CUDA Toolkit for Linux
-      - uses: Jimver/cuda-toolkit@v0.2.24
-        id: cuda-linux
-        with:
-          cuda: ${{ env.CUDA_VERSION }}
-          artifact-name: cuda-linux
-
-      # Upload CUDA Toolkit artifact for Linux
-      - name: Upload CUDA Toolkit for Linux
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cuda-linux
-          path: /usr/local/cuda-${{ env.CUDA_VERSION }}
-
-      # Download CUDA Toolkit for Windows
-      - uses: Jimver/cuda-toolkit@v0.2.24
-        id: cuda-windows
-        with:
-          cuda: ${{ env.CUDA_VERSION }}
-          artifact-name: cuda-windows
-
-      # Upload CUDA Toolkit artifact for Windows
-      - name: Upload CUDA Toolkit for Windows
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cuda-windows
-          path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}
-
-  # Main matrix job to build and publish wheels
   build-and-publish:
-    needs: download-cuda
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -63,31 +25,27 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Download CUDA Toolkit artifact
-      - name: Download CUDA Toolkit Artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: ${{ matrix.os == 'ubuntu-latest' && 'cuda-linux' || 'cuda-windows' }}
-
-      # Set up vcpkg
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: "${{ github.workspace }}/vcpkg"
           vcpkgGitCommitId: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
 
-      # Set up Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.arch }}
 
-      # Verify CUDA installation
+      - uses: Jimver/cuda-toolkit@v0.2.24
+        id: cuda-toolkit
+        with:
+          cuda: "12.5.0"
+          log-file-suffix: "${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.arch }}"
+
       - name: Verify CUDA installation
         run: nvcc --version
 
-      # Set environment variables
       - name: Set environment variables
         shell: bash
         run: |
@@ -101,17 +59,14 @@ jobs:
             echo "CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE_PATH }}" >> $GITHUB_ENV
           fi
 
-      # Install build dependencies
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel scikit-build-core nanobind twine
 
-      # Build wheel
       - name: Build wheel
         working-directory: ${{ env.WHEEL_WORKING_DIR }}
         run: python -m pip wheel ./ -w ../../${{ env.WHEEL_OUT_DIR }}/ --config-settings=cmake.args="--preset;${{ env.PRESET }}" --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="${{ env.CMAKE_TOOLCHAIN_FILE }}"
 
-      # Publish wheel to Test PyPI
       - name: Publish wheel to Test PyPI
         if: github.ref == '${{ env.GITHUB_REF }}'
         run: python -m twine upload --repository testpypi ${{ env.WHEEL_OUT_DIR }}/*
