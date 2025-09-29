@@ -101,9 +101,8 @@ jobs:
             yum install -y wget git &&
             echo "Installing CUDA..." &&
             curl -fsSL https://developer.download.nvidia.com/compute/cuda/12.5.0/local_installers/cuda_12.5.0_555.42.02_linux.run -o cuda_installer.run &&
-            rpm -i cuda-keyring.rpm &&
-            yum clean all &&
-            yum install -y cuda-toolkit-12-5 &&
+            sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
+            ln -sf /usr/local/cuda-12.5 /usr/local/cuda &&
             echo "Installing vcpkg..." &&
             git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
             cd /tmp/vcpkg &&
