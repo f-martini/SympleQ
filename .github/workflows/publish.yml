@@ -2,6 +2,13 @@ name: Build and Publish Python Wheels
 
 on: push
 
+env:
+  CUDA_VERSION: "12.4"
+  WHEEL_WORKING_DIR: "scripts/configs"
+  WHEEL_OUT_DIR: "dist"
+  GITHUB_REF: "refs/heads/main"
+  CMAKE_TOOLCHAIN_FILE_PATH: "${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+
 jobs:
   build-and-publish:
     runs-on: ${{ matrix.os }}
@@ -10,9 +17,6 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python-version: [3.11, 3.12, 3.13]
         arch: [x64]
-        exclude:
-          - os: windows-latest
-            arch: arm64
 
     env:
       TWINE_USERNAME: __token__
@@ -33,18 +37,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.arch }}
 
-      - name: Install CUDA Toolkit (Ubuntu)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
-          sudo add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /"
-          sudo apt-get update
-          sudo apt-get install -y cuda
-
-      - name: Install CUDA Toolkit (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install cuda -y
+      - name: Setup CUDA
+        uses: Jimver/cuda-toolkit@v0.2.11
+        with:
+          cuda: "${{ env.CUDA_VERSION }}"
 
       - name: Verify CUDA installation
         run: nvcc --version
@@ -55,11 +51,11 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             echo "ARCH=AMD64" >> $GITHUB_ENV
             echo "PRESET=windows-x86_64-Release" >> $GITHUB_ENV
-            echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+            echo "CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE_PATH }}" >> $GITHUB_ENV
           else
             echo "ARCH=x86_64" >> $GITHUB_ENV
             echo "PRESET=linux-x86_64-Release" >> $GITHUB_ENV
-            echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+            echo "CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE_PATH }}" >> $GITHUB_ENV
           fi
 
       - name: Install build dependencies
@@ -67,9 +63,9 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel scikit-build-core nanobind twine
 
       - name: Build wheel
-        working-directory: scripts/configs
-        run: python -m pip wheel ./ -w ../../dist/ --config-settings=cmake.args="--preset;${{ env.PRESET }}" --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="${{ env.CMAKE_TOOLCHAIN_FILE }}"
+        working-directory: ${{ env.WHEEL_WORKING_DIR }}
+        run: python -m pip wheel ./ -w ../../${{ env.WHEEL_OUT_DIR }}/ --config-settings=cmake.args="--preset;${{ env.PRESET }}" --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="${{ env.CMAKE_TOOLCHAIN_FILE }}"
 
       - name: Publish wheel to Test PyPI
-        if: github.ref == 'refs/heads/main'
-        run: python -m twine upload --repository testpypi dist/*
+        if: github.ref == '${{ env.GITHUB_REF }}'
+        run: python -m twine upload --repository testpypi ${{ env.WHEEL_OUT_DIR }}/*
