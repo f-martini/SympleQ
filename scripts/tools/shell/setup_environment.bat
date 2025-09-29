@@ -6,7 +6,6 @@ cd /d %~dp0
 call env.bat
 cd %PROJECT_ROOT%
 
-
 CALL %VCVARSALL_PATH% x64
 
 REM Initializing virtual environment...

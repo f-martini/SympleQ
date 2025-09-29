@@ -14,8 +14,23 @@ if [ ! -d "$SRC_VENV" ]; then
     deactivate
 fi
 
+ARCH=$(uname -m)
+
+if [ "$ARCH" == "x86_64" ]; then
+    PRESET=$CMAKE_X86_64_PRESET
+elif [ "$ARCH" == "aarch64" ]; then
+    echo "Architecture $SRC_VENV unsupported on Linux OS"
+    exit 1
+else
+    echo "Architecture $SRC_VENV unsupported on Linux OS"
+    exit 1
+fi
+
+echo "Detected architecture $ARCH: using preset $PRESET"
+
 source "$SRC_VENV/bin/activate"
-python3 -m pip install -e "$PYTHON_PY_SETUP"
+python3 -m pip install  --upgrade pip setuptools wheel scikit-build-core nanobind
+python3 -m pip install -e "$PYTHON_PY_SETUP" --config-settings=cmake.args="--preset;$PRESET"
 deactivate
 
 # Generating unversioned folders...
