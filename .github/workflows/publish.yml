@@ -52,7 +52,7 @@ jobs:
 
       - name: Build wheel
         working-directory: scripts/configs
-        run: python -m pip wheel ../.. -w ../../dist/ --config-settings=cmake.args="--preset;${{ env.PRESET }}" --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="${{ env.CMAKE_TOOLCHAIN_FILE }}"
+        run: python -m pip wheel ./ -w ../../dist/ --config-settings=cmake.args="--preset;${{ env.PRESET }}" --config-settings=cmake.define.CMAKE_TOOLCHAIN_FILE="${{ env.CMAKE_TOOLCHAIN_FILE }}"
 
       - name: Publish wheel to Test PyPI
         if: github.ref == 'refs/heads/main'
