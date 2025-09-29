@@ -26,7 +26,7 @@ jobs:
       # Upload CUDA Toolkit artifact for Linux
       - name: Upload CUDA Toolkit for Linux
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cuda-linux
           path: /usr/local/cuda-${{ env.CUDA_VERSION }}
@@ -41,7 +41,7 @@ jobs:
       # Upload CUDA Toolkit artifact for Windows
       - name: Upload CUDA Toolkit for Windows
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cuda-windows
           path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}
