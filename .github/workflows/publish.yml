@@ -15,8 +15,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: [3.11.x]
-        arch: [x86_64]
+        python-version: [3.12]
+        arch: [x64]
 
     env:
       TWINE_USERNAME: __token__
