@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: [3.13]
+        python-version: [3.12]
         arch: [x64]
 
     env:
@@ -93,4 +93,4 @@ jobs:
 
       - name: Publish wheel to Test PyPI
         if: github.ref == '${{ env.GITHUB_REF }}'
-        run: python -m twine upload --repository testpypi ${{ env.WHEEL_OUT_DIR }}/quaos-*.whl
+        run: python -m twine upload --repository testpypi ${{ env.WHEEL_OUT_DIR }}/quaos-*.whl --verbose
