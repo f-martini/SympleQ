@@ -3,7 +3,7 @@ name: Build and Publish Python Wheels
 on: push
 
 env:
-  CUDA_VERSION: "12.5.0"
+  CUDA_VERSION: 12.5.0
   WHEEL_WORKING_DIR: "scripts/configs"
   WHEEL_OUT_DIR: "dist"
   GITHUB_REF: "refs/heads/main"
