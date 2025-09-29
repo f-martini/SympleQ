@@ -100,7 +100,7 @@ jobs:
             yum update -y &&
             yum install -y wget git &&
             echo "Installing CUDA..." &&
-            curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-keyring-1.0-1.noarch.rpm -o cuda-keyring.rpm &&
+            curl -fsSL https://developer.download.nvidia.com/compute/cuda/12.5.0/local_installers/cuda_12.5.0_555.42.02_linux.run -o cuda_installer.run &&
             rpm -i cuda-keyring.rpm &&
             yum clean all &&
             yum install -y cuda-toolkit-12-5 &&
