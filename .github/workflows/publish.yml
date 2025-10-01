@@ -98,10 +98,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >-
             echo "Installing system dependencies..." &&
             yum install -y epel-release &&
-            yum install -y devtoolset-11 &&
-            source /opt/rh/devtoolset-11/enable &&
-            export CC=/opt/rh/devtoolset-11/root/usr/bin/gcc &&
-            export CXX=/opt/rh/devtoolset-11/root/usr/bin/g++ &&
+            yum install -y gcc gcc-c++ make git which &&
             echo "Installing CUDA..." &&
             curl -fsSL https://developer.download.nvidia.com/compute/cuda/12.5.0/local_installers/cuda_12.5.0_555.42.02_linux.run -o cuda_installer.run &&
             sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
