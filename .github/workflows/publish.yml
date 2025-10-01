@@ -98,7 +98,9 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >-
             echo "Installing system dependencies..." &&
             yum update -y &&
-            yum install -y wget git &&
+            yum install -y gcc12 gcc12-c++ &&
+            export CC=/usr/bin/gcc12 &&
+            export CXX=/usr/bin/g++12 &&
             echo "Installing CUDA..." &&
             curl -fsSL https://developer.download.nvidia.com/compute/cuda/12.5.0/local_installers/cuda_12.5.0_555.42.02_linux.run -o cuda_installer.run &&
             sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
