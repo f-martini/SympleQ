@@ -27,13 +27,13 @@ jobs:
           submodules: recursive
 
       # ===== Free up disk space =====
-      # - name: Free up disk space (Linux)
-      #   run: |
-      #     sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-      #     sudo apt-get clean
-      #     sudo rm -rf /var/lib/apt/lists/*
-      #     docker system prune -af
-      #     df -h
+      - name: Free up disk space (Linux)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          docker system prune -af
+          df -h
 
       # ===== Set up Python =====
       - name: Set up Python
