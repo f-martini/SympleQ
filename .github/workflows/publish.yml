@@ -97,14 +97,14 @@ jobs:
           # Install CUDA and vcpkg before build
           CIBW_BEFORE_ALL_LINUX: >-
             echo "Installing system dependencies..." &&
-            sudo apt-get update -y &&
-            sudo apt-get install -y build-essential gcc g++ &&
+            apt-get update -y &&
+            apt-get install -y build-essential gcc g++ &&
             export CC=/usr/bin/gcc &&
             export CXX=/usr/bin/g++ &&
             echo "Installing CUDA..." &&
             curl -fsSL https://developer.download.nvidia.com/compute/cuda/12.5.0/local_installers/cuda_12.5.0_555.42.02_linux.run -o cuda_installer.run &&
-            sudo sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
-            sudo ln -sf /usr/local/cuda-12.5 /usr/local/cuda &&
+            sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
+            ln -sf /usr/local/cuda-12.5 /usr/local/cuda &&
             echo "Installing vcpkg..." &&
             git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
             cd /tmp/vcpkg &&
