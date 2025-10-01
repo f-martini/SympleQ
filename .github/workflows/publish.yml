@@ -98,7 +98,6 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >-
             echo "Installing system dependencies..." &&
             yum install -y epel-release &&
-            yum install -y centos-release-scl &&
             yum install -y devtoolset-11 &&
             source /opt/rh/devtoolset-11/enable &&
             export CC=/opt/rh/devtoolset-11/root/usr/bin/gcc &&
