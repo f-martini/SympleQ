@@ -24,15 +24,15 @@ dependencies = [
 name = "quaos"
 version = "0.1.0"
 description = "QuAOS: Quantum Algorithms, Optomechanics and Simulations"
-readme = "../../README.md"
+readme = "README.md"
 authors = [{ name = "Quaos-Lab", email = "quaos.org@gmail.com" }]
 license = { text = "MIT" }
 requires-python = ">=3.11"
 
 [tool.scikit-build]
-build-dir = "../../build"
-cmake.source-dir = "../../src"
+build-dir = "build"
+cmake.source-dir = "src"
 cmake.version = ">=3.21"
 build.verbose = true
 cmake.args = ["-DCMAKE_MESSAGE_LOG_LEVEL=STATUS", "-DCMAKE_VERBOSE_MAKEFILE=ON"]
-wheel.packages = ["../../src/quaos"]
+wheel.packages = ["./src/quaos"]
