@@ -74,7 +74,6 @@ jobs:
 
       # ===== Build wheels with cibuildwheel =====
       - name: Build wheels (Linux)
-        working-directory: scripts/configs
         env:
           # Python and architecture settings
           CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
@@ -248,7 +247,6 @@ jobs:
 
       # ===== Build wheels with cibuildwheel =====
       - name: Build wheels (Windows)
-        working-directory: scripts/configs
         env:
           # Python and architecture settings
           CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
