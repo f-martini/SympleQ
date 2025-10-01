@@ -33,7 +33,6 @@ requires-python = ">=3.11"
 build-dir = "../../build"
 cmake.source-dir = "../../src"
 cmake.version = ">=3.21"
-cmake.verbose = true
+build.verbose = true
 cmake.args = ["-DCMAKE_MESSAGE_LOG_LEVEL=STATUS", "-DCMAKE_VERBOSE_MAKEFILE=ON"]
-sdist.include = ["src", "CMakeLists.txt", "README.md"]
 wheel.packages = ["../../src/quaos"]
