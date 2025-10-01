@@ -27,13 +27,13 @@ jobs:
           submodules: recursive
 
       # ===== Free up disk space =====
-      - name: Free up disk space (Linux)
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/*
-          docker system prune -af
-          df -h
+      # - name: Free up disk space (Linux)
+      #   run: |
+      #     sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      #     sudo apt-get clean
+      #     sudo rm -rf /var/lib/apt/lists/*
+      #     docker system prune -af
+      #     df -h
 
       # ===== Set up Python =====
       - name: Set up Python
@@ -97,14 +97,14 @@ jobs:
           # Install CUDA and vcpkg before build
           CIBW_BEFORE_ALL_LINUX: >-
             echo "Installing system dependencies..." &&
-            yum update -y &&
-            yum install -y gcc gcc-c++
-            export CC=/usr/bin/gcc
-            export CXX=/usr/bin/g++
+            sudo apt-get update -y &&
+            sudo apt-get install -y build-essential gcc g++ &&
+            export CC=/usr/bin/gcc &&
+            export CXX=/usr/bin/g++ &&
             echo "Installing CUDA..." &&
             curl -fsSL https://developer.download.nvidia.com/compute/cuda/12.5.0/local_installers/cuda_12.5.0_555.42.02_linux.run -o cuda_installer.run &&
-            sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
-            ln -sf /usr/local/cuda-12.5 /usr/local/cuda &&
+            sudo sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
+            sudo ln -sf /usr/local/cuda-12.5 /usr/local/cuda &&
             echo "Installing vcpkg..." &&
             git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
             cd /tmp/vcpkg &&
