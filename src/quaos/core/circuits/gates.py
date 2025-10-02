@@ -48,17 +48,25 @@ class Gate:
         return cls(name, qudit_indices, symplectic.T, dimension, phase_vector)
 
     @classmethod
-    def from_random(cls, n_qudits: int, dimension: int, n_transvection=None, seed=None):
-        np.random.seed(seed)
-        if n_qudits < 4 and dimension == 2:
-            symp_int = np.random.randint(symplectic_group_size(n_qudits))
-            symplectic = symplectic_gf2(symp_int, n_qudits)
-            phase_vector = get_phase_vector(symplectic, dimension)
-            return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
-        else:
-            symplectic = symplectic_random_transvection(n_qudits, dimension=dimension, num_transvections=n_transvection)
-            phase_vector = get_phase_vector(symplectic, dimension)
-            return cls(f"R{n_transvection}", list(range(n_qudits)), symplectic, dimension, phase_vector)
+    def from_random(cls, n_qudits: int, dimension: int, n_transvection: int = 10, seed: int | None = None):
+        if seed is not None:
+            np.random.seed(seed)
+        seed_vec = np.random.randint(0, 100000, size=n_transvection)
+        # if n_qudits < 4 and dimension == 2:
+        #     symp_int = np.random.randint(symplectic_group_size(n_qudits))
+        #     symplectic = symplectic_gf2(symp_int, n_qudits)
+        #     phase_vector = get_phase_vector(symplectic, dimension)
+        #     return cls(f"R{symp_int}", list(range(n_qudits)), symplectic.T, dimension, phase_vector)
+        # else:
+        symplectic = np.eye(2 * n_qudits, dtype=int)
+
+        for i in range(n_transvection):
+            np.random.seed(seed_vec[i])
+            Tv = transvection_matrix(np.random.randint(0, dimension, size=2 * n_qudits), dimension) % dimension
+            symplectic = symplectic @ Tv % dimension
+
+        phase_vector = get_phase_vector(symplectic, dimension)
+        return cls(f"R{n_transvection}", list(range(n_qudits)), symplectic, dimension, phase_vector)
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
         if np.all(self.dimensions != P.dimensions[self.qudit_indices]):
@@ -126,7 +134,6 @@ class Gate:
         # negative sign in below as definition in paper is strictly upper diagonal, not including diagonal part
         p_part = 2 * np.triu(U_conjugated) - np.diag(np.diag(U_conjugated))
         p2 = np.dot(a.T, np.dot(p_part, a))
-
         return (np.dot(h, a) - p1 + p2) % (2 * P.lcm)
 
     def copy(self) -> 'Gate':
@@ -157,6 +164,7 @@ class Gate:
         return Gate(self.name, self.qudit_indices, self.symplectic @ T, self.dimensions, self.phase_vector)
 
     def inv(self) -> 'Gate':
+        # TODO: Test for mixed dimensions - not clear that the symplectic form here is correct.
         print("Warning: inverse phase vector not working - PHASES MAY BE INCORRECT.")
 
         C = self.symplectic.T

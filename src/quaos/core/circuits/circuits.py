@@ -155,8 +155,8 @@ class Circuit:
             pauli = gate.act(pauli)
         return pauli
 
-    def show(self) -> QuantumCircuit:
-        if np.all(np.array(self.dimensions) == 2):
+    def show(self):
+        if np.all(np.array(self.dimensions) != 2):
             print("Circuit dimensions are all 2, using Qiskit QuantumCircuit, some gates may not be supported")
         circuit = QuantumCircuit(len(self.dimensions))
         dict = {'X': circuit.x, 'H': circuit.h, 'S': circuit.s, 'SUM': circuit.cx, 'CNOT': circuit.cx,
@@ -170,7 +170,7 @@ class Circuit:
                 dict[name](gate.qudit_indices[0])
 
         print(circuit)
-        return circuit
+        # return circuit
 
     def copy(self) -> 'Circuit':
         return Circuit(self.dimensions, self.gates.copy())

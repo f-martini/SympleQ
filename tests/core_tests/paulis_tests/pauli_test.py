@@ -1,5 +1,5 @@
 import numpy as np
-from quaos.core.paulis import PauliSum, PauliString, Pauli, Xnd, Ynd, Znd, Id
+from quaos.core.paulis import PauliSum, PauliString, Pauli
 
 
 class TestPaulis:
@@ -174,23 +174,13 @@ class TestPaulis:
 
     def test_basic_pauli_relations(self):
         dims = 3
-        x1 = Xnd(1, dims)
-        y1 = Ynd(1, dims)
-        z1 = Znd(1, dims)
-        id = Id(dims)
+        x1 = Pauli.from_string('x1z0', dimension=dims)
+        y1 = Pauli.from_string('x1z1', dimension=dims)
+        z1 = Pauli.from_string('x0z1', dimension=dims)
+        id = Pauli.from_string('x0z0', dimension=dims)
 
         assert x1 * z1 == y1
         assert x1 * x1 * x1 == id
-
-    def test_pauli_equality(self):
-        dims = 3
-        p1 = Pauli.from_string('x1z0', dimension=dims)
-        p2 = Pauli.from_string('x0z1', dimension=dims)
-        p3 = Pauli.from_string('x1z1', dimension=dims)
-
-        assert Xnd(1, dims) == p1
-        assert Znd(1, dims) == p2
-        assert Ynd(1, dims) == p3
 
     def test_pauli_string_construction(self):
         dims = [3, 3]
@@ -272,10 +262,16 @@ class TestPaulis:
                       phases=[0, 0, 1, 1],
                       dimensions=dims, standardise=False)
 
-        assert ps[0] == PauliString.from_string('x2z0 x2z0 x1z1', dimensions=dims)
-        assert ps[1] == PauliString.from_string('x2z0 x2z0 x0z0', dimensions=dims)
-        assert ps[2] == PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)
-        assert ps[3] == PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)
+        ps0 = PauliSum([PauliString.from_string('x2z0 x2z0 x1z1', dimensions=dims)], weights=[1], phases=[0])
+        ps1 = PauliSum([PauliString.from_string('x2z0 x2z0 x0z0', dimensions=dims)], weights=[1], phases=[0])
+        ps2 = PauliSum([PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)], weights=[0.5 + 0j], phases=[1],
+                       standardise=False)
+        ps3 = PauliSum([PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)], weights=[0.5 + 0j], phases=[1],
+                       standardise=False)
+        assert ps[0] == ps0, f'{ps[0].__str__()}\n{ps0.__str__()}'
+        assert ps[1] == ps1, f'{ps[1].__str__()}\n{ps1.__str__()}'
+        assert ps[2] == ps2, f'{ps[2].__str__()}\n{ps2.__str__()}'
+        assert ps[3] == ps3, f'{ps[3].__str__()}\n{ps3.__str__()}'
         assert ps[0:2] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z0 x0z0'], dimensions=dims, standardise=False)
         assert ps[[0, 3]] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z1 x1z1'], weights=[1, 0.5], phases=[0, 1],
                                       dimensions=dims, standardise=False)
@@ -295,7 +291,7 @@ class TestPaulis:
         np.random.shuffle(shuffled_basis)
         ps = PauliSum.from_tableau(np.array(shuffled_basis), [d] * n_qudits)
 
-        assert np.all(ps.tableau() == symplectic_basis), 'Error in PauliSum ordering to symplectic basis'
+        assert np.all(ps.standard_form().tableau() == symplectic_basis)
 
     def test_symplectic_product(self):
         P1 = PauliString.from_string('x1z0', dimensions=[2])
@@ -359,3 +355,120 @@ class TestPaulis:
         P2 = PauliString.from_string('x3z4 x0z1', dimensions=[5, 2])
         assert P1.hermitian() == P2
 
+    def test_qubit_XZ_phase_is_minus_one(self):
+        # Single qubit (dimension 2): X * Z = (-1) Z * X  => scalar exponent r = 1 mod 2
+        dims = [2]
+        psX = PauliString(x_exp=[1], z_exp=[0], dimensions=dims)  # X
+        psZ = PauliString(x_exp=[0], z_exp=[1], dimensions=dims)  # Z
+
+        # per-qudit residue
+        rj = psX.symplectic_residues(psZ)
+        assert rj.tolist() == [1]
+
+        # scalar phase mod LCM
+        L = int(np.lcm.reduce(np.array(dims, int)))
+        r_scalar = psX.symplectic_product(psZ, as_scalar=True)
+        assert r_scalar == 1 % L
+
+    def test_mixed_dims_qutrit_XZ_phase(self):
+        # dims = [2, 3]; use site 1 (qutrit) to get omega_3
+        dims = [2, 3]
+        P = PauliString(x_exp=[0, 1], z_exp=[0, 0], dimensions=dims)  # X on qutrit
+        Q = PauliString(x_exp=[0, 0], z_exp=[0, 1], dimensions=dims)  # Z on qutrit
+
+        # residues: [0 mod 2, 1 mod 3]
+        assert P.symplectic_residues(Q).tolist() == [0, 1]
+
+        # scalar: L = 6, weights = [3, 2], r = 0*3 + 1*2 = 2 mod 6
+        assert P.symplectic_product(Q, as_scalar=True) == 2
+
+    def test_mixed_dims_all_sites_X_vs_Z_product(self):
+        dims = [2, 3, 5]
+        P = PauliString(x_exp=[1, 1, 1], z_exp=[0, 0, 0], dimensions=dims)  # X on all
+        Q = PauliString(x_exp=[0, 0, 0], z_exp=[1, 1, 1], dimensions=dims)  # Z on all
+
+        # residues per site are all 1
+        assert P.symplectic_residues(Q).tolist() == [1, 1, 1]
+
+        # scalar: L=30, weights=[15,10,6], r = 15+10+6 = 31 ≡ 1 (mod 30)
+        assert P.symplectic_product(Q, as_scalar=True) == 1
+
+    def test_bilinearity_scalar_mode(self):
+        # Check <v1+v2, w> = <v1, w> + <v2, w>  (phase-preserving scalar)
+        dims = [2, 3]
+        v1 = PauliString(x_exp=[1, 0], z_exp=[0, 0], dimensions=dims)  # X on qubit
+        v2 = PauliString(x_exp=[0, 1], z_exp=[0, 0], dimensions=dims)  # X on qutrit
+        w = PauliString(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)  # XZ on qutrit
+
+        # Build v12 by adding tableaux modulo dims
+        x12 = (np.array([1, 0]) + np.array([0, 1])) % np.array(dims)
+        z12 = (np.array([0, 0]) + np.array([0, 0])) % np.array(dims)
+        v12 = PauliString(x_exp=x12.tolist(), z_exp=z12.tolist(), dimensions=dims)
+
+        L = int(np.lcm.reduce(np.array(dims, int)))
+        lhs = v12.symplectic_product(w, as_scalar=True)
+        rhs = (v1.symplectic_product(w, as_scalar=True) +
+               v2.symplectic_product(w, as_scalar=True)) % L
+        assert lhs == rhs
+
+    def test_antisymmetry_residues_and_scalar(self):
+        dims = [2, 5]
+        P = PauliString(x_exp=[1, 0], z_exp=[0, 1], dimensions=dims)    # X0 Z1
+        Q = PauliString(x_exp=[1, 1], z_exp=[0, 0], dimensions=dims)    # X0 X1
+
+        rP_Q = P.symplectic_residues(Q)
+        rQ_P = Q.symplectic_residues(P)
+        dims_arr = np.array(dims, int)
+
+        # r(P,Q) == - r(Q,P) (mod d_j) per qudit
+        assert np.all((rP_Q + rQ_P) % dims_arr == 0)
+
+        # scalar version mod L
+        L = int(np.lcm.reduce(np.array(dims, int)))
+        sPQ = P.symplectic_product(Q, as_scalar=True)
+        sQP = Q.symplectic_product(P, as_scalar=True)
+        assert (sPQ + sQP) % L == 0
+
+    def test_symplectic_product_matrix_matches_pairwise_mixed_dims(self):
+        dims = [2, 3]
+        # P1 = X on qubit, P2 = Z on qutrit, P3 = XZ on qutrit
+        P1 = PauliString(x_exp=[1, 0], z_exp=[0, 0], dimensions=dims)
+        P2 = PauliString(x_exp=[0, 0], z_exp=[0, 1], dimensions=dims)
+        P3 = PauliString(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)
+        S = PauliSum(pauli_list=[P1, P2, P3],
+                     weights=None, phases=None, dimensions=dims, standardise=False)
+
+        SPM = S.symplectic_product_matrix()
+        L = int(np.lcm.reduce(np.array(dims, int)))
+
+        # Compute expected lower triangle via pairwise scalar products
+        expect = np.zeros_like(SPM)
+        ps = [P1, P2, P3]
+        for i in range(len(ps)):
+            for j in range(i):
+                expect[i, j] = ps[i].symplectic_product(ps[j], as_scalar=True)
+        expect = (expect + expect.T) % L
+        np.fill_diagonal(expect, 0)
+
+        assert np.array_equal(SPM % L, expect % L)
+
+    def test_symplectic_product_matrix_properties(self):
+        # Symmetry and zero diagonal
+        dims = [2, 3, 5]
+        P1 = PauliString(x_exp=[1, 0, 0], z_exp=[0, 0, 0], dimensions=dims)  # X on qubit
+        P2 = PauliString(x_exp=[0, 1, 0], z_exp=[0, 1, 0], dimensions=dims)  # XZ on qutrit
+        P3 = PauliString(x_exp=[0, 0, 1], z_exp=[0, 0, 0], dimensions=dims)  # X on ququint
+        P4 = PauliString(x_exp=[0, 0, 0], z_exp=[1, 0, 1], dimensions=dims)  # Z on qubit & ququint
+        S = PauliSum(pauli_list=[P1, P2, P3, P4],
+                     weights=None, phases=None, dimensions=dims, standardise=True)
+
+        SPM = S.symplectic_product_matrix()
+        L = int(np.lcm.reduce(np.array(dims, int)))
+
+        # Symmetric and zero diagonal modulo L
+        assert np.array_equal(SPM % L, SPM.T % L)
+        assert np.all((np.diag(SPM) % L) == 0)
+
+        # Spot-check against pairwise method:
+        ps = S.pauli_strings
+        assert SPM[1, 3] % L == ps[1].symplectic_product(ps[3], as_scalar=True) % L

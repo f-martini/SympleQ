@@ -128,3 +128,57 @@ def mod_inv(M: np.ndarray, p: int):
     GFP = galois.GF(p)
     M = GFP(M)
     return np.linalg.inv(M)
+
+
+def gf_rref(A: np.ndarray, GF: type) -> tuple[np.ndarray, list[int]]:
+    A = GF(A)
+    m, n = A.shape
+    R = A.copy()
+    pivots = []
+    r = 0
+    for c in range(n):
+        piv = None
+        for rr in range(r, m):
+            if R[rr, c] != GF(0):
+                piv = rr
+                break
+        if piv is None:
+            continue
+        if piv != r:
+            R[[r, piv], :] = R[[piv, r], :]
+        inv = GF(1) / R[r, c]
+        R[r, :] *= inv
+        for rr in range(m):
+            if rr != r and R[rr, c] != GF(0):
+                R[rr, :] -= R[rr, c] * R[r, :]
+        pivots.append(c)
+        r += 1
+        if r == m:
+            break
+    return R, pivots
+
+
+def gf_solve(A: np.ndarray, b: np.ndarray, GF: type) -> np.ndarray:
+    """
+    Solve A x = b over GF(p). Returns one particular solution or raises ValueError if inconsistent.
+    """
+    A = GF(A)
+    b = GF(b).reshape(-1, 1)
+    m, n = A.shape
+    M = np.hstack((A, b))
+    R, _ = gf_rref(M, GF)
+    # consistency check
+    for i in range(m):
+        if np.all(R[i, :n] == GF(0)) and R[i, n] != GF(0):
+            raise ValueError("Inconsistent linear system over GF(p).")
+    # particular solution (free vars = 0)
+    x = GF.Zeros(n)
+    row = 0
+    for c in range(n):
+        if row < m and R[row, c] == GF(1) and np.all(R[row, :c] == GF(0)):
+            s = GF(0)
+            for j in range(c + 1, n):
+                s += R[row, j] * x[j]
+            x[c] = R[row, n] - s
+            row += 1
+    return np.asarray(x).reshape(n, 1)

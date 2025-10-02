@@ -78,11 +78,14 @@ class PauliSum:
             self.standardise()
 
     @classmethod
-    def from_tableau(cls, tableau: np.ndarray, dimensions: list[int] | np.ndarray) -> 'PauliSum':
+    def from_tableau(cls, tableau: np.ndarray,
+                     dimensions: list[int] | np.ndarray,
+                     weights: np.ndarray | None = None
+                     ) -> 'PauliSum':
         p_strings = []
         for row in tableau:
             p_strings.append(PauliString(x_exp=row[:len(row) // 2], z_exp=row[len(row) // 2:], dimensions=dimensions))
-        return cls(p_strings, dimensions=dimensions)
+        return cls(p_strings, dimensions=dimensions, weights=weights, standardise=False)
 
     @classmethod
     def from_pauli(cls,
@@ -328,23 +331,6 @@ class PauliSum:
         """
         return self.n_paulis(), self.n_qudits()
 
-    # TODO: Not sure I follow what this function is doing... Is it supposed to tell which are the
-    # number of identities (intended as IIII...III) in the PauliSum?
-    def n_identities(self):
-        """
-        Get the number of identities in the PauliSum.
-
-        Returns
-        -------
-        int
-            The number of identities.
-        """
-        n_is = []
-        for i in range(self.n_paulis()):
-            n_is.append(self.pauli_strings[i].n_identities())
-        # TODO: I included this return... does it make sense?
-        return sum(n_is)
-
     def phase_to_weight(self):
         """
         Include the phases into the weights of the PauliSum.
@@ -379,12 +365,12 @@ class PauliSum:
 
     @overload
     def __getitem__(self,
-                    key: int | tuple[int, slice] | tuple[int, list[int]]) -> PauliString:
+                    key: tuple[int, slice] | tuple[int, list[int]]) -> PauliString:
         ...
 
     @overload
     def __getitem__(self,
-                    key: slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] |
+                    key: int | slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] |
                     tuple[slice, list[int]] | tuple[slice, np.ndarray] | tuple[list[int], int] |
                     tuple[np.ndarray, int] | tuple[np.ndarray, slice] | tuple[np.ndarray, list[int]] |
                     tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, list[int]] | tuple[list[int], list[int]] |
@@ -395,7 +381,7 @@ class PauliSum:
                     key):
         # TODO: tidy
         if isinstance(key, int):
-            return self.pauli_strings[key]
+            return PauliSum([self.pauli_strings[key]], [self.weights[key]], [self.phases[key]], self.dimensions, False)
         elif isinstance(key, slice):
             return PauliSum(self.pauli_strings[key], self.weights[key], self.phases[key], self.dimensions, False)
         elif isinstance(key, np.ndarray) or isinstance(key, list):
@@ -906,7 +892,7 @@ class PauliSum:
         )
 
     def __dict__(self) -> dict:
-        """
+        """`
         Returns a dictionary representation of the object's attributes.
 
         Returns
@@ -1161,25 +1147,42 @@ class PauliSum:
 
     def symplectic_product_matrix(self) -> np.ndarray:
         """
-        The symplectic product matrix S associated to the PauliSum.
-        It is an n x n matrix, n being the number of Paulis.
-        The entry S[i, j] is the symplectic product of the ith Pauli and the jth Pauli.
-
-        Returns
-        -------
-        np.ndarray
-            The symplectic product matrix S.
+        Scalar (phase-preserving) symplectic product matrix S (n x n), entries mod LCM(dimensions).
+        S[i, j] = sum_j (L/d_j) * r_j( P_i, P_j )  (mod L), symmetric with zeros on diagonal.
         """
         n = self.n_paulis()
-        # list_of_symplectics = self.symplectic_matrix()
+        L = self.lcm
+        S = np.zeros((n, n), dtype=int)
 
-        spm = np.zeros([n, n], dtype=int)
         for i in range(n):
-            for j in range(n):
-                if i > j:
-                    spm[i, j] = self.pauli_strings[i].symplectic_product(self.pauli_strings[j])
-        spm = spm + spm.T
-        return spm
+            for j in range(i):  # fill lower triangle
+                val = self.pauli_strings[i].symplectic_product(self.pauli_strings[j], as_scalar=True)
+                S[i, j] = val
+
+        S = (S + S.T) % L
+        # optional: ensure diagonal zeros (they should be)
+        np.fill_diagonal(S, 0)
+        return S
+
+    def symplectic_residue_tensor(self) -> np.ndarray:
+        """
+        Per-qudit residue tensor R of shape (n_paulis, n_paulis, n_qudits),
+        where R[i, j, k] = r_k(P_i, P_j) mod d_k. Symmetric in (i, j) and zero on diagonal.
+        """
+        n = self.n_paulis()
+        nq = len(self.dimensions)
+        R = np.zeros((n, n, nq), dtype=int)
+
+        for i in range(n):
+            for j in range(i):  # lower triangle
+                r = self.pauli_strings[i].symplectic_residues(self.pauli_strings[j])  # length-nq
+                R[i, j, :] = r
+
+        # symmetrize and clear diagonal
+        R = R + np.transpose(R, (1, 0, 2))
+        for i in range(n):
+            R[i, i, :] = 0
+        # optional
 
     def quditwise_symplectic_product_matrix(self) -> np.ndarray:
         """
@@ -1206,7 +1209,7 @@ class PauliSum:
     # TODO: What's the difference between the next two functions?
     def __str__(self) -> str:
         """
-        Returns a string representation of the PauliSum.
+        Returns a more readable string representation of the PauliSum.
 
         Returns
         -------
@@ -1225,7 +1228,7 @@ class PauliSum:
 
     def __repr__(self) -> str:
         """
-        Returns a string representation of the PauliSum.
+        Returns an unambiguous string representation of the PauliSum.
 
         Returns
         -------

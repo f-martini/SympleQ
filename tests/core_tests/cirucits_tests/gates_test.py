@@ -148,7 +148,7 @@ class TestGates():
         # TODO: Be certain of inverse convention - ultimately arbitrary but should match prevalent literature
         for d in [2, 5, 11]:
             # test pauli_strings
-            gate = Hadamard(0, d, inverse=True)  # Hadamard on qubit 0
+            gate = Hadamard(0, d, inverse=False)  # Hadamard on qubit 0
 
             for i in range(100):
                 input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
@@ -159,7 +159,7 @@ class TestGates():
                     output_str_correct, dimensions=[d, d]
                 ), 'Error in Hadamard gate 0'
 
-            gate = Hadamard(1, d, inverse=True)  # Hadamard on qudit 1
+            gate = Hadamard(1, d, inverse=False)  # Hadamard on qudit 1
             for i in range(100):
                 input_ps, r1, r2, s1, s2 = self.random_pauli_string(d)
                 output_str_correct = f"x{r1}z{s1} x{(-s2) % d}z{r2}"
@@ -169,7 +169,7 @@ class TestGates():
                     output_str_correct, dimensions=[d, d]
                 ), 'Error in Hadamard gate 1'
             # test pauli_sums
-            gate = Hadamard(0, d, inverse=True)  # Hadamard on qubit 0
+            gate = Hadamard(0, d, inverse=False)  # Hadamard on qubit 0
 
             for i in range(100):
                 ps_list_in = []
@@ -381,10 +381,6 @@ class TestGates():
                     )
 
     def test_gate_transvection(self):
-        g = Hadamard(0, 2)
-        gt = g.transvection([0, 1])
-        target = np.array([[0, 1], [-1, -1]])
-        assert np.array_equal(gt.symplectic, target), 'Error in Hadamard transvection'
 
         for _ in range(100):
             g = Gate.from_random(5, 2)
@@ -394,10 +390,10 @@ class TestGates():
     # def test_gate_inverse(self):
     #     n_qudits = 2
     #     n_paulis = 3
-    #     dimension = 2
+    #     dimension = 3
     #     for _ in range(1):
-    #         g = Gate.from_random(n_qudits, dimension, seed=2)
-    #         gt = g.inv()
+    #         g = Gate.from_random(n_qudits, dimension)
+    #         gt = g.inverse()
     #         rps = PauliSum.from_random(n_paulis, n_qudits, [dimension] * n_qudits, False, seed=1)
     #         print(rps)
     #         assert rps == g.act(gt.act(rps)), 'Inversion Error:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()

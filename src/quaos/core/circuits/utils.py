@@ -4,23 +4,6 @@ import scipy.sparse as sp
 from quaos.utils import int_to_bases, bases_to_int
 
 
-# def is_symplectic(F, p):
-#     GF = galois.GF(p)
-#     if isinstance(F, np.ndarray):
-#         F = GF(F)
-#     n = F.shape[0] // 2
-#     Id = GF.Identity(n)
-#     if p == 2:
-#         Omega = GF.Zeros((2 * n, 2 * n))
-#         Omega[:n, n:] = Id
-#         Omega[n:, :n] = Id
-#     else:
-#         Omega = GF.Zeros((2 * n, 2 * n))
-#         Omega[:n, n:] = Id
-#         Omega[n:, :n] = -Id
-#     lhs = F.T @ Omega @ F
-#     return np.array_equal(lhs, Omega)
-
 def is_symplectic(F, p: int) -> bool:
     """
     Check if matrix F is symplectic over GF(p).
@@ -102,7 +85,7 @@ def transvection_matrix(h: np.ndarray, p=2, multiplier=1):
     n = len(h) // 2
     Omega = symplectic_form(n, p)
 
-    F_h = (np.eye(2 * n, dtype=int) + multiplier * Omega @ (np.outer(h.T, h))) % p
+    F_h = (np.eye(2 * n, dtype=int) + multiplier * (Omega @ np.outer(h.T, h))) % p
     return F_h
 
 
@@ -148,7 +131,6 @@ def _multi_index_to_linear(index: list[int] | np.ndarray, dims: list[int] | np.n
     """
     dims = list(map(int, dims))
     idx = 0
-    # stride = 1
     # Compute strides from right to left
     strides = [1] * len(dims)
     for k in range(len(dims) - 2, -1, -1):

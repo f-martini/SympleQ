@@ -231,7 +231,6 @@ def map_pauli_sum_to_target_tableau(pauli_sum_tableau: np.ndarray, target_pauli_
     """
     if not check_mappable_via_clifford(pauli_sum_tableau, target_pauli_sum_tableau):
         raise Exception(f'SPM not equal. Cannot map\n{pauli_sum_tableau} to\n{target_pauli_sum_tableau}')
-    # Find a vector w such that <w, pauli_sum> = <w, target_pauli_sum> = 1
 
     m = len(pauli_sum_tableau)
     n = len(pauli_sum_tableau[0]) // 2
@@ -242,8 +241,9 @@ def map_pauli_sum_to_target_tableau(pauli_sum_tableau: np.ndarray, target_pauli_
         ps = (pauli_sum_tableau[i] @ F) % 2
         target_ps = target_pauli_sum_tableau[i]
 
-        # if np.array_equal(ps, target_ps):
-        #     continue
+        if np.array_equal(ps, target_ps):
+            mapped_paulis.append(target_ps)  # these are now the constraints for the next iteration
+            continue
 
         F_map = map_single_pauli_string_to_target(ps, target_ps, mapped_paulis)
         assert np.all((ps @ F_map) % 2 == target_ps), f"\n{F_map}\n{ps}\n{(ps @ F_map) % 2}\n{target_ps}"

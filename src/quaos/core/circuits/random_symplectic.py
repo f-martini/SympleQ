@@ -228,6 +228,7 @@ def is_symplectic_interleaved(F: np.ndarray) -> bool:
     lhs = (F.T @ Omega @ F) & 1
     return np.array_equal(lhs, Omega)
 
+
 def _isotropic_vector(n, d):
     """
     Sample an isotropic vector v = (a|b) in Z_d^{2n}.
@@ -236,7 +237,7 @@ def _isotropic_vector(n, d):
     """
     if d == 2:
         # Any vector works
-        return np.random.randint(0, 2, size=(2*n,), dtype=int)
+        return np.random.randint(0, 2, size=(2 * n,), dtype=int)
 
     # d prime
     while True:
@@ -291,6 +292,6 @@ def symplectic_random_transvection(n_qudits, dimension=2, num_transvections=None
     for _ in range(num_transvections):
         v = _isotropic_vector(n_qudits, dimension)
         Mv = _vector_to_transvection(v, J, dimension)
-        M = (Mv @ M) % dimension
+        M = (M @ Mv) % dimension
 
     return M

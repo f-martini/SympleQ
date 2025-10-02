@@ -191,20 +191,25 @@ def _check_code_automorphism(
     G: galois.FieldArray,
     basis_order: List[int],
     labels: List[int],
-    pi: np.ndarray
+    pi: np.ndarray,
+    p: int = 2
 ) -> bool:
     """
     Linear-code test over GF(p): ∃ U with U G P = G ?
-    Let C = G[:, P(B)]; if invertible, U = C^{-1} and check U G P == G.
+    Uses a *field* solve (no numpy int RHS) to avoid mixed-type pitfalls.
     """
+    GF = galois.GF(p)
+
     lab_to_idx = {lab: i for i, lab in enumerate(labels)}
     B_cols = np.array([lab_to_idx[b] for b in basis_order], dtype=int)
     PBcols = pi[B_cols]
-    C = G[:, PBcols]
+    C = G[:, PBcols]                         # k x k over GF(p)
+
     try:
-        U = np.linalg.inv(C)  # works on galois.FieldArray
+        U = np.linalg.solve(C, GF.Identity(C.shape[0]))  # solve in GF(p)
     except np.linalg.LinAlgError:
         return False
+
     Gp = G[:, pi]
     return np.array_equal(U @ Gp, G)
 
@@ -212,7 +217,6 @@ def _check_code_automorphism(
 # =============================================================================
 # Basis-first (complete) solver: basis_first="any"
 # =============================================================================
-
 def _basis_first_any(
     S_mod: np.ndarray,
     *,
@@ -226,13 +230,16 @@ def _basis_first_any(
     k_wanted: int,
     require_nontrivial: bool,
     p2_bitset: bool,
-    enforce_base_on_dependents: bool = False,   # <-- NEW: relaxed by default
+    enforce_base_on_dependents: bool = False,
+    p: int = 2
 ) -> List[Dict[int, int]]:
     """
-    Complete search that branches only on basis labels (images can be any labels).
-    After basis images fixed and C invertible, compute U=C^{-1} and place dependents
-    by requiring U @ G[:, y] == G[:, i], plus symplectic consistency and coeff equality.
-    If enforce_base_on_dependents is True, y must also lie in the *base* WL class of i.
+    Basis-first complete search with safe pruning:
+      - Basis is mapped within WL classes; local S-consistency used (cheap).
+      - Once basis fixed, compute U = C^{-1} over GF(p) by solve.
+      - Quick multiset precheck on dependents: signatures in UG vs in G.
+      - Dependent placement by exact column equality UG[:, y] == G[:, i],
+        plus local S-consistency and coefficient equality.
     """
     n = S_mod.shape[0]
     results: List[Dict[int, int]] = []
@@ -245,7 +252,6 @@ def _basis_first_any(
     # Prepared consistency kernel
     if p2_bitset:
         bits, _ = _build_bitrows_binary(S_mod)
-
         def consistent(phi, mapped, i, y):
             return _consistent_bitset(bits, phi, mapped, int(i), int(y))
     else:
@@ -258,40 +264,59 @@ def _basis_first_any(
 
     def place_dependents_with_U(U: galois.FieldArray) -> bool:
         """
-        Try to complete mapping for dependents only.
-        Use signature equality U @ G[:, y] == G[:, i] as a hard filter,
-        plus S-consistency and coefficient equality.
+        Finish dependents with:
+          1) multiset precheck on signatures,
+          2) candidate buckets from UG signatures,
+          3) iterative DFS with S-consistency and coeff equality.
         """
-        ncols = G.shape[1]
-        UG = U @ G  # k x n
+        # 1) compute UG and signatures
+        UG = U @ G  # k x n (FieldArray)
+        def sig(col): return tuple(int(v) for v in col)
 
-        # precompute exact column tuples (int) for equality check
-        sig_y = [tuple(int(v) for v in UG[:, y]) for y in range(ncols)]
-        sig_i = [tuple(int(v) for v in G[:, i]) for i in range(ncols)]
+        # Fast multiset precheck: needed vs available (exclude reserved basis images)
+        from collections import Counter
+        need = Counter(sig(G[:, j]) for j in range(n) if not basis_mask[j])
+        available = ~used
+        have = Counter(sig(UG[:, j]) for j in range(n) if available[j])
+        if need != have:
+            return False
+
+        # 2) Build buckets: signature -> candidate indices y (respecting 'used' and coeffs)
+        target_map: Dict[Tuple[int, ...], List[int]] = {}
+        for y in range(n):
+            if not available[y]:
+                continue
+            if coeffs is not None:
+                # enforce coefficient equality *only* when we know the source i
+                # here we bucket by signature alone; we’ll filter by coeff at use-site
+                pass
+            s = sig(UG[:, y])
+            target_map.setdefault(s, []).append(y)
 
         dependents = [i for i in range(n) if not basis_mask[i]]
-        # candidate lists per dependent
+        # Candidate lists per dependent
         dep_candidates: Dict[int, List[int]] = {}
         for i in dependents:
-            # pool: either all unused labels, or only the base class
+            s = sig(G[:, i])
+            lst = target_map.get(s, [])
+            if not lst:
+                return False
             if enforce_base_on_dependents:
-                pool = base_classes[int(base_colors[i])]
-            else:
-                pool = range(n)
-            lst = []
-            for y in pool:
-                if used[y]:
-                    continue
-                if coeffs is not None and coeffs[i] != coeffs[y]:
-                    continue
-                if sig_y[y] != sig_i[i]:
-                    continue
-                lst.append(y)
+                bi = int(base_colors[i])
+                lst = [y for y in lst if y in base_classes[bi]]
+                if not lst:
+                    return False
+            # coeff equality filtered here
+            if coeffs is not None:
+                lst = [y for y in lst if coeffs[i] == coeffs[y]]
+                if not lst:
+                    return False
             dep_candidates[i] = lst
 
-        # order by fewest candidates
+        # Order by fewest candidates (MRV)
         dep_order = sorted(dependents, key=lambda i: len(dep_candidates[i]))
 
+        # 3) Iterative DFS
         def dfs_dep(t: int) -> bool:
             if t >= len(dep_order):
                 pi = phi.copy()
@@ -299,7 +324,7 @@ def _basis_first_any(
                     return False
                 if not _check_symplectic_invariance_mod(S_mod, pi):
                     return False
-                if not _check_code_automorphism(G, basis_order, labels, pi):
+                if not _check_code_automorphism(G, basis_order, labels, pi, p):
                     return False
                 results.append(_perm_index_to_perm_map(labels, pi))
                 return True
@@ -307,6 +332,7 @@ def _basis_first_any(
             i = dep_order[t]
             mapped_idx = np.where(phi >= 0)[0].astype(np.int64)
 
+            # Try each candidate y for this dependent i
             for y in dep_candidates[i]:
                 if used[y]:
                     continue
@@ -324,17 +350,17 @@ def _basis_first_any(
 
         return dfs_dep(0)
 
-    # DFS over basis images
     def dfs_basis(t: int) -> bool:
         if len(results) >= k_wanted:
             return True
         if t >= len(basis_idx):
-            # All basis mapped: compute U and finish dependents
-            PBcols = phi[basis_idx]
+            # Basis fixed: compute U = C^{-1} by *field* solve, then finish dependents
+            Bcols = np.array(basis_idx, dtype=int)
+            PBcols = phi[Bcols]
             C = G[:, PBcols]
+            GF = galois.GF(p)
             try:
-                U = np.linalg.inv(C)
-                U = G.__class__(U)  # Convert to galois.FieldArray
+                U = np.linalg.solve(C, GF.Identity(C.shape[0]))  # avoid inv
             except np.linalg.LinAlgError:
                 return False
             return place_dependents_with_U(U)
@@ -343,7 +369,7 @@ def _basis_first_any(
         bi = int(base_colors[i])
         mapped_idx = np.where(phi >= 0)[0].astype(np.int64)
 
-        # Feasible candidates for this basis variable (base partition + coeffs)
+        # Candidates for this basis var: within its base WL class (safe) and coeff-equal
         candidates = [y for y in base_classes[bi] if not used[y]]
         if coeffs is not None:
             candidates = [y for y in candidates if coeffs[i] == coeffs[y]]
@@ -361,6 +387,7 @@ def _basis_first_any(
 
     dfs_basis(0)
     return results[:k_wanted]
+
 
 # =============================================================================
 # Fallback full DFS (feasible by base partition; complete). Kept simple/serial.
@@ -381,6 +408,7 @@ def _full_dfs_complete(
     require_nontrivial: bool,
     p2_bitset: bool,
     dynamic_refine_every: int = 0,
+    p: int = 2
 ) -> List[Dict[int, int]]:
     """
     Complete interleaved DFS that maps all labels with feasibility constrained ONLY by base partition.
@@ -428,7 +456,7 @@ def _full_dfs_complete(
             return False
         if not _check_symplectic_invariance_mod(S_mod, pi):
             return False
-        if not _check_code_automorphism(G, basis_order, labels, pi):
+        if not _check_code_automorphism(G, basis_order, labels, pi, p):
             return False
         return True
 
@@ -493,7 +521,6 @@ def find_k_automorphisms_symplectic(
     require_nontrivial: bool = True,
     # Strategy
     basis_first: str = "any",          # "off" | "any" (complete) | "basis_only" (heuristic)
-    fallback_full_if_empty: bool = True,   # <-- NEW
     dynamic_refine_every: int = 0,
     coeffs: Optional[np.ndarray] = None,
     coeff_labels: Optional[List[int]] = None,
@@ -572,11 +599,12 @@ def find_k_automorphisms_symplectic(
             G=G, basis_order=basis_order, basis_mask=basis_mask, labels=pres_labels,
             k_wanted=k, require_nontrivial=require_nontrivial,
             p2_bitset=use_bitset,
-            enforce_base_on_dependents=bool(enforce_base_on_dependents),
+            enforce_base_on_dependents=bool(enforce_base_on_dependents), p=p
         )
-        if sols or not fallback_full_if_empty:
+        if sols:
             return sols
         # Safety net: fall back once to full DFS (complete)
+        print('Needs Full search')
         return _full_dfs_complete(
             S_mod,
             coeffs=coeffs_aligned,
@@ -585,7 +613,7 @@ def find_k_automorphisms_symplectic(
             G=G, basis_order=basis_order, basis_mask=basis_mask, labels=pres_labels,
             k_wanted=k, require_nontrivial=require_nontrivial,
             p2_bitset=use_bitset,
-            dynamic_refine_every=int(dynamic_refine_every),
+            dynamic_refine_every=int(dynamic_refine_every), p=p
         )
 
     if basis_first == "off":
@@ -598,6 +626,7 @@ def find_k_automorphisms_symplectic(
             k_wanted=k, require_nontrivial=require_nontrivial,
             p2_bitset=use_bitset,
             dynamic_refine_every=int(dynamic_refine_every),
+            p=p
         )
 
     raise ValueError("basis_first must be 'off', 'any', or 'basis_only'.")
@@ -608,24 +637,24 @@ if __name__ == "__main__":
     from quaos.models.random_hamiltonian import random_gate_symmetric_hamiltonian
     from quaos.core.circuits import SWAP
 
-    # sym = SWAP(0, 1, 2)
-    # H = random_gate_symmetric_hamiltonian(sym, 2, 4, scrambled=True)
+    sym = SWAP(0, 1, 2)
+    H = random_gate_symmetric_hamiltonian(sym, 2, 4, scrambled=True)
 
-    # independent, dependencies = get_linear_dependencies(H.tableau(), H.dimensions)
+    independent, dependencies = get_linear_dependencies(H.tableau(), H.dimensions)
 
-    # S = H.symplectic_product_matrix()
-    # coeffs = H.weights
+    S = H.symplectic_product_matrix()
+    coeffs = H.weights
 
-    independent = [0, 1, 2, 3]
-    dependencies = {4: [(1, 1), (3, 1)], 5: [(0, 1), (2, 1)], 6: [(0, 1), (1, 1)]}
-    S = np.array([[0, 0, 0, 1, 1, 0, 0],
-         [0, 0, 1, 0, 0, 1, 0],
-         [0, 1, 0, 1, 0, 0, 1],
-         [1, 0, 1, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 1, 1],
-         [0, 1, 0, 0, 1, 0, 1],
-         [0, 0, 1, 1, 1, 1, 0]])
-    coeffs = np.array([ 0.+1.j,  0.+1.j, -1.+0.j,  1.+0.j, -1.+0.j,  1.+0.j,  2.+0.j])
+    # independent = [0, 1, 2, 3]
+    # dependencies = {4: [(1, 1), (3, 1)], 5: [(0, 1), (2, 1)], 6: [(0, 1), (1, 1)]}
+    # S = np.array([[0, 0, 0, 1, 1, 0, 0],
+    #               [0, 0, 1, 0, 0, 1, 0],
+    #               [0, 1, 0, 1, 0, 0, 1],
+    #               [1, 0, 1, 0, 0, 0, 1],
+    #               [1, 0, 0, 0, 0, 1, 1],
+    #               [0, 1, 0, 0, 1, 0, 1],
+    #               [0, 0, 1, 1, 1, 1, 0]])
+    # coeffs = np.array([0.+1.j,  0.+1.j, -1.+0.j,  1.+0.j, -1.+0.j,  1.+0.j,  2.+0.j])
     print('independent = ', independent)
     print('dependencies = ', dependencies)
 
