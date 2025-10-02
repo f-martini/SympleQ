@@ -288,7 +288,7 @@ class CNOT(Gate):
             [1, 1, 0, 0],   # image of X0:  X0 -> X0 X1
             [0, 1, 0, 0],   # image of X1:  X1 -> X1
             [0, 0, 1, 0],   # image of Z0:  Z0 -> Z0
-            [0, 0, -1, 1]   # image of Z1:  Z1 -> Z0^-1 Z1
+            [0, 0, 1, 1]   # image of Z1:  Z1 -> Z0^-1 Z1
         ], dtype=int).T
 
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
@@ -320,12 +320,12 @@ class Hadamard(Gate):
             symplectic = np.array([
                 [0, 1],    # image of X:  X -> Z
                 [-1, 0]    # image of Z:  Z -> -X
-            ], dtype=int).T
+            ], dtype=int)
         else:
             symplectic = np.array([
                 [0, -1],   # image of X:  X -> -Z
                 [1, 0]     # image of Z:  Z -> X
-            ], dtype=int).T
+            ], dtype=int)
 
         phase_vector = np.array([0, 0], dtype=int)
 
@@ -351,8 +351,10 @@ class PHASE(Gate):
             [1, 1],  # image of X:  X -> XZ
             [0, 1]   # image of Z:  Z -> Z
         ], dtype=int).T
-
-        phase_vector = np.array([dimension + 1, 0], dtype=int)
+        if dimension == 2:
+            phase_vector = np.array([1, 0], dtype=int)
+        else:
+            phase_vector = np.array([0, 0], dtype=int)
 
         super().__init__("S", [index], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
