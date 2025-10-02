@@ -402,4 +402,83 @@ class TestGates():
     #         print(rps)
     #         assert rps == g.act(gt.act(rps)), 'Inversion Error:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
 
+    def phase_table_local(self, G):
+        d = G.dimensions[0]
+        phase_table_unitary = np.zeros((d, d))
+        phase_table_symplectic = np.zeros((d, d))
+        for i in range(d):
+            for j in range(d):
+                pauli_string = 'x' + str(i) + 'z' + str(j)
+                ps = PauliSum([pauli_string],
+                              dimensions=[d],
+                              weights=[1], phases=[0])
+                ps_m = ps.matrix_form()
+
+                ps_res = G.act(ps)
+                phase_table_symplectic[i, j] = ps_res.phases[0]
+                ps_res.phases = [0]
+                ps_res_m = ps_res.matrix_form()
+
+                ps_m_res = G.unitary() @ ps_m @ G.unitary().conj().T
+
+                mask = (ps_res_m.toarray() != 0)
+                factors = np.around(ps_m_res.toarray()[mask] / ps_res_m.toarray()[mask], 14)
+                factor = factors[0]
+                phase_table_unitary[i, j] = factor
+        return phase_table_unitary, phase_table_symplectic
+
+    def phase_table_entangling(self, G):
+        d = G.dimensions[0]
+        phase_table_unitary = np.zeros((d, d))
+        phase_table_symplectic = np.zeros((d, d))
+        U = G.unitary()
+        for i1 in range(d):
+            for j1 in range(d):
+                for i2 in range(d):
+                    for j2 in range(d):
+                        pauli_string = 'x' + str(i1) + 'z' + str(j1) + ' ' + 'x' + str(i2) + 'z' + str(j2)
+                        ps = PauliSum([pauli_string],
+                                      dimensions=[d, d],
+                                      weights=[1], phases=[0])
+                        ps_m = ps.matrix_form()
+
+                        ps_res = G.act(ps)
+                        phase_table_symplectic[i1 * d + i2, j1 * d + j2] = ps_res.phases[0]
+                        ps_res.phases = [0]
+                        ps_res_m = ps_res.matrix_form()
+
+                        ps_m_res = U @ ps_m @ U.conj().T
+
+                        mask = (ps_res_m.toarray() != 0)
+                        factors = np.around(ps_m_res.toarray()[mask]/ps_res_m.toarray()[mask],14)
+                        factor = factors[0]
+                        phase_table_unitary[i1 * d + i2, j1 * d + j2] = (d * np.angle(factor) / (np.pi)) % (2 * d)
+
+        return phase_table_unitary, phase_table_symplectic
+
+    def test_phase_table(self):
+        # d = 2
+        for d in [2, 3, 5, 7, 11]:
+            G = Hadamard(0, d)
+            phase_table_unitary, phase_table_symplectic = self.phase_table_local(G)
+            diff_m = np.around(phase_table_unitary - phase_table_symplectic, 10)
+            assert not np.any(diff_m), 'Symplectic phase table does not match unitary phase table for Hadamard gate'
+
+            G = PHASE(0, d)
+            phase_table_unitary, phase_table_symplectic = self.phase_table_local(G)
+            diff_m = np.around(phase_table_unitary - phase_table_symplectic, 10)
+            assert not np.any(diff_m), 'Symplectic phase table does not match unitary phase table for Phase gate'
+
+            G = SUM(0, 1, d)
+            phase_table_unitary, phase_table_symplectic = self.phase_table_entangling(G)
+            diff_m = np.around(phase_table_unitary - phase_table_symplectic, 10)
+            assert not np.any(diff_m), 'Symplectic phase table does not match unitary phase table for SUM[0,1] gate'
+
+            G = SUM(1, 0, d)
+            phase_table_unitary, phase_table_symplectic = self.phase_table_entangling(G)
+            diff_m = np.around(phase_table_unitary - phase_table_symplectic, 10)
+            assert not np.any(diff_m), 'Symplectic phase table does not match unitary phase table for SUM[1,0] gate'
+
+
+
 
