@@ -5,12 +5,38 @@ import galois
 from quaos.utils import get_linear_dependencies
 from numba import njit
 from quaos.core.circuits.target import map_pauli_sum_to_target_tableau as _map_sum_to_target
+from collections import defaultdict
+
 Label = int
 DepPairs = Dict[Label, List[Tuple[Label, int]]]
 
 # =============================================================================
 # Small utilities
 # =============================================================================
+def _in_image_mod2(M: np.ndarray, b: np.ndarray) -> bool:
+    """Return True iff b is in the column space of M over GF(2)."""
+    x = _gauss_solve_mod2(M % 2, b % 2)
+    return x is not None
+
+def _qF_parity_vector_via_U(tableau: np.ndarray, F: np.ndarray) -> np.ndarray:
+    """
+    Return qF(a_i) mod 2 for all rows i, using the SAME U-form as your gate.
+    For qubits this equals r mod 2 since 2*(phi_pi-phi) is even.
+    """
+    N, two_n = tableau.shape
+    n = two_n // 2
+    U = np.zeros((two_n, two_n), dtype=int)
+    U[n:, :n] = 1
+    U_F = (F % 4) @ (U % 4) @ (F.T % 4) % 4
+    d = np.diag(U_F) % 4
+    Ppart = (2 * np.triu(U_F) - np.diag(d)) % 4
+    q2 = np.zeros(N, dtype=int)
+    for i in range(N):
+        a = tableau[i, :] % 4
+        p1 = int(d @ a) % 4
+        p2 = int(a @ ((Ppart @ a) % 4)) % 4
+        q2[i] = (-p1 + p2) & 1  # mod 2
+    return q2
 
 def _perm_index_to_perm_map(pi: np.ndarray) -> Dict[int, int]:
     return {i: int(pi[i]) for i in range(pi.size)}
@@ -150,40 +176,69 @@ def _check_symplectic_invariance_mod(S_mod: np.ndarray, pi: np.ndarray) -> bool:
 
 # Phase consistency checks
 
-def _almost_equal_complex(a: complex, b: complex, atol: float = 1e-12, rtol: float = 1e-10) -> bool:
+def _almost_equal_complex(a: complex, b: complex, atol: float = 1e-9, rtol: float = 1e-9) -> bool:
     return abs(a - b) <= max(atol, rtol * max(abs(a), abs(b)))
 
-def _verify_weights_with_h(
-    tableau: np.ndarray,   # N × 2n
-    coeffs: Optional[np.ndarray],  # length N (complex)
-    pi: np.ndarray,         # length N row permutation
-    h: np.ndarray,          # length 2n, modulo 2p
-    p: int
-) -> bool:
-    if coeffs is None:
-        return True  # nothing to check
-    mod2 = 2 * int(p)
-    N = tableau.shape[0]
-    # phase exponent per row: t_i = (a_i · h) mod 2p
-    t = (tableau @ (h % mod2)) % mod2
+def _i_pow(k: int) -> complex:
+    k &= 3
+    return (1+0j, 0+1j, -1+0j, 0-1j)[k]
 
-    if p == 2:
-        for i in range(N):
-            if t[i] & 1:
-                # print(f"[weights] odd t[{i}]={t[i]} -> unexpected ±i from h-only")
-                return False
-            factor = 1.0 if (t[i] % 4 == 0) else -1.0
-            lhs = coeffs[i]
-            rhs = factor * coeffs[pi[i]]
-            if not _almost_equal_complex(lhs, rhs):
-                print(f"[weights] mismatch at row {i}: coeff[i]={lhs}, factor={factor}, coeff[pi[i]]={coeffs[pi[i]]}")
-                return False
-        return True
-    else:
-        # For general prime p, you’d map the exponent t_i (mod 2p) to a p-th root of unity.
-        # Placeholder: accept for now (or implement your desired mapping).
+def _verify_weights_gate_exact(tableau, coeffs_raw, pi, F, h, *, atol=1e-9, rtol=1e-9, qubits_global=True) -> bool:
+    if coeffs_raw is None:
         return True
 
+    N, two_n = tableau.shape
+    n = two_n // 2
+    mod4 = 4
+
+    # Build U_F as in the gate
+    U = np.zeros((two_n, two_n), dtype=int)
+    U[n:, :n] = 1
+    U_F = (F % mod4) @ (U % mod4) @ (F.T % mod4) % mod4
+    d = np.diag(U_F) % mod4
+    Ppart = (2 * np.triu(U_F) - np.diag(d)) % mod4
+
+    def ipow(k: int) -> complex:
+        k &= 3
+        return (1+0j, 0+1j, -1+0j, 0-1j)[k]
+
+    # Find a reference global phase g from the first nonzero row
+    g_ref = None
+
+    for i in range(N):
+        a = (tableau[i, :] % mod4).astype(int)
+        p1 = int(d @ a) % mod4
+        p2 = int(a @ ((Ppart @ a) % mod4)) % mod4
+        qF = (-p1 + p2) % mod4
+        acq = (int(h @ a) + qF) % mod4
+
+        lhs = complex(coeffs_raw[pi[i]])
+        rhs = ipow(acq) * complex(coeffs_raw[i])
+
+        if abs(rhs) <= max(atol, rtol * abs(lhs)) and abs(lhs) <= max(atol, rtol * abs(rhs)):
+            # both effectively zero → OK
+            continue
+        if abs(rhs) <= max(atol, rtol * abs(lhs)) or abs(lhs) <= max(atol, rtol * abs(rhs)):
+            # one zero, the other nonzero → fail
+            return False
+
+        gi = lhs / rhs  # candidate global phase for this row
+
+        if g_ref is None:
+            if qubits_global:
+                # snap to nearest in {1,i,-1,-i}
+                candidates = [1+0j, 0+1j, -1+0j, 0-1j]
+                g_ref = min(candidates, key=lambda z: abs(gi - z))
+                if abs(gi - g_ref) > 1e-8:
+                    # if it’s not very close to a Clifford phase, still accept as long as consistent across rows
+                    g_ref = gi
+            else:
+                g_ref = gi
+        else:
+            if abs(lhs - g_ref * rhs) > max(atol, rtol * max(abs(lhs), abs(g_ref * rhs))):
+                return False
+
+    return True
 
 
 # =============================================================================
@@ -247,6 +302,7 @@ def _check_code_automorphism(
 # =============================================================================
 # Modular linear algebra (GF(p), plus CRT/Hensel for mod 2p solves)
 # =============================================================================
+
 
 def _inv_mod_prime(a: int, p: int) -> int:
     p = int(p); a = int(a) % p
@@ -409,96 +465,342 @@ def _build_F_right_rowperm(
 
     return F % p
 
-
-def _build_phase_rhs_tableau(tableau: np.ndarray, phases: Optional[np.ndarray], pi: np.ndarray,
-                             Delta_mod2: np.ndarray, p: int) -> np.ndarray:
+def _solve_h_qubits_mod4_with_lift(M: np.ndarray, b: np.ndarray, diag: dict | None = None) -> np.ndarray | None:
     """
-    Build r (length N) where r_i = 2(φ_{π(i)} - φ_i) - a_i Δ a_i^T  (mod 2p),
-    with a_i the *row* i of tableau (N × 2n).
+    Solve M h = b (mod 4). Try a direct Z4 elimination (unit pivots) first;
+    fallback to 2-adic lift from mod 2 with a small nullspace multi-start.
+    Returns h (length 2n) or None.
     """
-    mod2 = 2 * int(p)
-    N = tableau.shape[0]
-    phi = np.zeros(N, dtype=int) if phases is None else (np.asarray(phases, dtype=int) % p)
-    r = np.zeros(N, dtype=int)
-    for i in range(N):
-        a = (tableau[i, :] % mod2).astype(int)
-        quad = int(a @ ((Delta_mod2 @ a) % mod2)) % mod2
-        dphi = int((2 * ((phi[pi[i]] - phi[i]) % p)) % mod2)
-        r[i] = (dphi - quad) % mod2
-    return r
+    # 1) direct mod-4
+    h4 = _gauss_solve_mod4_unit(M, b)  # your existing routine
+    if h4 is not None and np.array_equal((M @ h4) % 4, b % 4):
+        return h4 % 4
+    if diag is not None: diag["phase_mod4_infeasible"] += 1
 
-def _solve_tableau_h_eq_r_mod_2p(tableau: np.ndarray, r: np.ndarray, p: int) -> Optional[np.ndarray]:
-    """
-    Solve (tableau) h ≡ r  (mod 2p), where tableau is N × 2n, r is length N.
-    Returns h (length 2n) modulo 2p, or None if inconsistent.
-    """
-    M = tableau  # N × 2n
-    if p % 2 == 1:
-        h_p = _gauss_solve_mod_prime(M, r, p)
-        if h_p is None:
-            return None
-        h_2 = _gauss_solve_mod_prime(M, r, 2)
-        if h_2 is None:
-            return None
-        inv2 = _inv_mod_prime(2, p)
-        h = np.zeros_like(h_p, dtype=int)
-        for i in range(h.size):
-            k = (int(h_p[i]) - int(h_2[i])) % p
-            u = (k * inv2) % p
-            h[i] = (int(h_2[i]) + 2 * int(u)) % (2 * p)
-        return h % (2 * p)
-    else:
-        # p == 2 -> lift mod 2 to mod 4
-        h2 = _gauss_solve_mod_prime(M, r, 2)
-        if h2 is None:
-            return None
-        e = (r % 4 - (M % 4) @ (h2 % 4)) % 4
-        if np.any(e % 2 != 0):
-            return None
-        y = _gauss_solve_mod_prime(M, (e // 2) % 2, 2)
-        if y is None:
-            return None
-        return (h2 + 2 * y) % 4  # 2p == 4
-
-def _solve_phase_system_variants_tableau(
-    tableau: np.ndarray,          # N × 2n
-    phases: Optional[np.ndarray],
-    pi: np.ndarray,
-    P_phase: np.ndarray,
-    F_int: Optional[np.ndarray],  # 2n × 2n mod p
-    p: int,
-    rank_full: bool,
-) -> Optional[np.ndarray]:
-    """
-    Try to solve (tableau) h ≡ r (mod 2p). Prefer Δ from a concrete F when available.
-    If rank is not full (no F), fall back to r = 2(φπ - φ).
-    """
-    mod2 = 2 * int(p)
-
-    def try_rhs(r_vec: np.ndarray) -> Optional[np.ndarray]:
-        h = _solve_tableau_h_eq_r_mod_2p(tableau, r_vec, p)
-        if h is None:
-            return None
-        lhs = (tableau @ (h % mod2)) % mod2
-        return h % mod2 if np.array_equal(lhs % mod2, r_vec % mod2) else None
-
-    if F_int is not None:
-        Delta = (F_int.T @ (P_phase % mod2) @ F_int - (P_phase % mod2)) % mod2
-        for D in (Delta, (-Delta) % mod2):  # handle sign conventions
-            r = _build_phase_rhs_tableau(tableau, phases, pi, D, p)
-            h = try_rhs(r)
-            if h is not None:
-                return h
-
-    if not rank_full:
-        N = tableau.shape[0]
-        phi = np.zeros(N, dtype=int) if phases is None else (np.asarray(phases, dtype=int) % p)
-        r = (2 * ((phi[pi] - phi) % p)) % mod2
-        h = try_rhs(r)
-        if h is not None:
+    # 2) 2-adic lift
+    M2, b2 = (M % 2), (b % 2)
+    h0 = _gauss_solve_mod2(M2, b2)     # your existing GF(2) solver
+    if h0 is None:
+        if diag is not None: diag["phase_mod2_infeasible"] += 1
+        return None
+    resid = (b - (M @ h0) % 4) % 4
+    if np.any(resid & 1):
+        if diag is not None: diag["phase_lift_parity_fail"] += 1
+        return None
+    rhs2 = ((resid // 2) % 2).astype(int)
+    delta = _gauss_solve_mod2(M2, rhs2)
+    if delta is not None:
+        h = (h0 + 2 * delta) % 4
+        if np.array_equal((M @ h) % 4, b % 4):
             return h
 
+    # 3) small nullspace multi-start to find a liftable particular solution
+    ns = _nullspace_mod2(M2)  # your existing nullspace builder
+    from itertools import product
+    L = len(ns)
+    for mask in product([0, 1], repeat=min(L, 5)):
+        h0_try = h0.copy()
+        for bit, v in zip(mask, ns):
+            if bit: h0_try ^= v
+        resid = (b - (M @ h0_try) % 4) % 4
+        if np.any(resid & 1):
+            continue
+        rhs2 = ((resid // 2) % 2).astype(int)
+        delta = _gauss_solve_mod2(M2, rhs2)
+        if delta is None:
+            continue
+        h = (h0_try + 2 * delta) % 4
+        if np.array_equal((M @ h) % 4, b % 4):
+            return h
+    if diag is not None: diag["phase_lift_delta_fail"] += 1
     return None
+
+
+def _build_phase_rhs_via_U(tableau: np.ndarray, phases: Optional[np.ndarray], pi: np.ndarray, F: np.ndarray, p: int) -> np.ndarray:
+    """
+    r_i = 2*(phi_{pi(i)} - phi_i) - Q_F(a_i)  (mod 2p),
+    where Q_F(a) = -diag(U_F)·a + a^T (2*triu(U_F)-diag(diag(U_F))) a,
+    and U_F = F U F^T with U = [[0,0],[I,0]] in your convention.
+    """
+    N, two_n = tableau.shape
+    n = two_n // 2
+    mod = 2 * int(p)
+
+    phi = np.zeros(N, dtype=int) if phases is None else (np.asarray(phases, dtype=int) % p)
+
+    U = np.zeros((two_n, two_n), dtype=int)
+    U[n:, :n] = 1
+    U_F = (F % mod) @ (U % mod) @ (F.T % mod) % mod
+
+    d = np.diag(U_F) % mod
+    Ppart = (2 * np.triu(U_F) - np.diag(d)) % mod
+
+    r = np.zeros(N, dtype=int)
+    for i in range(N):
+        a = (tableau[i, :] % mod).astype(int)
+        p1 = int(d @ a) % mod
+        p2 = int(a @ ((Ppart @ a) % mod)) % mod
+        qF = (-p1 + p2) % mod
+        r[i] = ( (2 * ((phi[pi[i]] - phi[i]) % p)) - qF ) % mod
+    return r
+
+
+def _gauss_solve_mod2(M: np.ndarray, b: np.ndarray) -> np.ndarray | None:
+    """
+    Solve M x = b over GF(2).
+    Returns one solution x (0/1 ints) or None if inconsistent.
+    Free variables are set to 0.
+    """
+    A = (M.astype(np.uint8) & 1).copy()
+    y = (b.astype(np.uint8) & 1).copy()
+    m, n = A.shape
+
+    piv_cols = []
+    piv_rows = []
+    r = 0
+    for c in range(n):
+        # find pivot
+        pivot = -1
+        for i in range(r, m):
+            if A[i, c]:
+                pivot = i
+                break
+        if pivot == -1:
+            continue
+        # swap into row r
+        if pivot != r:
+            A[[r, pivot]] = A[[pivot, r]]
+            y[r], y[pivot] = y[pivot], y[r]
+        piv_cols.append(c)
+        piv_rows.append(r)
+        # eliminate in all other rows
+        for i in range(m):
+            if i != r and A[i, c]:
+                A[i, :] ^= A[r, :]
+                y[i] ^= y[r]
+        r += 1
+        if r == m:
+            break
+
+    # inconsistency: 0 = 1
+    for i in range(m):
+        if not A[i].any() and y[i]:
+            return None
+
+    # back-substitution (free vars = 0)
+    x = np.zeros(n, dtype=np.uint8)
+    for k in reversed(range(len(piv_cols))):
+        i = piv_rows[k]
+        c = piv_cols[k]
+        s = 0
+        row = A[i]
+        # sum row[j]*x[j] for j != c
+        # (uint8 xor is sum mod 2)
+        for j in range(n):
+            if j != c and row[j]:
+                s ^= x[j]
+        x[c] = y[i] ^ s
+    return x.astype(int)
+
+
+def _nullspace_mod2(M: np.ndarray) -> list[np.ndarray]:
+    """
+    Return a list of GF(2) nullspace basis vectors v with M v = 0 (mod 2).
+    """
+    A = (M % 2).astype(np.uint8)
+    m, n = A.shape
+    piv_col = [-1]*m
+    r = 0
+    col_used = [False]*n
+    for c in range(n):
+        pivot = -1
+        for i in range(r, m):
+            if A[i, c]:
+                pivot = i; break
+        if pivot == -1: continue
+        if pivot != r:
+            A[[r, pivot]] = A[[pivot, r]]
+        piv_col[r] = c
+        for i in range(m):
+            if i != r and A[i, c]:
+                A[i, :] ^= A[r, :]
+        col_used[c] = True
+        r += 1
+        if r == m: break
+    free_cols = [j for j in range(n) if not col_used[j]]
+    basis = []
+    for f in free_cols:
+        v = np.zeros(n, dtype=np.uint8)
+        v[f] = 1
+        # back-substitute to fill pivot columns
+        for i in reversed(range(r)):
+            c = piv_col[i]
+            s = 0
+            row = A[i]
+            for j in range(n):
+                if j != c and row[j]:
+                    s ^= v[j]
+            v[c] = s
+        basis.append(v.astype(int))
+    return basis  # list of length = nullity
+
+
+def _gauss_solve_mod4_unit(M: np.ndarray, b: np.ndarray) -> np.ndarray | None:
+    """
+    Solve M x = b (mod 4), preferring unit pivots (1 or 3). Works well since your M is 0/1.
+    Returns x mod 4 or None if inconsistent.
+    """
+    A = (M.astype(int) % 4).copy()
+    y = (b.astype(int) % 4).copy()
+    m, n = A.shape
+
+    piv_cols, piv_rows = [], []
+    r = 0
+    for c in range(n):
+        # find a row with an odd entry (1 or 3) in column c from row r down
+        pivot = -1
+        for i in range(r, m):
+            if (A[i, c] & 1) == 1:  # odd => invertible in Z4
+                pivot = i
+                break
+        if pivot == -1:
+            continue
+
+        if pivot != r:
+            A[[r, pivot]] = A[[pivot, r]]
+            y[r], y[pivot] = y[pivot], y[r]
+
+        # normalize pivot to 1
+        inv = 1 if (A[r, c] % 4) == 1 else 3  # 3 is inverse of 3 mod 4
+        A[r, :] = (A[r, :] * inv) % 4
+        y[r] = (y[r] * inv) % 4
+
+        piv_cols.append(c)
+        piv_rows.append(r)
+
+        # eliminate in all other rows
+        for i in range(m):
+            if i == r:
+                continue
+            factor = A[i, c] % 4
+            if factor:
+                A[i, :] = (A[i, :] - factor * A[r, :]) % 4
+                y[i] = (y[i] - factor * y[r]) % 4
+
+        r += 1
+        if r == m:
+            break
+
+    # inconsistency: 0 = nonzero
+    for i in range(m):
+        if np.all(A[i, :] % 4 == 0) and (y[i] % 4) != 0:
+            return None
+
+    # back-substitute with free vars = 0
+    x = np.zeros(n, dtype=int)
+    for k in reversed(range(len(piv_cols))):
+        i = piv_rows[k]
+        c = piv_cols[k]
+        # A[i,c] == 1 now
+        s = 0
+        for j in range(n):
+            if j != c and A[i, j] % 4:
+                s = (s + A[i, j] * x[j]) % 4
+        x[c] = (y[i] - s) % 4
+    return x
+def _solve_tableau_h_eq_r_mod_2p(tableau: np.ndarray, r: np.ndarray, p: int, diag: dict | None = None) -> np.ndarray | None:
+    p = int(p)
+    mod = 2 * p
+    M = (tableau % mod).astype(int)
+    b = (np.asarray(r, dtype=int) % mod)
+    n = M.shape[1]
+
+    if p == 2:
+        h4 = _gauss_solve_mod4_unit(M, b)
+        if h4 is not None:
+            h4 = np.asarray(h4, dtype=int).reshape(-1)
+            if h4.size == n and np.array_equal((M @ h4) % 4, b % 4):
+                return h4 % 4
+        if diag is not None: diag["phase_mod4_infeasible"] += 1
+
+        M2, b2 = (M % 2), (b % 2)
+        h0 = _gauss_solve_mod2(M2, b2)
+        if h0 is None:
+            if diag is not None: diag["phase_mod2_infeasible"] += 1
+            return None
+        h0 = np.asarray(h0, dtype=int).reshape(-1)
+        if h0.size != n:
+            if diag is not None: diag["phase_bad_h0_shape"] += 1
+            return None
+
+        resid = (b - (M @ h0) % 4) % 4
+        if np.any(resid & 1):
+            if diag is not None: diag["phase_lift_parity_fail"] += 1
+            return None
+        rhs2 = ((resid // 2) % 2).astype(int)
+        delta = _gauss_solve_mod2(M2, rhs2)
+        if delta is not None:
+            delta = np.asarray(delta, dtype=int).reshape(-1)
+            if delta.size != n:
+                if diag is not None: diag["phase_bad_delta_shape"] += 1
+                return None
+            h = (h0 + 2 * delta) % 4
+            if np.array_equal((M @ h) % 4, b % 4):
+                return h
+
+        # try nullspace alternatives
+        ns = _nullspace_mod2(M2)
+        ns = [np.asarray(v, dtype=int).reshape(-1) for v in ns]
+        for v in ns:
+            if v.size != n:
+                if diag is not None: diag["phase_bad_ns_vec_shape"] += 1
+                return None
+        from itertools import product
+        L = len(ns)
+        max_masks = 1 << min(L, 5)
+        for mask in product([0,1], repeat=min(L, 5)):
+            h0_try = h0.copy()
+            for bit, v in zip(mask, ns):
+                if bit: h0_try ^= v
+            resid = (b - (M @ h0_try) % 4) % 4
+            if np.any(resid & 1): 
+                continue
+            rhs2 = ((resid // 2) % 2).astype(int)
+            delta = _gauss_solve_mod2(M2, rhs2)
+            if delta is None:
+                continue
+            delta = np.asarray(delta, dtype=int).reshape(-1)
+            if delta.size != n: 
+                continue
+            h = (h0_try + 2 * delta) % 4
+            if np.array_equal((M @ h) % 4, b % 4):
+                return h
+        if diag is not None: diag["phase_lift_delta_fail"] += 1
+        return None
+
+    # p odd (CRT)
+    h2 = _gauss_solve_mod2(M % 2, b % 2)
+    if h2 is None:
+        if diag is not None: diag["phase_mod2_infeasible"] += 1
+        return None
+    hp = _gauss_solve_mod_prime(M % p, b % p, p)
+    if hp is None:
+        if diag is not None: diag["phase_modp_infeasible"] += 1
+        return None
+    h2 = np.asarray(h2, dtype=int).reshape(-1)
+    hp = np.asarray(hp, dtype=int).reshape(-1)
+    if h2.size != n or hp.size != n:
+        if diag is not None: diag["phase_bad_crt_shape"] += 1
+        return None
+
+    inv2_modp = pow(2, p - 2, p)
+    h = (h2 + 2 * ((hp - (h2 % p)) * inv2_modp % p)) % (2 * p)
+    h = np.asarray(h, dtype=int).reshape(-1)
+    if h.size != n:
+        if diag is not None: diag["phase_bad_h_shape_return"] += 1
+        return None
+    return h
+
 
 # =============================================================================
 # Dependent placement using signatures (UG vs G) + basis-only S checks
@@ -509,19 +811,20 @@ def _place_dependents_with_U(
     U: galois.FieldArray,
     G: galois.FieldArray,
     basis_mask: np.ndarray,
-    coeffs: Optional[np.ndarray],
+    coeffs: Optional[np.ndarray],      # WL colorized coeffs (for candidate filtering)
     S_mod: np.ndarray,
     phi: np.ndarray,
     used: np.ndarray,
-    basis_order_idx: List[int],  # indices (0..N-1)
+    basis_order_idx: List[int],
     p: int,
-    # Phase context (optional):
-    tableau: Optional[np.ndarray],   # N × 2n
+    tableau: Optional[np.ndarray],
     P_phase: Optional[np.ndarray],
     phases: Optional[np.ndarray],
-    L_left: Optional[np.ndarray],    # 2n × N
+    L_left: Optional[np.ndarray],
     rank_full: bool,
     return_phase: bool,
+    diag: dict,
+    coeffs_raw: Optional[np.ndarray],   # <-- ADD THIS (raw complex)
 ) -> Optional[Dict[str, object]]:
     """
     After basis is mapped, determine U = C^{-1}. Use signatures of UG vs G to
@@ -552,6 +855,7 @@ def _place_dependents_with_U(
         if coeffs is not None:
             lst = [y for y in lst if coeffs[i] == coeffs[y]]
         if not lst:
+            diag['dep_cand_empty'] += 1
             return None
         dep_candidates[i] = lst
 
@@ -562,32 +866,132 @@ def _place_dependents_with_U(
         if t >= len(dep_order):
             pi = phi.copy()
             if _is_identity_perm_idx(pi):
+                diag['is_identity'] += 1
                 return None
             if not _check_symplectic_invariance_mod(S_mod, pi):
+                diag['S_fail'] += 1
                 return None
             if not _check_code_automorphism(G, [int(b) for b in basis_order_idx], list(range(N)), pi, p):
+                diag['code_fail'] += 1
+                return None
+
+            # Build F (transvections for p=2; left-inverse fallback otherwise)
+            # Build F (transvections for p=2; left-inverse fallback otherwise)
+            F_int = _build_F_right_rowperm(tableau, L_left, pi, p)
+            if F_int is None:
+                diag['F_fail'] += 1
+                return None
+
+            # 1) Build RHS with the SAME U-form your gate uses (matches acquired_phase exactly)
+            r = _build_phase_rhs_via_U(tableau, phases, pi, F_int, p=2)  # N-vector mod 4
+
+            # 2) Parity must match image of tableau mod 2
+            r2 = (r & 1)
+            if not _in_image_mod2(tableau, r2):
+                diag["phase_parity_image_fail"] += 1
+                return None
+
+            # 3) Double-check our qF parity computation matches r parity (should always hold)
+            q2 = _qF_parity_vector_via_U(tableau, F_int)
+            if not np.array_equal(r2, q2):
+                diag["qF_parity_mismatch"] += 1
+                return None
+
+            # 2) Solve tableau @ h == r (mod 2p) using robust solver (no SymPy/SciPy)
+            # Try direct Z4 elimination first
+            h = _solve_h_qubits_mod4_with_lift(tableau, r, diag)
+
+            if h is None:
+                diag["phase_fail"] += 1
+                return None  # <-- bail before any reshape/matmul
+
+            h = np.asarray(h, dtype=int).reshape(-1)
+            if h.ndim != 1 or h.size != tableau.shape[1]:
+                diag["phase_bad_h_shape"] += 1
+                return None
+
+            r = np.asarray(r, dtype=int).reshape(-1)
+            if r.ndim != 1 or r.size != tableau.shape[0]:
+                diag["phase_bad_r_shape"] += 1
+                return None
+
+            # verify the linear system exactly
+            res = (tableau @ h - r) % (2 * p)
+            if np.any(res):
+                diag["phase_linear_residual_nonzero"] += 1
+                diag["phase_linear_bad_rows"] = int(np.count_nonzero(res))
+                return None
+
+            if h is None:
+                diag["phase_mod4_infeasible"] += 1
+            else:
+                # Verify quickly
+                if np.array_equal((tableau @ h) % 4, r % 4):
+                    pass
+                else:
+                    h = None
+
+            if h is None:
+                # Fallback: 2-adic lift with a few alternative mod-2 particular solutions
+                M2 = tableau % 2
+                b2 = r % 2
+                h0 = _gauss_solve_mod2(M2, b2)
+                if h0 is None:
+                    diag["phase_mod2_infeasible"] += 1
+                    return None
+
+                resid = (r - (tableau @ h0) % 4) % 4
+                if np.any(resid & 1):
+                    diag["phase_lift_parity_fail"] += 1
+                    return None
+
+                rhs2 = ((resid // 2) % 2).astype(int)
+                delta = _gauss_solve_mod2(M2, rhs2)
+                if delta is None:
+                    # Try a few alternative particular solutions: h0' = h0 + sum t_i * ns_i
+                    ns = _nullspace_mod2(M2)
+                    tried = 0
+                    found = None
+                    # small bounded search; tweak K if you want
+                    K = min(32, max(1, 1 << min(len(ns), 5)))
+                    # try all if tiny, else random subset
+                    from itertools import product
+                    if len(ns) <= 5:
+                        it = product([0,1], repeat=len(ns))
+                    else:
+                        import random
+                        it = ([random.getrandbits(1) for _ in range(len(ns))] for _ in range(K))
+                    for coeffs_bits in it:
+                        tried += 1
+                        h0_try = h0.copy()
+                        for bit, v in zip(coeffs_bits, ns):
+                            if bit: h0_try = (h0_try ^ v)  # XOR mod 2
+                        resid = (r - (tableau @ h0_try) % 4) % 4
+                        if np.any(resid & 1):
+                            continue
+                        rhs2 = ((resid // 2) % 2).astype(int)
+                        delta = _gauss_solve_mod2(M2, rhs2)
+                        if delta is not None:
+                            found = (h0_try + 2 * delta) % 4
+                            break
+                    if found is None:
+                        diag["phase_lift_delta_fail"] += 1
+                        return None
+                    h = found
+                else:
+                    h = (h0 + 2 * delta) % 4
+
+
+            if h is None:
+                diag['phase_fail'] += 1
+                return None
+
+            # Final exact check against your gate’s convention (needs RAW complex weights!)
+            if not _verify_weights_gate_exact(tableau, coeffs_raw, pi, F_int, h):
+                diag['weights_fail'] += 1
                 return None
 
             rec: Dict[str, object] = {"perm": _perm_index_to_perm_map(pi)}
-
-            # Build/verify F BEFORE phase solve.
-            F_int = _build_F_right_rowperm(tableau, L_left, pi, p)  # returns None if fails mapping/symplecticity
-            if F_int is None:
-                return None
-
-            # Phase feasibility with the CORRECT F
-            h = _solve_phase_system_variants_tableau(
-                tableau=tableau, phases=phases, pi=pi,
-                P_phase=_build_P_phase(tableau.shape[1] // 2, p),  # or reuse cached P_phase
-                F_int=F_int, p=p, rank_full=(L_left is not None),
-            )
-            if h is None:
-                return None
-            
-            if not _verify_weights_with_h(tableau, getattr(coeffs, "orig", coeffs), pi, h, p):
-                return None  # reject this π: it doesn’t preserve weights once rephasing by h is applied
-
-            # Pack result
             rec["h"] = h
             rec["F"] = F_int
             return rec
@@ -631,6 +1035,8 @@ def _basis_first_search(
     L_left: Optional[np.ndarray],   # 2n × N
     rank_full: bool,
     return_phase: bool,
+    diag: dict,
+    coeffs_raw: np.ndarray,
 ) -> List[Dict[str, object]]:
     """
     Basis-first mapping. WL colors are used as a heuristic *ordering only*.
@@ -638,6 +1044,7 @@ def _basis_first_search(
     (GF(p)) and place dependents via signature buckets; at leaf verify global S, code,
     and (optionally) phases using right-acting F and row permutation.
     """
+
     N = S_mod.shape[0]
     results: List[Dict[str, object]] = []
     k = len(basis_order_idx)
@@ -662,11 +1069,13 @@ def _basis_first_search(
                 return False
             U = GF(U_int)
             sol = _place_dependents_with_U(
-                U=U, G=G, basis_mask=basis_mask, coeffs=coeffs,
-                S_mod=S_mod, phi=phi, used=used, basis_order_idx=basis_order_idx, p=p,
-                tableau=tableau, P_phase=P_phase, phases=phases,
-                L_left=L_left, rank_full=rank_full, return_phase=return_phase,
-            )
+                                            U=U, G=G, basis_mask=basis_mask, coeffs=coeffs,
+                                            S_mod=S_mod, phi=phi, used=used, basis_order_idx=basis_order_idx, p=p,
+                                            tableau=tableau, P_phase=P_phase, phases=phases,
+                                            L_left=L_left, rank_full=rank_full, return_phase=return_phase,
+                                            diag=diag,
+                                            coeffs_raw=coeffs_raw,  # <-- pass raw complex weights here
+)
             if sol is not None:
                 results.append(sol)
                 return True
@@ -676,10 +1085,9 @@ def _basis_first_search(
         mapped_idx = np.where(phi >= 0)[0].astype(np.int64)
 
         # WL ordering only; coefficient colours are hard constraints
-        if coeffs is None:
-            candidates = [y for y in range(N) if not used[y]]
-        else:
-            candidates = [y for y in range(N) if (not used[y]) and (coeffs[i] == coeffs[y])]
+        bi = int(base_colors[i])
+        pool = base_classes[bi]
+        candidates = [y for y in pool if not used[y] and (coeffs is None or coeffs[i]==coeffs[y])]
 
         candidates.sort(key=lambda y: (base_colors[y], y))
 
@@ -697,136 +1105,12 @@ def _basis_first_search(
     dfs_basis(0)
     return results[:k_wanted]
 
-# =============================================================================
-# Algebraic fallback (small N) – no local S during construction
-# =============================================================================
-
-def _algebraic_fallback_search(
-    *,
-    S_mod: np.ndarray,
-    G: galois.FieldArray,
-    basis_order_idx: List[int],
-    basis_mask: np.ndarray,
-    coeffs: Optional[np.ndarray],
-    p: int,
-    k_wanted: int,
-    # Phase context (optional):
-    tableau: Optional[np.ndarray],  # N × 2n
-    P_phase: Optional[np.ndarray],
-    phases: Optional[np.ndarray],
-    L_left: Optional[np.ndarray],   # 2n × N
-    rank_full: bool,
-    return_phase: bool,
-) -> List[Dict[str, object]]:
-    """
-    Small-N safety net: construct π with coefficient-colour constraints only (no local S),
-    then verify global S, code, and phases at the leaf. Dependents placed via UG vs G signatures.
-    """
-    N = G.shape[1]
-    results: List[Dict[str, object]] = []
-
-    phi = -np.ones(N, dtype=int)
-    used = np.zeros(N, dtype=bool)
-
-    def place_basis(t: int) -> bool:
-        if len(results) >= k_wanted:
-            return True
-        if t >= len(basis_order_idx):
-            Bcols = np.array(basis_order_idx, dtype=int)
-            PBcols = phi[Bcols]
-            C = G[:, PBcols]
-            C_int = (C.view(np.ndarray) % p)
-            U_int = _gauss_inverse_mod_prime(C_int, p)
-            if U_int is None:
-                return False
-            U = galois.GF(p)(U_int)
-            return place_dependents(U)
-
-        i = basis_order_idx[t]
-        cand = [y for y in range(N) if not used[y] and (coeffs is None or coeffs[i] == coeffs[y])]
-        for y in cand:
-            phi[i] = y
-            used[y] = True
-            if place_basis(t + 1):
-                return True
-            phi[i] = -1
-            used[y] = False
-        return False
-
-    def place_dependents(U: galois.FieldArray) -> bool:
-        if len(results) >= k_wanted:
-            return True
-        G_nd = G.view(np.ndarray) % p
-        UG = U @ G
-        UG_nd = UG.view(np.ndarray) % p
-
-        sig_G = [tuple(int(v) for v in G_nd[:, j]) for j in range(N)]
-        sig_UG = [tuple(int(v) for v in UG_nd[:, j]) for j in range(N)]
-
-        from collections import defaultdict
-        free_by_sig: Dict[Tuple[int, ...], List[int]] = defaultdict(list)
-        for y in range(N):
-            if not used[y]:
-                free_by_sig[sig_UG[y]].append(y)
-
-        dep_idx = [i for i in range(N) if not basis_mask[i]]
-        dep_idx.sort(key=lambda i: len(free_by_sig.get(sig_G[i], [])))
-
-        def dfs_dep(t: int) -> bool:
-            if len(results) >= k_wanted:
-                return True
-            if t >= len(dep_idx):
-                pi = phi.copy()
-                if _is_identity_perm_idx(pi):
-                    return False
-                if not _check_symplectic_invariance_mod(S_mod, pi):
-                    return False
-                if not _check_code_automorphism(G, [int(b) for b in basis_order_idx], list(range(N)), pi, p):
-                    return False
-                rec: Dict[str, object] = {"perm": _perm_index_to_perm_map(pi)}
-                if tableau is not None and P_phase is not None:
-                    F_int = None
-                    if rank_full and L_left is not None:
-                        F_int = _build_F_right_rowperm(tableau, L_left, pi, p)
-                        if F_int is None:
-                            return False
-                    h = _solve_phase_system_variants_tableau(
-                        tableau=tableau, phases=phases, pi=pi,
-                        P_phase=P_phase, F_int=F_int, p=p, rank_full=rank_full,
-                    )
-                    if h is None:
-                        return False
-                    if return_phase:
-                        rec["h"] = h
-                        if F_int is not None:
-                            rec["F"] = F_int
-                results.append(rec)
-                return True
-
-            i = dep_idx[t]
-            cand = [y for y in free_by_sig.get(sig_G[i], []) if (coeffs is None or coeffs[i] == coeffs[y])]
-            for y in cand:
-                if used[y]:
-                    continue
-                phi[i] = y
-                used[y] = True
-                if dfs_dep(t + 1):
-                    return True
-                phi[i] = -1
-                used[y] = False
-            return False
-
-        return dfs_dep(0)
-
-    place_basis(0)
-    return results[:k_wanted]
 
 def find_k_automorphisms_symplectic(
     H,
     *,
     k: int = 1,
     basis_first: str = "any",          # "any" or "off" (use algebraic fallback only)
-    safety_net_max_N: int = 64,        # enable algebraic fallback for small N
     return_phase: bool = True,
 ) -> List[Dict[str, object]]:
     """
@@ -881,12 +1165,15 @@ def find_k_automorphisms_symplectic(
 
     # ----- Primary fast path: basis-first search -----
     results: List[Dict[str, object]] = []
+    diag = defaultdict(int)  # <-- add this
+
+    # primary fast path
     if basis_first == "any":
         results = _basis_first_search(
             S_mod=S_mod,
             coeffs=coeff_cols,
             base_colors=base_colors,
-            base_classes=base_classes,  # ordering only
+            base_classes=base_classes,
             G=G,
             basis_order_idx=basis_order_idx,
             basis_mask=basis_mask,
@@ -898,43 +1185,32 @@ def find_k_automorphisms_symplectic(
             L_left=L_left,
             rank_full=rank_full,
             return_phase=return_phase,
+            diag=diag,                # <-- pass diag down
+            coeffs_raw=coeffs_raw
         )
         if results:
+            print("[diag] " + ", ".join(f"{k}={v}" for k,v in diag.items()))
             return results
 
-    print('Needs safety net')
-    # ----- Algebraic fallback (for small N) -----
-    if N <= int(safety_net_max_N):
-        results = _algebraic_fallback_search(
-            S_mod=S_mod,
-            G=G,
-            basis_order_idx=basis_order_idx,
-            basis_mask=basis_mask,
-            coeffs=coeff_cols,
-            p=p,
-            k_wanted=k,
-            tableau=tableau,
-            P_phase=P_phase,
-            phases=phases_vec,
-            L_left=L_left,
-            rank_full=rank_full,
-            return_phase=return_phase,
-        )
-        if results:
-            return results
-
-    # No solutions found
+    diag["dep_dfs_dead"] += 1
+    print("[diag] " + ", ".join(f"{k}={v}" for k,v in diag.items()))
     return []
 
 
 if __name__ == "__main__":
     from quaos.models.random_hamiltonian import random_gate_symmetric_hamiltonian
-    from quaos.core.circuits import SWAP, Gate
+    from quaos.core.circuits import SWAP, Gate, SUM, Hadamard, PHASE, Circuit
 
     sym = SWAP(0, 1, 2)
     n_qudits = 3
     n_paulis_pre_sym = 6
     H = random_gate_symmetric_hamiltonian(sym, n_qudits, n_paulis_pre_sym, scrambled=False)
+
+    scramble_circuit = Circuit([2] * n_qudits)
+    scramble_circuit.add_gate(SUM(1, 2, 2))
+    scramble_circuit.add_gate(Hadamard(0, 2))
+    scramble_circuit.add_gate(PHASE(0, 2))
+    H = scramble_circuit.act(H)
 
     independent, dependencies = get_linear_dependencies(H.tableau(), H.dimensions)
 
@@ -954,8 +1230,11 @@ if __name__ == "__main__":
 
     print('permutations = ', perms)
 
-    sym_gate = Gate('symmetry', [i for i in range(H.n_qudits())], perms[0]['F'], 2, perms[0]['h'])
+    sym_gate = Gate('symmetry', [i for i in range(H.n_qudits())], perms[0]['F'].T, 2, perms[0]['h'])
 
+    assert np.all(sym_gate.act(H).standard_form().tableau() == H.standard_form(
+    ).tableau()), f'{sym_gate.act(H).standard_form().tableau()}\n{H.standard_form().tableau()}'
+    print('Tableau is ok!')
     assert sym_gate.act(H).standard_form() == H.standard_form(
     ), f'{sym_gate.act(H).standard_form().__str__()}\n{H.standard_form().__str__()}'
 

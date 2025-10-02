@@ -356,6 +356,20 @@ class PauliSum:
         """
         ps_out = self.copy()
         ps_out.standardise()
+        ps_out = ps_out.round_weights()
+        return ps_out
+    
+    def round_weights(self) -> 'PauliSum':
+        """
+        Round the weights of the PauliSum to the nearest integer.
+
+        Returns
+        -------
+        PauliSum
+            The PauliSum with rounded weights.
+        """
+        ps_out = self.copy()
+        ps_out.weights = np.round(ps_out.weights)
         return ps_out
 
     @overload
