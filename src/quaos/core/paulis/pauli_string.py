@@ -893,7 +893,7 @@ class PauliString:
         return PauliString(x_exp=(-self.x_exp) % self.dimensions,
                            z_exp=(-self.z_exp) % self.dimensions,
                            dimensions=self.dimensions)
-    
+
     def is_identity(self) -> bool:
         """
         Check if the PauliString represents the identity operator.
