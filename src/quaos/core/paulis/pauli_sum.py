@@ -1405,6 +1405,6 @@ class PauliSum:
         aa1 = np.array([i for i in range(d)])
         aa2 = np.array([i for i in range(d)])
         Z = scipy.sparse.csr_matrix((aa0, (aa1, aa2)))
-        if (d == 2) and (aX % 2 == 1) and (aZ % 2 == 1):
-            return 1j * (X @ Z)
+        # if (d == 2) and (aX % 2 == 1) and (aZ % 2 == 1):
+        #    return 1j * (X @ Z)
         return X @ Z
