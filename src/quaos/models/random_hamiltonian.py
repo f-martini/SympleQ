@@ -2,6 +2,7 @@ import random
 import numpy as np
 from quaos.core.paulis import PauliSum, PauliString
 from quaos.core.circuits import Gate
+from quaos.utils import int_to_bases, bases_to_int
 
 
 def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand'):
@@ -17,6 +18,7 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand'):
         tuple: A random PauliSum
     """
 
+    '''
     n_qudits = len(qudit_dims)
     pauli_strings = []
     coefficients = []
@@ -29,19 +31,35 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand'):
         while np.all(np.array(x_exp) == 0) and np.all(np.array(z_exp) == 0):
             x_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]
             z_exp = [random.randint(0, qudit_dims[i] - 1) for i in range(n_qudits)]
-        
+
         x_exp_H = np.zeros_like(x_exp)
         z_exp_H = np.zeros_like(z_exp)
         phase_factor = 1
         pauli_str = ''
         pauli_str_H = ''
+    '''
+    q2 = np.repeat(qudit_dims, 2)
+    available_paulis = list(np.arange(int(np.prod(q2))))
+
+    pauli_strings = []
+    coefficients = []
+
+    for _ in range(num_paulis):
+        pauli_index = random.choice(available_paulis)
+        available_paulis.remove(pauli_index)
+
+        exponents = int_to_bases(pauli_index, q2)
+        exponents_H = np.zeros_like(exponents)
+        phase_factor = 1
+        pauli_str = ' '
+        pauli_str_H = ' '
 
         for j in range(len(qudit_dims)):
-            r, s = x_exp[j], z_exp[j]
+            r, s = int(exponents[2 * j]), int(exponents[2 * j + 1])
             pauli_str += f"x{r}z{s} "
-            x_exp_H[j] = (-r) % qudit_dims[j]
-            z_exp_H[j] = (-s) % qudit_dims[j]
-            pauli_str_H += f"x{x_exp_H[j]}z{z_exp_H[j]} "
+            exponents_H[2 * j] = (-r) % qudit_dims[j]
+            exponents_H[2 * j + 1] = (-s) % qudit_dims[j]
+            pauli_str_H += f"x{exponents_H[2 * j]}z{exponents_H[2 * j + 1]} "
 
             omega = np.exp(2 * np.pi * 1j / qudit_dims[j])
             phase_factor *= omega**(r * s)
@@ -56,15 +74,18 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand'):
             d = int(mode[7:])
             coeff = np.random.randint(1, d + 1)
 
-        if (not np.array_equal(x_exp, x_exp_H)) and (not np.array_equal(z_exp, z_exp_H)):
+        if not np.array_equal(exponents, exponents_H):
             # random string not Hermitian, add conjugate pair
+            conjugate_index = bases_to_int(exponents_H, q2)
             coefficients.append(coeff)
             coefficients.append(np.conj(coeff) * phase_factor)
+            available_paulis.remove(conjugate_index)
             pauli_strings.append(PauliString.from_string(pauli_str_H.strip(), dimensions=qudit_dims))
         else:
             coefficients.append(coeff.real)
 
     rand_ham = PauliSum(pauli_strings, weights=coefficients)
+    #rand_ham.combine_equivalent_paulis()
     return rand_ham
 
 
@@ -104,6 +125,7 @@ def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=
     PauliSum of size 4x2 with 4 terms and 0 redundant or conditional qubits.
     """
     # TODO: Implementation for Qudits
+    # TODO: Make sure that remaining paulis are always unique
 
     n_rest = n_qudits - n_redundant - n_conditional
     if n_paulis < 2 * n_rest:

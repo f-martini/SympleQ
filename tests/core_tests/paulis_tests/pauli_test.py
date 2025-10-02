@@ -293,6 +293,68 @@ class TestPaulis:
 
         assert np.all(ps.standard_form().tableau() == symplectic_basis)
 
+    def test_symplectic_product(self):
+        P1 = PauliString.from_string('x1z0', dimensions=[2])
+        P2 = PauliString.from_string('x0z1', dimensions=[2])
+        assert P1.symplectic_product(P2) == 1
+
+        P1 = PauliString.from_string('x1z0', dimensions=[2])
+        P2 = PauliString.from_string('x1z0', dimensions=[2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x0z1', dimensions=[2])
+        P2 = PauliString.from_string('x0z1', dimensions=[2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z0 x1z0', dimensions=[2, 2])
+        P2 = PauliString.from_string('x0z1 x0z1', dimensions=[2, 2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z0 x0z1', dimensions=[2, 2])
+        P2 = PauliString.from_string('x1z0 x1z0', dimensions=[2, 2])
+        assert P1.symplectic_product(P2) == 1
+
+        P1 = PauliString.from_string('x1z0', dimensions=[3])
+        P2 = PauliString.from_string('x2z0', dimensions=[3])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z2', dimensions=[3])
+        P2 = PauliString.from_string('x2z1', dimensions=[3])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z2 x1z1', dimensions=[3, 2])
+        P2 = PauliString.from_string('x2z1 x1z1', dimensions=[3, 2])
+        assert P1.symplectic_product(P2) == 0
+
+    def test_hermitian_generation(self):
+        P1 = PauliString.from_string('x1z0', dimensions=[3])
+        P2 = PauliString.from_string('x2z0', dimensions=[3])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x1z1', dimensions=[3])
+        P2 = PauliString.from_string('x2z2', dimensions=[3])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x2z1', dimensions=[3])
+        P2 = PauliString.from_string('x1z2', dimensions=[3])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x0z0', dimensions=[3])
+        P2 = PauliString.from_string('x0z0', dimensions=[3])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x0z1 x1z1', dimensions=[3, 2])
+        P2 = PauliString.from_string('x0z2 x1z1', dimensions=[3, 2])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x0z1 x1z0', dimensions=[5, 2])
+        P2 = PauliString.from_string('x0z4 x1z0', dimensions=[5, 2])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x2z1 x0z1', dimensions=[5, 2])
+        P2 = PauliString.from_string('x3z4 x0z1', dimensions=[5, 2])
+        assert P1.hermitian() == P2
+
     def test_qubit_XZ_phase_is_minus_one(self):
         # Single qubit (dimension 2): X * Z = (-1) Z * X  => scalar exponent r = 1 mod 2
         dims = [2]

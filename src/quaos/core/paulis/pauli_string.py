@@ -618,6 +618,29 @@ class PauliString:
         r = int(np.sum((weights * residues) % L) % L)    # this is the number for acquired phase
         return r
 
+    def quditwise_product(self, A: PauliString) -> int:
+        """
+        Compute the quditwise product between this PauliString and another.
+        The quditwise product is defined as the elementwise product of the X and Z exponents.
+
+        Parameters
+        ----------
+        A : PauliString
+            The other PauliString to compute the quditwise product with.
+
+        Returns
+        -------
+        np.ndarray
+            The quditwise product as a NumPy array.
+        """
+        if self.n_qudits() != A.n_qudits() or not np.array_equal(self.dimensions, A.dimensions):
+            raise ValueError(
+                f"Incompatible PauliStrings: must have the same number of qudits (currently {self.n_qudits()} and {A.n_qudits()}) and dimensions (currently {self.dimensions} and {A.dimensions}).")
+        if any(np.sum(self.x_exp[i] * A.z_exp[i] - self.z_exp[i] * A.x_exp[i]) % self.dimensions[i] for i in range(self.n_qudits())):
+            return 1
+        else:
+            return 0
+
     def amend(self, qudit_index: int, new_x: int, new_z: int) -> PauliString:
         """
         Change the X and Z exponents for a specific qudit in the Pauli string.
@@ -883,21 +906,26 @@ class PauliString:
         """
         return self.symplectic_product(other_pauli) == 0
 
-    # TODO: Do we need this? I guess it does not harm, but essentially a
-    # PauliString is hermitian if it only has qubit Paulis (or identities)...
     def hermitian(self) -> PauliString:
         """
-        Determine whether this Pauli string is Hermitian.
+        Computes the hermitian conjugate of the Pauli string.
 
         Returns
         -------
-        bool
-            True if the Pauli string is Hermitian, False otherwise.
-
-        Notes
-        -----
-        A Pauli string is Hermitian if it is equal to its own adjoint.
+        PauliString
+            The hermitian conjugate of the Pauli string.
         """
         return PauliString(x_exp=(-self.x_exp) % self.dimensions,
                            z_exp=(-self.z_exp) % self.dimensions,
                            dimensions=self.dimensions)
+
+    def is_identity(self) -> bool:
+        """
+        Check if the PauliString represents the identity operator.
+
+        Returns
+        -------
+        bool
+            True if the PauliString is the identity operator, False otherwise.
+        """
+        return bool(np.all(self.x_exp == 0) and np.all(self.z_exp == 0))

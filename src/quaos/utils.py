@@ -33,7 +33,8 @@ def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
 
     return PauliSum(pauli_strings,
                     weights=coefficients,
-                    dimensions=dims if isinstance(dims, list) else [dims])
+                    dimensions=dims if isinstance(dims, list) else [dims],
+                    standardise=False)
 
 
 def bases_to_int(base, dimensions) -> int:

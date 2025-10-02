@@ -1008,12 +1008,12 @@ class PauliSum:
 
     def is_z(self) -> bool:
         """
-        Checks whether the PauliSum has only (i.e., all PauliStrings therein) X components.
+        Checks whether the PauliSum has only (i.e., all PauliStrings therein) Z components.
 
         Returns
         -------
         bool
-            True if the PauliSum has only X components, False otherwise.
+            True if the PauliSum has only Z components, False otherwise.
         """
         return not np.any(self.x_exp)
 
@@ -1033,6 +1033,29 @@ class PauliSum:
             True if the PauliSum has pairwise commuting PauliStrings, False otherwise.
         """
         spm = self.symplectic_product_matrix()
+        if pauli_string_indexes is None:
+            return not np.any(spm)
+        else:
+            i, j = pauli_string_indexes[0], pauli_string_indexes[1]
+            return not spm[i, j]
+
+    def is_quditwise_commuting(self,
+                               pauli_string_indexes: list[int] | None = None) -> bool:
+        """
+        Checks whether the PauliStrings elements identified by `pauli_string_indexes` are pairwise
+        qudit-wise commuting.
+
+        Parameters
+        ----------
+        pauli_string_indexes : list[int] | None
+            The indices of the PauliStrings to check for commutativity. If None, checks all PauliStrings.
+
+        Returns
+        -------
+        bool
+            True if the PauliSum has pairwise commuting PauliStrings, False otherwise.
+        """
+        spm = self.quditwise_symplectic_product_matrix()
         if pauli_string_indexes is None:
             return not np.any(spm)
         else:
@@ -1159,9 +1182,32 @@ class PauliSum:
         R = R + np.transpose(R, (1, 0, 2))
         for i in range(n):
             R[i, i, :] = 0
-        # optional: reduce explicitly mod dims (already reduced in PauliString)
+        # optional
         return R
 
+    def quditwise_symplectic_product_matrix(self) -> np.ndarray:
+        """
+        The qudit-wise symplectic product matrix Q associated to the PauliSum.
+        It is an n x n matrix, n being the number of Paulis.
+        The entry Q[i, j] is 1 if the ith Pauli and the jth Pauli do not commute qudit-wise, 0 otherwise.
+
+        Returns
+        -------
+        np.ndarray
+            The qudit-wise symplectic product matrix Q.
+        """
+        n = self.n_paulis()
+        # list_of_symplectics = self.symplectic_matrix()
+
+        qspm = np.zeros([n, n], dtype=int)
+        for i in range(n):
+            for j in range(n):
+                if i > j:
+                    qspm[i, j] = self.pauli_strings[i].quditwise_product(self.pauli_strings[j])
+        qspm = qspm + qspm.T
+        return qspm
+
+    # TODO: What's the difference between the next two functions?
     def __str__(self) -> str:
         """
         Returns a more readable string representation of the PauliSum.
@@ -1330,6 +1376,16 @@ class PauliSum:
         self.x_exp[index_1], self.x_exp[index_2] = self.x_exp[index_2], self.x_exp[index_1]
         self.z_exp[index_1], self.z_exp[index_2] = self.z_exp[index_2], self.z_exp[index_1]
 
+    def hermitian_conjugate(self):
+        conjugate_weights = np.conj(self.weights)
+        conjugate_phases = (- self.phases) % (2 * self.lcm)
+        conjugate_dimensions = self.dimensions
+        conjugate_pauli_strings = [p.hermitian() for p in self.pauli_strings]
+        return PauliSum(conjugate_pauli_strings, conjugate_weights, conjugate_phases, conjugate_dimensions,
+                        standardise=False)
+
+    H = hermitian_conjugate
+
     # TODO: Move this to a better location and amend where it is used in the Pauli reduction code
     @staticmethod
     def xz_mat(d: int,
@@ -1363,6 +1419,6 @@ class PauliSum:
         aa1 = np.array([i for i in range(d)])
         aa2 = np.array([i for i in range(d)])
         Z = scipy.sparse.csr_matrix((aa0, (aa1, aa2)))
-        if (d == 2) and (aX % 2 == 1) and (aZ % 2 == 1):
-            return 1j * (X @ Z)
+        # if (d == 2) and (aX % 2 == 1) and (aZ % 2 == 1):
+        #    return 1j * (X @ Z)
         return X @ Z

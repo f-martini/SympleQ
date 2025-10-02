@@ -3,7 +3,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from .gates import Gate, Hadamard, PHASE, SUM, SWAP, CNOT
 from quaos.core.paulis import PauliSum, PauliString, Pauli
-from .utils import embed_symplectic, left_multiply_local_unitary
+from .utils import embed_symplectic
 import scipy.sparse as sp
 from .gates import Hadamard as H, SUM as CX, PHASE as S
 import random
@@ -241,33 +241,12 @@ class Circuit:
         return Gate('CompositeGate', total_indexes, total_symplectic, self.dimensions, total_phase_vector)
 
     def unitary(self):
-        # TODO: Implement tests. Should check that action of the unitary gives the same as action of the symplectic
         known_unitaries = (Hadamard, PHASE, SUM, SWAP, CNOT)
         if not np.all([isinstance(gate, known_unitaries) for gate in self.gates]):
+            print(self.gates)
             raise NotImplementedError("Unitary not implemented for all gates in the circuit.")
-
-        # Start from identity on full Hilbert space
-        D_total = int(np.prod(self.dimensions))
-        U = np.eye(D_total, dtype=complex)
-        for gate in self.gates:
-            # Ensure local gate unitary uses the circuit's local dimensions
-            local_dims = [int(self.dimensions[i]) for i in gate.qudit_indices]
-            needs_override = True
-            try:
-                gd = list(map(int, gate.dimensions))
-                needs_override = (gd != local_dims)
-            except Exception:
-                needs_override = True
-
-            if needs_override:
-                saved_dims = getattr(gate, 'dimensions', None)
-                gate.dimensions = np.array(local_dims, dtype=int)
-                try:
-                    U_local = gate.unitary()
-                finally:
-                    gate.dimensions = saved_dims
-            else:
-                U_local = gate.unitary()
-
-            U = left_multiply_local_unitary(U, U_local, gate.qudit_indices, self.dimensions)
-        return sp.csr_matrix(U)
+        q = self.dimensions
+        m = sp.csr_matrix(([1] * (np.prod(q)), (range(np.prod(q)), range(np.prod(q)))))
+        for g in self.gates:
+            m = g.unitary(dims=self.dimensions) @ m
+        return m
