@@ -331,23 +331,6 @@ class PauliSum:
         """
         return self.n_paulis(), self.n_qudits()
 
-    # TODO: Not sure I follow what this function is doing... Is it supposed to tell which are the
-    # number of identities (intended as IIII...III) in the PauliSum?
-    def n_identities(self):
-        """
-        Get the number of identities in the PauliSum.
-
-        Returns
-        -------
-        int
-            The number of identities.
-        """
-        n_is = []
-        for i in range(self.n_paulis()):
-            n_is.append(self.pauli_strings[i].n_identities())
-        # TODO: I included this return... does it make sense?
-        return sum(n_is)
-
     def phase_to_weight(self):
         """
         Include the phases into the weights of the PauliSum.
@@ -382,12 +365,12 @@ class PauliSum:
 
     @overload
     def __getitem__(self,
-                    key: int | tuple[int, slice] | tuple[int, list[int]]) -> PauliString:
+                    key: tuple[int, slice] | tuple[int, list[int]]) -> PauliString:
         ...
 
     @overload
     def __getitem__(self,
-                    key: slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] |
+                    key: int | slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] |
                     tuple[slice, list[int]] | tuple[slice, np.ndarray] | tuple[list[int], int] |
                     tuple[np.ndarray, int] | tuple[np.ndarray, slice] | tuple[np.ndarray, list[int]] |
                     tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, list[int]] | tuple[list[int], list[int]] |
@@ -398,7 +381,7 @@ class PauliSum:
                     key):
         # TODO: tidy
         if isinstance(key, int):
-            return self.pauli_strings[key]
+            return PauliSum([self.pauli_strings[key]], [self.weights[key]], [self.phases[key]], self.dimensions, False)
         elif isinstance(key, slice):
             return PauliSum(self.pauli_strings[key], self.weights[key], self.phases[key], self.dimensions, False)
         elif isinstance(key, np.ndarray) or isinstance(key, list):

@@ -52,5 +52,6 @@
   // Miscellaneous
   "jupyter.notebookFileRoot": "${workspaceFolder}",
   "task.autoDetect": "off",
-  "python-envs.pythonProjects": []
+  "python-envs.pythonProjects": [],
+  "editor.inlineSuggest.enabled": true
 }

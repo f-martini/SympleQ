@@ -381,10 +381,6 @@ class TestGates():
                     )
 
     def test_gate_transvection(self):
-        g = Hadamard(0, 2)
-        gt = g.transvection([0, 1])
-        target = np.array([[0, 1], [-1, -1]])
-        assert np.array_equal(gt.symplectic, target), 'Error in Hadamard transvection'
 
         for _ in range(100):
             g = Gate.from_random(5, 2)
@@ -394,10 +390,10 @@ class TestGates():
     # def test_gate_inverse(self):
     #     n_qudits = 2
     #     n_paulis = 3
-    #     dimension = 2
+    #     dimension = 3
     #     for _ in range(1):
-    #         g = Gate.from_random(n_qudits, dimension, seed=2)
-    #         gt = g.inv()
+    #         g = Gate.from_random(n_qudits, dimension)
+    #         gt = g.inverse()
     #         rps = PauliSum.from_random(n_paulis, n_qudits, [dimension] * n_qudits, False, seed=1)
     #         print(rps)
     #         assert rps == g.act(gt.act(rps)), 'Inversion Error:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()

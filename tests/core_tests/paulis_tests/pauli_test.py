@@ -261,11 +261,17 @@ class TestPaulis:
                       weights=[1, 1, 0.5, 0.5],
                       phases=[0, 0, 1, 1],
                       dimensions=dims, standardise=False)
-
-        assert ps[0] == PauliString.from_string('x2z0 x2z0 x1z1', dimensions=dims)
-        assert ps[1] == PauliString.from_string('x2z0 x2z0 x0z0', dimensions=dims)
-        assert ps[2] == PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)
-        assert ps[3] == PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)
+        
+        ps0 = PauliSum([PauliString.from_string('x2z0 x2z0 x1z1', dimensions=dims)], weights=[1], phases=[0])
+        ps1 = PauliSum([PauliString.from_string('x2z0 x2z0 x0z0', dimensions=dims)], weights=[1], phases=[0])
+        ps2 = PauliSum([PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)], weights=[0.5 + 0j], phases=[1],
+                       standardise=False)
+        ps3 = PauliSum([PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)], weights=[0.5 + 0j], phases=[1],
+                       standardise=False)
+        assert ps[0] == ps0, f'{ps[0].__str__()}\n{ps0.__str__()}'
+        assert ps[1] == ps1, f'{ps[1].__str__()}\n{ps1.__str__()}'
+        assert ps[2] == ps2, f'{ps[2].__str__()}\n{ps2.__str__()}'
+        assert ps[3] == ps3, f'{ps[3].__str__()}\n{ps3.__str__()}'
         assert ps[0:2] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z0 x0z0'], dimensions=dims, standardise=False)
         assert ps[[0, 3]] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z1 x1z1'], weights=[1, 0.5], phases=[0, 1],
                                       dimensions=dims, standardise=False)
@@ -285,7 +291,7 @@ class TestPaulis:
         np.random.shuffle(shuffled_basis)
         ps = PauliSum.from_tableau(np.array(shuffled_basis), [d] * n_qudits)
 
-        assert np.all(ps.tableau() == symplectic_basis), 'Error in PauliSum ordering to symplectic basis'
+        assert np.all(ps.standard_form().tableau() == symplectic_basis)
 
     def test_qubit_XZ_phase_is_minus_one(self):
         # Single qubit (dimension 2): X * Z = (-1) Z * X  => scalar exponent r = 1 mod 2
