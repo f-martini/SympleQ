@@ -90,20 +90,23 @@ jobs:
             BUILD_DIR=${{ env.BUILD_DIR }}
             CUDA_PATH=/usr/local/cuda
             VCPKG_ROOT=/tmp/vcpkg
-            PATH=/usr/local/cuda/bin:$PATH
+            PATH=/usr/local/cuda/bin:/opt/rh/gcc-toolset-12/root/usr/bin:$PATH
             LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-            CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc
-            CXX=/opt/rh/gcc-toolset-10/root/usr/bin/g++
+            CC=/opt/rh/gcc-toolset-12/root/usr/bin/gcc
+            CXX=/opt/rh/gcc-toolset-12/root/usr/bin/g++
 
           # Install CUDA and vcpkg before build
           CIBW_BEFORE_ALL_LINUX: >-
             echo "Installing system dependencies..." &&
             yum install -y epel-release &&
-            yum install -y gcc gcc-c++ make git which gcc-toolset-10 &&
-            source /opt/rh/gcc-toolset-10/enable &&
-            export CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc &&
-            export CXX=/opt/rh/gcc-toolset-10/root/usr/bin/g++ &&
+            yum install -y make git which gcc-toolset-12 &&
+            echo "Removing default GCC to avoid conflicts..." &&
+            yum remove -y gcc gcc-c++ || echo "Default GCC already removed or not found" &&
+            source /opt/rh/gcc-toolset-12/enable &&
+            export CC=/opt/rh/gcc-toolset-12/root/usr/bin/gcc &&
+            export CXX=/opt/rh/gcc-toolset-12/root/usr/bin/g++ &&
             echo "GCC version:" && $CC --version &&
+            echo "GCC path:" && which gcc &&
             echo "Installing CUDA..." &&
             curl -fsSL https://developer.download.nvidia.com/compute/cuda/12.5.0/local_installers/cuda_12.5.0_555.42.02_linux.run -o cuda_installer.run &&
             sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
@@ -213,9 +216,9 @@ jobs:
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgDirectory: "${{ github.workspace }}/vcpkg"
+          vcpkgDirectory: "${{ github.workspace }}\\vcpkg"
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
-          vcpkgJsonGlob: "**/vcpkg.json"
+          vcpkgJsonGlob: "**\\vcpkg.json"
 
       # ===== Set environment variables =====
       - name: Set build environment variables
@@ -230,9 +233,9 @@ jobs:
           fi
 
           # Set common variables
-          echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
-          echo "SOURCE_DIR=${{ github.workspace }}/src" >> $GITHUB_ENV
-          echo "BUILD_DIR=${{ github.workspace }}/build" >> $GITHUB_ENV
+          echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake" >> $GITHUB_ENV
+          echo "SOURCE_DIR=${{ github.workspace }}\\src" >> $GITHUB_ENV
+          echo "BUILD_DIR=${{ github.workspace }}\\build" >> $GITHUB_ENV
 
       - name: Set CIBW_BUILD for Python version
         shell: bash
@@ -263,7 +266,7 @@ jobs:
             SOURCE_DIR=${{ env.SOURCE_DIR }}
             BUILD_DIR=${{ env.BUILD_DIR }}
             CUDA_PATH=${{ env.CUDA_PATH }}
-            VCPKG_ROOT=${{ github.workspace }}/vcpkg
+            VCPKG_ROOT=${{ github.workspace }}\\vcpkg
 
           # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
@@ -281,7 +284,7 @@ jobs:
           # Repair settings for Windows
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
 
-        run: python -m cibuildwheel --output-dir ../../dist
+        run: python -m cibuildwheel --output-dir ./dist
 
       # ===== Upload artifacts =====
       - name: List built wheels
