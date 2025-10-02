@@ -190,18 +190,19 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}):
             for j1, a1 in enumerate(aa):
                 if j0 != j1:
                     # isolate a pair of paulis in the clique
-                    P_a0 = P1[j0, :]
-                    P_a0c = P_a0.hermitian()
-                    P_a1 = P1[j1, :]
+                    P_a0 = P1[j0]
+                    P_a0c = P_a0.H()
+                    P_a1 = P1[j1]
                     # compute their product pauli
                     P2 = P_a0c * P_a1
+                    P2.weights = [1]
                     # check if the product is in the original pauli list
-                    if P2 not in P1:
+                    if P2[0,:] not in P1:
                         k_dict[str(P1.n_paulis())] = [(a0, a1)]
                         P1 = P1 + P2
                     else:
                         P1_s = [str(ps) for ps in P1.pauli_strings]
-                        k_dict[str(P1_s.index(str(P2)))].append((a0, a1))
+                        k_dict[str(P1_s.index(str(P2[0,:])))].append((a0, a1))
 
         C = diagonalize(P1)
         P1 = C.act(P1)

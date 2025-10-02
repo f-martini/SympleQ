@@ -1183,6 +1183,7 @@ class PauliSum:
         for i in range(n):
             R[i, i, :] = 0
         # optional
+        return R
 
     def quditwise_symplectic_product_matrix(self) -> np.ndarray:
         """
@@ -1374,6 +1375,16 @@ class PauliSum:
         self.phases[index_1], self.phases[index_2] = self.phases[index_2], self.phases[index_1]
         self.x_exp[index_1], self.x_exp[index_2] = self.x_exp[index_2], self.x_exp[index_1]
         self.z_exp[index_1], self.z_exp[index_2] = self.z_exp[index_2], self.z_exp[index_1]
+
+    def hermitian_conjugate(self):
+        conjugate_weights = np.conj(self.weights)
+        conjugate_phases = (- self.phases) % (2 * self.lcm)
+        conjugate_dimensions = self.dimensions
+        conjugate_pauli_strings = [p.hermitian() for p in self.pauli_strings]
+        return PauliSum(conjugate_pauli_strings, conjugate_weights, conjugate_phases, conjugate_dimensions,
+                        standardise=False)
+
+    H = hermitian_conjugate
 
     # TODO: Move this to a better location and amend where it is used in the Pauli reduction code
     @staticmethod

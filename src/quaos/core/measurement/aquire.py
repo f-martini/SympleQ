@@ -147,7 +147,7 @@ class Aquire:
         P.phase_to_weight()
         if P.n_paulis() < H.n_paulis():
             for i in range(H.n_paulis()):
-                if H.weights[i] != 0 and H[i].is_identity():
+                if H.weights[i] != 0 and H[i,:].is_identity():
                     print("Identity term with weight", H.weights[i].real, "ignored.")
 
         # supposed to be permanent
