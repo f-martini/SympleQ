@@ -92,6 +92,8 @@ jobs:
             VCPKG_ROOT=/tmp/vcpkg
             PATH=/usr/local/cuda/bin:$PATH
             LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+            CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc
+            CXX=/opt/rh/gcc-toolset-10/root/usr/bin/g++
 
           # Install CUDA and vcpkg before build
           CIBW_BEFORE_ALL_LINUX: >-
@@ -129,7 +131,7 @@ jobs:
           # Repair settings for Linux
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: "auditwheel repair -w {dest_dir} {wheel}"
 
-        run: python -m cibuildwheel --output-dir ../../dist
+        run: python -m cibuildwheel --output-dir ./dist
 
       # ===== Upload artifacts =====
       - name: List built wheels
@@ -256,12 +258,11 @@ jobs:
           CIBW_SKIP: "pp*"
 
           # Environment variables for the build
-          CIBW_ENVIRONMENT: >-
-            CMAKE_PRESET=${{ env.CMAKE_PRESET }};
-            CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }};
-            SOURCE_DIR=${{ env.SOURCE_DIR }};
-            BUILD_DIR=${{ env.BUILD_DIR }};
-            CUDA_PATH=${{ env.CUDA_PATH }};
+          CIBW_ENVIRONMENT: CMAKE_PRESET=${{ env.CMAKE_PRESET }}
+            CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
+            SOURCE_DIR=${{ env.SOURCE_DIR }}
+            BUILD_DIR=${{ env.BUILD_DIR }}
+            CUDA_PATH=${{ env.CUDA_PATH }}
             VCPKG_ROOT=${{ github.workspace }}/vcpkg
 
           # Install dependencies before build
