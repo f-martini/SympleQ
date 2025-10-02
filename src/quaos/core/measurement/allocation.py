@@ -329,7 +329,7 @@ def update_data(xxx, rr, X, k_phases, D):
         (P1, _, k_dict) = D[str(aa)]
         p1, q1, phases1 = P1.n_paulis(), P1.n_qudits(), P1.phases
         bases_a1 = rr[i]
-        phases1 = phases1/2
+        phases1 = phases1 / 2
         ss = [(phases1[i0] + sum((bases_a1[i1] * P1.z_exp[i0, i1] * P1.lcm) // P1.dimensions[i1]
                for i1 in range(q1))) % P1.lcm for i0 in range(p1)]
         for j0, s0 in enumerate(ss):
