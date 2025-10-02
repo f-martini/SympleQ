@@ -164,6 +164,8 @@ def choose_measurement(S, V, aaa, allocation_mode):
             V1[xx][:, xx].sum() + V2[xx][:, list(index_set.difference(xx))].sum())))
     elif allocation_mode == 'rand':
         aa = sorted(random.sample(list(set(frozenset(aa1) for aa1 in aaa1)), 1)[0])
+    else:
+        raise NotImplementedError('Allocation mode not implemented')
     return aa
 
 
@@ -327,14 +329,15 @@ def update_data(xxx, rr, X, k_phases, D):
         (P1, _, k_dict) = D[str(aa)]
         p1, q1, phases1 = P1.n_paulis(), P1.n_qudits(), P1.phases
         bases_a1 = rr[i]
+        phases1 = phases1/2
         ss = [(phases1[i0] + sum((bases_a1[i1] * P1.z_exp[i0, i1] * P1.lcm) // P1.dimensions[i1]
                for i1 in range(q1))) % P1.lcm for i0 in range(p1)]
         for j0, s0 in enumerate(ss):
             for a0, a1 in k_dict[str(j0)]:
                 if a0 != a1:
-                    X[int(a0), int(a1), int((s0 + k_phases[a0, a1]) % d)] += 1
+                    X[a0, a1, int((s0 + k_phases[a0, a1]) % d)] += 1
                 else:
-                    X[int(a0), int(a1), int(s0)] += 1
+                    X[a0, a1, int(s0)] += 1
     return X
 
 
@@ -397,7 +400,7 @@ def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.00
             n_entangling += 1
         else:
             n_local += 1
-    noise_prob = 1 - ((1 - p_mes) * (1 - p_entangling) ** n_entangling * (1 - p_local) ** n_local)
+    noise_prob = 1 - ((1 - p_mes) * (1 - p_entangling)**n_entangling * (1 - p_local)**n_local)
     return noise_prob
 
 

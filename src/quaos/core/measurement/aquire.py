@@ -146,10 +146,9 @@ class Aquire:
         P, pauli_block_sizes = sort_hamiltonian(H)
         P.phase_to_weight()
         if P.n_paulis() < H.n_paulis():
-            print("Warning: Identity in input Hamiltonian. This is ignored in the measurement process.")
             for i in range(H.n_paulis()):
                 if H.weights[i] != 0 and H[i].is_identity():
-                    print("  Identity term with weight", H.weights[i].real, "ignored.")
+                    print("Identity term with weight", H.weights[i].real, "ignored.")
 
         # supposed to be permanent
         self.H = P
@@ -181,7 +180,7 @@ class Aquire:
             self.diagnostic_flag = False
 
         # dependent on changeable parameters
-        self.CG = commutation_graph(self.H) if general_commutation else quditwise_commutation_graph(H)
+        self.CG = commutation_graph(self.H) if general_commutation else quditwise_commutation_graph(self.H)
         self.clique_covering = weighted_vertex_covering_maximal_cliques(self.CG, cc=self.weights, k=3)
         self.k_phases = get_phase_matrix(self.H, self.CG)
 
@@ -498,6 +497,7 @@ class Aquire:
                     else:
                         result = standard_error_function(result, self.H.dimensions)
             simulated_measurement_results.append(result)
+
         self.data = update_data(self.last_update_cliques,
                                 simulated_measurement_results,
                                 self.data,
