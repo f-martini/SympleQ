@@ -370,8 +370,8 @@ class PauliSum:
 
     @overload
     def __getitem__(self,
-                    key: int | slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] |
-                    tuple[slice, list[int]] | tuple[slice, np.ndarray] | tuple[list[int], int] |
+                    key: int | slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] |
+                    tuple[slice, int] | tuple[slice, list[int]] | tuple[slice, np.ndarray] | tuple[list[int], int] |
                     tuple[np.ndarray, int] | tuple[np.ndarray, slice] | tuple[np.ndarray, list[int]] |
                     tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, list[int]] | tuple[list[int], list[int]] |
                     tuple[list[int], np.ndarray]) -> 'PauliSum':

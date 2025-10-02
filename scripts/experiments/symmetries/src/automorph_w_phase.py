@@ -3,33 +3,24 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import galois
 from quaos.utils import get_linear_dependencies
-
-# Optional: if you want to JIT tiny kernels, you can import numba and
-# swap in numba-accelerated versions of consistency checks. The pure-numpy
-# versions below are correct and reasonably fast for medium N.
-# from numba import njit
-
-# ---------------------------------------------------------------------------
-# Types
-# ---------------------------------------------------------------------------
+from numba import njit
+from quaos.core.circuits.target import map_pauli_sum_to_target_tableau as _map_sum_to_target
 Label = int
 DepPairs = Dict[Label, List[Tuple[Label, int]]]
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # Small utilities
-# ---------------------------------------------------------------------------
+# =============================================================================
 
 def _perm_index_to_perm_map(pi: np.ndarray) -> Dict[int, int]:
     return {i: int(pi[i]) for i in range(pi.size)}
 
-
 def _is_identity_perm_idx(pi: np.ndarray) -> bool:
     return np.array_equal(pi, np.arange(pi.size, dtype=pi.dtype))
 
-
-# ---------------------------------------------------------------------------
-# Robust coefficient discretization (relative + absolute tolerance)
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Coefficient discretization (stable binning for floats/complex)
+# =============================================================================
 
 def _discretize_coeffs(
     coeffs: Optional[np.ndarray],
@@ -37,15 +28,13 @@ def _discretize_coeffs(
     abs_tol: float = 1e-12,
 ) -> Optional[np.ndarray]:
     """
-    Map float/complex coefficients to stable integer colour IDs using
-    per-entry quantization with relative + absolute tolerance:
-      q(x) = round( x / (abs(x)*rel + abs_tol) )
-    Two values x,y that satisfy |x-y| <= |x|*rel + abs_tol
-    will map to the same integer bin (and similarly for complex by parts).
+    Map scalar/complex coefficients to stable integer colour IDs with
+    relative + absolute tolerance. Used to enforce coefficient-colour equality.
     """
     if coeffs is None:
         return None
     c = np.asarray(coeffs)
+
     def q(x: np.ndarray) -> np.ndarray:
         step = np.maximum(np.abs(x) * rel, abs_tol)
         return np.rint(x / step).astype(np.int64)
@@ -53,16 +42,13 @@ def _discretize_coeffs(
     if np.iscomplexobj(c):
         qr = q(c.real)
         qi = q(c.imag)
-        # stable 64-bit packing of two signed 64-bit ints
-        packed = (qr.astype(np.int64) << 32) ^ (qi.astype(np.int64) & ((1 << 32) - 1))
-        return packed
+        return (qr.astype(np.int64) << 32) ^ (qi.astype(np.int64) & ((1 << 32) - 1))
     else:
         return q(c)
 
-
-# ---------------------------------------------------------------------------
-# WL-1 base partition on edge-coloured complete graph S
-# ---------------------------------------------------------------------------
+# =============================================================================
+# WL-1 base partition on edge-coloured complete graph S (ordering only)
+# =============================================================================
 
 def _wl_colors_from_S(
     S_mod: np.ndarray,
@@ -74,7 +60,7 @@ def _wl_colors_from_S(
     """
     1-WL color refinement on the complete edge-colored graph with edge color S[i,j] in GF(p).
     Seed key: (coeff[i], histogram of S[i,*] mod p).
-    This is a safe isomorphism invariant; we use it only as a *base* partition.
+    We'll use the resulting colors for *ordering only* (not a hard constraint).
     """
     n = S_mod.shape[0]
     hist = np.zeros((n, p), dtype=np.int64)
@@ -111,7 +97,6 @@ def _wl_colors_from_S(
             break
     return color
 
-
 def _color_classes(color: np.ndarray) -> Dict[int, List[int]]:
     classes: Dict[int, List[int]] = {}
     for i, c in enumerate(color):
@@ -120,14 +105,17 @@ def _color_classes(color: np.ndarray) -> Dict[int, List[int]]:
         classes[c].sort()
     return classes
 
+# =============================================================================
+# Local S-consistency (Numba)
+# =============================================================================
 
-# ---------------------------------------------------------------------------
-# Local S-consistency checks
-# ---------------------------------------------------------------------------
-
+@njit(cache=True, fastmath=True)
 def _consistent_all(S_mod: np.ndarray, phi: np.ndarray, mapped_idx: np.ndarray, i: int, y: int) -> bool:
-    """Enforce S-consistency of (i -> y) against *all* already-mapped vertices."""
-    for j in mapped_idx:
+    """
+    Enforce S-consistency of (i -> y) against all already-mapped vertices.
+    """
+    for t in range(mapped_idx.size):
+        j = mapped_idx[t]
         yj = phi[j]
         if yj < 0:
             continue
@@ -137,10 +125,13 @@ def _consistent_all(S_mod: np.ndarray, phi: np.ndarray, mapped_idx: np.ndarray, 
             return False
     return True
 
-
+@njit(cache=True, fastmath=True)
 def _consistent_vs_basis_only(S_mod: np.ndarray, phi: np.ndarray, mapped_basis_idx: np.ndarray, i: int, y: int) -> bool:
-    """Enforce S-consistency of (i -> y) against mapped *basis* vertices only."""
-    for j in mapped_basis_idx:
+    """
+    Enforce S-consistency of (i -> y) against already-mapped *basis* vertices only.
+    """
+    for t in range(mapped_basis_idx.size):
+        j = mapped_basis_idx[t]
         yj = phi[j]
         if yj < 0:
             continue
@@ -150,14 +141,54 @@ def _consistent_vs_basis_only(S_mod: np.ndarray, phi: np.ndarray, mapped_basis_i
             return False
     return True
 
-
-# ---------------------------------------------------------------------------
-# Global checks
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Global S check
+# =============================================================================
 
 def _check_symplectic_invariance_mod(S_mod: np.ndarray, pi: np.ndarray) -> bool:
     return np.array_equal(S_mod[np.ix_(pi, pi)], S_mod)
 
+# Phase consistency checks
+
+def _almost_equal_complex(a: complex, b: complex, atol: float = 1e-12, rtol: float = 1e-10) -> bool:
+    return abs(a - b) <= max(atol, rtol * max(abs(a), abs(b)))
+
+def _verify_weights_with_h(
+    tableau: np.ndarray,   # N × 2n
+    coeffs: Optional[np.ndarray],  # length N (complex)
+    pi: np.ndarray,         # length N row permutation
+    h: np.ndarray,          # length 2n, modulo 2p
+    p: int
+) -> bool:
+    if coeffs is None:
+        return True  # nothing to check
+    mod2 = 2 * int(p)
+    N = tableau.shape[0]
+    # phase exponent per row: t_i = (a_i · h) mod 2p
+    t = (tableau @ (h % mod2)) % mod2
+
+    if p == 2:
+        for i in range(N):
+            if t[i] & 1:
+                # print(f"[weights] odd t[{i}]={t[i]} -> unexpected ±i from h-only")
+                return False
+            factor = 1.0 if (t[i] % 4 == 0) else -1.0
+            lhs = coeffs[i]
+            rhs = factor * coeffs[pi[i]]
+            if not _almost_equal_complex(lhs, rhs):
+                print(f"[weights] mismatch at row {i}: coeff[i]={lhs}, factor={factor}, coeff[pi[i]]={coeffs[pi[i]]}")
+                return False
+        return True
+    else:
+        # For general prime p, you’d map the exponent t_i (mod 2p) to a p-th root of unity.
+        # Placeholder: accept for now (or implement your desired mapping).
+        return True
+
+
+
+# =============================================================================
+# Generator matrix from (independents, dependencies)
+# =============================================================================
 
 def _build_generator_matrix(
     independent: List[int],
@@ -166,7 +197,7 @@ def _build_generator_matrix(
     p: int,
 ) -> Tuple[galois.FieldArray, List[int], np.ndarray]:
     """
-    Build G in systematic form (k x N), columns ordered by `labels` (0..N-1).
+    Build G in systematic form (k × N), columns ordered by `labels` (0..N-1).
     Returns (G, basis_order, basis_mask[idx]=True if labels[idx] in basis).
     """
     GF = galois.GF(p)
@@ -192,7 +223,6 @@ def _build_generator_matrix(
         basis_mask[label_to_col[b]] = True
     return G, basis_order, basis_mask
 
-
 def _check_code_automorphism(
     G: galois.FieldArray,
     basis_order: List[int],
@@ -200,44 +230,47 @@ def _check_code_automorphism(
     pi: np.ndarray,
     p: int,
 ) -> bool:
-    """Code/matroid test: ∃U in GL(k,p) with U G[:,pi] = G (field solve)."""
+    """
+    Code/matroid test: ∃U ∈ GL(k,p) with U G[:,pi] = G (field solve).
+    """
     GF = galois.GF(p)
     lab_to_idx = {lab: i for i, lab in enumerate(labels)}
     B_cols = np.array([lab_to_idx[b] for b in basis_order], dtype=int)
     PBcols = pi[B_cols]
-    C = G[:, PBcols]  # k x k FieldArray
+    C = G[:, PBcols]  # k × k FieldArray
     try:
         U = np.linalg.solve(C, GF.Identity(C.shape[0]))
     except np.linalg.LinAlgError:
         return False
     return np.array_equal(U @ G[:, pi], G)
 
-
-# ---------------------------------------------------------------------------
-# Modular linear algebra helpers (GF(p), mod 2p via CRT/Hensel)
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Modular linear algebra (GF(p), plus CRT/Hensel for mod 2p solves)
+# =============================================================================
 
 def _inv_mod_prime(a: int, p: int) -> int:
-    p = int(p)
-    a = int(a) % p
+    p = int(p); a = int(a) % p
     if a == 0:
         raise ZeroDivisionError("no inverse")
     return pow(a, p - 2, p)
 
-
 def _gauss_solve_mod_prime(M_int: np.ndarray, b_int: np.ndarray, p: int) -> Optional[np.ndarray]:
+    """
+    Solve M x = b (mod p) with row-reduced echelon-like elimination; returns x or None.
+    M_int: (m×n) int, b_int: (m,)
+    """
     m, n = M_int.shape
     M = (M_int % p).astype(int).copy()
     b = (b_int % p).astype(int).copy()
     row = 0
     pivots: List[Tuple[int, int]] = []
     for col in range(n):
-        pivot = None
+        pivot = -1
         for r in range(row, m):
             if M[r, col] % p != 0:
                 pivot = r
                 break
-        if pivot is None:
+        if pivot == -1:
             continue
         if pivot != row:
             M[[row, pivot]] = M[[pivot, row]]
@@ -268,7 +301,6 @@ def _gauss_solve_mod_prime(M_int: np.ndarray, b_int: np.ndarray, p: int) -> Opti
         x[c] = (b[r] - s) % p
     return x % p
 
-
 def _gauss_inverse_mod_prime(M_int: np.ndarray, p: int) -> Optional[np.ndarray]:
     p = int(p)
     n = int(M_int.shape[0])
@@ -278,12 +310,12 @@ def _gauss_inverse_mod_prime(M_int: np.ndarray, p: int) -> Optional[np.ndarray]:
     A_aug = np.concatenate([A, I], axis=1)
     row = 0
     for col in range(n):
-        pivot = None
+        pivot = -1
         for r in range(row, n):
             if A_aug[r, col] % p != 0:
                 pivot = r
                 break
-        if pivot is None:
+        if pivot == -1:
             return None
         if pivot != row:
             A_aug[[row, pivot]] = A_aug[[pivot, row]]
@@ -302,114 +334,165 @@ def _gauss_inverse_mod_prime(M_int: np.ndarray, p: int) -> Optional[np.ndarray]:
         return None
     return A_aug[:, n:] % p
 
-
-# ---------------------------------------------------------------------------
-# Phase helpers
-# ---------------------------------------------------------------------------
-
-def _normalize_tableau(A_raw: np.ndarray, two_n: int) -> np.ndarray:
-    if A_raw.shape[0] == two_n:
-        return A_raw.astype(int, copy=False)
-    if A_raw.shape[1] == two_n:
-        return A_raw.T.astype(int, copy=False)
-    raise ValueError(f"Tableau shape {A_raw.shape} not compatible with 2n={two_n}.")
-
+# =============================================================================
+# Phase helpers (canonical: tableau is N×2n; F acts on the right; π permutes rows)
+# =============================================================================
 
 def _build_P_phase(n_qud: int, p: int) -> np.ndarray:
+    """
+    Standard symplectic form for phase calculations, modulo 2p.
+    """
     P_upper = np.hstack([np.zeros((n_qud, n_qud), dtype=int), np.eye(n_qud, dtype=int)])
     P_lower = np.hstack([(-np.eye(n_qud, dtype=int)) % (2 * p), np.zeros((n_qud, n_qud), dtype=int)])
     return (np.vstack([P_upper, P_lower]) % (2 * p)).astype(int)
 
-
-def _right_inverse_GF(A: np.ndarray, p: int) -> Optional[np.ndarray]:
-    A = A.T
-    rows, N = A.shape  # rows = 2n
-    L = np.zeros((N, rows), dtype=int)
-    for i in range(rows):
-        e = np.zeros(rows, dtype=int)
-        e[i] = 1
-        x = _gauss_solve_mod_prime(A % p, e, p)
+def _left_inverse_GF_tableau(tableau: np.ndarray, p: int) -> Optional[np.ndarray]:
+    """
+    Given canonical tableau (N × 2n), return L_left (2n × N) s.t. L_left @ tableau = I_{2n} (mod p),
+    or None if rank(tableau) < 2n.
+    """
+    N, two_n = tableau.shape
+    insane_convention_tableau = tableau.T % p  # 2n × N
+    L_left = np.zeros((two_n, N), dtype=int)
+    # For each unit vector e_j in dimension 2n, solve (tableau^T) x = e_j
+    for j in range(two_n):
+        e = np.zeros(two_n, dtype=int); e[j] = 1
+        x = _gauss_solve_mod_prime(insane_convention_tableau, e, p)
         if x is None:
             return None
-        L[:, i] = x % p
-    return L % p
+        L_left[j, :] = x % p
+    return L_left % p
+
+def _build_F_right_rowperm(
+    tableau: np.ndarray,
+    L_left: Optional[np.ndarray],
+    pi: np.ndarray,
+    p: int
+) -> Optional[np.ndarray]:
+    """
+    Build F (2n × 2n) so that (tableau @ F) == (Π @ tableau) (mod p), where Π permutes rows by pi.
+    For p=2, use the transvection-based construction (successive symplectic transvections) and RETURN.
+    For p!=2, fall back to the left-inverse method (and verify).
+    """
+    p = int(p)
+    N, two_n = tableau.shape
+    Pi = np.eye(N, dtype=int)[pi, :]  # N×N row permutation
+
+    if p == 2:
+        # --- Use your trusted transvection construction (already imported as _map_sum_to_target) ---
+        A_src = (tableau % 2).astype(int)        # N × 2n
+        A_tgt = (Pi @ A_src) % 2                 # N × 2n
+        F = _map_sum_to_target(A_src, A_tgt) % 2
+
+        # Verify mapping and symplecticity
+        if not np.array_equal((tableau @ F) % 2, (Pi @ tableau) % 2):
+            return None
+
+        P2 = _build_P_phase(two_n // 2, 1) % 2
+        if not np.array_equal((F.T @ P2 @ F) % 2, P2):
+            return None
+
+        return F  # IMPORTANT: do not fall through to the left-inverse path
+
+    # --- General p path: left-inverse (requires full row rank) ---
+    if L_left is None:
+        return None
+    F = (L_left @ (Pi @ (tableau % p))) % p  # 2n×2n
+
+    # Verify mapping and symplecticity
+    if not np.array_equal((tableau % p) @ F % p, (Pi @ (tableau % p)) % p):
+        return None
+
+    Pp = _build_P_phase(two_n // 2, p) % p
+    if not np.array_equal((F.T @ Pp @ F) % p, Pp):
+        return None
+
+    return F % p
 
 
-def _build_F_from_perm_with_L(A_c: np.ndarray, L_right: np.ndarray, pi: np.ndarray, p: int) -> np.ndarray:
-    # Using A_T = A_c^T (2n × N) and P_pi to reorder columns:
-    A_T = A_c.T % p
-    N = A_T.shape[1]
-    Ppi = np.eye(N, dtype=int)[:, pi]       # N×N permutation
-    F = (A_T @ Ppi) % p
-    F = (F @ L_right) % p                   # 2n×2n
-    return F
-
-def _build_phase_rhs(A_c: np.ndarray, phases: Optional[np.ndarray], pi: np.ndarray,
-                     Delta_mod2: np.ndarray, p: int) -> np.ndarray:
+def _build_phase_rhs_tableau(tableau: np.ndarray, phases: Optional[np.ndarray], pi: np.ndarray,
+                             Delta_mod2: np.ndarray, p: int) -> np.ndarray:
+    """
+    Build r (length N) where r_i = 2(φ_{π(i)} - φ_i) - a_i Δ a_i^T  (mod 2p),
+    with a_i the *row* i of tableau (N × 2n).
+    """
     mod2 = 2 * int(p)
-    N = A_c.shape[0]
+    N = tableau.shape[0]
     phi = np.zeros(N, dtype=int) if phases is None else (np.asarray(phases, dtype=int) % p)
     r = np.zeros(N, dtype=int)
     for i in range(N):
-        a = (A_c[i, :] % mod2).astype(int)           # row vector length 2n
-        quad = int((a @ ((Delta_mod2 @ a) % mod2)) % mod2)
+        a = (tableau[i, :] % mod2).astype(int)
+        quad = int(a @ ((Delta_mod2 @ a) % mod2)) % mod2
         dphi = int((2 * ((phi[pi[i]] - phi[i]) % p)) % mod2)
         r[i] = (dphi - quad) % mod2
     return r
 
-def _solve_Mh_eq_r_mod_2p(M: np.ndarray, r: np.ndarray, p: int) -> Optional[np.ndarray]:
-    # M is N×(2n); solve M h ≡ r (mod 2p) using same CRT/Hensel logic as before
+def _solve_tableau_h_eq_r_mod_2p(tableau: np.ndarray, r: np.ndarray, p: int) -> Optional[np.ndarray]:
+    """
+    Solve (tableau) h ≡ r  (mod 2p), where tableau is N × 2n, r is length N.
+    Returns h (length 2n) modulo 2p, or None if inconsistent.
+    """
+    M = tableau  # N × 2n
     if p % 2 == 1:
-        h_p = _gauss_solve_mod_prime(M % p, r % p, p)
-        if h_p is None: return None
-        h_2 = _gauss_solve_mod_prime(M % 2, r % 2, 2)
-        if h_2 is None: return None
+        h_p = _gauss_solve_mod_prime(M, r, p)
+        if h_p is None:
+            return None
+        h_2 = _gauss_solve_mod_prime(M, r, 2)
+        if h_2 is None:
+            return None
         inv2 = _inv_mod_prime(2, p)
         h = np.zeros_like(h_p, dtype=int)
         for i in range(h.size):
             k = (int(h_p[i]) - int(h_2[i])) % p
             u = (k * inv2) % p
             h[i] = (int(h_2[i]) + 2 * int(u)) % (2 * p)
-        return h % (2*p)
+        return h % (2 * p)
     else:
-        h2 = _gauss_solve_mod_prime(M % 2, r % 2, 2)
-        if h2 is None: return None
+        # p == 2 -> lift mod 2 to mod 4
+        h2 = _gauss_solve_mod_prime(M, r, 2)
+        if h2 is None:
+            return None
         e = (r % 4 - (M % 4) @ (h2 % 4)) % 4
-        if np.any(e % 2 != 0): return None
-        y = _gauss_solve_mod_prime(M % 2, (e // 2) % 2, 2)
-        if y is None: return None
-        return (h2 + 2 * y) % 4
+        if np.any(e % 2 != 0):
+            return None
+        y = _gauss_solve_mod_prime(M, (e // 2) % 2, 2)
+        if y is None:
+            return None
+        return (h2 + 2 * y) % 4  # 2p == 4
 
-
-def _solve_phase_system_variants(
-    A: np.ndarray,          # N×2n
+def _solve_phase_system_variants_tableau(
+    tableau: np.ndarray,          # N × 2n
     phases: Optional[np.ndarray],
     pi: np.ndarray,
     P_phase: np.ndarray,
-    F_int: Optional[np.ndarray],  # 2n×2n mod p
+    F_int: Optional[np.ndarray],  # 2n × 2n mod p
     p: int,
     rank_full: bool,
 ) -> Optional[np.ndarray]:
+    """
+    Try to solve (tableau) h ≡ r (mod 2p). Prefer Δ from a concrete F when available.
+    If rank is not full (no F), fall back to r = 2(φπ - φ).
+    """
     mod2 = 2 * int(p)
 
     def try_rhs(r_vec: np.ndarray) -> Optional[np.ndarray]:
-        h = _solve_Mh_eq_r_mod_2p(A, r_vec, p)
-        if h is None: return None
-        lhs = (A @ (h % mod2)) % mod2
-        return h % mod2 if np.array_equal(lhs, r_vec % mod2) else None
+        h = _solve_tableau_h_eq_r_mod_2p(tableau, r_vec, p)
+        if h is None:
+            return None
+        lhs = (tableau @ (h % mod2)) % mod2
+        return h % mod2 if np.array_equal(lhs % mod2, r_vec % mod2) else None
 
-    # Prefer using Delta from a concrete F if available
     if F_int is not None:
         Delta = (F_int.T @ (P_phase % mod2) @ F_int - (P_phase % mod2)) % mod2
-        for Delta_try in (Delta, (-Delta) % mod2):   # handle sign convention differences
-            r = _build_phase_rhs(A, phases, pi, Delta_try, p)
+        for D in (Delta, (-Delta) % mod2):  # handle sign conventions
+            r = _build_phase_rhs_tableau(tableau, phases, pi, D, p)
             h = try_rhs(r)
             if h is not None:
                 return h
 
-    # Underdetermined case: no F — fall back to r = 2(φπ - φ)
     if not rank_full:
-        phi = np.zeros(A.shape[0], dtype=int) if phases is None else (np.asarray(phases, dtype=int) % p)
+        N = tableau.shape[0]
+        phi = np.zeros(N, dtype=int) if phases is None else (np.asarray(phases, dtype=int) % p)
         r = (2 * ((phi[pi] - phi) % p)) % mod2
         h = try_rhs(r)
         if h is not None:
@@ -417,10 +500,9 @@ def _solve_phase_system_variants(
 
     return None
 
-
-# ---------------------------------------------------------------------------
-# Dependent placement using signature buckets + DFS (basis-only S checks)
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Dependent placement using signatures (UG vs G) + basis-only S checks
+# =============================================================================
 
 def _place_dependents_with_U(
     *,
@@ -434,42 +516,36 @@ def _place_dependents_with_U(
     basis_order_idx: List[int],  # indices (0..N-1)
     p: int,
     # Phase context (optional):
-    tableau: Optional[np.ndarray],
+    tableau: Optional[np.ndarray],   # N × 2n
     P_phase: Optional[np.ndarray],
     phases: Optional[np.ndarray],
-    L_right: Optional[np.ndarray],
+    L_left: Optional[np.ndarray],    # 2n × N
     rank_full: bool,
     return_phase: bool,
 ) -> Optional[Dict[str, object]]:
     """
-    Build candidate lists per dependent via column signatures of UG vs G,
-    then DFS with *basis-only* local S consistency. On success, verify global S,
-    code, and (optionally) phases, and return the solution dict.
+    After basis is mapped, determine U = C^{-1}. Use signatures of UG vs G to
+    finish dependents with minimal search; check S and code globally at the leaf,
+    and (optionally) solve for phases (right-acting F, row permutation).
     """
     N = G.shape[1]
-    GF = galois.GF(p)
-
     G_nd = G.view(np.ndarray) % p
     UG = U @ G
     UG_nd = UG.view(np.ndarray) % p
 
-    def sig_col(mat_nd: np.ndarray, j: int) -> Tuple[int, ...]:
-        return tuple(int(v) for v in mat_nd[:, j])
+    def sig_col(nd: np.ndarray, j: int) -> Tuple[int, ...]:
+        return tuple(int(v) for v in nd[:, j])
 
-    # Precompute signatures
     sig_G = [sig_col(G_nd, j) for j in range(N)]
     sig_UG = [sig_col(UG_nd, j) for j in range(N)]
 
-    # Free targets by signature
     from collections import defaultdict
     free_by_sig: Dict[Tuple[int, ...], List[int]] = defaultdict(list)
     for y in range(N):
         if not used[y]:
             free_by_sig[sig_UG[y]].append(y)
 
-    # Build per-dependent candidate lists
     dependents = [i for i in range(N) if not basis_mask[i]]
-
     dep_candidates: Dict[int, List[int]] = {}
     for i in dependents:
         lst = free_by_sig.get(sig_G[i], [])
@@ -479,16 +555,12 @@ def _place_dependents_with_U(
             return None
         dep_candidates[i] = lst
 
-    # Order dependents by MRV (fewest candidates first)
     dep_order = sorted(dependents, key=lambda i: len(dep_candidates[i]))
-
-    # Basis-mapped set for basis-only S check
     mapped_basis = np.asarray([b for b in basis_order_idx if phi[b] >= 0], dtype=np.int64)
 
     def dfs_dep(t: int) -> Optional[Dict[str, object]]:
         if t >= len(dep_order):
             pi = phi.copy()
-            # Global S-invariance and code check
             if _is_identity_perm_idx(pi):
                 return None
             if not _check_symplectic_invariance_mod(S_mod, pi):
@@ -497,20 +569,27 @@ def _place_dependents_with_U(
                 return None
 
             rec: Dict[str, object] = {"perm": _perm_index_to_perm_map(pi)}
-            # Optional phase feasibility
-            if tableau is not None and P_phase is not None:
-                F_int = _build_F_from_perm_with_L(
-                    tableau, L_right, pi, p) if rank_full and L_right is not None else None
-                h = _solve_phase_system_variants(
-                    A=tableau, phases=phases, pi=pi,
-                    P_phase=P_phase, F_int=F_int, p=p, rank_full=rank_full,
-                )
-                if h is None:
-                    return None
-                if return_phase:
-                    rec["h"] = h
-                    if F_int is not None:
-                        rec["F"] = F_int
+
+            # Build/verify F BEFORE phase solve.
+            F_int = _build_F_right_rowperm(tableau, L_left, pi, p)  # returns None if fails mapping/symplecticity
+            if F_int is None:
+                return None
+
+            # Phase feasibility with the CORRECT F
+            h = _solve_phase_system_variants_tableau(
+                tableau=tableau, phases=phases, pi=pi,
+                P_phase=_build_P_phase(tableau.shape[1] // 2, p),  # or reuse cached P_phase
+                F_int=F_int, p=p, rank_full=(L_left is not None),
+            )
+            if h is None:
+                return None
+            
+            if not _verify_weights_with_h(tableau, getattr(coeffs, "orig", coeffs), pi, h, p):
+                return None  # reject this π: it doesn’t preserve weights once rephasing by h is applied
+
+            # Pack result
+            rec["h"] = h
+            rec["F"] = F_int
             return rec
 
         i = dep_order[t]
@@ -519,47 +598,45 @@ def _place_dependents_with_U(
                 continue
             if not _consistent_vs_basis_only(S_mod, phi, mapped_basis, i, y):
                 continue
-            # place and recurse
             phi[i] = y
             used[y] = True
             sol = dfs_dep(t + 1)
             if sol is not None:
                 return sol
-            # backtrack
             phi[i] = -1
             used[y] = False
         return None
 
     return dfs_dep(0)
 
+# =============================================================================
+# Basis-first search (WL ordering only) + dependent placement by signatures
+# =============================================================================
 
-# ---------------------------------------------------------------------------
-# Basis-first search (single fast path). Dependents handled by DFS per signature.
-# ---------------------------------------------------------------------------
 def _basis_first_search(
     *,
     S_mod: np.ndarray,
     coeffs: Optional[np.ndarray],
     base_colors: np.ndarray,
-    base_classes: Dict[int, List[int]],  # kept for ordering; we won't constrain to these sets
+    base_classes: Dict[int, List[int]],  # ordering only
     G: galois.FieldArray,
-    basis_order_idx: List[int],  # indices (0..N-1)
+    basis_order_idx: List[int],
     basis_mask: np.ndarray,
     p: int,
     k_wanted: int,
     # Phase context (optional):
-    tableau: Optional[np.ndarray],
+    tableau: Optional[np.ndarray],  # N × 2n
     P_phase: Optional[np.ndarray],
     phases: Optional[np.ndarray],
-    L_right: Optional[np.ndarray],
+    L_left: Optional[np.ndarray],   # 2n × N
     rank_full: bool,
     return_phase: bool,
 ) -> List[Dict[str, object]]:
     """
-    Basis-first mapping with coefficient-colour constraint. WL classes are used
-    only to order candidates (heuristic), not as a feasibility constraint.
-    At the basis leaf, compute U=C^{-1} over GF(p) and place dependents via
-    signature buckets (basis-only S checks). Verify global S, code, and (optionally) phases.
+    Basis-first mapping. WL colors are used as a heuristic *ordering only*.
+    Coefficient colours are hard constraints. After basis is fixed, compute U=C^{-1}
+    (GF(p)) and place dependents via signature buckets; at leaf verify global S, code,
+    and (optionally) phases using right-acting F and row permutation.
     """
     N = S_mod.shape[0]
     results: List[Dict[str, object]] = []
@@ -576,7 +653,6 @@ def _basis_first_search(
         if len(results) >= k_wanted:
             return True
         if t >= k:
-            # Basis fixed -> U = C^{-1}
             Bcols = np.array(basis_order_idx, dtype=int)
             PBcols = phi[Bcols]
             C = G[:, PBcols]
@@ -585,12 +661,11 @@ def _basis_first_search(
             if U_int is None:
                 return False
             U = GF(U_int)
-
             sol = _place_dependents_with_U(
                 U=U, G=G, basis_mask=basis_mask, coeffs=coeffs,
                 S_mod=S_mod, phi=phi, used=used, basis_order_idx=basis_order_idx, p=p,
                 tableau=tableau, P_phase=P_phase, phases=phases,
-                L_right=L_right, rank_full=rank_full, return_phase=return_phase,
+                L_left=L_left, rank_full=rank_full, return_phase=return_phase,
             )
             if sol is not None:
                 results.append(sol)
@@ -600,16 +675,14 @@ def _basis_first_search(
         i = basis_idx_seq[t]
         mapped_idx = np.where(phi >= 0)[0].astype(np.int64)
 
-        # --- WL is ordering only; coefficient colours are a hard constraint
+        # WL ordering only; coefficient colours are hard constraints
         if coeffs is None:
             candidates = [y for y in range(N) if not used[y]]
         else:
             candidates = [y for y in range(N) if (not used[y]) and (coeffs[i] == coeffs[y])]
 
-        # Order by WL colour (heuristic) then index for determinism
         candidates.sort(key=lambda y: (base_colors[y], y))
 
-        # Local S vs already-mapped vertices (currently all basis so far)
         for y in candidates:
             if not _consistent_all(S_mod, phi, mapped_idx, i, y):
                 continue
@@ -624,9 +697,9 @@ def _basis_first_search(
     dfs_basis(0)
     return results[:k_wanted]
 
-# ---------------------------------------------------------------------------
-# Algebraic safety-net (no local S checks during construction). Gated by N.
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Algebraic fallback (small N) – no local S during construction
+# =============================================================================
 
 def _algebraic_fallback_search(
     *,
@@ -638,25 +711,19 @@ def _algebraic_fallback_search(
     p: int,
     k_wanted: int,
     # Phase context (optional):
-    tableau: Optional[np.ndarray],
+    tableau: Optional[np.ndarray],  # N × 2n
     P_phase: Optional[np.ndarray],
     phases: Optional[np.ndarray],
-    L_right: Optional[np.ndarray],
+    L_left: Optional[np.ndarray],   # 2n × N
     rank_full: bool,
     return_phase: bool,
 ) -> List[Dict[str, object]]:
     """
-    Final safety-net for small N: no local S pruning while constructing π.
-    Basis mapped by coefficient colours only (then require C invertible). Dependents
-    mapped by exact UG/G column signatures and colours. At leaf: enforce global S,
-    code, and (optionally) phases. Enumerates with MRV but avoids factorial blowups
-    in practice due to strong signature constraints.
+    Small-N safety net: construct π with coefficient-colour constraints only (no local S),
+    then verify global S, code, and phases at the leaf. Dependents placed via UG vs G signatures.
     """
     N = G.shape[1]
     results: List[Dict[str, object]] = []
-
-    G_nd = G.view(np.ndarray) % p
-    sig_G = [tuple(int(v) for v in G_nd[:, j]) for j in range(N)]
 
     phi = -np.ones(N, dtype=int)
     used = np.zeros(N, dtype=bool)
@@ -665,7 +732,6 @@ def _algebraic_fallback_search(
         if len(results) >= k_wanted:
             return True
         if t >= len(basis_order_idx):
-            # build U
             Bcols = np.array(basis_order_idx, dtype=int)
             PBcols = phi[Bcols]
             C = G[:, PBcols]
@@ -677,7 +743,6 @@ def _algebraic_fallback_search(
             return place_dependents(U)
 
         i = basis_order_idx[t]
-        # simple candidates: any unused with same coeff colour (if any)
         cand = [y for y in range(N) if not used[y] and (coeffs is None or coeffs[i] == coeffs[y])]
         for y in cand:
             phi[i] = y
@@ -691,8 +756,11 @@ def _algebraic_fallback_search(
     def place_dependents(U: galois.FieldArray) -> bool:
         if len(results) >= k_wanted:
             return True
+        G_nd = G.view(np.ndarray) % p
         UG = U @ G
         UG_nd = UG.view(np.ndarray) % p
+
+        sig_G = [tuple(int(v) for v in G_nd[:, j]) for j in range(N)]
         sig_UG = [tuple(int(v) for v in UG_nd[:, j]) for j in range(N)]
 
         from collections import defaultdict
@@ -717,10 +785,13 @@ def _algebraic_fallback_search(
                     return False
                 rec: Dict[str, object] = {"perm": _perm_index_to_perm_map(pi)}
                 if tableau is not None and P_phase is not None:
-                    F_int = _build_F_from_perm_with_L(
-                        tableau, L_right, pi, p) if rank_full and L_right is not None else None
-                    h = _solve_phase_system_variants(
-                        A=tableau, phases=phases, pi=pi,
+                    F_int = None
+                    if rank_full and L_left is not None:
+                        F_int = _build_F_right_rowperm(tableau, L_left, pi, p)
+                        if F_int is None:
+                            return False
+                    h = _solve_phase_system_variants_tableau(
+                        tableau=tableau, phases=phases, pi=pi,
                         P_phase=P_phase, F_int=F_int, p=p, rank_full=rank_full,
                     )
                     if h is None:
@@ -750,94 +821,91 @@ def _algebraic_fallback_search(
     place_basis(0)
     return results[:k_wanted]
 
-
-# ---------------------------------------------------------------------------
-# Public API: accept a Pauli-sum H (as in your environment)
-# ---------------------------------------------------------------------------
 def find_k_automorphisms_symplectic(
     H,
     *,
     k: int = 1,
-    basis_first: str = "any",
-    dynamic_refine_every: int = 0,
-    p2_bitset: str = "auto",
-    enforce_base_on_dependents: bool = False,
+    basis_first: str = "any",          # "any" or "off" (use algebraic fallback only)
+    safety_net_max_N: int = 64,        # enable algebraic fallback for small N
     return_phase: bool = True,
-    safety_net_max_N: int = 48,
 ) -> List[Dict[str, object]]:
-    # 0) Extract from H
-    A_raw = np.asarray(H.tableau(), dtype=int)          # <-- canonical: (N, 2n) (rows=terms, cols=qudits)
-    S = np.asarray(H.symplectic_product_matrix(), dtype=int)  # (N, N)
+    """
+    Returns up to k automorphisms π (row permutations) with optional phase vector h and
+    (if rank-full) a right-acting F (2n×2n) such that tableau @ F == Π @ tableau (mod p).
+
+    Conventions:
+      - tableau := H.tableau() is N × 2n (rows=Paulis, cols=qudit axes).
+      - F acts from the right; π permutes rows.
+      - get_linear_dependencies(tableau, p) is called with the canonical N×2n shape.
+    """
+    # ----- Extract data from H -----
+    tableau = np.asarray(H.tableau(), dtype=int)               # N × 2n (canonical; rows=terms)
+    S = np.asarray(H.symplectic_product_matrix(), dtype=int)   # N × N
     coeffs_raw = None if getattr(H, "weights", None) is None else np.asarray(H.weights)
     phases_raw = None if getattr(H, "phases", None) is None else np.asarray(H.phases, dtype=int)
     dims = list(H.dimensions)
 
-    # Field / sizes
+    # ----- Field & shape checks -----
     if len(set(dims)) != 1:
         raise ValueError("All local dimensions must be equal (prime p).")
     p = int(dims[0])
     n_qud = len(dims)
     two_n = 2 * n_qud
 
-    # Authoritative N from S, and assert canonical tableau shape
     if S.ndim != 2 or S.shape[0] != S.shape[1]:
         raise ValueError(f"S must be square; got {S.shape}.")
     N = int(S.shape[0])
-    if A_raw.shape != (N, two_n):
-        raise ValueError(f"Expected tableau shape (N,2n)=({N},{two_n}); got {A_raw.shape}.")
+    if tableau.shape != (N, two_n):
+        raise ValueError(f"Expected tableau shape (N,2n)=({N},{two_n}); got {tableau.shape}.")
 
-    # 1) Build presentation (G) **without transposing** (your util expects N×2n)
-    independent, dependencies = get_linear_dependencies(A_raw, p)
+    independent, dependencies = get_linear_dependencies(tableau, p)
 
     labels = list(range(N))
     G, basis_order, basis_mask = _build_generator_matrix(independent, dependencies, labels, p)
     basis_order_idx = [int(i) for i in basis_order]
 
-    # 2) WL (ordering only) on S with coefficient colours
+    # ----- WL (ordering only) + coefficient colours (hard constraint) -----
     S_mod = (S % p).astype(np.int64, copy=False)
     coeff_cols = _discretize_coeffs(coeffs_raw)
     base_colors = _wl_colors_from_S(S_mod, p, coeffs=coeff_cols, max_rounds=10)
-    base_classes = _color_classes(base_colors)
+    base_classes = _color_classes(base_colors)  # used for ordering heuristics only
 
-    # 3) Phase context (optional): if you need (2n×N), transpose **here only**
-    phase_ctx = {}
-    if phases_raw is not None:
-        # Convert to (2n × N) only for the phase system / F build
-        A_cols = A_raw.T  # (2n, N) — local use only; dependencies already done from A_raw
-        P_phase = _build_P_phase(n_qud, p)
-        L_right = _right_inverse_GF(A_cols, p)  # None if rank-deficient
-        phase_ctx = dict(
-            tableau=A_cols,             # (2n × N) for phase routines
-            P_phase=P_phase,
-            phases=(phases_raw % p),
-            L_right=L_right,
-            rank_full=(L_right is not None),
-            return_phase=bool(return_phase),
-        )
-    else:
-        # No phases: leave phase_ctx empty; no transpose needed anywhere
-        pass
+    # ----- Phase context (optional) -----
+    # We can always attempt phase feasibility; if H.phases is None we treat it as zeros.
+    phases_vec = np.zeros(N, dtype=int) if phases_raw is None else (phases_raw % p)
+    P_phase = _build_P_phase(n_qud, p)
 
-    # 4) Primary fast path
+    # Build a left-inverse L_left so that L_left @ tableau = I_{2n}, if rank-full.
+    L_left = _left_inverse_GF_tableau(tableau, p)  # 2n × N or None
+    rank_full = L_left is not None
+
+    # ----- Primary fast path: basis-first search -----
+    results: List[Dict[str, object]] = []
     if basis_first == "any":
-        sols = _basis_first_search(
+        results = _basis_first_search(
             S_mod=S_mod,
             coeffs=coeff_cols,
             base_colors=base_colors,
-            base_classes=base_classes,  # used for ordering only in your latest version
+            base_classes=base_classes,  # ordering only
             G=G,
             basis_order_idx=basis_order_idx,
             basis_mask=basis_mask,
             p=p,
             k_wanted=k,
-            **phase_ctx,
+            tableau=tableau,
+            P_phase=P_phase,
+            phases=phases_vec,
+            L_left=L_left,
+            rank_full=rank_full,
+            return_phase=return_phase,
         )
-        if sols:
-            return sols
+        if results:
+            return results
 
-    # 5) Algebraic fallback (small N)
+    print('Needs safety net')
+    # ----- Algebraic fallback (for small N) -----
     if N <= int(safety_net_max_N):
-        sols = _algebraic_fallback_search(
+        results = _algebraic_fallback_search(
             S_mod=S_mod,
             G=G,
             basis_order_idx=basis_order_idx,
@@ -845,13 +913,18 @@ def find_k_automorphisms_symplectic(
             coeffs=coeff_cols,
             p=p,
             k_wanted=k,
-            **phase_ctx,
+            tableau=tableau,
+            P_phase=P_phase,
+            phases=phases_vec,
+            L_left=L_left,
+            rank_full=rank_full,
+            return_phase=return_phase,
         )
-        if sols:
-            return sols
+        if results:
+            return results
 
+    # No solutions found
     return []
-
 
 
 if __name__ == "__main__":
@@ -861,7 +934,7 @@ if __name__ == "__main__":
     sym = SWAP(0, 1, 2)
     n_qudits = 3
     n_paulis_pre_sym = 6
-    H = random_gate_symmetric_hamiltonian(sym, n_qudits, n_paulis_pre_sym, scrambled=True)
+    H = random_gate_symmetric_hamiltonian(sym, n_qudits, n_paulis_pre_sym, scrambled=False)
 
     independent, dependencies = get_linear_dependencies(H.tableau(), H.dimensions)
 
@@ -877,7 +950,7 @@ if __name__ == "__main__":
     print('S = ', S)
     print('coeffs = ', coeffs)
 
-    perms = find_k_automorphisms_symplectic(H, safety_net_max_N=99999)
+    perms = find_k_automorphisms_symplectic(H)
 
     print('permutations = ', perms)
 

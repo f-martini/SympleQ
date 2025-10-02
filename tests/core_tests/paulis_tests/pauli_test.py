@@ -261,7 +261,7 @@ class TestPaulis:
                       weights=[1, 1, 0.5, 0.5],
                       phases=[0, 0, 1, 1],
                       dimensions=dims, standardise=False)
-        
+
         ps0 = PauliSum([PauliString.from_string('x2z0 x2z0 x1z1', dimensions=dims)], weights=[1], phases=[0])
         ps1 = PauliSum([PauliString.from_string('x2z0 x2z0 x0z0', dimensions=dims)], weights=[1], phases=[0])
         ps2 = PauliSum([PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)], weights=[0.5 + 0j], phases=[1],

@@ -3,9 +3,9 @@ from quaos.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
 from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
 from quaos.core.circuits.utils import transvection_matrix, symplectic_form
-from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
+# from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
 from quaos.utils import get_linear_dependencies
-from quaos.core.circuits.random_symplectic import symplectic_random_transvection
+# from quaos.core.circuits.random_symplectic import symplectic_random_transvection
 
 
 class Gate:

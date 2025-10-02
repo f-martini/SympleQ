@@ -1,6 +1,6 @@
 from quaos.core.circuits import SUM, SWAP, Hadamard, PHASE, Gate, Circuit
 from quaos.core.circuits.utils import is_symplectic
-from quaos.core.circuits.target import find_map_to_target_pauli_sum, map_pauli_sum_to_target_tableau
+# from quaos.core.circuits.target import find_map_to_target_pauli_sum, map_pauli_sum_to_target_tableau
 from quaos.core.paulis import PauliSum, PauliString
 import numpy as np
 from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size, symplectic_random_transvection
@@ -396,6 +396,4 @@ class TestGates():
     #         gt = g.inverse()
     #         rps = PauliSum.from_random(n_paulis, n_qudits, [dimension] * n_qudits, False, seed=1)
     #         print(rps)
-    #         assert rps == g.act(gt.act(rps)), 'Inversion Error:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
-
-
+    #         assert rps == g.act(gt.act(rps)), 'Inverse Error:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
