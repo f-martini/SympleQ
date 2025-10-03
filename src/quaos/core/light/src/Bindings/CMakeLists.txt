@@ -50,3 +50,36 @@ install(TARGETS ${LIB_NAME}
     RUNTIME DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
     ARCHIVE DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
 )
+
+set_target_properties(${LIB_NAME} PROPERTIES
+  PREFIX ""                                      # remove lib prefix on unix so import name matches
+  LIBRARY_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_INSTALL_DIR}"
+  RUNTIME_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_INSTALL_DIR}"
+  ARCHIVE_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_INSTALL_DIR}"
+  INSTALL_RPATH "\$ORIGIN/.libs"                 # use $ORIGIN so wheel is relocatable
+  BUILD_WITH_INSTALL_RPATH ON
+)
+
+# ensure extension ends up in package path inside staged install
+set(PACKAGE_PY_PATH "quaos/core/light")
+set(PYTHON_PACKAGE_INSTALL_DIR "${CMAKE_BINARY_DIR}/install/${PACKAGE_PY_PATH}")
+
+# direct build output into the install staging folder so you can inspect it
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY        "${PYTHON_PACKAGE_INSTALL_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY        "${PYTHON_PACKAGE_INSTALL_DIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY        "${PYTHON_PACKAGE_INSTALL_DIR}")
+
+# for multi-config generators
+foreach(cfg IN ITEMS Debug Release RelWithDebInfo MinSizeRel)
+  set_property(GLOBAL PROPERTY CMAKE_RUNTIME_OUTPUT_DIRECTORY_${cfg} "${PYTHON_PACKAGE_INSTALL_DIR}")
+  set_property(GLOBAL PROPERTY CMAKE_LIBRARY_OUTPUT_DIRECTORY_${cfg} "${PYTHON_PACKAGE_INSTALL_DIR}")
+  set_property(GLOBAL PROPERTY CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${cfg} "${PYTHON_PACKAGE_INSTALL_DIR}")
+endforeach()
+
+# install into the Python package path (scikit-build core will stage this under site-packages)
+install(TARGETS ${LIB_NAME}
+        LIBRARY DESTINATION ${PACKAGE_PY_PATH}
+        RUNTIME DESTINATION ${PACKAGE_PY_PATH})
+        
+
+
