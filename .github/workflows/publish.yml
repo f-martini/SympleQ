@@ -126,7 +126,7 @@ jobs:
             echo "Available CMake presets:" && cmake --list-presets=configure || true
 
           CIBW_CONFIG_SETTINGS: >-
-            cmake.args=--preset;${{ env.CMAKE_PRESET }}
+            cmake.args=--preset-path;src;--preset;${{ env.CMAKE_PRESET }}
 
           # Build settings
           CIBW_BUILD_VERBOSITY: 1
