@@ -100,7 +100,7 @@ jobs:
             echo "Installing system dependencies..." &&
             yum install -y epel-release &&
             echo "Removing default GCC to avoid conflicts..." &&
-            yum install -y libomp-devel &&
+            yum install -y intel-openmp || yum install -y libiomp5 || yum install -y libomp-devel &&
             yum remove -y gcc gcc-c++ || echo "Default GCC already removed or not found" &&
             yum install -y make git which gcc-toolset-12 curl zip unzip tar &&
             source /opt/rh/gcc-toolset-12/enable &&
