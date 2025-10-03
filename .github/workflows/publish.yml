@@ -135,7 +135,42 @@ jobs:
           CIBW_TEST_COMMAND: 'python -c "import quaos; print(''QuAOS import successful'')"'
 
           # Repair settings for Linux
-          CIBW_REPAIR_WHEEL_COMMAND_LINUX: "auditwheel repair -w {dest_dir} {wheel}"
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
+            echo "=== WHEEL CONTENT INSPECTION BEFORE REPAIR ===" &&
+            echo "Wheel file: {wheel}" &&
+            echo "Wheel size: $(ls -lh {wheel} | awk '{print $5}')" &&
+            echo "" &&
+            echo "=== Wheel Contents ===" &&
+            python -c "
+            import zipfile
+            with zipfile.ZipFile('{wheel}', 'r') as z:
+                files = z.namelist()
+                print(f'Total files in wheel: {len(files)}')
+                binaries = [f for f in files if f.endswith(('.so', '.pyd', '.dll'))]
+                python_files = [f for f in files if f.endswith('.py')]
+                data_files = [f for f in files if not f.endswith(('.so', '.pyd', '.dll', '.py', '.pyc'))]
+                print(f'\\nBinary files ({len(binaries)}):')
+                for b in sorted(binaries):
+                    print(f'  {b}')
+                print(f'\\nPython files ({len(python_files)}):')
+                for p in sorted(python_files)[:10]:
+                    print(f'  {p}')
+                if len(python_files) > 10:
+                    print(f'  ... and {len(python_files)-10} more')
+                print(f'\\nOther files ({len(data_files)}):')
+                for d in sorted(data_files)[:10]:
+                    print(f'  {d}')
+                if len(data_files) > 10:
+                    print(f'  ... and {len(data_files)-10} more')
+            " &&
+            echo "" &&
+            echo "=== Binary Dependencies (before repair) ===" &&
+            python -m wheel unpack {wheel} -d /tmp/wheel_check &&
+            find /tmp/wheel_check -name "*.so" -exec sh -c 'echo "File: $1"; ldd "$1" 2>/dev/null | head -10 || echo "No dependencies found"' _ {} \; &&
+            rm -rf /tmp/wheel_check &&
+            echo "" &&
+            echo "=== STARTING AUDITWHEEL REPAIR ===" &&
+            auditwheel repair -w {dest_dir} {wheel}
 
         run: python -m cibuildwheel --output-dir ./dist
 
