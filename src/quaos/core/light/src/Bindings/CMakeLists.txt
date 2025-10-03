@@ -1,22 +1,6 @@
 get_filename_component(CURRENT_FOLDER_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
 set(LIB_NAME "light")
 
-# Where inside the Python package the extension should be installed
-set(PACKAGE_PY_PATH "quaos/core/light")
-set(PYTHON_PACKAGE_INSTALL_DIR "${CMAKE_BINARY_DIR}/install/${PACKAGE_PY_PATH}")
-
-# Place built binaries into the staged install tree so they will be picked up by scikit-build
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY        "${PYTHON_PACKAGE_INSTALL_DIR}")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY        "${PYTHON_PACKAGE_INSTALL_DIR}")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY        "${PYTHON_PACKAGE_INSTALL_DIR}")
-
-# For multi-config generators (Visual Studio / Xcode)
-foreach(cfg IN ITEMS Debug Release RelWithDebInfo MinSizeRel)
-  set_property(GLOBAL PROPERTY CMAKE_RUNTIME_OUTPUT_DIRECTORY_${cfg} "${PYTHON_PACKAGE_INSTALL_DIR}")
-  set_property(GLOBAL PROPERTY CMAKE_LIBRARY_OUTPUT_DIRECTORY_${cfg} "${PYTHON_PACKAGE_INSTALL_DIR}")
-  set_property(GLOBAL PROPERTY CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${cfg} "${PYTHON_PACKAGE_INSTALL_DIR}")
-endforeach()
-
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 
 include(FetchContent)
