@@ -19,6 +19,26 @@ if(DEFINED ENV{VCPKG_ROOT})
     message(STATUS "Using vcpkg from $ENV{VCPKG_ROOT}")
 endif()
 
+# Where inside the Python package the native artifacts should be staged.
+# This path is used by subprojects so built shared libraries end up under
+# ${CMAKE_BINARY_DIR}/install/${PACKAGE_PY_PATH} and ultimately get packaged
+# into the wheel by scikit-build-core.
+set(PACKAGE_PY_PATH ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} CACHE STRING "Python package relative install path")
+set(PYTHON_PACKAGE_INSTALL_DIR "${CMAKE_BINARY_DIR}/install/${PACKAGE_PY_PATH}")
+
+# Direct global output into the staged install tree so subprojects will place
+# binaries where scikit-build expects them.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY        "${PYTHON_PACKAGE_INSTALL_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY        "${PYTHON_PACKAGE_INSTALL_DIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY        "${PYTHON_PACKAGE_INSTALL_DIR}")
+
+# For multi-config generators
+foreach(cfg IN ITEMS Debug Release RelWithDebInfo MinSizeRel)
+    set_property(GLOBAL PROPERTY CMAKE_RUNTIME_OUTPUT_DIRECTORY_${cfg} "${PYTHON_PACKAGE_INSTALL_DIR}")
+    set_property(GLOBAL PROPERTY CMAKE_LIBRARY_OUTPUT_DIRECTORY_${cfg} "${PYTHON_PACKAGE_INSTALL_DIR}")
+    set_property(GLOBAL PROPERTY CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${cfg} "${PYTHON_PACKAGE_INSTALL_DIR}")
+endforeach()
+
 # CUDA
 if(CUDA_BUILD)
     message(STATUS "CUDA Toolkit version: ${CUDA_TOOLKIT_VERSION}")
