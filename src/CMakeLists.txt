@@ -12,7 +12,7 @@ message(STATUS "CMake preset: $ENV{CMAKE_GENERATOR_PRESET}")
 message(STATUS "Adding: ${LIGHT_SRC_DIRECTORY}")
 message(STATUS "Building for: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Fortran compiler: ${CMAKE_Fortran_COMPILER}")
-message(STATUS "Cmake runtime output dir: {CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+message(STATUS "Cmake runtime output dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
 # Enable vcpkg manifest mode
 if(DEFINED ENV{VCPKG_ROOT})
