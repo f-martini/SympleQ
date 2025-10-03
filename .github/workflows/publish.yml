@@ -138,8 +138,6 @@ jobs:
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
             echo "Inspecting wheel: {wheel}" &&
             unzip -l {wheel} &&
-            echo "Wheel content:" &&
-            unzip -l {wheel} | awk '{print $4}' &&
             echo "Running auditwheel repair..." &&
             auditwheel repair -w {dest_dir} {wheel}
 
