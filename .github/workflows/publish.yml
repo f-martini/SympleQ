@@ -98,13 +98,11 @@ jobs:
           # Install CUDA and vcpkg before build
           CIBW_BEFORE_ALL_LINUX: >-
             echo "Installing system dependencies..." &&
-            wget https://yum.repos.intel.com/oneapi/intel-oneapi-repo-rhel8-2023.2.0-1.noarch.rpm
-            rpm -ivh intel-oneapi-repo-rhel8-2023.2.0-1.noarch.rpm
-            yum clean all
             yum install -y epel-release &&
             echo "Removing default GCC to avoid conflicts..." &&
+            yum install -y libomp-devel &&
             yum remove -y gcc gcc-c++ || echo "Default GCC already removed or not found" &&
-            yum install -y make git which gcc-toolset-12 curl zip unzip tar intel-oneapi-openmp &&
+            yum install -y make git which gcc-toolset-12 curl zip unzip tar &&
             source /opt/rh/gcc-toolset-12/enable &&
             export CC=/opt/rh/gcc-toolset-12/root/usr/bin/gcc &&
             export CXX=/opt/rh/gcc-toolset-12/root/usr/bin/g++ &&
@@ -285,6 +283,9 @@ jobs:
 
           # Test the built wheel
           CIBW_TEST_COMMAND: 'python -c "import quaos; print(''QuAOS import successful'')"'
+
+          IBW_CONFIG_SETTINGS: >-
+            cmake.args=-S;src;--preset;${{ env.CMAKE_PRESET }}
 
           # Repair settings for Windows
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
