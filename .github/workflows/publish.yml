@@ -123,7 +123,7 @@ jobs:
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             echo "CMake version:" && cmake --version &&
             echo "CUDA version:" && nvcc --version &&
-            echo "Available CMake presets:" && cmake --list-presets=configure || true
+            echo "Available CMake presets:" && cmake --list-presets=src || true
 
           CIBW_CONFIG_SETTINGS: >-
             cmake.args=-S;src;--preset;${{ env.CMAKE_PRESET }}
