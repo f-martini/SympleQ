@@ -136,38 +136,11 @@ jobs:
 
           # Repair settings for Linux
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
-            echo "=== WHEEL CONTENT INSPECTION BEFORE REPAIR ===" &&
-            echo "Wheel file: {wheel}" &&
-            echo "Wheel size: $(ls -lh {wheel} | awk '{print $5}')" &&
-            echo "" &&
-            echo "=== Wheel Contents ===" &&
-            unzip -l {wheel} > /tmp/wheel_filelist.txt
-            total_files=$(grep -c '^[ ]*[0-9]' /tmp/wheel_filelist.txt)
-            echo "Total files in wheel: $total_files"
-            echo ""
-            echo "Binary files:"
-            grep -E '\.so$|\.pyd$|\.dll$' /tmp/wheel_filelist.txt | awk '{print "  " $4}'
-            echo ""
-            echo "Python files (up to 10 shown):"
-            grep -E '\.py$' /tmp/wheel_filelist.txt | awk '{print "  " $4}' | head -10
-            py_count=$(grep -E '\.py$' /tmp/wheel_filelist.txt | wc -l)
-            if [ "$py_count" -gt 10 ]; then
-              echo "  ... and $((py_count-10)) more"
-            fi
-            echo ""
-            echo "Other files (up to 10 shown):"
-            grep -v -E '\.so$|\.pyd$|\.dll$|\.py$|\.pyc$' /tmp/wheel_filelist.txt | grep -E '^[ ]*[0-9]' | awk '{print "  " $4}' | head -10
-            other_count=$(grep -v -E '\.so$|\.pyd$|\.dll$|\.py$|\.pyc$' /tmp/wheel_filelist.txt | grep -E '^[ ]*[0-9]' | wc -l)
-            if [ "$other_count" -gt 10 ]; then
-              echo "  ... and $((other_count-10)) more"
-            fi
-            echo "" &&
-            echo "=== Binary Dependencies (before repair) ===" &&
-            python -m wheel unpack {wheel} -d /tmp/wheel_check &&
-            find /tmp/wheel_check -name "*.so" -exec sh -c 'echo "File: $1"; ldd "$1" 2>/dev/null | head -10 || echo "No dependencies found"' _ {} \; &&
-            rm -rf /tmp/wheel_check &&
-            echo "" &&
-            echo "=== STARTING AUDITWHEEL REPAIR ===" &&
+            echo "Inspecting wheel: {wheel}" &&
+            unzip -l {wheel} &&
+            echo "Wheel content:" &&
+            unzip -l {wheel} | awk '{print $4}' &&
+            echo "Running auditwheel repair..." &&
             auditwheel repair -w {dest_dir} {wheel}
 
         run: python -m cibuildwheel --output-dir ./dist
