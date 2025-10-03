@@ -268,7 +268,7 @@ jobs:
           CIBW_SKIP: "pp*"
 
           # Environment variables for the build
-          CIBW_ENVIRONMENT: CMAKE_PRESET=${{ env.CMAKE_PRESET }} CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }} SOURCE_DIR=${{ env.SOURCE_DIR }} BUILD_DIR=${{ env.BUILD_DIR }} CUDA_PATH=${{ env.CUDA_PATH }} VCPKG_ROOT=${{ github.workspace }}vcpkg
+          CIBW_ENVIRONMENT: CMAKE_PRESET="${{ env.CMAKE_PRESET }}" CMAKE_TOOLCHAIN_FILE="${{ env.CMAKE_TOOLCHAIN_FILE }}" SOURCE_DIR="${{ env.SOURCE_DIR }}" BUILD_DIR="${{ env.BUILD_DIR }}" CUDA_PATH="${{ env.CUDA_PATH }}" VCPKG_ROOT="${{ github.workspace }}\\vcpkg"
 
           # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
