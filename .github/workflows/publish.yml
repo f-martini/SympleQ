@@ -339,8 +339,9 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TEST }}
+        # --skip-existing
         run: |
-          python -m twine upload --repository testpypi dist/quaos-*.whl --verbose --skip-existing
+          python -m twine upload --repository testpypi dist/quaos-*.whl --verbose
 
       - name: Publish to PyPI (on release)
         if: github.event_name == 'release'
