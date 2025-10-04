@@ -5,6 +5,7 @@ build-backend = "scikit_build_core.build"
 [project]
 dependencies = [
     "numpy>=2.1.3,<3.0.0",
+    "sympy>=1.14.0,<2.0.0",
     "ipykernel>=6.29.5,<7.0.0",
     "matplotlib>=3.10.0,<4.0.0",
     "scipy>=1.15.1,<2.0.0",
