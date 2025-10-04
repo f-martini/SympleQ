@@ -211,19 +211,6 @@ jobs:
           echo "CUDA installation path: $env:CUDA_PATH"
 
       # ===== Set up vcpkg =====
-      - name: Cache vcpkg
-        uses: actions/cache@v4
-        id: vcpkg-cache
-        with:
-          path: |
-            vcpkg
-            !vcpkg/buildtrees
-            !vcpkg/packages
-            !vcpkg/downloads
-          key: vcpkg-windows-${{ matrix.arch }}-${{ env.VCPKG_COMMIT_ID }}
-          restore-keys: |
-            vcpkg-windows-${{ matrix.arch }}-
-
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
         with:
