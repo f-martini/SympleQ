@@ -135,7 +135,7 @@ jobs:
 
           # Repair settings for Linux
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
-            ls -l
+            ls -l &&
             export LD_LIBRARY_PATH="$(find ./build -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
             export LD_LIBRARY_PATH="./quaos/core/light:./quaos/core/light/.lib:$LD_LIBRARY_PATH" &&
             echo "Inspecting wheel: {wheel}" &&
@@ -274,16 +274,16 @@ jobs:
 
           # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
-            echo "CIBW_BUILD=$CIBW_BUILD" &&
-            echo "CIBW_ARCHS=$CIBW_ARCHS" &&
-            echo "CIBW_SKIP=$CIBW_SKIP" &&
-            echo "CIBW_ENVIRONMENT=$CIBW_ENVIRONMENT" &&
-            echo "CMAKE_PRESET=$CMAKE_PRESET" &&
-            echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE" &&
-            echo "SOURCE_DIR=$SOURCE_DIR" &&
-            echo "BUILD_DIR=$BUILD_DIR" &&
-            echo "CUDA_PATH=$CUDA_PATH" &&
-            echo "VCPKG_ROOT=$VCPKG_ROOT" &&
+            echo "CIBW_BUILD=${{ env.CIBW_BUILD_VERSION }}" &&
+            echo "CIBW_ARCHS=${{ env.CIBW_ARCHS }}" &&
+            echo "CIBW_SKIP=${{ env.CIBW_SKIP }}" &&
+            echo "CIBW_ENVIRONMENT=${{ env.CIBW_ENVIRONMENT }}" &&
+            echo "CMAKE_PRESET=${{ env.CMAKE_PRESET }}" &&
+            echo "CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}" &&
+            echo "SOURCE_DIR=${{ env.SOURCE_DIR }}" &&
+            echo "BUILD_DIR=${{ env.BUILD_DIR }}" &&
+            echo "CUDA_PATH=${{ env.CUDA_PATH }}" &&
+            echo "VCPKG_ROOT=${{ env.VCPKG_ROOT }}" &&
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             cmake --version &&
             nvcc --version &&
