@@ -137,7 +137,8 @@ jobs:
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
             ls -l &&
             export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-            export LD_LIBRARY_PATH="./quaos/core/light:./quaos/core/light/.lib:$LD_LIBRARY_PATH" &&
+            export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos/core/light' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
+            export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos/core/light/.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
             echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
             echo "Inspecting wheel: {wheel}" &&
             unzip -l {wheel} &&
@@ -287,8 +288,7 @@ jobs:
             echo "VCPKG_ROOT=${{ env.VCPKG_ROOT }}" &&
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             cmake --version &&
-            nvcc --version &&
-            cmake --list-presets=configure || echo "No presets found"
+            nvcc --version
 
           # Build settings
           CIBW_BUILD_VERBOSITY: 1
