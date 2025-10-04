@@ -137,6 +137,7 @@ jobs:
 
           # Repair settings for Linux
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
+            find / -name "libiomp5.so" 2>/dev/null &&
             echo "Inspecting wheel: {wheel}" &&
             unzip -l {wheel} &&
             echo "Running auditwheel repair..." &&
@@ -309,7 +310,7 @@ jobs:
   publish:
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    # if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
 
     steps:
       - name: Download all wheel artifacts
@@ -336,10 +337,10 @@ jobs:
         run: pip install twine
 
       - name: Publish to Test PyPI (on main branch push)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_TEST }}
         run: |
           python -m twine upload --repository testpypi dist/quaos-*.whl --verbose --skip-existing
 
