@@ -135,7 +135,7 @@ jobs:
 
           # Repair settings for Linux
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
-            ls -l &&
+            ls -lR &&
             export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
             export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos/core/light' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
             export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos/core/light/.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
