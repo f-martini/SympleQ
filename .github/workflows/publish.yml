@@ -136,6 +136,7 @@ jobs:
           # Repair settings for Linux
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
             export LD_LIBRARY_PATH="$(find ./build -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
+            export LD_LIBRARY_PATH="./quaos/core/light:./quaos/core/light/.lib:$LD_LIBRARY_PATH" &&
             echo "Inspecting wheel: {wheel}" &&
             unzip -l {wheel} &&
             echo "Running auditwheel repair..." &&
