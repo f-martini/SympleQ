@@ -20,7 +20,7 @@ dependencies = [
     "galois>=0.4.6,<1.0.0",
 ]
 name = "quaos"
-version = "0.1.0"
+version = "0.1.0-alpha"
 description = "QuAOS: Quantum Algorithms, Optomechanics and Simulations"
 readme = "README.md"
 authors = [{ name = "Quaos-Lab", email = "quaos.org@gmail.com" }]
