@@ -100,7 +100,6 @@ jobs:
             echo "Installing system dependencies..." &&
             yum install -y epel-release &&
             echo "Removing default GCC to avoid conflicts..." &&
-            yum install -y intel-openmp || yum install -y libiomp5 || yum install -y libomp-devel &&
             yum remove -y gcc gcc-c++ || echo "Default GCC already removed or not found" &&
             yum install -y make git which gcc-toolset-12 curl zip unzip tar &&
             source /opt/rh/gcc-toolset-12/enable &&
@@ -123,8 +122,7 @@ jobs:
           CIBW_BEFORE_BUILD: >-
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             echo "CMake version:" && cmake --version &&
-            echo "CUDA version:" && nvcc --version &&
-            echo "Available CMake presets:" && cmake --list-presets=src || true
+            echo "CUDA version:" && nvcc --version
 
           CIBW_CONFIG_SETTINGS: >-
             cmake.args=-S;src;--preset;${{ env.CMAKE_PRESET }}
@@ -137,7 +135,7 @@ jobs:
 
           # Repair settings for Linux
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
-            find / -name "libiomp5.so" 2>/dev/null &&
+            export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
             echo "Inspecting wheel: {wheel}" &&
             unzip -l {wheel} &&
             echo "Running auditwheel repair..." &&
