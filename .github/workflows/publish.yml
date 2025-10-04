@@ -274,16 +274,16 @@ jobs:
 
           # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
-            echo "CIBW_BUILD=$CIBW_BUILD"
-            echo "CIBW_ARCHS=$CIBW_ARCHS"
-            echo "CIBW_SKIP=$CIBW_SKIP"
-            echo "CIBW_ENVIRONMENT=$CIBW_ENVIRONMENT"
-            echo "CMAKE_PRESET=$CMAKE_PRESET"
-            echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE"
-            echo "SOURCE_DIR=$SOURCE_DIR"
-            echo "BUILD_DIR=$BUILD_DIR"
-            echo "CUDA_PATH=$CUDA_PATH"
-            echo "VCPKG_ROOT=$VCPKG_ROOT"
+            echo "CIBW_BUILD=$CIBW_BUILD" &&
+            echo "CIBW_ARCHS=$CIBW_ARCHS" &&
+            echo "CIBW_SKIP=$CIBW_SKIP" &&
+            echo "CIBW_ENVIRONMENT=$CIBW_ENVIRONMENT" &&
+            echo "CMAKE_PRESET=$CMAKE_PRESET" &&
+            echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE" &&
+            echo "SOURCE_DIR=$SOURCE_DIR" &&
+            echo "BUILD_DIR=$BUILD_DIR" &&
+            echo "CUDA_PATH=$CUDA_PATH" &&
+            echo "VCPKG_ROOT=$VCPKG_ROOT" &&
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             cmake --version &&
             nvcc --version &&
