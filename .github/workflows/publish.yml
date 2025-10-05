@@ -137,8 +137,8 @@ jobs:
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
             ls -lR &&
             export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-            export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos/core/light' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-            export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos/core/light/.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
+            export LD_LIBRARY_PATH="{wheel}/quaos/core/light/.libs:$LD_LIBRARY_PATH" &&
+            export LD_LIBRARY_PATH="{wheel}/quaos/core/light:$LD_LIBRARY_PATH" &&
             echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
             echo "Inspecting wheel: {wheel}" &&
             unzip -l {wheel} &&
@@ -288,7 +288,7 @@ jobs:
             cmake.args=-S;src;--preset;${{ env.CMAKE_PRESET }}
 
           # Repair settings for Windows
-          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir}/quaos/core/light/ {wheel}"
 
         run: python -m cibuildwheel --output-dir ./dist
 
