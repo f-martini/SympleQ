@@ -32,6 +32,11 @@ target_link_libraries(${CURRENT_FOLDER_NAME} PRIVATE Base)
 target_link_libraries(${CURRENT_FOLDER_NAME} PRIVATE Operators)
 target_link_libraries(${CURRENT_FOLDER_NAME} PRIVATE Circuits)
 
+set_target_properties(${CURRENT_FOLDER_NAME} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${PACKAGE_PY_PATH}/.libs"
+    PREFIX ""
+)
+
 # install(FILES
 #     ${CMAKE_CURRENT_SOURCE_DIR}/include/${CURRENT_FOLDER_NAME}/${CURRENT_FOLDER_NAME}.h
 #     DESTINATION include/${CURRENT_FOLDER_NAME}
