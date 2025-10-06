@@ -20,6 +20,7 @@ if(DEFINED ENV{VCPKG_ROOT})
 endif()
 
 set(PACKAGE_PY_PATH ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} CACHE STRING "Python package relative install path")
+set(LIBS_PATH "${CMAKE_SOURCE_DIR}/quaos.libs" CACHE STRING "Shared libs location")
 set(PYTHON_PACKAGE_INSTALL_DIR "${CMAKE_BINARY_DIR}/install/${PACKAGE_PY_PATH}")
 
 # Direct global output into the staged install tree for Release config only

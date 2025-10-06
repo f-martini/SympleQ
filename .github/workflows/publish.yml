@@ -131,8 +131,8 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
 
           # Test the built wheel
-          # CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
-          CIBW_TEST_COMMAND: 'python -c "import quaos; print(''hello'')"'
+          CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
+          # CIBW_TEST_COMMAND: 'python -c "import quaos; print(''hello'')"'
 
           # Repair settings for Linux
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
