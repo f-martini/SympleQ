@@ -19,10 +19,6 @@ if(DEFINED ENV{VCPKG_ROOT})
     message(STATUS "Using vcpkg from $ENV{VCPKG_ROOT}")
 endif()
 
-# Where inside the Python package the native artifacts should be staged.
-# This path is used by subprojects so built shared libraries end up under
-# ${CMAKE_BINARY_DIR}/install/${PACKAGE_PY_PATH} and ultimately get packaged
-# into the wheel by scikit-build-core.
 set(PACKAGE_PY_PATH ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} CACHE STRING "Python package relative install path")
 set(PYTHON_PACKAGE_INSTALL_DIR "${CMAKE_BINARY_DIR}/install/${PACKAGE_PY_PATH}")
 

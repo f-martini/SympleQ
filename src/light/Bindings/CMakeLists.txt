@@ -46,19 +46,25 @@ target_precompile_headers(${LIB_NAME}
 target_include_directories(${LIB_NAME} PRIVATE ${nanobind_SOURCE_DIR}/include)
 target_link_libraries(${LIB_NAME} PRIVATE Base Measurements)
 
-# Make import name predictable on Unix and set relocatable rpath
-set_target_properties(${LIB_NAME} PROPERTIES
-  PREFIX ""                                      # remove lib prefix on unix so import name matches
-  INSTALL_RPATH "\$ORIGIN/.libs"                 # use $ORIGIN so wheel is relocatable
-  BUILD_WITH_INSTALL_RPATH ON
-)
+if(WIN32)
+    # On Windows, no need to change PREFIX or RPATH
+    set_target_properties(${LIB_NAME} PROPERTIES
+        PREFIX ""
+    )
+else()
+    # On Unix, set predictable import name and relocatable rpath
+    set_target_properties(${LIB_NAME} PROPERTIES
+        PREFIX ""
+        INSTALL_RPATH "\$ORIGIN/.libs"
+        BUILD_WITH_INSTALL_RPATH ON
+    )
+endif()
 
-# Install into the Python package path (scikit-build will stage this into the wheel)
 install(TARGETS ${LIB_NAME}
         LIBRARY DESTINATION ${PACKAGE_PY_PATH}
         RUNTIME DESTINATION ${PACKAGE_PY_PATH}
         ARCHIVE DESTINATION ${PACKAGE_PY_PATH}
-)
-        
+        COMPONENT python_modules
+)     
 
 
