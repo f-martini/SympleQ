@@ -5,7 +5,7 @@ on: push
 env:
   PROJECT_NAME: "sympleq"
   NATIVE_SRC_PATH: src
-  CUDA_VERSION: "12.5"
+  CUDA_VERSION: 12.5
   GCC_VERSION: 12
   VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
   LINUX_PRESET_X64: linux-x86_64-Release
@@ -176,7 +176,7 @@ jobs:
 
           # Install vcpkg before build (no CUDA for ARM64)
           CIBW_BEFORE_ALL_LINUX: >-
-            bash ./${{ env.CIBW_SCRIPT }} ${{ env.GCC_VERSION }} "" ${{ env.VCPKG_COMMIT_ID }}
+            bash ./${{ env.CIBW_SCRIPT }} ${{ env.GCC_VERSION }} ${{ env.CUDA_VERSION }} ${{ env.VCPKG_COMMIT_ID }}
 
           # Install Python dependencies before build
           CIBW_BEFORE_BUILD: >-
@@ -269,15 +269,8 @@ jobs:
       - name: Set build environment variables
         shell: bash
         run: |
-          if [[ "${{ matrix.arch }}" == "x64" ]]; then
-            echo "CMAKE_PRESET=windows-x86_64-Release" >> $GITHUB_ENV
-            echo "CIBW_ARCHS=AMD64" >> $GITHUB_ENV
-          else
-            echo "CMAKE_PRESET=windows-arm64-Release" >> $GITHUB_ENV
-            echo "CIBW_ARCHS=ARM64" >> $GITHUB_ENV
-          fi
-
-          # Set common variables
+          echo "CMAKE_PRESET=windows-x86_64-Release" >> $GITHUB_ENV
+          echo "CIBW_ARCHS=AMD64" >> $GITHUB_ENV
           echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake" >> $GITHUB_ENV
           echo "SOURCE_DIR=${{ github.workspace }}\\src" >> $GITHUB_ENV
           echo "BUILD_DIR=${{ github.workspace }}\\build" >> $GITHUB_ENV
