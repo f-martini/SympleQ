@@ -3,8 +3,18 @@ name: Build and Publish QuAOS Wheels
 on: push
 
 env:
-  CUDA_VERSION: "12.5.0"
+  PROJECT_NAME: "sympleq"
+  NATIVE_SRC_PATH: src
+  CUDA_VERSION: "12.5"
+  GCC_VERSION: 12
   VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
+  LINUX_PRESET_X64: linux-x86_64-Release
+  CIBW_ARCHS_X64: x86_64
+  SETUP_SCRIPT_PATH_X64: scripts/tools/ci/manylinux_x86_64.sh
+  LINUX_PRESET_ARM64: linux-arm64-Release
+  CIBW_ARCHS_ARM64: aarch64
+  SETUP_SCRIPT_PATH_ARM64: scripts/tools/ci/manylinux_arm64.sh
+  CMAKE_TOOLCHAIN_FILE: /tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
 
 jobs:
   build-linux:
@@ -13,12 +23,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [x64] # arm64 can be added later
+        arch: [x64, arm64]
         python: ["3.11", "3.12", "3.13"]
-
-    env:
-      TWINE_USERNAME: __token__
-      TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -47,17 +53,14 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ matrix.arch }}" == "x64" ]]; then
-            echo "CMAKE_PRESET=linux-x86_64-Release" >> $GITHUB_ENV
-            echo "CIBW_ARCHS=x86_64" >> $GITHUB_ENV
-          else
-            echo "CMAKE_PRESET=linux-arm64-Release" >> $GITHUB_ENV
-            echo "CIBW_ARCHS=aarch64" >> $GITHUB_ENV
+            echo "CMAKE_PRESET=${LINUX_PRESET_X64}" >> $GITHUB_ENV
+            echo "CIBW_ARCHS=${CIBW_ARCHS_X64}" >> $GITHUB_ENV
+            echo "CIBW_SCRIPT=${SETUP_SCRIPT_PATH_X64}" >> $GITHUB_ENV
+            else
+            echo "CMAKE_PRESET=${LINUX_PRESET_ARM64}" >> $GITHUB_ENV
+            echo "CIBW_ARCHS=${CIBW_ARCHS_ARM64}" >> $GITHUB_ENV
+            echo "CIBW_SCRIPT=${SETUP_SCRIPT_ARM64}" >> $GITHUB_ENV
           fi
-
-          # Set common variables
-          echo "CMAKE_TOOLCHAIN_FILE=/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
-          echo "SOURCE_DIR=${{ github.workspace }}/src" >> $GITHUB_ENV
-          echo "BUILD_DIR=${{ github.workspace }}/build" >> $GITHUB_ENV
 
       - name: Set CIBW_BUILD for Python version
         shell: bash
@@ -84,65 +87,31 @@ jobs:
 
           # Environment variables for the build
           CIBW_ENVIRONMENT: >-
-            CMAKE_PRESET=${{ env.CMAKE_PRESET }}
             CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
-            SOURCE_DIR=${{ env.SOURCE_DIR }}
-            BUILD_DIR=${{ env.BUILD_DIR }}
             CUDA_PATH=/usr/local/cuda
             VCPKG_ROOT=/tmp/vcpkg
-            PATH=/usr/local/cuda/bin:/opt/rh/gcc-toolset-12/root/usr/bin:$PATH
-            LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-            CC=/opt/rh/gcc-toolset-12/root/usr/bin/gcc
-            CXX=/opt/rh/gcc-toolset-12/root/usr/bin/g++
+
 
           # Install CUDA and vcpkg before build
           CIBW_BEFORE_ALL_LINUX: >-
-            echo "Installing system dependencies..." &&
-            yum install -y epel-release &&
-            echo "Removing default GCC to avoid conflicts..." &&
-            yum remove -y gcc gcc-c++ || echo "Default GCC already removed or not found" &&
-            yum install -y make git which gcc-toolset-12 curl zip unzip tar &&
-            source /opt/rh/gcc-toolset-12/enable &&
-            export CC=/opt/rh/gcc-toolset-12/root/usr/bin/gcc &&
-            export CXX=/opt/rh/gcc-toolset-12/root/usr/bin/g++ &&
-            echo "GCC version:" && $CC --version &&
-            echo "GCC path:" && which gcc &&
-            echo "Installing CUDA..." &&
-            curl -fsSL https://developer.download.nvidia.com/compute/cuda/12.5.0/local_installers/cuda_12.5.0_555.42.02_linux.run -o cuda_installer.run &&
-            sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
-            ln -sf /usr/local/cuda-12.5 /usr/local/cuda &&
-            echo "Installing vcpkg..." &&
-            git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
-            cd /tmp/vcpkg &&
-            git checkout ${{ env.VCPKG_COMMIT_ID }} &&
-            ./bootstrap-vcpkg.sh &&
-            echo "CUDA and vcpkg installation complete"
+            bash ./${{ env.CIBW_SCRIPT }}
 
           # Install Python dependencies before build
           CIBW_BEFORE_BUILD: >-
-            pip install scikit-build-core[pyproject] nanobind cmake ninja &&
-            echo "CMake version:" && cmake --version &&
-            echo "CUDA version:" && nvcc --version
+            pip install scikit-build-core[pyproject] nanobind cmake ninja
 
           CIBW_CONFIG_SETTINGS: >-
-            cmake.args=-S;src;--preset;${{ env.CMAKE_PRESET }}
+            cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.CMAKE_PRESET }}
 
           # Build settings
           CIBW_BUILD_VERBOSITY: 1
 
           # Test the built wheel
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
-          # CIBW_TEST_COMMAND: 'python -c "import quaos; print(''hello'')"'
 
           # Repair settings for Linux
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
-            ls -lR &&
             export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-            export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos/core/light' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-            export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos/core/light/.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-            echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
-            echo "Inspecting wheel: {wheel}" &&
-            unzip -l {wheel} &&
             echo "Running auditwheel repair..." &&
             auditwheel repair -w {dest_dir} {wheel}
 
@@ -167,12 +136,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [x64] # arm64 can be added later if needed
+        arch: [x64]
         python: ["3.11", "3.12", "3.13"]
 
     env:
-      TWINE_USERNAME: __token__
-      TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+      LINUX_PRESET_X64: linux-x86_64-Release
+      CIBW_ARCHS_X64:
+      LINUX_PRESET_ARM64: linux-arm64-Release
+      CIBW_ARCHS_ARM64:
 
     steps:
       - name: Checkout repository
@@ -341,9 +312,8 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TEST }}
-        # --skip-existing
         run: |
-          python -m twine upload --repository testpypi dist/quaos-*.whl --verbose
+          python -m twine upload --repository testpypi dist/quaos-*.whl --verbose --skip-existing
 
       - name: Publish to PyPI (on release)
         if: github.event_name == 'release'
