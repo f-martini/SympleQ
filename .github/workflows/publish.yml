@@ -17,13 +17,13 @@ env:
   CMAKE_TOOLCHAIN_FILE: /tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
 
 jobs:
-  build-linux:
+  build-linux-x64:
     name: Build Linux - ${{ matrix.arch }} - Python ${{ matrix.python }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        arch: [x64, arm64]
+        arch: [x64]
         python: ["3.11", "3.12", "3.13"]
 
     steps:
@@ -41,26 +41,11 @@ jobs:
           docker system prune -af
           df -h
 
-      # ===== Set up Python =====
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.arch }}
-
-      # ===== Set environment variables =====
-      - name: Set build environment variables
-        shell: bash
-        run: |
-          if [[ "${{ matrix.arch }}" == "x64" ]]; then
-            echo "CMAKE_PRESET=${LINUX_PRESET_X64}" >> $GITHUB_ENV
-            echo "CIBW_ARCHS=${CIBW_ARCHS_X64}" >> $GITHUB_ENV
-            echo "CIBW_SCRIPT=${SETUP_SCRIPT_PATH_X64}" >> $GITHUB_ENV
-            else
-            echo "CMAKE_PRESET=${LINUX_PRESET_ARM64}" >> $GITHUB_ENV
-            echo "CIBW_ARCHS=${CIBW_ARCHS_ARM64}" >> $GITHUB_ENV
-            echo "CIBW_SCRIPT=${SETUP_SCRIPT_ARM64}" >> $GITHUB_ENV
-          fi
 
       - name: Set CIBW_BUILD for Python version
         shell: bash
@@ -69,58 +54,39 @@ jobs:
           CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
           echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
 
-      # ===== Install build dependencies =====
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install cibuildwheel twine
 
-      # ===== Build wheels with cibuildwheel =====
       - name: Build wheels (Linux)
         env:
-          # Python and architecture settings
           CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
-          CIBW_ARCHS: ${{ env.CIBW_ARCHS }}
-
-          # Skip problematic builds
+          CIBW_ARCHS: ${{ env.CIBW_ARCHS_X64 }}
           CIBW_SKIP: "pp* *-musllinux*"
+          CIBW_BUILD_VERBOSITY: 1
 
-          # Environment variables for the build
           CIBW_ENVIRONMENT: >-
             CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
             CUDA_PATH=/usr/local/cuda
             VCPKG_ROOT=/tmp/vcpkg
+            CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc
+            CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++
 
-          # Install CUDA and vcpkg before build
-          CIBW_BEFORE_ALL_LINUX: >-
-            bash ./${{ env.CIBW_SCRIPT }} ${{ env.GCC_VERSION }} ${{ env.CUDA_VERSION }} ${{ env.VCPKG_COMMIT_ID }}
+          CIBW_BEFORE_ALL_LINUX: bash ./${{ env.SETUP_SCRIPT_PATH_X64 }} ${{ env.GCC_VERSION }} ${{ env.CUDA_VERSION }} ${{ env.VCPKG_COMMIT_ID }}
 
-          # Install Python dependencies before build
-          CIBW_BEFORE_BUILD: >-
-            pip install scikit-build-core[pyproject] nanobind cmake ninja
+          CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
 
-          CIBW_CONFIG_SETTINGS: >-
-            cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.CMAKE_PRESET }}
+          CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.LINUX_PRESET_X64 }}
 
-          # Build settings
-          CIBW_BUILD_VERBOSITY: 1
-
-          # Test the built wheel
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
-          # Repair settings for Linux
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
             export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
             echo "Running auditwheel repair..." &&
             auditwheel repair -w {dest_dir} {wheel}
 
         run: python -m cibuildwheel --output-dir ./dist
-
-      # ===== Upload artifacts =====
-      - name: List built wheels
-        run: |
-          echo "Built wheels:"
-          ls -la dist/
 
       - name: Upload wheels as artifacts
         uses: actions/upload-artifact@v4
@@ -129,7 +95,117 @@ jobs:
           path: dist/*.whl
           retention-days: 30
 
-  build-windows:
+  build-linux-arm64:
+    name: Build Linux - ${{ matrix.arch }} - Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64]
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # ===== Enable QEMU emulation for ARM64 cross-compilation =====
+      - name: Set up QEMU for ARM64 emulation
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/arm64
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v2
+
+      # ===== Free up disk space =====
+      - name: Free up disk space (Linux)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          docker system prune -af
+          df -h
+
+      # ===== Set up Python (use x64 host architecture for ARM64 cross-compilation) =====
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: x64
+
+      - name: Set build environment variables
+        shell: bash
+        run: |
+          echo "CMAKE_PRESET=${{ env.LINUX_PRESET_ARM64 }}" >> $GITHUB_ENV
+          echo "CIBW_ARCHS=${{ env.CIBW_ARCHS_ARM64 }}" >> $GITHUB_ENV
+          echo "CIBW_SCRIPT=${{ env.SETUP_SCRIPT_PATH_ARM64 }}" >> $GITHUB_ENV
+          echo "SOURCE_DIR=${{ env.NATIVE_SRC_PATH }}" >> $GITHUB_ENV
+          echo "BUILD_DIR=build" >> $GITHUB_ENV
+          echo "CUDA_PATH=" >> $GITHUB_ENV  # No CUDA for ARM64
+          echo "VCPKG_ROOT=/tmp/vcpkg" >> $GITHUB_ENV
+
+      - name: Set CIBW_BUILD for Python version
+        shell: bash
+        run: |
+          PYTHON_VERSION="${{ matrix.python }}"
+          CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
+          echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install cibuildwheel twine
+
+      - name: Build wheels (Linux ARM64)
+        env:
+          # Python and architecture settings
+          CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
+          CIBW_ARCHS: ${{ env.CIBW_ARCHS }}
+
+          # Skip problematic builds
+          CIBW_SKIP: "pp* *-musllinux*"
+
+          # Environment variables for ARM64 build (no CUDA)
+          CIBW_ENVIRONMENT: >-
+            CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
+            VCPKG_ROOT=${{ env.VCPKG_ROOT }}
+            CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc
+            CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++
+
+          # Install vcpkg before build (no CUDA for ARM64)
+          CIBW_BEFORE_ALL_LINUX: >-
+            bash ./${{ env.CIBW_SCRIPT }} ${{ env.GCC_VERSION }} "" ${{ env.VCPKG_COMMIT_ID }}
+
+          # Install Python dependencies before build
+          CIBW_BEFORE_BUILD: >-
+            pip install scikit-build-core[pyproject] nanobind cmake ninja
+
+          CIBW_CONFIG_SETTINGS: >-
+            cmake.args=-S;${{ env.SOURCE_DIR }};--preset;${{ env.CMAKE_PRESET }}
+
+          # Build settings
+          CIBW_BUILD_VERBOSITY: 1
+
+          # Test the built wheel
+          CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
+
+          # Repair settings for Linux ARM64 (no Intel libraries)
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
+            echo "Running auditwheel repair for ARM64..." &&
+            auditwheel repair -w {dest_dir} {wheel}
+
+        run: python -m cibuildwheel --output-dir ./dist
+
+      - name: Upload wheels as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
+          path: dist/*.whl
+          retention-days: 30
+
+  build-windows-x64:
     name: Build Windows - ${{ matrix.arch }} - Python ${{ matrix.python }}
     runs-on: windows-latest
     strategy:
@@ -205,6 +281,8 @@ jobs:
           echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake" >> $GITHUB_ENV
           echo "SOURCE_DIR=${{ github.workspace }}\\src" >> $GITHUB_ENV
           echo "BUILD_DIR=${{ github.workspace }}\\build" >> $GITHUB_ENV
+          echo "CUDA_PATH=$CUDA_PATH" >> $GITHUB_ENV
+          echo "VCPKG_ROOT=${{ github.workspace }}\\vcpkg" >> $GITHUB_ENV
 
       - name: Set CIBW_BUILD for Python version
         shell: bash
@@ -278,7 +356,7 @@ jobs:
 
   # ===== Collect and publish wheels =====
   publish:
-    needs: [build-linux] #, build-windows]
+    needs: [build-linux-x64, build-linux-arm64, build-windows-x64]
     runs-on: ubuntu-latest
     # if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
 
