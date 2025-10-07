@@ -2,6 +2,15 @@
 set -e
 
 # Install EPEL and required tools
+if [ -z "$GCC_VERSION" ]; then
+    if [ -n "$1" ]; then
+        GCC_VERSION="$1"
+    else
+        echo "Error: GCC_VERSION not set. Please provide as env var or first argument."
+        exit 1
+    fi
+fi
+
 yum install -y epel-release
 yum remove -y gcc gcc-c++
 yum install -y make git which gcc-toolset-${GCC_VERSION} curl zip unzip tar

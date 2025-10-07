@@ -91,10 +91,9 @@ jobs:
             CUDA_PATH=/usr/local/cuda
             VCPKG_ROOT=/tmp/vcpkg
 
-
           # Install CUDA and vcpkg before build
           CIBW_BEFORE_ALL_LINUX: >-
-            bash ./${{ env.CIBW_SCRIPT }}
+            bash ./${{ env.CIBW_SCRIPT }} ${{ env.GCC_VERSION }}
 
           # Install Python dependencies before build
           CIBW_BEFORE_BUILD: >-
