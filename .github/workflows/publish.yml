@@ -93,7 +93,7 @@ jobs:
 
           # Install CUDA and vcpkg before build
           CIBW_BEFORE_ALL_LINUX: >-
-            bash ./${{ env.CIBW_SCRIPT }} ${{ env.GCC_VERSION }}
+            bash ./${{ env.CIBW_SCRIPT }} ${{ env.GCC_VERSION }} ${{ env.CUDA_VERSION }} ${{ env.VCPKG_COMMIT_ID }}
 
           # Install Python dependencies before build
           CIBW_BEFORE_BUILD: >-

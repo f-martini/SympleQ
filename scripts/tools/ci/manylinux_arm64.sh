@@ -11,6 +11,24 @@ if [ -z "$GCC_VERSION" ]; then
     fi
 fi
 
+if [ -z "$CUDA_VERSION" ]; then
+    if [ -n "$2" ]; then
+        CUDA_VERSION="$2"
+    else
+        echo "Error: CUDA_VERSION not set. Please provide as env var or second argument."
+        exit 1
+    fi
+fi
+
+if [ -z "$VCPKG_COMMIT_ID" ]; then
+    if [ -n "$3" ]; then
+        VCPKG_COMMIT_ID="$3"
+    else
+        echo "Error: VCPKG_COMMIT_ID not set. Please provide as env var or third argument."
+        exit 1
+    fi
+fi
+
 yum install -y epel-release
 yum remove -y gcc gcc-c++
 yum install -y make git which gcc-toolset-${GCC_VERSION} curl zip unzip tar
