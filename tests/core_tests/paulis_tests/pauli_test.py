@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from quaos.core.paulis import PauliSum, PauliString, Pauli
 
 
@@ -193,6 +194,18 @@ class TestPaulis:
         x1y1_2 = PauliString.from_string('x1z0 x1z1', dimensions=dims)
 
         assert x1y1 == x1y1_2
+
+        default_dims = PauliString.DEFAULT_QUDIT_DIMENSION
+        x1y0 = PauliString([1, 1], [1, 0])
+        x1y0_2 = PauliString.from_string('x1z1 x1z0', dimensions=default_dims)
+        x1y0_3 = PauliString.from_string('x1z1 x1z0', dimensions=dims)
+
+        assert x1y0 == x1y0_2
+        assert x1y0 != x1y0_3
+
+        # Test minimum allowed qudit dimension.
+        with pytest.raises(ValueError):
+            _ = PauliString.from_string('x0z0 x0z0', dimensions=PauliString.DEFAULT_QUDIT_DIMENSION - 1)
 
     def test_pauli_sum_addition(self):
 
