@@ -12,9 +12,22 @@ def test_main_function(benchmark):
 
 
 @pytest.mark.benchmark
+def test_paulisum_sum(benchmark):
+    n_paulis = 20
+    n_qudits = 100
+    dimensions = np.random.randint(2, 8, size=n_qudits)
+    ps1 = PauliSum.from_random(n_paulis, n_qudits, dimensions, rand_weights=True)
+    ps2 = PauliSum.from_random(n_paulis, n_qudits, dimensions, rand_weights=True)
+
+    def sum():
+        _ = ps1 + ps2
+
+    benchmark(sum)
+
+@pytest.mark.benchmark
 def test_paulisum_multiplication(benchmark):
     n_paulis = 20
-    n_qudits = 10
+    n_qudits = 100
     dimensions = np.random.randint(2, 8, size=n_qudits)
     ps1 = PauliSum.from_random(n_paulis, n_qudits, dimensions, rand_weights=True)
     ps2 = PauliSum.from_random(n_paulis, n_qudits, dimensions, rand_weights=True)
