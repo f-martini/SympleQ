@@ -9,10 +9,11 @@ env:
   GCC_VERSION: 12
   VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
   LINUX_PRESET_X64: linux-x86_64-Release
-  CIBW_ARCHS_X64: x86_64
-  SETUP_SCRIPT_PATH_X64: scripts/tools/ci/manylinux_x86_64.sh
   LINUX_PRESET_ARM64: linux-arm64-Release
+  WINDOWS_PRESET_X64: windows-x86_64-Release
+  CIBW_ARCHS_X64: x86_64
   CIBW_ARCHS_ARM64: aarch64
+  SETUP_SCRIPT_PATH_X64: scripts/tools/ci/manylinux_x86_64.sh
   SETUP_SCRIPT_PATH_ARM64: scripts/tools/ci/manylinux_arm64.sh
   CMAKE_TOOLCHAIN_FILE: /tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
 
@@ -216,12 +217,6 @@ jobs:
         arch: [x64]
         python: ["3.11", "3.12", "3.13"]
 
-    env:
-      LINUX_PRESET_X64: linux-x86_64-Release
-      CIBW_ARCHS_X64:
-      LINUX_PRESET_ARM64: linux-arm64-Release
-      CIBW_ARCHS_ARM64:
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -271,9 +266,6 @@ jobs:
       - name: Set build environment variables
         shell: bash
         run: |
-          echo "CMAKE_PRESET=windows-x86_64-Release" >> $GITHUB_ENV
-          echo "CIBW_ARCHS=AMD64" >> $GITHUB_ENV
-          echo "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake" >> $GITHUB_ENV
           echo "SOURCE_DIR=${{ github.workspace }}\\src" >> $GITHUB_ENV
           echo "BUILD_DIR=${{ github.workspace }}\\build" >> $GITHUB_ENV
           echo "CUDA_PATH=$CUDA_PATH" >> $GITHUB_ENV
@@ -303,7 +295,11 @@ jobs:
           CIBW_SKIP: "pp*"
 
           # Environment variables for the build
-          CIBW_ENVIRONMENT: CMAKE_PRESET="${{ env.CMAKE_PRESET }}" CMAKE_TOOLCHAIN_FILE="${{ env.CMAKE_TOOLCHAIN_FILE }}" SOURCE_DIR="${{ env.SOURCE_DIR }}" BUILD_DIR="${{ env.BUILD_DIR }}" CUDA_PATH="${{ env.CUDA_PATH }}" VCPKG_ROOT="${{ github.workspace }}\vcpkg"
+          CIBW_ENVIRONMENT: >-
+            CMAKE_PRESET="${{ env.WINDOWS_PRESET_X64 }}" 
+            CMAKE_TOOLCHAIN_FILE="${{ env.CMAKE_TOOLCHAIN_FILE }}"
+            CUDA_PATH="${{ env.CUDA_PATH }}"
+            VCPKG_ROOT="${{ github.workspace }}\\vcpkg"
 
           # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
@@ -314,8 +310,6 @@ jobs:
             echo "CIBW_ENVIRONMENT=${{ env.CIBW_ENVIRONMENT }}" &&
             echo "CMAKE_PRESET=${{ env.CMAKE_PRESET }}" &&
             echo "CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}" &&
-            echo "SOURCE_DIR=${{ env.SOURCE_DIR }}" &&
-            echo "BUILD_DIR=${{ env.BUILD_DIR }}" &&
             echo "CUDA_PATH=${{ env.CUDA_PATH }}" &&
             echo "VCPKG_ROOT=${{ env.VCPKG_ROOT }}" &&
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
@@ -329,7 +323,7 @@ jobs:
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           IBW_CONFIG_SETTINGS: >-
-            cmake.args=-S;src;--preset;${{ env.CMAKE_PRESET }}
+            cmake.args=-S;${{ env.SOURCE_DIR }};--preset;${{ env.CMAKE_PRESET }}
 
           # Repair settings for Windows
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"

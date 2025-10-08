@@ -32,6 +32,7 @@ fi
 yum install -y epel-release
 yum remove -y gcc gcc-c++
 yum install -y make git which gcc-toolset-${GCC_VERSION} curl zip unzip tar
+source /opt/rh/gcc-toolset-${GCC_VERSION}/enable
 
 echo "GCC version:"
 gcc --version
