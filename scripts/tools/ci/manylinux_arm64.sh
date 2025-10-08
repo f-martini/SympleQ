@@ -33,9 +33,6 @@ yum install -y epel-release
 yum remove -y gcc gcc-c++
 yum install -y make git which gcc-toolset-${GCC_VERSION} curl zip unzip tar
 
-# Enable GCC toolset
-source /opt/rh/gcc-toolset-${GCC_VERSION}/enable
-
 echo "GCC version:"
 gcc --version
 echo "GCC path:"
@@ -43,11 +40,15 @@ which gcc
 
 # Install CUDA for ARM64
 echo "Installing CUDA for ARM64..."
-curl -fsSL "https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/cuda-repo-rhel8-${CUDA_VERSION}-local-${CUDA_VERSION}.0.0-1.aarch64.rpm" -o cuda-repo.rpm
-yum install -y ./cuda-repo.rpm
+curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/cuda-rhel8.repo -o /etc/yum.repos.d/cuda-rhel8.repo
+curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/D42D0685.pub | rpm --import -
 yum clean all
-yum install -y cuda-toolkit-${CUDA_VERSION}
+yum makecache
+CUDA_PKG_VERSION=$(echo "${CUDA_VERSION}" | tr '.' '-')
+yum install -y "cuda-toolkit-${CUDA_PKG_VERSION}"
 ln -sf "/usr/local/cuda-${CUDA_VERSION}" /usr/local/cuda
+
+echo "CUDA ${CUDA_VERSION} installation complete"
 
 # Install vcpkg
 echo "Installing vcpkg..."

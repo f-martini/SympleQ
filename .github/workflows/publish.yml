@@ -73,10 +73,11 @@ jobs:
             CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc
             CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++
 
-          CIBW_BEFORE_ALL_LINUX: bash ./${{ env.SETUP_SCRIPT_PATH_X64 }} ${{ env.GCC_VERSION }} ${{ env.CUDA_VERSION }} ${{ env.VCPKG_COMMIT_ID }}
+          CIBW_BEFORE_ALL_LINUX: >-
+            bash ./${{ env.SETUP_SCRIPT_PATH_X64 }} ${{ env.GCC_VERSION }} ${{ env.CUDA_VERSION }} ${{ env.VCPKG_COMMIT_ID }}
+            source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable
 
           CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
-
           CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.LINUX_PRESET_X64 }}
 
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
@@ -177,6 +178,7 @@ jobs:
           # Install vcpkg before build (no CUDA for ARM64)
           CIBW_BEFORE_ALL_LINUX: >-
             bash ./${{ env.CIBW_SCRIPT }} ${{ env.GCC_VERSION }} ${{ env.CUDA_VERSION }} ${{ env.VCPKG_COMMIT_ID }}
+            source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable
 
           # Install Python dependencies before build
           CIBW_BEFORE_BUILD: >-
