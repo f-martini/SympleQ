@@ -74,10 +74,19 @@ jobs:
             VCPKG_ROOT=/tmp/vcpkg
 
           CIBW_BEFORE_ALL_LINUX: >-
-            bash ./${{ env.SETUP_SCRIPT_PATH_X64 }} ${{ env.GCC_VERSION }} ${{ env.CUDA_VERSION }} ${{ env.VCPKG_COMMIT_ID }}
-            source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable
+            yum install -y epel-release &&
+            yum remove -y gcc gcc-c++ &&
+            yum install -y make git which gcc-toolset-${{ env.GCC_VERSION }} curl zip unzip tar &&
+            source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable &&
             export CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc &&
-            export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++
+            export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++ &&
+            curl -fsSL "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}.0/local_installers/cuda_${{ env.CUDA_VERSION }}.0_555.42.02_linux.run" -o cuda_installer.run &&
+            sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
+            ln -sf "/usr/local/cuda-${{ env.CUDA_VERSION }}" /usr/local/cuda &&
+            git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
+            cd /tmp/vcpkg &&
+            git checkout "${{ env.VCPKG_COMMIT_ID }}" &&
+            ./bootstrap-vcpkg.sh
 
           CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
           CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.LINUX_PRESET_X64 }}
@@ -177,10 +186,24 @@ jobs:
 
           # Install vcpkg before build (no CUDA for ARM64)
           CIBW_BEFORE_ALL_LINUX: >-
-            bash ./${{ env.CIBW_SCRIPT }} ${{ env.GCC_VERSION }} ${{ env.CUDA_VERSION }} ${{ env.VCPKG_COMMIT_ID }}
-            source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable            
+            yum install -y epel-release &&
+            yum remove -y gcc gcc-c++ &&
+            yum install -y make git which gcc-toolset-${{ env.GCC_VERSION }} curl zip unzip tar &&
+            source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable &&
             export CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc &&
-            export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++
+            export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++ &&
+            curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/cuda-rhel8.repo -o /etc/yum.repos.d/cuda-rhel8.repo &&
+            curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/D42D0685.pub | rpm --import - &&
+            yum clean all &&
+            yum makecache &&
+            CUDA_PKG_VERSION=$(echo "${{ env.CUDA_VERSION }}" | tr '.' '-') &&
+            echo "CUDA_PKG_VERSION=$CUDA_PKG_VERSION" >> $GITHUB_ENV &&
+            yum install -y "cuda-toolkit-${CUDA_PKG_VERSION}-0" &&
+            ln -sf "/usr/local/cuda-${{ env.CUDA_VERSION }}" /usr/local/cuda &&
+            git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
+            cd /tmp/vcpkg &&
+            git checkout "${{ env.VCPKG_COMMIT_ID }}" &&
+            ./bootstrap-vcpkg.sh
 
           # Install Python dependencies before build
           CIBW_BEFORE_BUILD: >-
@@ -299,7 +322,7 @@ jobs:
           CIBW_ENVIRONMENT: >-
             CMAKE_PRESET="${{ env.WINDOWS_PRESET_X64 }}" 
             VCPKG_ROOT="${{ github.workspace }}\\vcpkg"
-            CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\\${{ env.WIN_CMAKE_TOOLCHAIN_FILE }}"
+            CMAKE_TOOLCHAIN_FILE="${{ env.WIN_CMAKE_TOOLCHAIN_FILE }}"
             CUDA_PATH="${{ env.CUDA_PATH }}"
 
           # Install dependencies before build
@@ -313,6 +336,7 @@ jobs:
             echo "CMAKE_TOOLCHAIN_FILE=${{ env.WIN_CMAKE_TOOLCHAIN_FILE }}" &&
             echo "CUDA_PATH=${{ env.CUDA_PATH }}" &&
             echo "VCPKG_ROOT=${{ env.VCPKG_ROOT }}" &&
+            echo " -> ${{ github.workspace }}" &&
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             cmake --version &&
             nvcc --version
