@@ -97,7 +97,7 @@ jobs:
 
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
             export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-            echo "Running auditwheel repair..." &&
+            export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos/.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
             auditwheel repair -w {dest_dir} {wheel}
 
         run: python -m cibuildwheel --output-dir ./dist
