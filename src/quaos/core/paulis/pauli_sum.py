@@ -135,7 +135,7 @@ class PauliSum:
         self.lcm = np.lcm.reduce(self.dimensions)
         self.phases = np.asarray(sanitized_phases, dtype=int) % (2 * self.lcm)
 
-        self._set_exponents()
+        self._tableau = np.stack([p.tableau() for p in self.pauli_strings])
 
         if standardise:
             self.standardise()
@@ -232,20 +232,6 @@ class PauliSum:
             strings.append(ps)
 
         return cls(strings, weights=weights, phases=[0] * n_paulis, dimensions=dimensions, standardise=True)
-
-    def _set_exponents(self):
-        """
-        Set the exponents for the Pauli strings in the sum, based on the PauliString objects in pauli_list.
-        """
-        x_exp = np.zeros((len(self.pauli_strings), len(self.dimensions)))  # we can always index [pauli #, qudit #]
-        z_exp = np.zeros((len(self.pauli_strings), len(self.dimensions)))
-
-        for i, p in enumerate(self.pauli_strings):
-            x_exp[i, :] = p.x_exp
-            z_exp[i, :] = p.z_exp
-
-        self.x_exp = x_exp
-        self.z_exp = z_exp
 
     @staticmethod
     def _sanitize_pauli_list(pauli_list: PauliStringDerivedType,
@@ -523,13 +509,17 @@ class PauliSum:
                 self.pauli_strings[key[0]][key[1]] = value
             elif isinstance(key[1], slice):  # key[0] indexes the pauli string, key[1] indexes the qudits
                 self.pauli_strings[key[0]][key[1]] = value
+            self._tableau[key[0], :] = self.pauli_strings[key[0]].tableau()
         if isinstance(key[0], slice):
+            indices = np.arange(self.n_paulis())[key[0]]
             if isinstance(key[1], int):  # key[0] indexes the pauli strings, key[1] indexes the qudit
-                for i in np.arange(self.n_paulis())[key[0]]:
+                for i in indices:
                     self.pauli_strings[int(i)][key[1]] = value[int(i)]
             elif isinstance(key[1], slice):  # key[0] indexes the pauli strings, key[1] indexes the qudits
-                for i_val, i in enumerate(np.arange(self.n_paulis())[key[0]]):
+                for i_val, i in enumerate(indices):
                     self.pauli_strings[i][key[1]] = value[int(i_val)]
+            for i in indices:
+                self._tableau[i, :] = self.pauli_strings[i].tableau()
 
     @overload
     def __setitem__(self,
@@ -571,11 +561,15 @@ class PauliSum:
         # TODO: Error messages here could be improved
         if isinstance(key, int):  # key indexes the pauli_string to be replaced by value
             self.pauli_strings[key] = value
+            self._tableau[key, :] = value.tableau()  # Update only the affected row in the tableau
+
         elif isinstance(key, slice):
             self.pauli_strings[key] = value
+            # Update corresponding tableau rows
+            for i, v in zip(range(*key.indices(len(self.pauli_strings))), value):
+                self._tableau[i, :] = v.tableau()
         elif isinstance(key, tuple):
             self._setitem_tuple(key, value)
-        self._set_exponents()  # update exponents x_exp and z_exp
 
     def __add__(self,
                 A: PauliType) -> 'PauliSum':
@@ -918,11 +912,12 @@ class PauliSum:
         if not isinstance(other_pauli,
                           PauliSum):
             return False
-        t1 = np.all(self.pauli_strings == other_pauli.pauli_strings)
+        t1 = np.all(self.pauli_strings == other_pauli.pauli_strings)  # TODO: remove redundant check
         t2 = np.all(self.weights == other_pauli.weights)
         t3 = np.all(self.phases == other_pauli.phases)
         t4 = np.all(self.dimensions == other_pauli.dimensions)
-        return bool(t1 and t2 and t3 and t4)
+        t5 = np.all(self.tableau() == other_pauli.tableau())
+        return bool(t1 and t2 and t3 and t4 and t5)
 
     def __ne__(self,
                other_pauli: 'PauliSum') -> bool:
@@ -986,6 +981,13 @@ class PauliSum:
         self.pauli_strings = [t[0] for t in combined]
         self.weights = np.array([t[1] for t in combined], dtype=np.complex128)
         # Do the same for phases if needed
+
+        # Recalculate tableau
+        self._tableau = np.empty([self.n_paulis(), 2 * self.n_qudits()],
+                                 dtype=int)
+        for i, p in enumerate(self.pauli_strings):
+            self._tableau[i, :] = p.tableau()
+
     """
     def standardise(self):
 
@@ -1056,11 +1058,8 @@ class PauliSum:
         np.ndarray
             The tableau representation of the PauliSum.
         """
-        tableau = np.zeros([self.n_paulis(), 2 * self.n_qudits()],
-                           dtype=int)
-        for i, p in enumerate(self.pauli_strings):
-            tableau[i, :] = p.tableau()
-        return tableau
+
+        return self._tableau
 
     def is_x(self) -> bool:
         """

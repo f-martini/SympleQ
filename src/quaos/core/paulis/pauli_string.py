@@ -76,8 +76,14 @@ class PauliString:
         else:
             self.dimensions = np.asarray(dimensions)
 
-        self.x_exp = x_exp % self.dimensions
-        self.z_exp = z_exp % self.dimensions
+        x_exp = x_exp % self.dimensions
+        z_exp = z_exp % self.dimensions
+
+        self._n_qudits = len(x_exp)
+        self._tableau = np.empty(2 * self._n_qudits, dtype=int)
+        self._tableau[:self._n_qudits] = x_exp
+        self._tableau[self._n_qudits:] = z_exp
+
         self.lcm = np.lcm.reduce(self.dimensions)
         self._sanity_check()
 
@@ -378,8 +384,7 @@ class PauliString:
         if not isinstance(other_pauli, PauliString):
             return False
 
-        return bool(np.all(self.x_exp == other_pauli.x_exp) and
-                    np.all(self.z_exp == other_pauli.z_exp) and
+        return bool(np.all(self.tableau() == other_pauli.tableau()) and
                     np.all(self.dimensions == other_pauli.dimensions))
 
     def __ne__(self,
@@ -426,22 +431,14 @@ class PauliString:
         >>> ps1 > ps2
         True
         """
-        # compare x first
-        for i in range(self.n_qudits()):
-            if self.x_exp[i] == other_pauli.x_exp[i]:
-                pass
-            elif self.x_exp[i] < other_pauli.x_exp[i]:
+
+        for i in range(len(self.tableau())):
+            if self.tableau()[i] == other_pauli.tableau()[i]:
+                continue
+            if self.tableau()[i] < other_pauli.tableau()[i]:
                 return True
-            else:
-                return False
-        # x are equal, compare z
-        for i in range(self.n_qudits()):
-            if self.z_exp[i] == other_pauli.z_exp[i]:
-                pass
-            elif self.z_exp[i] < other_pauli.z_exp[i]:
-                return True
-            else:
-                return False
+            return False
+
         # they are equal
         return False
 
@@ -540,6 +537,58 @@ class PauliString:
                 'z_exp': self.z_exp,
                 'dimensions': self.dimensions}
 
+    @property
+    def x_exp(self) -> np.ndarray:
+        """
+        x_exp : np.ndarray
+        Array of X exponents for each qudit.
+        """
+        return self._tableau[:self.n_qudits()]
+
+    @x_exp.setter
+    def x_exp(self, x_exp: list[int] | np.ndarray | int):
+        """
+        Set the exponents of the X-type Pauli operators for each qudit.
+
+        Parameters
+        ----------
+        x_exp : list[int] | np.ndarray
+            The exponents of the X-type Pauli operators for each qudit.
+        """
+
+        if isinstance(x_exp, list):
+            x_exp = np.array(x_exp)
+        elif isinstance(x_exp, int):
+            x_exp = np.array([x_exp])
+
+        self._tableau[:self.n_qudits()] = x_exp
+
+    @property
+    def z_exp(self) -> np.ndarray:
+        """
+        z_exp : np.ndarray
+        Array of Z exponents for each qudit.
+        """
+        return self._tableau[self.n_qudits():]
+
+    @z_exp.setter
+    def z_exp(self, z_exp: list[int] | np.ndarray | int):
+        """
+        Set the exponents of the Z-type Pauli operators for each qudit.
+
+        Parameters
+        ----------
+        z_exp : list[int] | np.ndarray
+            The exponents of the Z-type Pauli operators for each qudit.
+        """
+
+        if isinstance(z_exp, list):
+            z_exp = np.array(z_exp)
+        elif isinstance(z_exp, int):
+            z_exp = np.array([z_exp])
+
+        self._tableau[:self.n_qudits()] = z_exp
+
     def n_qudits(self) -> int:
         """
         Returns the number of qudits represented by this PauliString.
@@ -549,7 +598,7 @@ class PauliString:
         int
             The number of qudits.
         """
-        return len(self.x_exp)
+        return self._n_qudits
 
     def n_identities(self) -> int:
         """
@@ -589,10 +638,7 @@ class PauliString:
             A 1D numpy array of length 2 * n_qudits representing the tableau
             form of the Pauli string.
         """
-        tableau_vec = np.zeros(2 * self.n_qudits(), dtype=int)
-        tableau_vec[0:self.n_qudits()] = self.x_exp
-        tableau_vec[self.n_qudits():2 * self.n_qudits()] = self.z_exp
-        return tableau_vec
+        return self._tableau
 
     def symplectic_residues(self, A: "PauliString") -> np.ndarray:
         """
@@ -710,8 +756,8 @@ class PauliString:
         if new_x > self.dimensions[qudit_index] or new_z > self.dimensions[qudit_index]:
             raise ValueError(f"Exponents ({new_x, new_z}) cannot be larger than qudit dimension"
                              f" ({self.dimensions[qudit_index]})")
-        self.x_exp[qudit_index] = new_x
-        self.z_exp[qudit_index] = new_z
+        self._tableau[qudit_index] = new_x
+        self._tableau[self.n_qudits() + qudit_index] = new_z
         return self
 
     def acquired_phase(self, other_pauli: PauliString) -> int:
@@ -975,4 +1021,4 @@ class PauliString:
         bool
             True if the PauliString is the identity operator, False otherwise.
         """
-        return bool(np.all(self.x_exp == 0) and np.all(self.z_exp == 0))
+        return bool(np.all(self._tableau == 0))
