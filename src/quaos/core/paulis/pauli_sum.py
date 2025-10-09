@@ -147,7 +147,7 @@ class PauliSum:
                      ) -> 'PauliSum':
         p_strings = []
         for row in tableau:
-            p_strings.append(PauliString(x_exp=row[:len(row) // 2], z_exp=row[len(row) // 2:], dimensions=dimensions))
+            p_strings.append(PauliString.from_tableau(row, dimensions=dimensions))
         return cls(p_strings, dimensions=dimensions, weights=weights, standardise=False)
 
     @classmethod
@@ -787,7 +787,7 @@ class PauliSum:
         """
         Multiply a PauliSum and a PauliType (or scalar) objects element-wise.
         It corresponds to operator multiplication (`*`).
-        It adds the `x_exp` and `z_exp` exponents of the two PauliSums modulo their dimensions.
+        It adds the tableaus of the two PauliSums modulo their dimensions.
 
         Parameters
         ----------
@@ -840,7 +840,7 @@ class PauliSum:
         """
         Multiply a PauliSum and a PauliType (or scalar) objects element-wise.
         It corresponds to operator multiplication (`*`).
-        It adds the `x_exp` and `z_exp` exponents of the two PauliSums modulo their dimensions.
+        It adds the tableaus of the two PauliSums modulo their dimensions.
 
         Parameters
         ----------
@@ -967,6 +967,22 @@ class PauliSum:
                 'phases': self.phases,
                 'dimensions': self.dimensions}
 
+    @property
+    def x_exp(self) -> np.ndarray:
+        """
+        x_exp : np.ndarray
+        Array of X exponents for each qudit.
+        """
+        return self._tableau[:self.n_qudits()]
+
+    @property
+    def z_exp(self) -> np.ndarray:
+        """
+        z_exp : np.ndarray
+        Array of Z exponents for each qudit.
+        """
+        return self._tableau[self.n_qudits():]
+
     def standardise(self):
         """
         Standardises the PauliSum object by combining equivalent Paulis and
@@ -1025,7 +1041,7 @@ class PauliSum:
         # If entire Pauli string is x0z0, remove it
         to_delete = []
         for i in range(self.n_paulis()):
-            if np.all(self.x_exp[i, :] == 0) and np.all(self.z_exp[i, :] == 0):
+            if np.all(self.tableau()[i, :] == 0):
                 to_delete.append(i)
         self._delete_paulis(to_delete)
 
@@ -1036,7 +1052,7 @@ class PauliSum:
         # If entire qudit is I, remove it
         to_delete = []
         for i in range(self.n_qudits()):
-            if np.all(self.x_exp[:, i] == 0) and np.all(self.z_exp[:, i] == 0):
+            if np.all(self.tableau()[:, i] == 0):
                 to_delete.append(i)
         self._delete_qudits(to_delete)
 
@@ -1160,16 +1176,14 @@ class PauliSum:
 
         new_weights = np.delete(self.weights, pauli_indices)
         new_phases = np.delete(self.phases, pauli_indices)
-        new_x_exp = np.delete(self.x_exp, pauli_indices, axis=0)
-        new_z_exp = np.delete(self.z_exp, pauli_indices, axis=0)
+        new_tableau = np.delete(self._tableau, pauli_indices, axis=0)
 
         for i in sorted(pauli_indices, reverse=True):  # sort in reverse order to avoid index shifting # Convert to list
             del self.pauli_strings[i]
 
         self.weights = new_weights
         self.phases = new_phases
-        self.x_exp = new_x_exp
-        self.z_exp = new_z_exp
+        self._tableau = new_tableau
 
     def _delete_qudits(self, qudit_indices: list[int] | int):
         """
@@ -1188,8 +1202,7 @@ class PauliSum:
             new_pauli_strings.append(p._delete_qudits(qudit_indices))
 
         self.pauli_strings = new_pauli_strings
-        self.x_exp = np.delete(self.x_exp, qudit_indices, axis=1)
-        self.z_exp = np.delete(self.z_exp, qudit_indices, axis=1)
+        self._tableau = np.delete(self._tableau, qudit_indices, axis=1)
         self.dimensions = np.delete(self.dimensions, qudit_indices)
 
         self.lcm = np.lcm.reduce(self.dimensions)
@@ -1431,16 +1444,14 @@ class PauliSum:
         self.pauli_strings = [self.pauli_strings[i] for i in order]
         self.weights = np.array([self.weights[i] for i in order])
         self.phases = np.array([self.phases[i] for i in order])
-        self.x_exp = np.array([self.x_exp[i] for i in order])
-        self.z_exp = np.array([self.z_exp[i] for i in order])
+        self._tableau = np.array([self._tableau[i] for i in order])
 
     def swap_paulis(self, index_1: int, index_2: int):
         self.pauli_strings[index_1], self.pauli_strings[index_2] = (self.pauli_strings[index_2],
                                                                     self.pauli_strings[index_1])
         self.weights[index_1], self.weights[index_2] = self.weights[index_2], self.weights[index_1]
         self.phases[index_1], self.phases[index_2] = self.phases[index_2], self.phases[index_1]
-        self.x_exp[index_1], self.x_exp[index_2] = self.x_exp[index_2], self.x_exp[index_1]
-        self.z_exp[index_1], self.z_exp[index_2] = self.z_exp[index_2], self.z_exp[index_1]
+        self._tableau[index_1], self._tableau[index_2] = self._tableau[index_2], self._tableau[index_1]
 
     def hermitian_conjugate(self):
         conjugate_weights = np.conj(self.weights)
