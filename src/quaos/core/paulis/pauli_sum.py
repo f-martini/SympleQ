@@ -1,4 +1,4 @@
-from typing import Union, overload
+from typing import Union, overload, Iterable
 import numpy as np
 import scipy
 from .pauli import Pauli
@@ -8,6 +8,69 @@ PauliStringDerivedType = Union[list[PauliString], list[Pauli], list[str], PauliS
 PauliType = Union[Pauli, PauliString, 'PauliSum']
 ScalarType = Union[float, complex, int]
 PauliOrScalarType = Union[PauliType, ScalarType]
+
+
+class PauliStringList(list):
+    '''
+    Constructor for PauliStringList class.
+    This class is a wrapper used for tje list of PauliString in a PauliSum.
+    It allows to update the PauliSum tableau any time a PauliString is updated.
+
+    Parameters
+    ----------
+    pauli_list : PauliStringDerivedType
+        The list of PauliStrings representing the operators.
+    weights: list[float | complex] | np.ndarray | None = None
+        The weights for each PauliString.
+    phases: list[int] | np.ndarray | None = None
+        The phases of the PauliStrings in the range [0, lcm(dimensions) - 1].
+    dimensions : list[int] | np.ndarray | int, optional
+        The dimensions of each qudit. If an integer is provided,
+        all qudits are assumed to have the same dimension (default is 2).
+
+    Attributes
+    ----------
+    pauli_list : PauliStringDerivedType
+        The list of PauliStrings representing the operators.
+    weights: list[float | complex] | np.ndarray | None = None
+        The weights for each PauliString.
+    phases: list[int] | np.ndarray | None = None
+        The phases of the PauliStrings in the range [0, lcm(dimensions) - 1].
+    dimensions : list[int] | np.ndarray | int, optional
+        The dimensions of each qudit. If an integer is provided,
+        all qudits are assumed to have the same dimension (default is 2).
+    lcm : int
+        Least common multiplier of all qudit dimensions.
+
+    Raises
+    ------
+    ValueError
+        If the length of pauli_list and weights do not match.
+    '''
+    def __init__(self, data: Iterable["PauliString"], parent: 'PauliSum'):
+        super().__init__(data)
+        self._parent = parent
+
+    @overload
+    def __setitem__(self, key: int, value: 'PauliString') -> None:
+        ...
+
+    @overload
+    def __setitem__(self, key: slice, value: Iterable['PauliString']) -> None:
+        ...
+
+    def __setitem__(self, key, value):
+        """Replace one or more PauliStrings and update the parent's tableau accordingly."""
+        super().__setitem__(key, value)
+
+        if isinstance(key, int):
+            self._parent._tableau[key, :] = self[key].tableau()
+        elif isinstance(key, slice):
+            indices = range(*key.indices(len(self)))
+            for i in indices:
+                self._parent._tableau[i, :] = self[i].tableau()
+
+    # TODO: Add append and extend methods
 
 
 class PauliSum:
@@ -66,7 +129,7 @@ class PauliSum:
             pauli_list, weights, phases, dimensions
         )
 
-        self.pauli_strings = sanitized_pauli_list
+        self.pauli_strings = PauliStringList(sanitized_pauli_list, parent=self)
         self.weights = np.asarray(sanitized_weights, dtype=np.complex128)
         self.dimensions = sanitized_dimensions
         self.lcm = np.lcm.reduce(self.dimensions)
@@ -745,7 +808,7 @@ class PauliSum:
         Raises
         ------
         ValueError
-            If `A` is not an instance of PauliString or a scalar.
+            If `A` is not an instance of a Pauli, PauliSum, PauliString, or scalar.
 
         Examples
         --------
@@ -759,20 +822,24 @@ class PauliSum:
         elif isinstance(A, PauliString):
             return self * PauliSum.from_pauli_strings(A)
         elif not isinstance(A, PauliSum):
-            raise ValueError("Multiplication only supported with PauliSum objects or scalar")
+            raise ValueError("Multiplication only supported with Pauli, PauliSum, PauliString, or scalar")
 
-        new_p_sum = []
-        new_weights = []
-        new_phases = []
-        for i in range(self.n_paulis()):
-            for j in range(A.n_paulis()):
-                new_p_sum.append(self.pauli_strings[i] * A.pauli_strings[j])
-                new_weights.append(self.weights[i] * A.weights[j])
-                acquired_phase = self.pauli_strings[i].acquired_phase(A.pauli_strings[j])
-                new_phases.append((self.phases[i] + A.phases[j] + acquired_phase) % (2 * self.lcm))
-        output_pauli = PauliSum(new_p_sum, new_weights, new_phases, self.dimensions, False)
+        w1 = self.weights[:, None]
+        w2 = A.weights[None, :]
+        new_weights = (w1 * w2).reshape(-1)
 
-        return output_pauli
+        p1 = self.phases[:, None]
+        p2 = A.phases[None, :]
+        acquired_phases = np.empty((self.n_paulis(), A.n_paulis()), dtype=int)
+        for i, ps1 in enumerate(self.pauli_strings):
+            for j, ps2 in enumerate(A.pauli_strings):
+                acquired_phases[i, j] = ps1.acquired_phase(ps2)
+        new_phases = (p1 + p2 + acquired_phases) % (2 * self.lcm)
+        new_phases = new_phases.reshape(-1)
+
+        new_p_sum = [ps1 * ps2 for ps1 in self.pauli_strings for ps2 in A.pauli_strings]
+
+        return PauliSum(new_p_sum, new_weights, new_phases, self.dimensions, False)
 
     def __rmul__(self,
                  A: PauliOrScalarType) -> 'PauliSum':

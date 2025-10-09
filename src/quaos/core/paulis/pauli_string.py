@@ -91,24 +91,25 @@ class PauliString:
             If the lengths of `x_exp`, `z_exp`, and `dimensions` do not match,
             or if any exponent is not valid for its corresponding dimension.
         """
-        if len(self.x_exp) != len(self.dimensions):
-            raise ValueError(f"Number of x exponents ({len(self.x_exp)})"
-                             f" and dimensions ({len(self.dimensions)}) must be equal.")
-
         if len(self.x_exp) != len(self.z_exp):
             raise ValueError(f"Number of x and z exponents ({len(self.x_exp)}"
                              f" and {len(self.z_exp)}) must be equal.")
 
-        if len(self.dimensions) != len(self.z_exp):
-            raise ValueError(f"Number of dimensions ({len(self.dimensions)})"
-                             f" and z exponents ({len(self.z_exp)}) must be equal.")
+        if len(self.x_exp) != len(self.dimensions):
+            raise ValueError(f"Number of x exponents ({len(self.x_exp)})"
+                             f" and dimensions ({len(self.dimensions)}) must be equal.")
 
-        for i in range(len(self.x_exp)):
-            if self.dimensions[i] < PauliString.DEFAULT_QUDIT_DIMENSION:
-                raise ValueError(f"Dimension {self.dimensions[i]} is less than {PauliString.DEFAULT_QUDIT_DIMENSION}")
-            if self.dimensions[i] - 1 < self.x_exp[i] or self.dimensions[i] - 1 < self.z_exp[i]:
-                raise ValueError(f"Dimension {self.dimensions[i]} is too small for"
-                                 f" exponents {self.x_exp[i]} and {self.z_exp[i]}")
+        if np.any(self.dimensions < PauliString.DEFAULT_QUDIT_DIMENSION):
+            bad_dims = self.dimensions[self.dimensions < PauliString.DEFAULT_QUDIT_DIMENSION]
+            raise ValueError(f"Dimensions {bad_dims} are less than {PauliString.DEFAULT_QUDIT_DIMENSION}")
+
+        if np.any((self.x_exp >= self.dimensions) | (self.z_exp >= self.dimensions)):
+            bad_indices = np.where((self.x_exp >= self.dimensions) | (self.z_exp >= self.dimensions))[0]
+            raise ValueError(
+                f"Dimensions too small for exponents at indices {bad_indices}: "
+                f"x_exp={self.x_exp[bad_indices]}, z_exp={self.z_exp[bad_indices]}, "
+                f"dimensions={self.dimensions[bad_indices]}"
+            )
 
     @classmethod
     def from_pauli(cls, pauli: Pauli) -> PauliString:
@@ -333,9 +334,6 @@ class PauliString:
         if np.any(self.dimensions != A.dimensions):
             raise Exception("To multiply two PauliStrings, their dimensions"
                             f" {self.dimensions} and {A.dimensions} must be equal")
-
-        # tableau = np.mod(self.tableau() + A.tableau(), (np.concatenate([self.dimensions, self.dimensions])))
-        # return PauliString.from_tableau(tableau, self.dimensions)
 
         x_new = np.mod(self.x_exp + A.x_exp, (self.dimensions))
         z_new = np.mod(self.z_exp + A.z_exp, (self.dimensions))
@@ -672,8 +670,16 @@ class PauliString:
         """
         if self.n_qudits() != A.n_qudits() or not np.array_equal(self.dimensions, A.dimensions):
             raise ValueError(
-                f"Incompatible PauliStrings: must have the same number of qudits (currently {self.n_qudits()} and {A.n_qudits()}) and dimensions (currently {self.dimensions} and {A.dimensions}).")
-        if any(np.sum(self.x_exp[i] * A.z_exp[i] - self.z_exp[i] * A.x_exp[i]) % self.dimensions[i] for i in range(self.n_qudits())):
+                (
+                    f"Incompatible PauliStrings: must have the same number of qudits "
+                    f"(currently {self.n_qudits()} and {A.n_qudits()}) and dimensions "
+                    f"(currently {self.dimensions} and {A.dimensions})."
+                )
+            )
+        if any(
+            np.sum(self.x_exp[i] * A.z_exp[i] - self.z_exp[i] * A.x_exp[i]) % self.dimensions[i]
+            for i in range(self.n_qudits())
+        ):
             return 1
 
         return 0
@@ -734,12 +740,16 @@ class PauliString:
         #     phase += phi * (self.x_exp[i] * other_pauli.z_exp[i] + self.z_exp[i] * other_pauli.x_exp[i])
         # return phase % (2 * self.lcm)
 
-        # identity on lower diagonal of U
-        U = np.empty((2 * self.n_qudits(), 2 * self.n_qudits()), dtype=int)
-        U[self.n_qudits():, :self.n_qudits()] = np.eye(self.n_qudits(), dtype=int)
+        n = self.n_qudits()
         a = self.tableau()
         b = other_pauli.tableau()
-        return int(2 * a.T @ U @ b) % (2 * self.lcm)
+
+        # U is zeros with identity in lower-left n x n block
+        # This is equivalent to sum over j of 2 * x'_j * z_j
+        # U @ b selects b[:n] (x part) and puts it in lower half
+        phase = 2 * np.dot(a[n:], b[:n])
+
+        return int(phase % (2 * self.lcm))
 
     def _replace_symplectic(self, symplectic: np.ndarray, qudit_indices: list[int]) -> PauliString:
         """
