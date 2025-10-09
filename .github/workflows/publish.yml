@@ -16,7 +16,7 @@ env:
   SETUP_SCRIPT_PATH_X64: scripts/tools/ci/manylinux_x86_64.sh
   SETUP_SCRIPT_PATH_ARM64: scripts/tools/ci/manylinux_arm64.sh
   CMAKE_TOOLCHAIN_FILE: /tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
-  WIN_CMAKE_TOOLCHAIN_FILE: vcpkg\\scripts\\buildsystems\\vcpkg.cmake
+  WIN_CMAKE_TOOLCHAIN_FILE: D:\\a\\quaos\\quaos\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake
 
 jobs:
   build-linux-x64:
@@ -72,6 +72,8 @@ jobs:
             CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
             CUDA_PATH=/usr/local/cuda
             VCPKG_ROOT=/tmp/vcpkg
+            PATH=/usr/local/cuda/bin:/opt/rh/gcc-toolset-12/root/usr/bin:$PATH
+            LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
           CIBW_BEFORE_ALL_LINUX: >-
             yum install -y epel-release &&
@@ -108,6 +110,7 @@ jobs:
           retention-days: 30
 
   build-linux-arm64:
+    needs: [build-linux-x64]
     name: Build Linux - ${{ matrix.arch }} - Python ${{ matrix.python }}
     runs-on: ubuntu-latest
     strategy:
