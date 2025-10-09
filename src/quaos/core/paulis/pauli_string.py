@@ -29,6 +29,8 @@ class PauliString:
         The dimensions of each qudit. If an integer is provided,
         all qudits are assumed to have the same dimension.
         If no value is provided, the default is `PauliString.DEFAULT_QUDIT_DIMENSION`.
+    sanity_check : bool = True
+        Whether to run sanity checks for the input, the default is True.
 
     Attributes
     ----------
@@ -51,7 +53,8 @@ class PauliString:
     def __init__(self,
                  x_exp: list[int] | np.ndarray | str | int,
                  z_exp: list[int] | np.ndarray | int,
-                 dimensions: list[int] | np.ndarray | int | None = None):
+                 dimensions: list[int] | np.ndarray | int | None = None,
+                 sanity_check: bool = True):
 
         if isinstance(x_exp, str):
             if z_exp is not None:
@@ -85,7 +88,9 @@ class PauliString:
         self._tableau[self._n_qudits:] = z_exp
 
         self.lcm = np.lcm.reduce(self.dimensions)
-        self._sanity_check()
+
+        if sanity_check:
+            self._sanity_check()
 
     def _sanity_check(self):
         """
@@ -118,7 +123,7 @@ class PauliString:
             )
 
     @classmethod
-    def from_pauli(cls, pauli: Pauli) -> PauliString:
+    def from_pauli(cls, pauli: Pauli, sanity_check: bool = True) -> PauliString:
         """
         Create a PauliString instance from a single Pauli object.
 
@@ -126,6 +131,8 @@ class PauliString:
         ----------
         pauli : Pauli
             The Pauli object to convert into a PauliString.
+        sanity_check : bool = True
+            Whether to run sanity checks for the input, the default is True.
 
         Returns
         -------
@@ -133,10 +140,15 @@ class PauliString:
             A PauliString instance representing the given Pauli operator.
         """
 
-        return cls(x_exp=[pauli.x_exp], z_exp=[pauli.z_exp], dimensions=[pauli.dimension])
+        return cls(x_exp=[pauli.x_exp], z_exp=[pauli.z_exp], dimensions=[pauli.dimension], sanity_check=sanity_check)
 
     @classmethod
-    def from_tableau(cls, tableau: list[int] | np.ndarray, dimensions: list[int] | np.ndarray) -> PauliString:
+    def from_tableau(
+        cls,
+        tableau: list[int] | np.ndarray,
+        dimensions: list[int] | np.ndarray,
+        sanity_check: bool = True
+    ) -> PauliString:
         """
         Create a PauliString instance from a tableau.
 
@@ -146,6 +158,8 @@ class PauliString:
             The tableau to convert into a PauliString.
         dimensions : list[int] | np.ndarray
             The dimensions of each qudit. Should be a list or array of integers specifying the dimension for each qudit.
+        sanity_check : bool = True
+            Whether to run sanity checks for the input, the default is True.
 
         Returns
         -------
@@ -157,10 +171,10 @@ class PauliString:
                              f" must be twice the length of dimensions ({len(dimensions)}).")
         x_exp = tableau[:len(dimensions)]
         z_exp = tableau[len(dimensions):]
-        return cls(x_exp, z_exp, dimensions)
+        return cls(x_exp, z_exp, dimensions, sanity_check=sanity_check)
 
     @classmethod
-    def from_string(cls, pauli_str: str, dimensions) -> PauliString:
+    def from_string(cls, pauli_str: str, dimensions, sanity_check: bool = True) -> PauliString:
         """
         Create a PauliString instance from a string representation.
 
@@ -170,6 +184,8 @@ class PauliString:
             The string representation of the Pauli string, where exponents are separated by 'x' and 'z'.
         dimensions : Any
             The dimensions parameter to be passed to the PauliString constructor.
+        sanity_check : bool = True
+            Whether to run sanity checks for the input, the default is True.
 
         Returns
         -------
@@ -185,10 +201,10 @@ class PauliString:
         xz_exponents = re.split('x|z', pauli_str)[1:]
         z_exp = np.array(xz_exponents[1::2], dtype=int)
         x_exp = np.array(xz_exponents[0::2], dtype=int)
-        return cls(x_exp=x_exp, z_exp=z_exp, dimensions=dimensions)
+        return cls(x_exp=x_exp, z_exp=z_exp, dimensions=dimensions, sanity_check=sanity_check)
 
     @classmethod
-    def from_random(cls, n_qudits: int, dimensions: list[int] | np.ndarray, seed=None) -> PauliString:
+    def from_random(cls, n_qudits: int, dimensions: list[int] | np.ndarray, seed=None, sanity_check: bool = True) -> PauliString:
         """
         Generate a random PauliString instance for a given number of qudits and their dimensions.
 
@@ -200,6 +216,8 @@ class PauliString:
             The dimensions of each qudit. Should be a list or array of integers specifying the dimension for each qudit.
         seed : int or None, optional
             Seed for the random number generator to ensure reproducibility. Default is None.
+        sanity_check : bool = True
+            Whether to run sanity checks for the input, the default is True.
 
         Returns
         -------
@@ -210,7 +228,8 @@ class PauliString:
             np.random.seed(seed)
         return cls(x_exp=np.random.randint(dimensions, dtype=int),
                    z_exp=np.random.randint(dimensions, dtype=int),
-                   dimensions=dimensions)
+                   dimensions=dimensions,
+                   sanity_check=sanity_check)
 
     def __repr__(self) -> str:
         """
@@ -274,7 +293,8 @@ class PauliString:
         new_dims = np.concatenate((self.dimensions, A.dimensions))
         return PauliString(new_x_exp,
                            new_z_exp,
-                           new_dims)
+                           new_dims,
+                           sanity_check=False)
 
     def __rmatmul__(self, A: Pauli) -> PauliString:
         """
@@ -304,7 +324,8 @@ class PauliString:
         new_dims = np.concatenate(self.dimensions, np.array([A.dimension]))
         return PauliString(new_x_exp,
                            new_z_exp,
-                           new_dims)
+                           new_dims,
+                           sanity_check=False)
 
     def __mul__(self, A: PauliString) -> PauliString:
         """
@@ -343,7 +364,7 @@ class PauliString:
 
         x_new = np.mod(self.x_exp + A.x_exp, (self.dimensions))
         z_new = np.mod(self.z_exp + A.z_exp, (self.dimensions))
-        return PauliString(x_new, z_new, self.dimensions)
+        return PauliString(x_new, z_new, self.dimensions, sanity_check=False)
 
     def __pow__(self, A: int) -> PauliString:
         """
@@ -364,7 +385,7 @@ class PauliString:
         >>> ps = PauliString(x_exp, z_exp, dimensions)
         >>> ps_squared = ps ** 2
         """
-        return PauliString(self.x_exp * A, self.z_exp * A, self.dimensions)
+        return PauliString(self.x_exp * A, self.z_exp * A, self.dimensions, sanity_check=False)
 
     def __eq__(self, other_pauli: PauliString) -> bool:
         """
@@ -905,9 +926,13 @@ class PauliString:
         >>> ps[[0, 2]]  # Returns a PauliString with Paulis at indices 0 and 2
         """
         if isinstance(key, int):
-            return PauliString.from_pauli(self.get_paulis()[key])
+            return PauliString.from_pauli(self.get_paulis()[key], sanity_check=False)
         elif isinstance(key, slice) or isinstance(key, np.ndarray) or isinstance(key, list):
-            return PauliString(x_exp=self.x_exp[key], z_exp=self.z_exp[key], dimensions=self.dimensions[key])
+            return PauliString(
+                x_exp=self.x_exp[key],
+                z_exp=self.z_exp[key],
+                dimensions=self.dimensions[key],
+                sanity_check=False)
         else:
             raise ValueError(f"Cannot get item with key {key}. Key must be an int or a slice.")
 
@@ -965,7 +990,7 @@ class PauliString:
         >>> sub_ps = ps.get_subspace([0, 2])
         """
         return PauliString(x_exp=self.x_exp[qudit_indices], z_exp=self.z_exp[qudit_indices],
-                           dimensions=self.dimensions[qudit_indices])
+                           dimensions=self.dimensions[qudit_indices], sanity_check=False)
 
     def copy(self) -> PauliString:
         """
@@ -976,7 +1001,8 @@ class PauliString:
         PauliString
             A new instance of PauliString with copied `x_exp`, `z_exp`, and `dimensions` attributes.
         """
-        return PauliString(x_exp=self.x_exp.copy(), z_exp=self.z_exp.copy(), dimensions=self.dimensions.copy())
+        return PauliString(x_exp=self.x_exp.copy(), z_exp=self.z_exp.copy(),
+                           dimensions=self.dimensions.copy(), sanity_check=False)
 
     def commute(self, other_pauli: PauliString) -> bool:
         """
@@ -1010,7 +1036,8 @@ class PauliString:
         """
         return PauliString(x_exp=(-self.x_exp) % self.dimensions,
                            z_exp=(-self.z_exp) % self.dimensions,
-                           dimensions=self.dimensions)
+                           dimensions=self.dimensions,
+                           sanity_check=False)
 
     def is_identity(self) -> bool:
         """
