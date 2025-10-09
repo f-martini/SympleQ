@@ -293,6 +293,32 @@ class TestPaulis:
         assert ps[[0, 2], [0, 2]] == PauliSum(['x2z0 x1z1', 'x2z0 x2z0'], weights=[1, 0.5], phases=[0, 1],
                                               dimensions=[3, 3], standardise=False)
 
+    def test_pauli_sum_amend(self):
+        dims = [2, 3]
+        # p1 = X on qubit, p2 = Z on qutrit, p3 = XZ on qutrit
+        p1 = PauliString(x_exp=[1, 0], z_exp=[0, 0], dimensions=dims)
+        p2 = PauliString(x_exp=[0, 0], z_exp=[0, 1], dimensions=dims)
+        p3 = PauliString(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)
+        ps = PauliSum(pauli_list=[p1, p2, p3],
+                      weights=None, phases=None, dimensions=dims, standardise=False)
+
+        ps.pauli_strings[0] = ps.pauli_strings[0].amend(0, 0, 1)
+        ps.pauli_strings[1] = ps.pauli_strings[1].amend(1, 1, 1)
+        ps[2] = ps.pauli_strings[2].amend(1, 1, 2)  # Try assignment via __setitem__
+
+        # p1 = Z on qubit, p2 = XZ on qutrit, p3 = XZ^2 on qutrit
+        new_p1 = PauliString(x_exp=[0, 0], z_exp=[1, 0], dimensions=dims)
+        new_p2 = PauliString(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)
+        new_p3 = PauliString(x_exp=[0, 1], z_exp=[0, 2], dimensions=dims)
+        new_ps = PauliSum(pauli_list=[new_p1, new_p2, new_p3],
+                          weights=None, phases=None, dimensions=dims, standardise=False)
+
+        assert p1 == new_p1
+        assert p2 == new_p2
+        assert p3 == new_p3
+
+        assert ps == new_ps
+
     def test_ordering(self):
         # check that the symplectic basis gives the identity when ordered
         n_qudits = 10

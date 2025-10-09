@@ -24,6 +24,7 @@ def test_paulisum_sum(benchmark):
 
     benchmark(sum)
 
+
 @pytest.mark.benchmark
 def test_paulisum_multiplication(benchmark):
     n_paulis = 20
@@ -40,7 +41,7 @@ def test_paulisum_multiplication(benchmark):
 
 @pytest.mark.benchmark
 def test_paulistring_amend(benchmark):
-    n_qudits = 20
+    n_qudits = 100
     dimensions = np.random.randint(2, 8, size=n_qudits)
     ps = PauliString.from_random(n_qudits, dimensions)
 
@@ -49,5 +50,22 @@ def test_paulistring_amend(benchmark):
             new_x = np.random.randint(0, dimensions[i])
             new_z = np.random.randint(0, dimensions[i])
             ps.amend(i, new_x, new_z)
+
+    benchmark(amend_all)
+
+
+@pytest.mark.benchmark
+def test_paulisum_amend(benchmark):
+    n_paulis = 20
+    n_qudits = 100
+    dimensions = np.random.randint(2, 8, size=n_qudits)
+    ps = PauliSum.from_random(n_paulis, n_qudits, dimensions, rand_weights=True)
+
+    def amend_all():
+        for i in range(n_paulis):
+            idx = np.random.randint(0, n_qudits)
+            new_x = np.random.randint(0, dimensions[idx])
+            new_z = np.random.randint(0, dimensions[idx])
+            ps.pauli_strings[i].amend(idx, new_x, new_z)
 
     benchmark(amend_all)
