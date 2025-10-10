@@ -12,6 +12,7 @@ env:
   LINUX_PRESET_ARM64: linux-arm64-Release
   WINDOWS_PRESET_X64: windows-x86_64-Release
   CIBW_ARCHS_X64: x86_64
+  CIBW_ARCHS_X64_WIN: AMD64
   CIBW_ARCHS_ARM64: aarch64
   SETUP_SCRIPT_PATH_X64: scripts/tools/ci/manylinux_x86_64.sh
   SETUP_SCRIPT_PATH_ARM64: scripts/tools/ci/manylinux_arm64.sh
@@ -317,7 +318,7 @@ jobs:
         env:
           # Python and architecture settings
           CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
-          CIBW_ARCHS: ${{ env.CIBW_ARCHS_X64 }}
+          CIBW_ARCHS: ${{ env.CIBW_ARCHS_X64_WIN }}
 
           # Skip problematic builds
           CIBW_SKIP: "pp*"
