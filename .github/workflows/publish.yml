@@ -349,8 +349,8 @@ jobs:
           # Test the built wheel
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
-          IBW_CONFIG_SETTINGS: >-
-            cmake.args=-S;${{ env.SOURCE_DIR }};--preset;${{ env.CMAKE_PRESET }}
+          CIBW_CONFIG_SETTINGS: >-
+            cmake.args=-S;${{ env.SOURCE_DIR }};--preset;windows-x86_64-Release
 
           # Repair settings for Windows
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
