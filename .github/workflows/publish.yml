@@ -327,11 +327,10 @@ jobs:
             VCPKG_ROOT="${{ github.workspace }}\\vcpkg"
             CMAKE_TOOLCHAIN_FILE="${{ env.WIN_CMAKE_TOOLCHAIN_FILE }}"
             CUDA_PATH="${{ env.CUDA_PATH }}"
-            CMAKE_PRESET="${{ env.WINDOWS_PRESET_X64 }}"
 
           # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
-            dir &&
+            echo "CMAKE_PRESET=${{ env.WINDOWS_PRESET_X64 }}" >> $GITHUB_ENV &&
             echo "CIBW_BUILD=${{ env.CIBW_BUILD_VERSION }}" &&
             echo "CIBW_ARCHS=${{ env.CIBW_ARCHS }}" &&
             echo "CIBW_SKIP=${{ env.CIBW_SKIP }}" &&
