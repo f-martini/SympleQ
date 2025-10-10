@@ -155,7 +155,6 @@ jobs:
       - name: Set build environment variables
         shell: bash
         run: |
-          echo "CMAKE_PRESET=${{ env.LINUX_PRESET_ARM64 }}" >> $GITHUB_ENV
           echo "CIBW_ARCHS=${{ env.CIBW_ARCHS_ARM64 }}" >> $GITHUB_ENV
           echo "CIBW_SCRIPT=${{ env.SETUP_SCRIPT_PATH_ARM64 }}" >> $GITHUB_ENV
           echo "SOURCE_DIR=${{ env.NATIVE_SRC_PATH }}" >> $GITHUB_ENV
@@ -215,7 +214,7 @@ jobs:
             pip install scikit-build-core[pyproject] nanobind cmake ninja
 
           CIBW_CONFIG_SETTINGS: >-
-            cmake.args=-S;${{ env.SOURCE_DIR }};--preset;${{ env.CMAKE_PRESET }}
+            cmake.args=-S;${{ env.SOURCE_DIR }};--preset;${{ env.LINUX_PRESET_ARM64 }}
 
           # Build settings
           CIBW_BUILD_VERBOSITY: 1
@@ -325,7 +324,6 @@ jobs:
 
           # Environment variables for the build
           CIBW_ENVIRONMENT: >-
-            CMAKE_PRESET="${{ env.WINDOWS_PRESET_X64 }}" 
             VCPKG_ROOT="${{ github.workspace }}\\vcpkg"
             CMAKE_TOOLCHAIN_FILE="${{ env.WIN_CMAKE_TOOLCHAIN_FILE }}"
             CUDA_PATH="${{ env.CUDA_PATH }}"
@@ -337,7 +335,6 @@ jobs:
             echo "CIBW_ARCHS=${{ env.CIBW_ARCHS }}" &&
             echo "CIBW_SKIP=${{ env.CIBW_SKIP }}" &&
             echo "CIBW_ENVIRONMENT=${{ env.CIBW_ENVIRONMENT }}" &&
-            echo "CMAKE_PRESET=${{ env.CMAKE_PRESET }}" &&
             echo "CMAKE_TOOLCHAIN_FILE=${{ env.WIN_CMAKE_TOOLCHAIN_FILE }}" &&
             echo "CUDA_PATH=${{ env.CUDA_PATH }}" &&
             echo "VCPKG_ROOT=${{ env.VCPKG_ROOT }}" &&
@@ -353,7 +350,7 @@ jobs:
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           IBW_CONFIG_SETTINGS: >-
-            cmake.args=-S;${{ env.SOURCE_DIR }};--preset;${{ env.CMAKE_PRESET }}
+            cmake.args=-S;${{ env.SOURCE_DIR }};--preset;${{ env.WINDOWS_PRESET_X64 }}
 
           # Repair settings for Windows
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
