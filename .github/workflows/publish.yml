@@ -82,7 +82,7 @@ jobs:
             source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable &&
             export CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc &&
             export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++ &&
-            curl -fsSL "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}.0/local_installers/cuda_${{ env.CUDA_VERSION }}.0_560.28.03_linux" -o cuda_installer.run &&
+            curl -fsSL "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}.0/local_installers/cuda_${{ env.CUDA_VERSION }}.0_560.28.03_linux.run" -o cuda_installer.run &&
             sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
             ln -sf "/usr/local/cuda-${{ env.CUDA_VERSION }}" /usr/local/cuda &&
             git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
