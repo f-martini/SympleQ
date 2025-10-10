@@ -317,7 +317,7 @@ jobs:
         env:
           # Python and architecture settings
           CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
-          CIBW_ARCHS: ${{ env.CIBW_ARCHS }}
+          CIBW_ARCHS: ${{ env.CIBW_ARCHS_X64 }}
 
           # Skip problematic builds
           CIBW_SKIP: "pp*"
