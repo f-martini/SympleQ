@@ -5,7 +5,7 @@ on: push
 env:
   PROJECT_NAME: "sympleq"
   NATIVE_SRC_PATH: src
-  CUDA_VERSION: 12.5
+  CUDA_VERSION: 12.6
   GCC_VERSION: 12
   VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
   LINUX_PRESET_X64: linux-x86_64-Release
@@ -82,7 +82,7 @@ jobs:
             source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable &&
             export CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc &&
             export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++ &&
-            curl -fsSL "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}.0/local_installers/cuda_${{ env.CUDA_VERSION }}.0_555.42.02_linux.run" -o cuda_installer.run &&
+            curl -fsSL "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}.0/local_installers/cuda_${{ env.CUDA_VERSION }}.0_560.28.03_linux" -o cuda_installer.run &&
             sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
             ln -sf "/usr/local/cuda-${{ env.CUDA_VERSION }}" /usr/local/cuda &&
             git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
