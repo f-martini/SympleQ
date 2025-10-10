@@ -327,6 +327,7 @@ jobs:
             VCPKG_ROOT="${{ github.workspace }}\\vcpkg"
             CMAKE_TOOLCHAIN_FILE="${{ env.WIN_CMAKE_TOOLCHAIN_FILE }}"
             CUDA_PATH="${{ env.CUDA_PATH }}"
+            CMAKE_PRESET="${{ env.WINDOWS_PRESET_X64 }}"
 
           # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
@@ -350,7 +351,7 @@ jobs:
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           IBW_CONFIG_SETTINGS: >-
-            cmake.args=-S;${{ env.SOURCE_DIR }};--preset;${{ env.WINDOWS_PRESET_X64 }}
+            cmake.args=-S;${{ env.SOURCE_DIR }};--preset;${{ env.CMAKE_PRESET }}
 
           # Repair settings for Windows
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
