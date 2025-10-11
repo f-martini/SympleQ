@@ -169,6 +169,12 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install cibuildwheel twine
 
+      - name: Extra free disk before build
+        run: |
+          docker system prune -af
+          rm -rf /var/cache/yum/*
+          df -h
+
       - name: Build wheels (Linux ARM64)
         env:
           CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
@@ -243,7 +249,6 @@ jobs:
         with:
           submodules: recursive
 
-      # ===== Free up disk space =====
       - name: Free up disk space (Windows)
         run: |
           Get-PSDrive
@@ -254,14 +259,12 @@ jobs:
           Get-PSDrive
         shell: pwsh
 
-      # ===== Set up Python =====
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.arch }}
 
-      # ===== Set up CUDA Toolkit =====
       - name: Set up CUDA Toolkit (Windows)
         uses: Jimver/cuda-toolkit@v0.2.24
         id: cuda-toolkit
@@ -274,7 +277,6 @@ jobs:
           nvcc --version
           echo "CUDA installation path: $env:CUDA_PATH"
 
-      # ===== Set up vcpkg =====
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
         with:
@@ -282,7 +284,6 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           vcpkgJsonGlob: "**\\vcpkg.json"
 
-      # ===== Set environment variables =====
       - name: Set build environment variables
         shell: bash
         run: |
@@ -318,10 +319,13 @@ jobs:
           CIBW_ENVIRONMENT: >-
             VCPKG_ROOT="${{ github.workspace }}\\vcpkg"
             CMAKE_TOOLCHAIN_FILE="${{ env.WIN_CMAKE_TOOLCHAIN_FILE }}"
-            CUDA_PATH="${{ env.CUDA_PATH }}"
+            CUDA_PATH=%CUDA_PATH%
+            PATH=%CUDA_PATH%\bin;%CUDA_PATH%\libnvvp;%PATH%
 
           # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
+            echo CUDA_PATH=%CUDA_PATH%
+            echo PATH=%PATH%
             set "PATH=%CUDA_PATH%\bin;%CUDA_PATH%\libnvvp;%PATH%" &&
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             cmake --version &&
