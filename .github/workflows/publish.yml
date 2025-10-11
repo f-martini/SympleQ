@@ -322,14 +322,7 @@ jobs:
 
           # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
-            echo "CIBW_BUILD=${{ env.CIBW_BUILD_VERSION }}" &&
-            echo "CIBW_ARCHS=${{ env.CIBW_ARCHS }}" &&
-            echo "CIBW_SKIP=${{ env.CIBW_SKIP }}" &&
-            echo "CIBW_ENVIRONMENT=${{ env.CIBW_ENVIRONMENT }}" &&
-            echo "CMAKE_TOOLCHAIN_FILE=${{ env.WIN_CMAKE_TOOLCHAIN_FILE }}" &&
-            echo "CUDA_PATH=${{ env.CUDA_PATH }}" &&
-            echo "VCPKG_ROOT=${{ env.VCPKG_ROOT }}" &&
-            echo " -> ${{ github.workspace }}" &&
+            set "PATH=%CUDA_PATH%\bin;%CUDA_PATH%\libnvvp;%PATH%" &&
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             cmake --version &&
             nvcc --version
@@ -341,7 +334,7 @@ jobs:
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           CIBW_CONFIG_SETTINGS: >-
-            cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }};-DCUDAToolkit_ROOT="${{ env.CUDA_PATH }}"
+            cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
 
           # Repair settings for Windows
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
