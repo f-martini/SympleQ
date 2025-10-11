@@ -143,11 +143,11 @@ jobs:
 
       - name: Free up disk space (Linux)
         run: |
-          rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           apt-get clean
-          rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /var/lib/apt/lists/*
           docker system prune -af
-          rm -rf /var/cache/yum/*
+          sudo rm -rf /var/cache/yum/*
           df -h
 
       - name: Set up Python
@@ -308,12 +308,12 @@ jobs:
           CIBW_ENVIRONMENT: >-
             VCPKG_ROOT="${{ github.workspace }}\vcpkg"
             CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake"
-            CUDA_PATH=${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
+            CUDA_PATH="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}"
 
           CIBW_BEFORE_BUILD: >-
             echo CUDA_PATH=%CUDA_PATH% &&
             echo PATH=%PATH% &&
-            set PATH=${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\bin;${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\libnvvp;%PATH% &&
+            set PATH="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\bin";"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\libnvvp";%PATH% &&
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             cmake --version &&
             nvcc --version
