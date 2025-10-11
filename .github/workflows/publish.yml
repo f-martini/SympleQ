@@ -17,7 +17,6 @@ env:
   SETUP_SCRIPT_PATH_X64: scripts/tools/ci/manylinux_x86_64.sh
   SETUP_SCRIPT_PATH_ARM64: scripts/tools/ci/manylinux_arm64.sh
   CMAKE_TOOLCHAIN_FILE: /tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
-  WIN_CMAKE_TOOLCHAIN_FILE: D:\\a\\quaos\\quaos\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake
 
 jobs:
   build-linux-x64:
@@ -111,6 +110,13 @@ jobs:
           path: dist/*.whl
           retention-days: 30
 
+      - name: Post cleanup (Linux)
+        run: |
+          rm -rf dist/*
+          docker system prune -af || true
+          rm -rf /tmp/vcpkg || true
+          df -h
+
   build-linux-arm64:
     needs: [build-linux-x64]
     name: Build Linux - ${{ matrix.arch }} - Python ${{ matrix.python }}
@@ -137,10 +143,11 @@ jobs:
 
       - name: Free up disk space (Linux)
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/*
+          rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          apt-get clean
+          rm -rf /var/lib/apt/lists/*
           docker system prune -af
+          rm -rf /var/cache/yum/*
           df -h
 
       - name: Set up Python
@@ -186,7 +193,6 @@ jobs:
             CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
             VCPKG_ROOT=${{ env.VCPKG_ROOT }}
 
-          # Install vcpkg before build (no CUDA for ARM64)
           CIBW_BEFORE_ALL_LINUX: >-
             yum install -y epel-release &&
             yum remove -y gcc gcc-c++ &&
@@ -207,20 +213,16 @@ jobs:
             git checkout "${{ env.VCPKG_COMMIT_ID }}" &&
             ./bootstrap-vcpkg.sh
 
-          # Install Python dependencies before build
           CIBW_BEFORE_BUILD: >-
             pip install scikit-build-core[pyproject] nanobind cmake ninja
 
           CIBW_CONFIG_SETTINGS: >-
             cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.LINUX_PRESET_ARM64 }}
 
-          # Build settings
           CIBW_BUILD_VERBOSITY: 1
 
-          # Test the built wheel
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
-          # Repair settings for Linux ARM64 (no Intel libraries)
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
             echo "Running auditwheel repair for ARM64..." &&
             auditwheel repair -w {dest_dir} {wheel}
@@ -284,14 +286,6 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           vcpkgJsonGlob: "**\\vcpkg.json"
 
-      - name: Set build environment variables
-        shell: bash
-        run: |
-          echo "SOURCE_DIR=${{ github.workspace }}\\src" >> $GITHUB_ENV
-          echo "BUILD_DIR=${{ github.workspace }}\\build" >> $GITHUB_ENV
-          echo "CUDA_PATH=$CUDA_PATH" >> $GITHUB_ENV
-          echo "VCPKG_ROOT=${{ github.workspace }}\\vcpkg" >> $GITHUB_ENV
-
       - name: Set CIBW_BUILD for Python version
         shell: bash
         run: |
@@ -299,53 +293,42 @@ jobs:
           CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
           echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
 
-      # ===== Install build dependencies =====
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install cibuildwheel twine
 
-      # ===== Build wheels with cibuildwheel =====
       - name: Build wheels (Windows)
         env:
-          # Python and architecture settings
           CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
           CIBW_ARCHS: ${{ env.CIBW_ARCHS_X64_WIN }}
 
-          # Skip problematic builds
           CIBW_SKIP: "pp*"
 
-          # Environment variables for the build
           CIBW_ENVIRONMENT: >-
-            VCPKG_ROOT="${{ github.workspace }}\\vcpkg"
-            CMAKE_TOOLCHAIN_FILE="${{ env.WIN_CMAKE_TOOLCHAIN_FILE }}"
-            CUDA_PATH=%CUDA_PATH%
-            PATH=%CUDA_PATH%\bin;%CUDA_PATH%\libnvvp;%PATH%
+            VCPKG_ROOT="${{ github.workspace }}vcpkg"
+            CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
+            CUDA_PATH=${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
 
-          # Install dependencies before build
           CIBW_BEFORE_BUILD: >-
-            echo CUDA_PATH=%CUDA_PATH%
-            echo PATH=%PATH%
-            set "PATH=%CUDA_PATH%\bin;%CUDA_PATH%\libnvvp;%PATH%" &&
+            echo CUDA_PATH=%CUDA_PATH% &&
+            echo PATH=%PATH% &&
+            set PATH=${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\bin;${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\libnvvp;%PATH% &&
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             cmake --version &&
             nvcc --version
 
-          # Build settings
           CIBW_BUILD_VERBOSITY: 1
 
-          # Test the built wheel
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           CIBW_CONFIG_SETTINGS: >-
             cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}
 
-          # Repair settings for Windows
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
 
         run: python -m cibuildwheel --output-dir ./dist
 
-      # ===== Upload artifacts =====
       - name: List built wheels
         run: |
           echo "Built wheels:"
