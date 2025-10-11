@@ -341,7 +341,7 @@ jobs:
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           CIBW_CONFIG_SETTINGS: >-
-            cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}
+            cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }};-DCUDAToolkit_ROOT="${{ env.CUDA_PATH }}"
 
           # Repair settings for Windows
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
