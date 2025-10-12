@@ -49,7 +49,6 @@ jobs:
           sudo docker system prune -af
           sudo rm -rf /var/lib/apt/lists/*
           sudo rm -rf /var/cache/apt/*
-          sudo rm -rf /var/lib/docker
           df -h
 
       - name: Set up Python
