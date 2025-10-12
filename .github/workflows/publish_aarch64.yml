@@ -1,0 +1,184 @@
+name: Build and Publish QuAOS Wheels
+
+on: push
+
+env:
+  PROJECT_NAME: "sympleq"
+  NATIVE_SRC_PATH: src
+  CUDA_VERSION: 12.6
+  GCC_VERSION: 12
+  VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
+  LINUX_PRESET_X64: linux-x86_64-Release
+  LINUX_PRESET_ARM64: linux-arm64-Release
+  WINDOWS_PRESET_X64: windows-x86_64-Release
+  CIBW_ARCHS_X64: x86_64
+  CIBW_ARCHS_X64_WIN: AMD64
+  CIBW_ARCHS_ARM64: aarch64
+  SETUP_SCRIPT_PATH_X64: scripts/tools/ci/manylinux_x86_64.sh
+  SETUP_SCRIPT_PATH_ARM64: scripts/tools/ci/manylinux_arm64.sh
+  CMAKE_TOOLCHAIN_FILE: /tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+jobs:
+  build-linux-arm64:
+    name: Build Linux - ${{ matrix.arch }} - Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64]
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up QEMU for ARM64 emulation
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/arm64
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Free up disk space (Linux)
+        run: |
+          sudo apt-get remove -y '^dotnet-.*' '^llvm-.*' 'php.*' 'mongodb.*' 'mysql.*' 'postgresql.*'
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker system prune -af
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /var/cache/apt/*
+          sudo rm -rf /var/lib/docker
+          df -h
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: x64
+
+      - name: Set build environment variables
+        shell: bash
+        run: |
+          echo "CIBW_ARCHS=${{ env.CIBW_ARCHS_ARM64 }}" >> $GITHUB_ENV
+          echo "CIBW_SCRIPT=${{ env.SETUP_SCRIPT_PATH_ARM64 }}" >> $GITHUB_ENV
+          echo "CUDA_PATH=" >> $GITHUB_ENV  # No CUDA for ARM64
+          echo "VCPKG_ROOT=/tmp/vcpkg" >> $GITHUB_ENV
+
+      - name: Set CIBW_BUILD for Python version
+        shell: bash
+        run: |
+          PYTHON_VERSION="${{ matrix.python }}"
+          CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
+          echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install cibuildwheel twine
+
+      - name: Extra free disk before build
+        run: |
+          docker system prune -af
+          rm -rf /var/cache/yum/*
+          df -h
+
+      - name: Build wheels (Linux ARM64)
+        env:
+          CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
+          CIBW_ARCHS: ${{ env.CIBW_ARCHS }}
+
+          CIBW_SKIP: "pp* *-musllinux*"
+
+          CIBW_ENVIRONMENT: >-
+            CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
+            VCPKG_ROOT=${{ env.VCPKG_ROOT }}
+
+          CIBW_BEFORE_ALL_LINUX: >-
+            yum install -y epel-release &&
+            yum remove -y gcc gcc-c++ &&
+            yum install -y make git which gcc-toolset-${{ env.GCC_VERSION }} curl zip unzip tar &&
+            source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable &&
+            export CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc &&
+            export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++ &&
+            curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/cuda-rhel8.repo -o /etc/yum.repos.d/cuda-rhel8.repo &&
+            curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/D42D0685.pub | rpm --import - &&
+            yum clean all &&
+            yum makecache &&
+            CUDA_PKG_VERSION=$(echo "${{ env.CUDA_VERSION }}" | tr '.' '-') &&
+            echo "CUDA_PKG_VERSION=$CUDA_PKG_VERSION" >> $GITHUB_ENV &&
+            yum install -y "cuda-toolkit-${CUDA_PKG_VERSION}-0" &&
+            ln -sf "/usr/local/cuda-${{ env.CUDA_VERSION }}" /usr/local/cuda &&
+            git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
+            cd /tmp/vcpkg &&
+            git checkout "${{ env.VCPKG_COMMIT_ID }}" &&
+            ./bootstrap-vcpkg.sh
+
+          CIBW_BEFORE_BUILD: >-
+            pip install scikit-build-core[pyproject] nanobind cmake ninja
+
+          CIBW_CONFIG_SETTINGS: >-
+            cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.LINUX_PRESET_ARM64 }}
+
+          CIBW_BUILD_VERBOSITY: 1
+
+          CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
+
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
+            echo "Running auditwheel repair for ARM64..." &&
+            auditwheel repair -w {dest_dir} {wheel}
+
+        run: python -m cibuildwheel --output-dir ./dist
+
+      - name: Upload wheels as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
+          path: dist/*.whl
+          retention-days: 30
+
+  publish:
+    needs: [build-linux-arm64]
+    runs-on: ubuntu-latest
+    # if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: List all wheels
+        run: |
+          echo "All collected wheels:"
+          ls -la artifacts/
+          mkdir -p dist
+          cp artifacts/*.whl dist/ 2>/dev/null || echo "No wheels found"
+          ls -la dist/
+
+      - name: Set up Python for publishing
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install twine
+        run: pip install twine
+
+      - name: Publish to Test PyPI (on main branch push)
+        # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TEST }}
+        run: |
+          python -m twine upload --repository testpypi dist/quaos-*.whl --verbose --skip-existing
+
+      - name: Publish to PyPI (on release)
+        if: github.event_name == 'release'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          python -m twine upload dist/quaos-*.whl --verbose
