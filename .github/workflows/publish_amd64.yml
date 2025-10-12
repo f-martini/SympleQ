@@ -182,7 +182,7 @@ jobs:
       - name: Build wheels (Windows)
         env:
           CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
-          CIBW_ARCHS: ${{ env.CIBW_ARCHS_X64_WIN }}
+          CIBW_ARCHS: ""
 
           CIBW_SKIP: "pp*"
 
