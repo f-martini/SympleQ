@@ -305,15 +305,14 @@ jobs:
 
           CIBW_SKIP: "pp*"
 
-          CIBW_ENVIRONMENT: >-
-            VCPKG_ROOT="${{ github.workspace }}\vcpkg"
-            CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake"
-            CUDA_PATH="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}"
-
           CIBW_BEFORE_BUILD: >-
+            set VCPKG_ROOT="${{ github.workspace }}\vcpkg" &&
+            set CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" &&
+            set CUDA_PATH="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}" &&
+            set PATH="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\bin";"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\libnvvp";%PATH% &&
             echo CUDA_PATH=%CUDA_PATH% &&
             echo PATH=%PATH% &&
-            set PATH="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\bin";"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\libnvvp";%PATH% &&
+            echo CMAKE_TOOLCHAIN_FILE=%CMAKE_TOOLCHAIN_FILE% &&
             pip install scikit-build-core[pyproject] nanobind cmake ninja &&
             cmake --version &&
             nvcc --version
