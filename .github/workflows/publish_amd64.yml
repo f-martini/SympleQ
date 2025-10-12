@@ -10,7 +10,7 @@ env:
   VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
   LINUX_PRESET_X64: linux-x86_64-Release
   LINUX_PRESET_ARM64: linux-arm64-Release
-  WINDOWS_PRESET_X64: windows-Release
+  WINDOWS_PRESET_X64: windows-x86_64-Release
   CIBW_ARCHS_X64: x86_64
   CIBW_ARCHS_X64_WIN: AMD64
   CIBW_ARCHS_ARM64: aarch64
