@@ -203,12 +203,7 @@ jobs:
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           CIBW_CONFIG_SETTINGS: >-
-            cmake.args="\
-              -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake;\
-              -DCUDA_TOOLKIT_ROOT_DIR=\"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\";\
-              -DCMAKE_CUDA_COMPILER=\"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\\bin\\nvcc.exe\";\
-              -S;${{ env.NATIVE_SRC_PATH }};\
-              --preset;${{ env.WINDOWS_PRESET_X64 }}"
+            cmake.args="-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake;-DCUDA_TOOLKIT_ROOT_DIR=\"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\";-DCMAKE_CUDA_COMPILER=\"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\\bin\\nvcc.exe\";-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
 
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
 
