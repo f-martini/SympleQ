@@ -10,7 +10,7 @@ env:
   VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
   LINUX_PRESET_X64: linux-x86_64-Release
   LINUX_PRESET_ARM64: linux-arm64-Release
-  WINDOWS_PRESET_X64: windows-x86_64-Release
+  WINDOWS_PRESET_X64: windows-Release
   CIBW_ARCHS_X64: x86_64
   CIBW_ARCHS_X64_WIN: AMD64
   CIBW_ARCHS_ARM64: aarch64
@@ -203,7 +203,7 @@ jobs:
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           CIBW_CONFIG_SETTINGS: >-
-            cmake.args="-DCMAKE_GENERATOR_PLATFORM=\"\";-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake;-DCUDA_TOOLKIT_ROOT_DIR=\"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\";-DCMAKE_CUDA_COMPILER=\"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\\bin\\nvcc.exe\";-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
+            cmake.args="-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake;-DCUDA_TOOLKIT_ROOT_DIR=\"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\";-DCMAKE_CUDA_COMPILER=\"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\\bin\\nvcc.exe\";-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
 
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
 

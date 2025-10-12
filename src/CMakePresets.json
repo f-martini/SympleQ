@@ -115,10 +115,10 @@
       }
     },
     {
-      "name": "windows-x86_64-Release",
+      "name": "windows-Release",
       "generator": "Ninja",
       "inherits": "Base-Release",
-      "description": "Windows x86_64 Release build",
+      "description": "Windows Release build",
       "hidden": false,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl",
