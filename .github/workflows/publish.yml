@@ -306,10 +306,10 @@ jobs:
           CIBW_SKIP: "pp*"
 
           CIBW_BEFORE_BUILD: >-
-            set VCPKG_ROOT="${{ github.workspace }}\vcpkg" &&
-            set CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" &&
-            set CUDA_PATH="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}" &&
-            set PATH="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\bin";"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\libnvvp";%PATH% &&
+            set "VCPKG_ROOT=${{ github.workspace }}\vcpkg" &&
+            set "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" &&
+            set "CUDA_PATH=${{ steps.cuda-toolkit.outputs.CUDA_PATH }}" &&
+            set "PATH=${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\bin;${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\libnvvp;%PATH%" &&
             echo CUDA_PATH=%CUDA_PATH% &&
             echo PATH=%PATH% &&
             echo CMAKE_TOOLCHAIN_FILE=%CMAKE_TOOLCHAIN_FILE% &&
