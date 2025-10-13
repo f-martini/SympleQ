@@ -288,11 +288,19 @@ class PauliString:
         -----
         - This is NOT a product between two PauliString objects!
         """
-        new_x_exp = np.concatenate((self.x_exp, A.x_exp))
-        new_z_exp = np.concatenate((self.z_exp, A.z_exp))
-        new_dims = np.concatenate((self.dimensions, A.dimensions))
-        return PauliString(new_x_exp,
-                           new_z_exp,
+
+        new_n_qudits = self.n_qudits() + A.n_qudits()
+        x_exp = np.empty(new_n_qudits, dtype=int)
+        z_exp = np.empty(new_n_qudits, dtype=int)
+        x_exp[:self.n_qudits()] = self.x_exp
+        x_exp[self.n_qudits():] = A.x_exp
+        z_exp[:self.n_qudits()] = self.z_exp
+        z_exp[self.n_qudits():] = A.z_exp
+
+        new_dims = np.empty(new_n_qudits, dtype=int)
+        new_dims[:self.n_qudits()] = self.dimensions
+        new_dims[self.n_qudits():] = A.dimensions
+        return PauliString(x_exp, z_exp,
                            new_dims,
                            sanity_check=False)
 
@@ -319,11 +327,19 @@ class PauliString:
         >>> p = Pauli(...)
         >>> result = p @ ps
         """
-        new_x_exp = np.concatenate(self.x_exp, np.array([A.x_exp]))
-        new_z_exp = np.concatenate(self.z_exp, np.array([A.z_exp]))
-        new_dims = np.concatenate(self.dimensions, np.array([A.dimension]))
-        return PauliString(new_x_exp,
-                           new_z_exp,
+
+        new_n_qudits = self.n_qudits() + 1
+        x_exp = np.empty(new_n_qudits, dtype=int)
+        z_exp = np.empty(new_n_qudits, dtype=int)
+        x_exp[:self.n_qudits()] = self.x_exp
+        x_exp[self.n_qudits():] = A.x_exp
+        z_exp[:self.n_qudits()] = self.z_exp
+        z_exp[self.n_qudits():] = A.z_exp
+
+        new_dims = np.empty(new_n_qudits, dtype=int)
+        new_dims[:self.n_qudits()] = self.dimensions
+        new_dims[self.n_qudits():] = A.dimension
+        return PauliString(x_exp, z_exp,
                            new_dims,
                            sanity_check=False)
 
@@ -843,19 +859,19 @@ class PauliString:
         -----
         The length of `symplectic` must be exactly twice the length of `qudit_indices`.
         """
-        x_exp_replace = symplectic[0:len(qudit_indices)]
+        x_exp_replace = symplectic[:len(qudit_indices)]
         z_exp_replace = symplectic[len(qudit_indices):2 * len(qudit_indices)]
 
         x_exp = self.x_exp.copy()
         z_exp = self.z_exp.copy()
-        for i, index in enumerate(qudit_indices):
-            x_exp[index] = x_exp_replace[i]
-            z_exp[index] = z_exp_replace[i]
+
+        x_exp[qudit_indices] = x_exp_replace
+        z_exp[qudit_indices] = z_exp_replace
 
         return PauliString(x_exp=x_exp, z_exp=z_exp, dimensions=self.dimensions)
 
     # TODO: not sure if here it is best to return a new object or not
-    def _delete_qudits(self, qudit_indices: list[int], return_new: bool = True) -> PauliString:
+    def _delete_qudits(self, mask: np.ndarray, return_new: bool = True) -> PauliString:
         """
         Delete specified qudits from the PauliString.
         Removes the qudits at the given indices from the internal representations
@@ -865,8 +881,8 @@ class PauliString:
 
         Parameters
         ----------
-        qudit_indices : list of int
-            Indices of the qudits to be deleted.
+        mask : np.ndarray
+            A boolean mask where the value at the indices of the qudits to be deleted is False.
         return_new : bool, optional
             If True (default), returns a new PauliString instance with the specified
             qudits removed. If False, modifies the current instance in place and
@@ -878,9 +894,9 @@ class PauliString:
             A new PauliString instance with the specified qudits removed if
             `return_new` is True, otherwise returns self after modification.
         """
-        x_exp = np.delete(self.x_exp, qudit_indices)
-        z_exp = np.delete(self.z_exp, qudit_indices)
-        dimensions = np.delete(self.dimensions, qudit_indices)
+        x_exp = self.x_exp[mask]
+        z_exp = self.z_exp[mask]
+        dimensions = self.dimensions[mask]
         if return_new:
             return PauliString(x_exp=x_exp, z_exp=z_exp, dimensions=dimensions)
         else:

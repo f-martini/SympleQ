@@ -71,6 +71,7 @@ class PauliStringList(list):
                 self._parent._tableau[i, :] = self[i].tableau()
 
     # TODO: Add append and extend methods
+    # TODO: Convert to np.ndarray?
 
 
 class PauliSum:
@@ -614,7 +615,7 @@ class PauliSum:
         new_pauli_list = self.pauli_strings + A_sum.pauli_strings
         new_weights = np.concatenate([self.weights, A_sum.weights])
         new_phases = np.concatenate([self.phases, A_sum.phases])
-        return PauliSum(list(new_pauli_list), new_weights, new_phases, self.dimensions, False)
+        return PauliSum(new_pauli_list, new_weights, new_phases, self.dimensions, False)
 
     def __radd__(self,
                  A: PauliType) -> 'PauliSum':
@@ -692,7 +693,7 @@ class PauliSum:
         new_pauli_list = self.pauli_strings + A.pauli_strings
         new_weights = np.concatenate([self.weights, -np.array(A.weights)])
         new_phases = np.concatenate([self.phases, A.phases])
-        return PauliSum(list(new_pauli_list), new_weights, new_phases, self.dimensions, False)
+        return PauliSum(new_pauli_list, new_weights, new_phases, self.dimensions, False)
 
     def __rsub__(self,
                  A: PauliType) -> 'PauliSum':
@@ -1197,14 +1198,21 @@ class PauliSum:
         if isinstance(qudit_indices, int):
             qudit_indices = [qudit_indices]
 
-        new_pauli_strings = []
-        for p in self.pauli_strings:
-            new_pauli_strings.append(p._delete_qudits(qudit_indices))
+        #new_pauli_strings = []
+        #for p in self.pauli_strings:
+        #    new_pauli_strings.append(p._delete_qudits(qudit_indices))
+
+        mask = np.ones(self.n_qudits(), dtype=bool)
+        mask[qudit_indices] = False
+        new_pauli_strings = [p._delete_qudits(mask=mask) for p in self.pauli_strings]
 
         self.pauli_strings = new_pauli_strings
-        self._tableau = np.delete(self._tableau, qudit_indices, axis=1)
-        self.dimensions = np.delete(self.dimensions, qudit_indices)
 
+        # Note: we first delete the rightmost indecies, so they are not shifted.
+        self._tableau = np.delete(self._tableau, [idx + self.n_qudits() for idx in qudit_indices], axis=1)
+        self._tableau = np.delete(self._tableau, qudit_indices, axis=1)
+
+        self.dimensions = self.dimensions[mask]
         self.lcm = np.lcm.reduce(self.dimensions)
 
     def copy(self) -> 'PauliSum':
