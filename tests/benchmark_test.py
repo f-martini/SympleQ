@@ -69,3 +69,16 @@ def test_paulisum_amend(benchmark):
             ps.pauli_strings[i].amend(idx, new_x, new_z)
 
     benchmark(amend_all)
+
+@pytest.mark.benchmark
+def test_paulisum_delete_qudits(benchmark):
+    n_paulis = 20
+    n_qudits = 100
+    dimensions = np.random.randint(2, 8, size=n_qudits)
+    ps = PauliSum.from_random(n_paulis, n_qudits, dimensions, rand_weights=True)
+
+    def delete_random():
+        qudit_indices = np.random.randint(0, ps.n_qudits(), size=ps.n_qudits() // 10).tolist()
+        ps._delete_qudits(qudit_indices)
+
+    benchmark(delete_random)

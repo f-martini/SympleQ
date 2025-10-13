@@ -332,6 +332,20 @@ class TestPaulis:
 
         assert np.all(ps.standard_form().tableau() == symplectic_basis)
 
+    def test_paulisum_delete_qudits(self):
+        dims = [2, 3, 5, 6, 7]
+
+        ps1 = PauliString(x_exp=[1, 2, 0, 0, 3], z_exp=[0, 1, 4, 4, 5], dimensions=dims)
+        ps2 = PauliString(x_exp=[0, 1, 3, 4, 3], z_exp=[1, 0, 2, 4, 5], dimensions=dims)
+        psum = PauliSum([ps1, ps2], standardise=False)
+        psum._delete_qudits([1, 3])
+
+        expected_ps1 = PauliString(x_exp=[1, 0, 3], z_exp=[0, 4, 5], dimensions=[2, 5, 7])
+        expected_ps2 = PauliString(x_exp=[0, 3, 3], z_exp=[1, 2, 5], dimensions=[2, 5, 7])
+        expected_psum = PauliSum([expected_ps1, expected_ps2], standardise=False)
+
+        assert psum == expected_psum, f"Expected {expected_psum}, got {psum}"
+
     def test_symplectic_product(self):
         P1 = PauliString.from_string('x1z0', dimensions=[2])
         P2 = PauliString.from_string('x0z1', dimensions=[2])
