@@ -126,6 +126,13 @@ jobs:
         arch: [x64]
         python: ["3.11"] #, "3.12", "3.13"]
 
+    env:
+      CMAKE_CUDA_COMPILER: "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6\\bin\\nvcc.exe"
+      VCPKG_ROOT: "D:\\a\\quaos\\quaos\\vcpkg"
+      CMAKE_TOOLCHAIN_FILE: "D:\\a\\quaos\\quaos\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
+      CUDA_PATH: "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6"
+      PATH: "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6\\bin\\bin;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6\\bin\\libnvvp;%PATH%"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -188,10 +195,6 @@ jobs:
 
           CIBW_BEFORE_BUILD: >-
             call "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64 &&
-            set "VCPKG_ROOT=${{ github.workspace }}\vcpkg" &&
-            set "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" &&
-            set "CUDA_PATH=${{ steps.cuda-toolkit.outputs.CUDA_PATH }}" &&
-            set "PATH=\"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\bin\";\"${{ steps.cuda-toolkit.outputs.CUDA_PATH }}\libnvvp\";%PATH%" &&
             echo CUDA_PATH=%CUDA_PATH% &&
             echo PATH=%PATH% &&
             echo CMAKE_TOOLCHAIN_FILE=%CMAKE_TOOLCHAIN_FILE% &&
@@ -204,7 +207,7 @@ jobs:
           CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           CIBW_CONFIG_SETTINGS: >-
-            cmake.args="-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake;-DCUDA_TOOLKIT_ROOT_DIR=\"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v${{ env.CUDA_VERSION }}\";-DCMAKE_CUDA_COMPILER=\"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v${{ env.CUDA_VERSION }}\\bin\\nvcc.exe\";-G;Ninja;-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
+            cmake.args="-G;Ninja;-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
 
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
 
