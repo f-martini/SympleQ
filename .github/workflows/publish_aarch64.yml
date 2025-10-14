@@ -1,6 +1,9 @@
 name: Build and Publish QuAOS Wheels
 
-on: push
+on:
+  push:
+    branches:
+      - main
 
 env:
   PROJECT_NAME: "sympleq"
