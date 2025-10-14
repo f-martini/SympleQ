@@ -131,7 +131,6 @@ jobs:
       VCPKG_ROOT: "D:\\a\\quaos\\quaos\\vcpkg"
       CMAKE_TOOLCHAIN_FILE: "D:\\a\\quaos\\quaos\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
       CUDA_PATH: "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6"
-      PATH: "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6\\bin\\bin;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6\\bin\\libnvvp;%PATH%"
 
     steps:
       - name: Checkout repository
@@ -195,6 +194,7 @@ jobs:
 
           CIBW_BEFORE_BUILD: >-
             call "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64 &&
+            set "PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin\libnvvp;%PATH%" &&
             echo CUDA_PATH=%CUDA_PATH% &&
             echo PATH=%PATH% &&
             echo CMAKE_TOOLCHAIN_FILE=%CMAKE_TOOLCHAIN_FILE% &&
