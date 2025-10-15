@@ -2,7 +2,7 @@ import numpy as np
 from quaos.core.circuits.target import find_map_to_target_pauli_sum
 from quaos.core.circuits import Gate, Circuit
 from quaos.core.paulis import PauliSum
-from quaos.utils import get_linear_dependencies
+from quaos.core.finite_field_solvers import get_linear_dependencies
 from scripts.experiments.symmetries.src.matroid_w_spm import find_k_automorphisms_symplectic
 from .phase_correction import pauli_phase_correction
 
@@ -12,7 +12,7 @@ def clifford_symmetry(pauli_sum: PauliSum,
                       check_symmetry: bool = True,
                       phase_correction: bool = True
                       ) -> Gate:
-    
+
     d = pauli_sum.dimensions
     lcm = pauli_sum.lcm
     independent_paulis, dependencies = get_linear_dependencies(pauli_sum.tableau(), d)
@@ -43,8 +43,8 @@ def clifford_symmetry(pauli_sum: PauliSum,
         delta_phi = output_phase - pauli_sum.phases
         if np.any(delta_phi):
             print(delta_phi % (2 * lcm))
-            G_p = phase_correction(pauli_sum, delta_phi % (2 * lcm), 2)
-            C = Circuit(G.dimensions, [G, G_p])  # make circuit of original gate and phase correction and compose into gate
+            G_p = pauli_phase_correction(pauli_sum.tableau(), delta_phi % (2 * lcm), 2)
+            C = Circuit(G.dimensions, [G, G_p])
             G = C.composite_gate()
 
     if check_symmetry:
@@ -54,7 +54,3 @@ def clifford_symmetry(pauli_sum: PauliSum,
             assert np.array_equal(G.act(pauli_sum).standard_form().tableau(), pauli_sum.standard_form().tableau())
 
     return G
-
-
-def phase_correction(pauli_sum: PauliSum, delta_phi: np.ndarray, p: int) -> Gate:
-    return pauli_phase_correction(pauli_sum.tableau(), delta_phi, p)

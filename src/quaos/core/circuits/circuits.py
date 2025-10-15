@@ -230,7 +230,6 @@ class Circuit:
                 total_phase_vector = np.mod(total_phase_vector + self._composite_phase_vector(total_symplectic, F, h,
                                                                                               lcm),
                                             2 * lcm)
-            print(phase_vector, total_phase_vector)
 
             total_symplectic = np.mod(total_symplectic @ F.T, lcm)
 

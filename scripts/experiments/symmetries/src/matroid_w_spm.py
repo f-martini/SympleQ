@@ -604,7 +604,7 @@ def find_k_automorphisms_symplectic(
 
 
 if __name__ == "__main__":
-    from quaos.utils import get_linear_dependencies
+    from quaos.core.finite_field_solvers import get_linear_dependencies
     from quaos.models.random_hamiltonian import random_gate_symmetric_hamiltonian
     from quaos.core.circuits import SWAP
 

@@ -10,15 +10,15 @@ def pauli_phase_correction(H, delta_phi_2p, p):
     """
     Given tableau H (k x 2n, rows [x|z] over GF(p)) and target Δφ in Z_{2p}^k,
     find P in GF(p)^{2n} such that 2*(H Ω P) ≡ Δφ (mod 2p).
-    Raises ValueError if Δφ is unachievable by Pauli conjugation.
+    Returns None if no solution exists.
     """
     H = np.asarray(H, dtype=int)
-    delta_phi_2p = np.asarray(delta_phi_2p, dtype=int) % (2*p)
+    delta_phi_2p = np.asarray(delta_phi_2p, dtype=int) % (2 * p)
     k, two_n = H.shape
     n = two_n // 2
 
     if np.any(delta_phi_2p % 2 != 0):
-        raise ValueError("Unachievable target: Δφ has odd entries mod 2p.")
+        return None  # no solution if any entry is odd
 
     rhs = ((delta_phi_2p // 2) % p).astype(int)
 
@@ -27,13 +27,15 @@ def pauli_phase_correction(H, delta_phi_2p, p):
     Omega = symplectic_form(n, p)
     A = (GF(H) @ GF(Omega)).view(np.ndarray).astype(int)
 
-    P = gf_solve(A, rhs % p, GF)  # (2n,1)
+    try:
+        P = gf_solve(A, rhs % p, GF)  # (2n,1)
+    except ValueError:
+        return None  # no solution
 
     if not np.all((GF(A) @ GF(P)).reshape(-1) == GF((rhs) % p)):
-        raise ValueError("Internal GF(p) verification failed.")
-
+        return None  # no solution if internal verification fails
     P = P.reshape(-1)
-    pauli = PauliString(P[:n_qudits].reshape(-1), P[n_qudits:].reshape(-1), dimensions=[p] * n_qudits)
+    pauli = PauliString(P[:n].reshape(-1), P[n:].reshape(-1), dimensions=[p] * n)
 
     return PauliGate(pauli)
 

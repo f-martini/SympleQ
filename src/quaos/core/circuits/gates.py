@@ -4,7 +4,7 @@ from typing import overload
 from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
 from quaos.core.circuits.utils import transvection_matrix, symplectic_form
 # from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
-from quaos.utils import get_linear_dependencies
+from quaos.core.finite_field_solvers import get_linear_dependencies
 # from quaos.core.circuits.random_symplectic import symplectic_random_transvection
 
 
@@ -191,7 +191,7 @@ class Gate:
 
         :return: A new Gate object, the inverse of this gate.
         """
-        if not np.all(self.dimensions == self.dimensions[0]):
+        if not np.all([self.dimensions[i] == self.dimensions[0] for i in range(len(self.dimensions))]):
             raise NotImplementedError("Inverse only implemented for gates with equal dimensions.")
 
         d = self.dimensions[0]
@@ -374,3 +374,12 @@ class PHASE(Gate):
         Returns a copy of the PHASE gate.
         """
         return PHASE(self.qudit_indices[0], self.dimensions[0])
+
+
+class PauliGate(Gate):
+    def __init__(self, pauli: PauliString):
+        n = pauli.n_qudits()
+        lcm = int(pauli.lcm)
+        symplectic = np.eye(2 * n, dtype=int)
+        phase_vector = (2 * symplectic_form(n, lcm) @ np.concatenate([pauli.x_exp, pauli.z_exp])) % (2 * lcm)
+        super().__init__("Pauli", list(range(n)), symplectic, dimensions=pauli.dimensions, phase_vector=phase_vector)

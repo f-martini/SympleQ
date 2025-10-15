@@ -3,6 +3,8 @@ import numpy as np
 import scipy
 from .pauli import Pauli
 from .pauli_string import PauliString
+import galois
+from quaos.core.finite_field_solvers import get_linear_dependencies
 
 PauliStringDerivedType = Union[list[PauliString], list[Pauli], list[str], PauliString, Pauli]
 PauliType = Union[Pauli, PauliString, 'PauliSum']
@@ -340,10 +342,74 @@ class PauliSum:
         new_weights = np.zeros(self.n_paulis(), dtype=np.complex128)
         for i in range(self.n_paulis()):
             phase = self.phases[i]
-            omega = np.exp(2 * np.pi * 1j * phase / (2 * self.lcm))
+            omega = np.round(np.exp(2 * np.pi * 1j * phase / (2 * self.lcm)))
             new_weights[i] = self.weights[i] * omega
         self.phases = np.zeros(self.n_paulis(), dtype=int)
         self.weights = new_weights
+
+    def weight_to_phase(self):
+        """
+        Extract per-term phases from complex weights onto the integer phase vector.
+
+        For each weight w_i, choose an integer k_i in [0, 2*d - 1] (with d=self.lcm)
+        so that w_i * exp(-2πi * k_i / (2d)) is as close as possible to a positive real.
+        Then add k_i to self.phases[i] (mod 2d) and replace the weight with the rotated value.
+
+        Notes:
+        - If a weight is (numerically) zero, we leave it and add no phase.
+        - We try the nearest discrete phase (by rounding the argument), and also ±1
+            neighbor to break ties in favor of larger positive real part.
+        """
+        d = int(self.lcm)
+        two_d = 2 * d
+        new_weights = np.array(self.weights, dtype=np.complex128)
+        new_phases = np.array(self.phases, dtype=int)
+
+        # tiny threshold to treat weights as zero (avoid noisy angles)
+        eps = 1e-15
+
+        for i in range(self.n_paulis()):
+            w = new_weights[i]
+
+            # skip non-finite or numerically-zero weights
+            if not np.isfinite(w) or abs(w) < eps:
+                continue
+
+            theta = np.angle(w)
+
+            # nearest discrete phase index
+            k0 = int(np.round((two_d * theta) / (2.0 * np.pi))) % two_d
+            candidates = [(k0 - 1) % two_d, k0 % two_d, (k0 + 1) % two_d]
+
+            valid = []
+            for k in candidates:
+                # rotation by discrete (2d)-th root of unity
+                # safe because two_d > 0 (checked above)
+                rot = np.exp(-2j * np.pi * (k / two_d))
+                w_rot = w * rot
+                if not np.isfinite(w_rot):
+                    continue
+                ang = np.angle(w_rot)
+                if np.isnan(ang):
+                    continue
+                # prefer smallest |angle| (closest to real axis), break ties by larger real part
+                score = (abs(ang), -w_rot.real)
+                valid.append((score, k, w_rot))
+
+            if valid:
+                # pick the best candidate
+                _, k_best, w_best = min(valid)
+            else:
+                # fallback: use k0 even if odd numerics; keep original magnitude
+                k_best = k0
+                w_best = w * np.exp(-2j * np.pi * (k_best / two_d))
+
+            new_phases[i] = (new_phases[i] + k_best) % two_d
+            new_weights[i] = w_best
+
+        # commit
+        self.phases = new_phases
+        self.weights = np.round(new_weights, 10)
 
     def standard_form(self) -> 'PauliSum':
         """
@@ -1213,13 +1279,13 @@ class PauliSum:
         n = self.n_paulis()
         # list_of_symplectics = self.symplectic_matrix()
 
-        qspm = np.zeros([n, n], dtype=int)
+        q_spm = np.zeros([n, n], dtype=int)
         for i in range(n):
             for j in range(n):
                 if i > j:
-                    qspm[i, j] = self.pauli_strings[i].quditwise_product(self.pauli_strings[j])
-        qspm = qspm + qspm.T
-        return qspm
+                    q_spm[i, j] = self.pauli_strings[i].quditwise_product(self.pauli_strings[j])
+        q_spm = q_spm + q_spm.T
+        return q_spm
 
     # TODO: What's the difference between the next two functions?
     def __str__(self) -> str:
@@ -1399,6 +1465,73 @@ class PauliSum:
                         standardise=False)
 
     H = hermitian_conjugate
+
+    def dependencies(self) -> tuple[list[int], dict[int, list[tuple[int, int]]]]:
+        """
+        Returns the dependencies of the PauliSum.
+
+        Returns
+        -------
+        dict[int, list[tuple[int, int]]]
+            The dependencies of the PauliSum.
+        """
+        return get_linear_dependencies(self.tableau(), int(self.lcm))
+
+    def matroid(self) -> tuple[galois.FieldArray, list[int]]:
+        """
+        Returns the matroid of the PauliSum.
+
+        This represents the PauliSum in terms of its independent components and dependencies in the form
+
+        G = [I | D]
+
+        where I is the identity matrix and D is the dependency matrix.
+
+        Each column of the dependency matrix corresponds to a PauliString in the PauliSum.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray, np.ndarray]
+            The matroid of the PauliSum.
+        1st element: The generator matrix G of the matroid.
+        2nd element: The list of basis PauliString indices.
+        3rd element: A boolean mask indicating which PauliStrings are in the basis.
+        """
+        p = int(self.lcm)
+        labels = list(range(self.n_paulis()))
+        independent, dependencies = self.dependencies()
+        GF = galois.GF(p)
+        basis_order = sorted(independent)
+        k, n = len(basis_order), len(labels)
+        label_to_col = {lab: j for j, lab in enumerate(labels)}
+        basis_index = {b: i for i, b in enumerate(basis_order)}
+
+        G_int = np.zeros((k, n), dtype=int)
+        for b in basis_order:
+            G_int[basis_index[b], label_to_col[b]] = 1
+        for d, pairs in dependencies.items():
+            j = label_to_col[d]
+            for b, m in pairs:
+                G_int[basis_index[b], j] += int(m)
+        G_int %= p
+        G = GF(G_int)
+
+        return G, basis_order
+
+    def _basis_mask(self) -> np.ndarray:
+        """
+        Returns a boolean mask indicating which PauliStrings are in the (a possible) basis.
+
+        Returns
+        -------
+        np.ndarray
+            A boolean mask indicating which PauliStrings are in the basis (as represented by the matroid - note there
+            are multiple possible bases).
+        """
+        _, basis_order = self.matroid()
+        basis_mask = np.zeros(self.n_paulis(), dtype=bool)
+        basis_mask[basis_order] = True
+        return basis_mask
 
     # TODO: Move this to a better location and amend where it is used in the Pauli reduction code
     @staticmethod

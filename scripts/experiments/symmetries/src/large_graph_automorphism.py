@@ -3,6 +3,7 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import galois
 from numba import njit
+from collections import Counter
 
 Label = int
 DepPairs = Dict[Label, List[Tuple[Label, int]]]
@@ -219,7 +220,6 @@ def _check_code_automorphism(
 # =============================================================================
 def _basis_first_any(
     S_mod: np.ndarray,
-    *,
     coeffs: Optional[np.ndarray],
     base_colors: np.ndarray,
     base_classes: Dict[int, List[int]],
@@ -228,7 +228,6 @@ def _basis_first_any(
     basis_mask: np.ndarray,
     labels: List[int],
     k_wanted: int,
-    require_nontrivial: bool,
     p2_bitset: bool,
     enforce_base_on_dependents: bool = False,
     p: int = 2
@@ -252,6 +251,7 @@ def _basis_first_any(
     # Prepared consistency kernel
     if p2_bitset:
         bits, _ = _build_bitrows_binary(S_mod)
+
         def consistent(phi, mapped, i, y):
             return _consistent_bitset(bits, phi, mapped, int(i), int(y))
     else:
@@ -271,10 +271,11 @@ def _basis_first_any(
         """
         # 1) compute UG and signatures
         UG = U @ G  # k x n (FieldArray)
-        def sig(col): return tuple(int(v) for v in col)
+
+        def sig(col):
+            return tuple(int(v) for v in col)
 
         # Fast multiset precheck: needed vs available (exclude reserved basis images)
-        from collections import Counter
         need = Counter(sig(G[:, j]) for j in range(n) if not basis_mask[j])
         available = ~used
         have = Counter(sig(UG[:, j]) for j in range(n) if available[j])
@@ -320,7 +321,7 @@ def _basis_first_any(
         def dfs_dep(t: int) -> bool:
             if t >= len(dep_order):
                 pi = phi.copy()
-                if require_nontrivial and np.all(pi == np.arange(n, dtype=pi.dtype)):
+                if np.all(pi == np.arange(n, dtype=pi.dtype)):
                     return False
                 if not _check_symplectic_invariance_mod(S_mod, pi):
                     return False
@@ -355,8 +356,8 @@ def _basis_first_any(
             return True
         if t >= len(basis_idx):
             # Basis fixed: compute U = C^{-1} by *field* solve, then finish dependents
-            Bcols = np.array(basis_idx, dtype=int)
-            PBcols = phi[Bcols]
+            B_cols = np.array(basis_idx, dtype=int)
+            PBcols = phi[B_cols]
             C = G[:, PBcols]
             GF = galois.GF(p)
             try:
@@ -396,16 +397,13 @@ def _basis_first_any(
 
 def _full_dfs_complete(
     S_mod: np.ndarray,
-    *,
     coeffs: Optional[np.ndarray],
     base_colors: np.ndarray,
     base_classes: Dict[int, List[int]],
     G: galois.FieldArray,
     basis_order: List[int],
-    basis_mask: np.ndarray,
     labels: List[int],
     k_wanted: int,
-    require_nontrivial: bool,
     p2_bitset: bool,
     dynamic_refine_every: int = 0,
     p: int = 2
@@ -452,7 +450,7 @@ def _full_dfs_complete(
         return best_i
 
     def at_leaf(pi: np.ndarray) -> bool:
-        if require_nontrivial and np.all(pi == np.arange(n, dtype=pi.dtype)):
+        if np.all(pi == np.arange(n, dtype=pi.dtype)):
             return False
         if not _check_symplectic_invariance_mod(S_mod, pi):
             return False
@@ -465,7 +463,7 @@ def _full_dfs_complete(
         if dynamic_refine_every <= 0:
             return
         # very light 1-WL just to order (we do not change feasibility!)
-        cur_colors = _wl_colors_from_S(S_mod, int(2), coeffs=coeffs, col_invariants=None, max_rounds=1)
+        cur_colors = _wl_colors_from_S(S_mod, p, coeffs=coeffs, col_invariants=None, max_rounds=1)
 
     def dfs() -> bool:
         nonlocal steps
@@ -517,14 +515,10 @@ def find_k_automorphisms_symplectic(
     S: np.ndarray,
     p: int,
     k: int = 1,
-    S_labels: Optional[List[int]] = None,
-    require_nontrivial: bool = True,
     # Strategy
-    basis_first: str = "any",          # "off" | "any" (complete) | "basis_only" (heuristic)
+    basis_first: bool = False,
     dynamic_refine_every: int = 0,
     coeffs: Optional[np.ndarray] = None,
-    coeff_labels: Optional[List[int]] = None,
-    extra_column_invariants: str = "none",
     p2_bitset: str = "auto",
     enforce_base_on_dependents: bool = False,
 ) -> List[Dict[int, int]]:
@@ -534,45 +528,10 @@ def find_k_automorphisms_symplectic(
     pres_labels = _labels_union(independent, dependencies)
     n = len(pres_labels)
 
-    # Align S
-    if S_labels is not None:
-        lab_to_pos = {lab: i for i, lab in enumerate(S_labels)}
-        idx = np.array([lab_to_pos[lab] for lab in pres_labels], dtype=int)
-        S_aligned = S[np.ix_(idx, idx)]
-    else:
-        if S.shape != (n, n):
-            raise ValueError("S shape does not match the number of labels; supply S_labels.")
-        S_aligned = S
-    S_mod = np.mod(S_aligned, p).astype(np.int64, copy=False)
-
-    # Align coeffs
-    coeffs_aligned = None
-    if coeffs is not None:
-        coeffs = np.asarray(coeffs)
-        if coeff_labels is not None:
-            lab_to_pos = {lab: i for i, lab in enumerate(coeff_labels)}
-            idx = np.array([lab_to_pos[lab] for lab in pres_labels], dtype=int)
-            coeffs_aligned = coeffs[idx]
-        else:
-            if coeffs.shape[0] != n:
-                raise ValueError("coeffs length does not match number of labels; supply coeff_labels.")
-            coeffs_aligned = coeffs
-
-    # Extra invariants from G? Be careful: these are *not* invariants under left GL(k,p)!
-    if extra_column_invariants != "none":
-        # Strong advice: leave this as "none" unless you know left GL(k,p) preserves your chosen invariants.
-        G_for_inv, _, _ = _build_generator_matrix(independent, dependencies, pres_labels, p)
-        if extra_column_invariants == "hist":
-            inv = np.zeros((n, min(p, 16)), dtype=np.int64)
-            for j in range(n):
-                col = np.array([int(x) for x in G_for_inv[:, j]])
-                cnt = np.bincount(col, minlength=p)
-                inv[j, :min(p, 16)] = cnt[:min(p, 16)]
-        else:
-            raise ValueError("extra_column_invariants must be 'none', 'support', or 'hist'.")
+    S_mod = np.mod(S, p).astype(np.int64, copy=False)
 
     # Base (safe) partition from S (+coeffs only)
-    base_colors = _wl_colors_from_S(S_mod, p, coeffs=coeffs_aligned, col_invariants=None, max_rounds=10)
+    base_colors = _wl_colors_from_S(S_mod, p, coeffs=coeffs, col_invariants=None, max_rounds=10)
     base_classes = _color_classes(base_colors)
 
     # Build G & basis mask
@@ -581,23 +540,17 @@ def find_k_automorphisms_symplectic(
     # p=2 bitset?
     use_bitset = (p == 2 and (p2_bitset is True or (p2_bitset == "auto" and n <= 256)))
 
-    if basis_first in ("any", "basis_only"):
-        # If "basis_only", shrink feasible targets for basis to basis indices
-        if basis_first == "basis_only":
-            basis_set_idx = set(np.where(basis_mask)[0])
-            base_classes_for_basis = {
-                c: [y for y in ys if y in basis_set_idx] for c, ys in base_classes.items()
-            }
-        else:
-            base_classes_for_basis = base_classes
+    if basis_first:
+
+        base_classes_for_basis = base_classes
 
         sols = _basis_first_any(
             S_mod,
-            coeffs=coeffs_aligned,
+            coeffs=coeffs,
             base_colors=base_colors,
             base_classes=base_classes_for_basis,  # used for basis; dependents controlled by flag
             G=G, basis_order=basis_order, basis_mask=basis_mask, labels=pres_labels,
-            k_wanted=k, require_nontrivial=require_nontrivial,
+            k_wanted=k,
             p2_bitset=use_bitset,
             enforce_base_on_dependents=bool(enforce_base_on_dependents), p=p
         )
@@ -607,62 +560,64 @@ def find_k_automorphisms_symplectic(
         print('Needs Full search')
         return _full_dfs_complete(
             S_mod,
-            coeffs=coeffs_aligned,
+            coeffs=coeffs,
             base_colors=base_colors,
             base_classes=base_classes,
-            G=G, basis_order=basis_order, basis_mask=basis_mask, labels=pres_labels,
-            k_wanted=k, require_nontrivial=require_nontrivial,
+            G=G, basis_order=basis_order, labels=pres_labels,
+            k_wanted=k,
             p2_bitset=use_bitset,
             dynamic_refine_every=int(dynamic_refine_every), p=p
         )
 
-    if basis_first == "off":
+    else:
         return _full_dfs_complete(
             S_mod,
-            coeffs=coeffs_aligned,
+            coeffs=coeffs,
             base_colors=base_colors,
             base_classes=base_classes,
-            G=G, basis_order=basis_order, basis_mask=basis_mask, labels=pres_labels,
-            k_wanted=k, require_nontrivial=require_nontrivial,
+            G=G, basis_order=basis_order, labels=pres_labels,
+            k_wanted=k,
             p2_bitset=use_bitset,
             dynamic_refine_every=int(dynamic_refine_every),
             p=p
         )
 
-    raise ValueError("basis_first must be 'off', 'any', or 'basis_only'.")
-
 
 if __name__ == "__main__":
-    from quaos.utils import get_linear_dependencies
+    from quaos.core.finite_field_solvers import get_linear_dependencies
     from quaos.models.random_hamiltonian import random_gate_symmetric_hamiltonian
     from quaos.core.circuits import SWAP
 
-    sym = SWAP(0, 1, 2)
-    H = random_gate_symmetric_hamiltonian(sym, 2, 4, scrambled=True)
+    for _ in range(1000):
 
-    independent, dependencies = get_linear_dependencies(H.tableau(), H.dimensions)
+        sym = SWAP(0, 1, 2)
+        H = random_gate_symmetric_hamiltonian(sym, 2, 4, scrambled=True)
 
-    S = H.symplectic_product_matrix()
-    coeffs = H.weights
+        independent, dependencies = get_linear_dependencies(H.tableau(), H.dimensions)
 
-    # independent = [0, 1, 2, 3]
-    # dependencies = {4: [(1, 1), (3, 1)], 5: [(0, 1), (2, 1)], 6: [(0, 1), (1, 1)]}
-    # S = np.array([[0, 0, 0, 1, 1, 0, 0],
-    #               [0, 0, 1, 0, 0, 1, 0],
-    #               [0, 1, 0, 1, 0, 0, 1],
-    #               [1, 0, 1, 0, 0, 0, 1],
-    #               [1, 0, 0, 0, 0, 1, 1],
-    #               [0, 1, 0, 0, 1, 0, 1],
-    #               [0, 0, 1, 1, 1, 1, 0]])
-    # coeffs = np.array([0.+1.j,  0.+1.j, -1.+0.j,  1.+0.j, -1.+0.j,  1.+0.j,  2.+0.j])
-    print('independent = ', independent)
-    print('dependencies = ', dependencies)
+        S = H.symplectic_product_matrix()
+        coeffs = H.weights
 
-    print('S = ', S)
-    print('coeffs = ', coeffs)
+        # independent = [0, 1, 2, 3]
+        # dependencies = {4: [(1, 1), (3, 1)], 5: [(0, 1), (2, 1)], 6: [(0, 1), (1, 1)]}
+        # S = np.array([[0, 0, 0, 1, 1, 0, 0],
+        #               [0, 0, 1, 0, 0, 1, 0],
+        #               [0, 1, 0, 1, 0, 0, 1],
+        #               [1, 0, 1, 0, 0, 0, 1],
+        #               [1, 0, 0, 0, 0, 1, 1],
+        #               [0, 1, 0, 0, 1, 0, 1],
+        #               [0, 0, 1, 1, 1, 1, 0]])
+        # coeffs = np.array([0.+1.j,  0.+1.j, -1.+0.j,  1.+0.j, -1.+0.j,  1.+0.j,  2.+0.j])
+        # print('independent = ', independent)
+        # print('dependencies = ', dependencies)
 
-    perms = find_k_automorphisms_symplectic(independent, dependencies,
-                                            S=S, p=2, k=1,
-                                            coeffs=coeffs)
+        # print('S = ', S)
+        # print('coeffs = ', coeffs)
 
-    print('permutations = ', perms)  # either [{'perm':..., 'h':...}] when return_phase=True, or [perm_dict]
+        perms = find_k_automorphisms_symplectic(independent, dependencies,
+                                                S=S, p=2, k=1,
+                                                coeffs=coeffs, basis_first=True)
+        if len(perms) == 0:
+            print("No automorphisms found!")
+
+        # print('permutations = ', perms)
