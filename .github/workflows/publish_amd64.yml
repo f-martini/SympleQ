@@ -157,11 +157,6 @@ jobs:
       - name: Set up MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Verify cl.exe availability
-        run: |
-          where cl
-          cl /Bv
-
       - name: Set up CUDA Toolkit (Windows)
         uses: Jimver/cuda-toolkit@v0.2.24
         id: cuda-toolkit
