@@ -61,18 +61,14 @@ def find_graph_automorphism(pauli_sum: PauliSum,
         base_colors=base_colors,
         base_classes=base_classes,
         G=generator_matroid, basis_order=basis_order, labels=labels,
-        col_invariants=wl_seed,            # reuse the same seed for IR
+        col_invariants=wl_seed,
         coeffs=coeffs,
         k_wanted=k_wanted,
-        # use_ir_ordering=use_ir_ordering,
         ir_rounds=ir_rounds,
         ir_every_steps=ir_every_steps,
-        # use_selective_wl2=False,        # already applied above
         wl2_size_threshold=wl2_size_threshold,
         wl2_rounds=wl2_rounds,
-        # use_ac3=use_ac3,
         ac3_symmetric=ac3_symmetric,
-        # use_forward_check=use_forward_check,
     )
 
 
@@ -84,14 +80,16 @@ if __name__ == "__main__":
     failed = 0
     for _ in range(100):
         sym = SWAP(0, 1, 2)
-        # symC = Circuit.from_random(2, 2, [2, 2])
+        # symC = Circuit.from_random(2, 10, [2, 2])
+        # print(symC)
         # sym = symC.composite_gate()
         H = random_gate_symmetric_hamiltonian(sym, 2, 4, scrambled=False)
         C = Circuit.from_random(H.n_qudits(), 100, H.dimensions).composite_gate()
         # C = Circuit(H.dimensions, [Hadamard(i, 2) for i in range(H.n_qudits())])
         H = C.act(H)
         H.weight_to_phase()
-        # assert H.standard_form() == sym.act(H).standard_form(), f"\n{H.standard_form().__str__()}\n{sym.act(H).standard_form().__str__()}"
+        scrambled_sym = Circuit(H.dimensions, [C.inv(), sym, C]).composite_gate()
+        assert H.standard_form() == scrambled_sym.act(H).standard_form(), f"\n{H.standard_form().__str__()}\n{sym.act(H).standard_form().__str__()}"
 
         perms = find_graph_automorphism(H, k_wanted=1, ir_rounds=2,
                                         ir_every_steps=0, ac3_symmetric=False, max_wl_rounds=10,

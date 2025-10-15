@@ -2,10 +2,12 @@ import numpy as np
 from quaos.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
 from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
-from quaos.core.circuits.utils import transvection_matrix, symplectic_form
+from quaos.core.circuits.utils import (transvection_matrix, symplectic_form,
+                                       CX_func, SWAP_func, S_mat, I_mat, tensor, H_mat)
 # from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
 from quaos.core.finite_field_solvers import get_linear_dependencies
 # from quaos.core.circuits.random_symplectic import symplectic_random_transvection
+import scipy.sparse as sp
 
 
 class Gate:
@@ -26,7 +28,7 @@ class Gate:
         self.qudit_indices = qudit_indices
         self.n_qudits = len(qudit_indices)
         self.symplectic = symplectic
-        self.phase_vector = phase_vector
+        self.phase_vector = np.asarray(phase_vector, dtype=int)
         self.lcm = np.lcm.reduce(self.dimensions)
 
     @classmethod
@@ -128,11 +130,45 @@ class Gate:
         U_conjugated = C.T @ U @ C
         h = self.phase_vector
         a = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])  # local symplectic
-        p1 = np.dot(np.diag(U_conjugated), a)
+        p1 = np.dot(np.diag(U_conjugated).T, a)
         # negative sign in below as definition in paper is strictly upper diagonal, not including diagonal part
+
         p_part = 2 * np.triu(U_conjugated) - np.diag(np.diag(U_conjugated))
         p2 = np.dot(a.T, np.dot(p_part, a))
-        return (np.dot(h, a) - p1 + p2) % (2 * P.lcm)
+        return (np.dot(h, a.T) - p1 + p2) % (2 * P.lcm)
+
+    def inv(self) -> 'Gate':
+        n = self.n_qudits
+        L = int(self.lcm)
+
+        C = self.symplectic % L
+
+        zero_block = np.zeros((n, n), dtype=int)
+        identity_block = np.eye(n, dtype=int)
+        Omega = np.block([[zero_block, identity_block], [-identity_block, zero_block]])
+
+        C_inv = (Omega.T @ C.T @ Omega) % L
+        C_inv = C_inv.astype(int)
+
+        U = np.zeros((2 * n, 2 * n), dtype=int)
+        U[n:, :n] = np.eye(n, dtype=int)
+
+        U_conj = C.T @ U @ C
+        U_inv_conj = C_inv.T @ U @ C_inv
+
+        P = 2 * np.triu(U_conj) - np.diag(np.diag(U_conj))
+        P_inv = 2 * np.triu(U_inv_conj) - np.diag(np.diag(U_inv_conj))
+
+        modulus = 2 * L
+        term1 = ((-(self.phase_vector % modulus) @ C_inv) % modulus).astype(int)
+        term2 = (((np.diag(U_conj) % modulus).T @ C_inv) % modulus).astype(int)
+        term3 = (np.diag((C_inv.T @ P @ C_inv) % modulus) % modulus).astype(int)
+        term4 = (np.diag(U_inv_conj) % modulus).astype(int)
+        term5 = (np.diag(P_inv) % modulus).astype(int)
+
+        h_inv = (term1 + term2 - term3 + term4 - term5) % modulus
+
+        return Gate(self.name + "-inv", self.qudit_indices, C_inv, self.dimensions, h_inv.astype(int))
 
     def copy(self) -> 'Gate':
         """
@@ -160,60 +196,6 @@ class Gate:
         if self.name[0] != "T":
             self.name = "T-" + self.name
         return Gate(self.name, self.qudit_indices, self.symplectic @ T, self.dimensions, self.phase_vector)
-
-    def inv(self) -> 'Gate':
-        # TODO: Test for mixed dimensions - not clear that the symplectic form here is correct.
-        print("Warning: inverse phase vector not working - PHASES MAY BE INCORRECT.")
-
-        C = self.symplectic.T
-
-        U = np.zeros((2 * self.n_qudits, 2 * self.n_qudits), dtype=int)
-        U[self.n_qudits:, :self.n_qudits] = np.eye(self.n_qudits, dtype=int)
-        Omega = symplectic_form(int(C.shape[0] / 2), p=self.lcm)
-
-        C_inv = -(Omega.T @ C.T @ Omega) % self.lcm
-        U_c = C_inv.T @ U @ C_inv % self.lcm
-
-        p1 = - C_inv.T @ self.phase_vector
-        p2 = - np.diag(C.T @ (2 * np.triu(U_c) - np.diag(np.diag(U_c))) @ C)
-        p3 = C.T @ np.diag(U_c)
-
-        phase_vector = (p1 + p2 + p3) % (2 * self.lcm)
-        return Gate(self.name + "-inv", self.qudit_indices, C_inv.T, self.dimensions, phase_vector)
-
-    def inverse(self) -> 'Gate':
-        """
-        Returns the inverse of this gate.
-
-        The inverse of a gate G is another gate G' such that the composition G'G is the identity.
-
-        The inverse of a gate is computed using the formulae presented in PHYSICAL REVIEW A 71, 042315 (2005)
-
-        :return: A new Gate object, the inverse of this gate.
-        """
-        if not np.all([self.dimensions[i] == self.dimensions[0] for i in range(len(self.dimensions))]):
-            raise NotImplementedError("Inverse only implemented for gates with equal dimensions.")
-
-        d = self.dimensions[0]
-        h = self.phase_vector
-        n = len(self.qudit_indices)
-
-        Id_n = np.eye(n)
-        Zero_n = np.zeros((n, n))
-        U = np.block([[Zero_n, Zero_n], [Id_n, Zero_n]])
-        Omega = (U - U.T) % d
-
-        C = self.symplectic.T
-        C_inv = (Omega.T @ C.T @ Omega) % d
-
-        U_trans = C_inv.T @ U @ C_inv
-        T1 = np.diag(C.T @ (2 * np.triu(U_trans, k=1) + np.diag(np.diag(U_trans))) @ C)
-        T2 = C.T @ np.diag(U_trans)
-
-        h_inv = (- C_inv.T @ (h + T1 + T2)) % (2 * d)
-
-        return Gate(self.name + '_inv', self.qudit_indices.copy(), C_inv.T, self.dimensions,
-                    h_inv)
 
     def unitary(self, dims=None):
         if dims is None:

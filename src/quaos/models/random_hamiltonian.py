@@ -222,7 +222,7 @@ def random_gate_symmetric_hamiltonian(G: 'Gate',
     if n_paulis is None:
         n_paulis = 2 * n_qudits
     P = random_pauli_symmetry_hamiltonian(n_qudits, n_paulis, 0, 0, weight_mode=weight_mode)
-    G_inv = G.inverse()
+    G_inv = G.inv()
     P_prime = G_inv.act(P)
     P_sym = P + P_prime
     P_sym.phase_to_weight()

@@ -380,23 +380,22 @@ class TestGates():
                         target_ps.__str__()
                     )
 
-    def test_gate_transvection(self):
-
+    def test_gate_transvection_symplecticity(self):
         for _ in range(100):
             g = Gate.from_random(5, 2)
             gt = g.transvection(np.random.randint(0, 1, size=10))
             assert is_symplectic(gt.symplectic, 2), 'Error in transvection'
 
-    # def test_gate_inverse(self):
-    #     n_qudits = 2
-    #     n_paulis = 3
-    #     dimension = 3
-    #     for _ in range(1):
-    #         g = Gate.from_random(n_qudits, dimension)
-    #         gt = g.inverse()
-    #         rps = PauliSum.from_random(n_paulis, n_qudits, [dimension] * n_qudits, False, seed=1)
-    #         print(rps)
-    #         assert rps == g.act(gt.act(rps)), 'Inversion Error:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
+    def test_gate_inverse(self):
+        # TODO: test mixed dimensions
+        n_qudits = 10
+        n_paulis = 20
+        for dimension in [2, 3, 5, 7, 11]:
+            for i in range(100):
+                g = Gate.from_random(n_qudits, dimension)
+                gt = g.inv()
+                rps = PauliSum.from_random(n_paulis, n_qudits, [dimension] * n_qudits, False)  #, seed=1
+                assert rps == g.act(gt.act(rps)), f'Inversion Error run {i}:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
 
     def phase_table_local(self, G):
         d = G.dimensions[0]

@@ -1,7 +1,6 @@
 # from quaos.core.paulis import random_pauli_string
 from quaos.core.circuits.known_circuits import to_x, to_ix
 from quaos.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
-from quaos.core.circuits.utils import embed_symplectic
 from quaos.core.paulis import PauliSum, PauliString
 import numpy as np
 import scipy.sparse as sp
@@ -86,7 +85,7 @@ class TestCircuits():
                 gate = Hadamard(np.random.randint(0, n_qudits), dimension)
             elif gate_int == 1:
                 gate = PHASE(np.random.randint(0, n_qudits), dimension)
-            elif gate_int == 2: 
+            elif gate_int == 2:
                 # two random non-equal numbers
                 q1, q2 = np.random.randint(0, n_qudits, 2)
                 while q1 == q2:
@@ -179,7 +178,8 @@ class TestCircuits():
             U_circ = U_circ.toarray()
             U_gate = gate.unitary()
             assert U_circ.shape == U_gate.shape
-            assert np.allclose(U_circ, U_gate)
+            print()
+            assert np.allclose(U_circ, U_gate.toarray()), f"Failed for d={d}\n{U_circ}\n{U_gate}"
 
     @staticmethod
     def _linear_index(dims, idxs):
