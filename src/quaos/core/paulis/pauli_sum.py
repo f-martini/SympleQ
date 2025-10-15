@@ -144,12 +144,13 @@ class PauliSum:
     @classmethod
     def from_tableau(cls, tableau: np.ndarray,
                      dimensions: list[int] | np.ndarray,
-                     weights: np.ndarray | None = None
+                     weights: np.ndarray | None = None,
+                     phases: np.ndarray | None = None,
                      ) -> 'PauliSum':
         p_strings = []
         for row in tableau:
             p_strings.append(PauliString.from_tableau(row, dimensions=dimensions))
-        return cls(p_strings, dimensions=dimensions, weights=weights, standardise=False)
+        return cls(p_strings, dimensions=dimensions, weights=weights, phases=phases, standardise=False)
 
     @classmethod
     def from_pauli(cls,
@@ -420,7 +421,8 @@ class PauliSum:
 
     @overload
     def __getitem__(self,
-                    key: int | slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] | tuple[slice, int] |
+                    key: int | slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] |
+                    tuple[slice, int] |
                     tuple[slice, list[int]] | tuple[slice, np.ndarray] | tuple[list[int], int] |
                     tuple[np.ndarray, int] | tuple[np.ndarray, slice] | tuple[np.ndarray, list[int]] |
                     tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, list[int]] | tuple[list[int], list[int]] |
@@ -1197,10 +1199,6 @@ class PauliSum:
         """
         if isinstance(qudit_indices, int):
             qudit_indices = [qudit_indices]
-
-        #new_pauli_strings = []
-        #for p in self.pauli_strings:
-        #    new_pauli_strings.append(p._delete_qudits(qudit_indices))
 
         mask = np.ones(self.n_qudits(), dtype=bool)
         mask[qudit_indices] = False
