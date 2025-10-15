@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 
+from quaos.core.circuits.gates import Hadamard
 from quaos.core.paulis.pauli_string import PauliString
 from quaos.core.paulis.pauli_sum import PauliSum
 
@@ -11,7 +12,7 @@ def test_main_function(benchmark):
     pass
 
 
-@pytest.mark.benchmark
+@pytest.mark.benchmark(group="PauliSum")
 def test_paulisum_sum(benchmark):
     n_paulis = 20
     n_qudits = 100
@@ -25,7 +26,7 @@ def test_paulisum_sum(benchmark):
     benchmark(sum)
 
 
-@pytest.mark.benchmark
+@pytest.mark.benchmark(group="PauliSum")
 def test_paulisum_multiplication(benchmark):
     n_paulis = 20
     n_qudits = 100
@@ -39,7 +40,7 @@ def test_paulisum_multiplication(benchmark):
     benchmark(multiply)
 
 
-@pytest.mark.benchmark
+@pytest.mark.benchmark(group="PauliSum")
 def test_paulistring_amend(benchmark):
     n_qudits = 100
     dimensions = np.random.randint(2, 8, size=n_qudits)
@@ -54,7 +55,7 @@ def test_paulistring_amend(benchmark):
     benchmark(amend_all)
 
 
-@pytest.mark.benchmark
+@pytest.mark.benchmark(group="PauliSum")
 def test_paulisum_amend(benchmark):
     n_paulis = 20
     n_qudits = 100
@@ -70,7 +71,8 @@ def test_paulisum_amend(benchmark):
 
     benchmark(amend_all)
 
-@pytest.mark.benchmark
+
+@pytest.mark.benchmark(group="PauliSum")
 def test_paulisum_delete_qudits(benchmark):
     n_paulis = 20
     n_qudits = 100
@@ -82,3 +84,20 @@ def test_paulisum_delete_qudits(benchmark):
         ps._delete_qudits(qudit_indices)
 
     benchmark(delete_random)
+
+
+@pytest.mark.benchmark(group="Gate")
+def test_hadamard_paulisum_benchmark(benchmark):
+    n_paulis = 20
+    n_qudits = 100
+    dimensions = np.random.randint(2, 8, size=n_qudits)
+
+    gate = Hadamard(0, dimensions[0], inverse=False)
+
+    ps = PauliSum.from_random(n_paulis, n_qudits, dimensions, rand_weights=True)
+
+    def apply_gate():
+        _ = gate.act(ps)
+
+    benchmark(apply_gate)
+
