@@ -202,14 +202,22 @@ jobs:
           python -m build --wheel --outdir dist --config-setting "cmake.args=-G;Ninja;-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
 
       - name: Repair wheel with delvewheel
+        shell: pwsh
         run: |
-          for %%f in (dist\*.whl) do (
-          python -m delvewheel repair --add-path build\lib --wheel-dir dist %%f
-          )
+          dir
+          $wheels = Get-ChildItem -Path dist -Filter 'quaos*.whl' -ErrorAction SilentlyContinue
+          if (-not $wheels) {
+            Write-Host "No quaos wheels found in dist; skipping delvewheel repair"
+          } else {
+            Remove-Item -Path dist\* -Include *.whl -Exclude quaos*.whl -Force -ErrorAction SilentlyContinue
+            foreach ($w in $wheels) {
+              python -m delvewheel repair --add-path build\lib --wheel-dir dist $w.FullName
+            }
+          }
 
       - name: Test wheel
         run: |
-          pip install dist\*.whl
+          pip install dist\quaos*.whl
           python -c "from quaos.core.light import Aquire; aquire = Aquire('h', [], {})"
 
       - name: List built wheels
