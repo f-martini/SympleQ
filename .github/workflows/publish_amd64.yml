@@ -199,7 +199,7 @@ jobs:
 
       - name: Build wheel
         run: |
-          python -m build --wheel --outdir dist --config-settings "cmake.args=-G;Ninja;-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
+          python -m build --wheel --outdir dist --config-setting "cmake.args=-G;Ninja;-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
 
       - name: Repair wheel with delvewheel
         run: |
