@@ -168,6 +168,10 @@ jobs:
         run: |
           nvcc --version
           echo "CUDA installation path: $env:CUDA_PATH"
+          $newPath = "${{ env.CUDA_VERSION }}\bin;${{ env.CUDA_VERSION }}\libnvvp;$env:PATH"
+          $env:PATH = $newPath
+          Add-Content -Path $env:GITHUB_ENV -Value "PATH=$newPath"
+          Write-Host "Updated PATH: $env:PATH"
 
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
@@ -195,7 +199,7 @@ jobs:
 
       - name: Build wheel
         run: |
-          python -m build --wheel --outdir dist --config-settings "cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
+          python -m build --wheel --outdir dist --config-settings "cmake.args=-G;Ninja;-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
 
       - name: Repair wheel with delvewheel
         run: |
