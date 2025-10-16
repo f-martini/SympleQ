@@ -212,7 +212,7 @@ jobs:
           } else {
             Remove-Item -Path dist\* -Include *.whl -Exclude quaos*.whl -Force -ErrorAction SilentlyContinue
             foreach ($w in $wheels) {
-              python -m delvewheel repair --add-path ${{ github.workspace }}/quaos.libs --wheel-dir dist $w.FullName
+              python -m delvewheel repair --add-path ${{ github.workspace }}/${{ env.NATIVE_SRC_PATH }}/quaos.libs --wheel-dir dist $w.FullName
             }
           }
 
