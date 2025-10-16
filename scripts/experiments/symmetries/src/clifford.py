@@ -35,7 +35,7 @@ def clifford_symmetry(pauli_sum: PauliSum,
 
     F, h, _, _ = find_map_to_target_pauli_sum(H_i, H_t)
 
-    G = Gate('Symmetry', [i for i in range(pauli_sum.n_qudits())], F.T, 2, h)
+    G = Gate('Symmetry', [i for i in range(pauli_sum.n_qudits())], F.T, pauli_sum.dimensions, h)
 
     # phase correction - add Pauli to make circuit, collapse to single Gate
     if phase_correction:
@@ -43,7 +43,7 @@ def clifford_symmetry(pauli_sum: PauliSum,
         delta_phi = output_phase - pauli_sum.phases
         if np.any(delta_phi):
             print(delta_phi % (2 * lcm))
-            G_p = pauli_phase_correction(pauli_sum.tableau(), delta_phi % (2 * lcm), 2)
+            G_p = pauli_phase_correction(pauli_sum.tableau(), delta_phi % (2 * lcm), 2, pauli_sum.dimensions)
             C = Circuit(G.dimensions, [G, G_p])
             G = C.composite_gate()
 

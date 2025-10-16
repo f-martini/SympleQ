@@ -1,42 +1,119 @@
+import math
 import numpy as np
 import galois
 from quaos.core.circuits.utils import symplectic_form
 from quaos.core.paulis import PauliSum, PauliString
-from quaos.core.circuits.gates import PauliGate
+from quaos.core.circuits.gates import Gate, PauliGate
 from quaos.core.finite_field_solvers import gf_solve
 
 
-def pauli_phase_correction(H, delta_phi_2p, p):
+def _solve_mod_linear_system(A: np.ndarray, b: np.ndarray, modulus: int) -> np.ndarray | None:
+    A = np.asarray(A, dtype=int)
+    b = np.asarray(b, dtype=int).reshape(-1)
+
+    try:
+        import sympy as sp
+        from sympy import ZZ
+        from sympy.matrices.normalforms import smith_normal_form as sympy_snf
+    except ImportError:
+        return None
+
+    A_sym = sp.Matrix(A.tolist())
+
+    try:
+        S_sym, U_sym, V_sym = sympy_snf(A_sym, domain=ZZ)
+    except Exception:
+        return None
+
+    S = np.array(S_sym, dtype=int)
+    U = np.array(U_sym, dtype=int)
+    V = np.array(V_sym, dtype=int)
+
+    m, n = S.shape
+    b_vec = b.reshape(-1, 1) % modulus
+    b_dash = (U @ b_vec) % modulus
+
+    y = np.zeros((n, 1), dtype=int)
+
+    diag_len = min(m, n)
+    for i in range(diag_len):
+        d = S[i, i]
+        b_i = int(b_dash[i, 0]) % modulus
+        if d == 0:
+            if b_i % modulus != 0:
+                return None
+            continue
+        g = math.gcd(abs(d), modulus)
+        if b_i % g != 0:
+            return None
+        mod_red = modulus // g
+        d_red = (d // g) % mod_red
+        b_red = (b_i // g) % mod_red
+        if mod_red == 1:
+            y_val = 0
+        else:
+            try:
+                inv = pow(d_red, -1, mod_red)
+            except ValueError:
+                return None
+            y_val = (b_red * inv) % mod_red
+        y[i, 0] = y_val
+
+    x = V @ y
+    sol = np.array(x.reshape(-1), dtype=int) % modulus
+    if np.any((A @ sol) % modulus != (b % modulus)):
+        return None
+    return sol
+
+
+def pauli_phase_correction(H, delta_phi_2p, p, dimensions=None):
     """
-    Given tableau H (k x 2n, rows [x|z] over GF(p)) and target Δφ in Z_{2p}^k,
-    find P in GF(p)^{2n} such that 2*(H Ω P) ≡ Δφ (mod 2p).
-    Returns None if no solution exists.
+    Given tableau H (k x 2n, rows [x|z]) and a target Δφ (mod 2L),
+    attempt to construct a Clifford whose action adjusts the phases by Δφ.
+
+    Preference order:
+        1. Solve for a pure phase-vector gate (identity symplectic, arbitrary h).
+        2. Fallback to a Pauli gate when Δφ is an even multiple and the above fails.
+
+    Returns a Gate (or PauliGate) or None if no solution exists.
     """
     H = np.asarray(H, dtype=int)
-    delta_phi_2p = np.asarray(delta_phi_2p, dtype=int) % (2 * p)
     k, two_n = H.shape
     n = two_n // 2
 
+    if dimensions is None:
+        dimensions = [p] * n
+    dims = np.asarray(dimensions, dtype=int)
+    L = int(np.lcm.reduce(dims))
+    modulus = 2 * L
+
+    delta_phi_2p = np.asarray(delta_phi_2p, dtype=int) % modulus
+
+    # 1) Try solving for a phase-only Clifford (identity symplectic, unknown h)
+    h_vec = _solve_mod_linear_system(H, delta_phi_2p % modulus, modulus)
+    if h_vec is not None:
+        symplectic = np.eye(2 * n, dtype=int)
+        return Gate("PhaseFix", list(range(n)), symplectic, dims, h_vec % modulus)
+
+    # 2) Fallback: Pauli correction requires Δφ even (since phases change in steps of 2)
     if np.any(delta_phi_2p % 2 != 0):
-        return None  # no solution if any entry is odd
+        return None
 
     rhs = ((delta_phi_2p // 2) % p).astype(int)
-
-    # Build A = H Omega (over GF(p)) and solve A P = rhs (mod p)
-    GF = galois.GF(p)
+    GF = galois.GF(int(p))
     Omega = symplectic_form(n, p)
     A = (GF(H) @ GF(Omega)).view(np.ndarray).astype(int)
 
     try:
         P = gf_solve(A, rhs % p, GF)  # (2n,1)
     except ValueError:
-        return None  # no solution
+        return None
 
-    if not np.all((GF(A) @ GF(P)).reshape(-1) == GF((rhs) % p)):
-        return None  # no solution if internal verification fails
-    P = P.reshape(-1)
-    pauli = PauliString(P[:n].reshape(-1), P[n:].reshape(-1), dimensions=[p] * n)
+    if not np.all((GF(A) @ GF(P)).reshape(-1) == GF(rhs % p)):
+        return None
 
+    P = np.asarray(P.reshape(-1), dtype=int) % p
+    pauli = PauliString(P[:n], P[n:], dimensions=dims)
     return PauliGate(pauli)
 
 
@@ -55,10 +132,13 @@ if __name__ == "__main__":
     print("Random Δφ (mod 2p):", delta_phi_2p.tolist())
 
     try:
-        G_p = pauli_phase_correction(H, delta_phi_2p, p)
+        G_p = pauli_phase_correction(H, delta_phi_2p, p, [p] * n_qudits)
         # Verify using your PauliGate (which sets h = 2 Ω P mod 2p and C = I for Paulis)
         ps = PauliSum.from_tableau(H, dimensions=[p] * n_qudits)
 
+        if G_p is None:
+            print("No solution found.")
+            exit(0)
         ps_after = G_p.act(ps)
 
         got = (np.asarray(ps_after.phases) - np.asarray(ps.phases)) % (2 * p)

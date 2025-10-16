@@ -168,8 +168,6 @@ def build_color_invariants(
     G: Optional[galois.FieldArray] = None,
     basis_mask: Optional[np.ndarray] = None,
     coeffs: Optional[np.ndarray] = None,
-    include_parallel: bool = True,
-    include_fundamental_circuits: bool = True,
     small_circuit_size: int = 0
 ) -> Optional[np.ndarray]:
     """
@@ -181,12 +179,6 @@ def build_color_invariants(
     Returns None if no columns are requested.
     """
     cols: List[np.ndarray] = []
-
-    if G is not None and include_parallel:
-        cols.append(_parallel_class_ids(G))
-
-    if G is not None and basis_mask is not None and include_fundamental_circuits:
-        cols.append(_fundamental_circuit_counts(G, basis_mask))
 
     if G is not None and small_circuit_size >= 3:
         sc = _small_circuit_counts_optional(G, small_circuit_size)

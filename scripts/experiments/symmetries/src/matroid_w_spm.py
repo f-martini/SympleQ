@@ -3,7 +3,10 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import galois
 from numba import njit
-
+from quaos.core.circuits.target import find_map_to_target_pauli_sum
+from phase_correction import pauli_phase_correction, _solve_mod_linear_system
+from quaos.core.paulis import PauliSum
+from quaos.core.circuits import Gate, Circuit
 Label = int
 DepPairs = Dict[Label, List[Tuple[Label, int]]]
 
@@ -15,9 +18,6 @@ DepPairs = Dict[Label, List[Tuple[Label, int]]]
 def _labels_union(independent: List[int], dependencies: DepPairs) -> List[int]:
     return sorted(set(independent) | set(dependencies.keys()))
 
-
-def _perm_index_to_perm_map(labels: List[int], pi: np.ndarray) -> Dict[int, int]:
-    return {labels[j]: labels[int(pi[j])] for j in range(len(labels))}
 
 # =============================================================================
 # Generator matrix over GF(p) (vectorized; no mixed types)
@@ -120,6 +120,89 @@ def _color_classes(color: np.ndarray) -> Dict[int, List[int]]:
         classes[c].sort()
     return classes
 
+
+def _build_base_partition(
+    S_mod: np.ndarray,
+    p: int,
+    *,
+    coeffs: Optional[np.ndarray],
+    col_invariants: Optional[np.ndarray],
+    max_rounds: int = 10,
+    color_mode: str = "wl",      # "wl" | "coeffs_only" | "none"
+) -> Tuple[np.ndarray, Dict[int, List[int]]]:
+    """
+    Build the base colors & classes:
+      - "wl":          WL-1 on S (optionally seeded with coeffs/invariants)
+      - "coeffs_only": colors = coefficient IDs only (strict weight-preservation, no WL)
+      - "none":        everyone in one color (true brute-force; only weights + S-consistency prune)
+    """
+    n = S_mod.shape[0]
+
+    if color_mode == "none":
+        base_colors = np.zeros(n, dtype=np.int64)
+
+    elif color_mode == "coeffs_only":
+        if coeffs is None:
+            base_colors = np.zeros(n, dtype=np.int64)
+        else:
+            # compress coeffs to stable int IDs
+            _, inv = np.unique(np.asarray(coeffs), return_inverse=True)
+            base_colors = inv.astype(np.int64, copy=False)
+
+    elif color_mode == "wl":
+        base_colors = _wl_colors_from_S(
+            S_mod, p, coeffs=coeffs, col_invariants=col_invariants, max_rounds=max_rounds
+        )
+    else:
+        raise ValueError("color_mode must be 'wl', 'coeffs_only', or 'none'.")
+
+    return base_colors, _color_classes(base_colors)
+
+
+def _perm_dict_to_index(labels: List[int], perm: Dict[int,int]) -> np.ndarray:
+    """Convert {label->label} dict to index permutation over `labels`."""
+    lab_to_idx = {lab: i for i, lab in enumerate(labels)}
+    pi = np.arange(len(labels), dtype=int)
+    for src_lab, dst_lab in perm.items():
+        i = lab_to_idx[src_lab]; j = lab_to_idx[dst_lab]
+        pi[i] = j
+    return pi
+
+
+def _debug_check_coloring_allows_perm(
+    *,
+    labels: List[int],
+    base_colors: np.ndarray,
+    coeffs_aligned: Optional[np.ndarray],
+    debug_perm_dict: Dict[int,int],
+    header: str = "DEBUG"
+) -> None:
+    """
+    Print a clear diagnostic if the current coloring (and weight constraint) forbids `debug_perm_dict`.
+    No exception is raised; this is a debug aide.
+    """
+    pi = _perm_dict_to_index(labels, debug_perm_dict)
+    bad_color_idx = np.where(base_colors != base_colors[pi])[0]
+    if bad_color_idx.size:
+        examples = [(labels[i], labels[pi[i]], int(base_colors[i]), int(base_colors[pi[i]]))
+                    for i in bad_color_idx[:8]]
+        print(f"{header}: known permutation is BLOCKED by base colors at {bad_color_idx.size} positions.")
+        print(f"{header}: examples (src, dst, color[src], color[dst]): {examples}")
+        print(f"{header}: try color_mode='coeffs_only' or color_mode='none'")
+    else:
+        print(f"{header}: base colors ALLOW the known permutation.")
+
+    if coeffs_aligned is not None:
+        bad_coeff_idx = np.where(coeffs_aligned != coeffs_aligned[pi])[0]
+        if bad_coeff_idx.size:
+            ex2 = [(labels[i], labels[pi[i]], coeffs_aligned[i], coeffs_aligned[pi[i]])
+                   for i in bad_coeff_idx[:8]]
+            print(f"{header}: known permutation VIOLATES weight-preservation at {bad_coeff_idx.size} positions.")
+            print(f"{header}: examples (src, dst, w[src], w[dst]): {ex2}")
+        else:
+            print(f"{header}: weights also allow the known permutation.")
+
+
 # =============================================================================
 # Incremental S-consistency (p-agnostic and p=2 bitset variant)
 # =============================================================================
@@ -210,164 +293,13 @@ def _check_code_automorphism(
 
 
 # =============================================================================
-# Basis-first (complete) solver: basis_first="any"
-# =============================================================================
-
-def _basis_first_any(
-    S_mod: np.ndarray,
-    *,
-    coeffs: Optional[np.ndarray],
-    base_colors: np.ndarray,
-    base_classes: Dict[int, List[int]],
-    G: galois.FieldArray,
-    basis_order: List[int],
-    basis_mask: np.ndarray,
-    labels: List[int],
-    k_wanted: int,
-    require_nontrivial: bool,
-    p2_bitset: bool,
-    enforce_base_on_dependents: bool = False,   # <-- NEW: relaxed by default
-) -> List[Dict[int, int]]:
-    """
-    Complete search that branches only on basis labels (images can be any labels).
-    After basis images fixed and C invertible, compute U=C^{-1} and place dependents
-    by requiring U @ G[:, y] == G[:, i], plus symplectic consistency and coeff equality.
-    If enforce_base_on_dependents is True, y must also lie in the *base* WL class of i.
-    """
-    n = S_mod.shape[0]
-    results: List[Dict[int, int]] = []
-
-    # Order basis variables by increasing base-class size (MRV-ish)
-    lab_to_idx = {lab: i for i, lab in enumerate(labels)}
-    basis_idx = [lab_to_idx[b] for b in basis_order]
-    basis_idx = sorted(basis_idx, key=lambda i: len(base_classes[int(base_colors[i])]))
-
-    # Prepared consistency kernel
-    if p2_bitset:
-        bits, _ = _build_bitrows_binary(S_mod)
-
-        def consistent(phi, mapped, i, y):
-            return _consistent_bitset(bits, phi, mapped, int(i), int(y))
-    else:
-        def consistent(phi, mapped, i, y):
-            return _consistent_numba(S_mod, phi, mapped, int(i), int(y))
-
-    # State for basis placement
-    phi = -np.ones(n, dtype=np.int64)
-    used = np.zeros(n, dtype=bool)
-
-    def place_dependents_with_U(U: galois.FieldArray) -> bool:
-        """
-        Try to complete mapping for dependents only.
-        Use signature equality U @ G[:, y] == G[:, i] as a hard filter,
-        plus S-consistency and coefficient equality.
-        """
-        ncols = G.shape[1]
-        UG = U @ G  # k x n
-
-        # precompute exact column tuples (int) for equality check
-        sig_y = [tuple(int(v) for v in UG[:, y]) for y in range(ncols)]
-        sig_i = [tuple(int(v) for v in G[:, i]) for i in range(ncols)]
-
-        dependents = [i for i in range(n) if not basis_mask[i]]
-        # candidate lists per dependent
-        dep_candidates: Dict[int, List[int]] = {}
-        for i in dependents:
-            # pool: either all unused labels, or only the base class
-            if enforce_base_on_dependents:
-                pool = base_classes[int(base_colors[i])]
-            else:
-                pool = range(n)
-            lst = []
-            for y in pool:
-                if used[y]:
-                    continue
-                if coeffs is not None and coeffs[i] != coeffs[y]:
-                    continue
-                if sig_y[y] != sig_i[i]:
-                    continue
-                lst.append(y)
-            dep_candidates[i] = lst
-
-        # order by fewest candidates
-        dep_order = sorted(dependents, key=lambda i: len(dep_candidates[i]))
-
-        def dfs_dep(t: int) -> bool:
-            if t >= len(dep_order):
-                pi = phi.copy()
-                if require_nontrivial and np.all(pi == np.arange(n, dtype=pi.dtype)):
-                    return False
-                if not _check_symplectic_invariance_mod(S_mod, pi):
-                    return False
-                if not _check_code_automorphism(G, basis_order, labels, pi):
-                    return False
-                results.append(_perm_index_to_perm_map(labels, pi))
-                return True
-
-            i = dep_order[t]
-            mapped_idx = np.where(phi >= 0)[0].astype(np.int64)
-
-            for y in dep_candidates[i]:
-                if used[y]:
-                    continue
-                if not consistent(phi, mapped_idx, i, y):
-                    continue
-                # place
-                phi[i] = y
-                used[y] = True
-                if dfs_dep(t + 1):
-                    return True
-                # undo
-                phi[i] = -1
-                used[y] = False
-            return False
-
-        return dfs_dep(0)
-
-    # DFS over basis images
-    def dfs_basis(t: int) -> bool:
-        if len(results) >= k_wanted:
-            return True
-        if t >= len(basis_idx):
-            # All basis mapped: compute U and finish dependents
-            PBcols = phi[basis_idx]
-            C = G[:, PBcols]
-            try:
-                U = np.linalg.inv(C)
-                U = G.__class__(U)  # Convert to galois.FieldArray
-            except np.linalg.LinAlgError:
-                return False
-            return place_dependents_with_U(U)
-
-        i = basis_idx[t]
-        bi = int(base_colors[i])
-        mapped_idx = np.where(phi >= 0)[0].astype(np.int64)
-
-        # Feasible candidates for this basis variable (base partition + coeffs)
-        candidates = [y for y in base_classes[bi] if not used[y]]
-        if coeffs is not None:
-            candidates = [y for y in candidates if coeffs[i] == coeffs[y]]
-
-        for y in candidates:
-            if not consistent(phi, mapped_idx, i, y):
-                continue
-            phi[i] = y
-            used[y] = True
-            if dfs_basis(t + 1):
-                return True
-            phi[i] = -1
-            used[y] = False
-        return False
-
-    dfs_basis(0)
-    return results[:k_wanted]
-
-# =============================================================================
 # Fallback full DFS (feasible by base partition; complete). Kept simple/serial.
 # =============================================================================
 
 
 def _full_dfs_complete(
+    pauli_sum: PauliSum,
+    independent_labels: List[int],
     S_mod: np.ndarray,
     *,
     coeffs: Optional[np.ndarray],
@@ -378,16 +310,19 @@ def _full_dfs_complete(
     basis_mask: np.ndarray,
     labels: List[int],
     k_wanted: int,
-    require_nontrivial: bool,
     p2_bitset: bool,
     dynamic_refine_every: int = 0,
-) -> List[Dict[int, int]]:
+    F_known_debug: Optional[np.ndarray] = None,
+    debug_known_permutation: Optional[Dict[int,int]] = None,
+) -> List[Circuit]:
     """
     Complete interleaved DFS that maps all labels with feasibility constrained ONLY by base partition.
     Dynamic WL (if enabled) is used only for ordering every `dynamic_refine_every` steps.
     """
     n = S_mod.shape[0]
-    results: List[Dict[int, int]] = []
+    results = []
+
+    p = int(pauli_sum.lcm)
 
     # Prepared consistency kernel
     if p2_bitset:
@@ -423,14 +358,78 @@ def _full_dfs_complete(
                     break
         return best_i
 
-    def at_leaf(pi: np.ndarray) -> bool:
-        if require_nontrivial and np.all(pi == np.arange(n, dtype=pi.dtype)):
-            return False
-        if not _check_symplectic_invariance_mod(S_mod, pi):
-            return False
+    def at_leaf(pi: np.ndarray) -> Circuit | None:
+        # ---- structural checks ----
+        if np.array_equal(pi, np.arange(pauli_sum.n_paulis(), dtype=pi.dtype)):
+            return None
+        if not np.array_equal(S_mod[np.ix_(pi, pi)], S_mod):
+            return None
         if not _check_code_automorphism(G, basis_order, labels, pi):
-            return False
-        return True
+            return None
+
+        # ---- 1) find F, h0 from the permutation
+        H_basis_src = pauli_sum.copy()[independent_labels]
+        H_basis_tgt = pauli_sum.copy()[pi[independent_labels]]
+        F, h0, _, _ = find_map_to_target_pauli_sum(H_basis_src, H_basis_tgt)
+        if F_known_debug is not None and np.array_equal(F.T, F_known_debug):
+            print('DEBUG: found known F failure means it cant correct h')
+
+        nq   = pauli_sum.n_qudits()
+        twoN = 2 * nq
+
+        # ---- 2) apply that lift ON THE FULL HAMILTONIAN ----
+        SG_F = Gate('Symmetry', list(range(nq)), F.T, pauli_sum.dimensions, np.asarray(h0, dtype=int))
+        H_full_in = pauli_sum.copy()
+        H_full_tg = pauli_sum.copy()[pi]
+        H_full_F = SG_F.act(H_full_in.copy())
+
+        # ---- 3) build residual phases Δ on the FULL SET (mod 2p) ----
+        Htg = H_full_tg.copy(); Htg.weight_to_phase()
+        HF  = H_full_F.copy();  HF.weight_to_phase()
+        delta = (Htg.phases - HF.phases) % (2 * int(pauli_sum.lcm))
+
+        # Optional qubit lift tweak: if any residual is odd, try canonical h0 from F
+        if p == 2 and np.any(delta % 2 != 0):
+            n  = nq
+            F2 = F % 2
+            A, B = F2[:n, :n], F2[:n, n:]
+            C, D = F2[n:, :n], F2[n:, n:]
+            hx0 = np.diag((A @ B.T) % 2) % 2
+            hz0 = np.diag((C @ D.T) % 2) % 2
+            h0_alt = np.concatenate([hx0, hz0]).astype(int)
+
+            SG_F_alt  = Gate('Symmetry', list(range(nq)), F.T, pauli_sum.dimensions, h0_alt)
+            H_full_Fa = SG_F_alt.act(H_full_in.copy())
+            HFa       = H_full_Fa.copy(); HFa.weight_to_phase()
+            delta_alt = (Htg.phases - HFa.phases) % 4
+            if (delta_alt % 2).sum() < (delta % 2).sum():
+                h0, SG_F, H_full_F, HF, delta = h0_alt, SG_F_alt, H_full_Fa, HFa, delta_alt
+
+        # ---- 4) solve for h on the FULL post-F tableau ----
+        T_in_full = H_full_in.tableau().astype(int, copy=False)
+        h_lin = solve_phase_vector_h_from_residual(T_in_full, delta, pauli_sum.dimensions, verbose=True)
+        if h_lin is None:
+            return None
+
+        # ---- 5) compose final symmetry and verify against H (perm-insensitive via standard_form) ----
+        two_lcm = 2 * int(pauli_sum.lcm)
+        h0_mod = np.asarray(h0, dtype=int) % two_lcm
+        h_lin_mod = np.asarray(h_lin, dtype=int) % two_lcm
+        h_tot = (h0_mod + h_lin_mod) % two_lcm
+        SG    = Gate('Symmetry', list(range(nq)), F.T, pauli_sum.dimensions, h_tot)
+
+        H_out_cf = SG.act(pauli_sum.copy()).standard_form()
+        H_ref_cf = pauli_sum.standard_form()
+
+        # ensure both are in phase mode consistently
+        H_out_cf.weight_to_phase(); H_ref_cf.weight_to_phase()
+
+        if not np.array_equal(H_out_cf.tableau(), H_ref_cf.tableau()):
+            return None
+        if not np.all((H_ref_cf.phases - H_out_cf.phases) % two_lcm == 0):
+            return None
+
+        return Circuit(pauli_sum.dimensions, [SG])
 
     def maybe_dynamic_refine():
         nonlocal cur_colors
@@ -445,8 +444,9 @@ def _full_dfs_complete(
             return True
         if np.all(phi >= 0):
             pi = phi.copy()
-            if at_leaf(pi):
-                results.append(_perm_index_to_perm_map(labels, pi))
+            leaf = at_leaf(pi)
+            if leaf is not None:
+                results.append(leaf)
                 return True
             return False
 
@@ -484,23 +484,24 @@ def _full_dfs_complete(
 
 
 def find_k_automorphisms_symplectic(
+    pauli_sum: PauliSum,
     independent: List[int],
     dependencies: DepPairs,
     S: np.ndarray,
     p: int,
     k: int = 1,
     S_labels: Optional[List[int]] = None,
-    require_nontrivial: bool = True,
     # Strategy
-    basis_first: str = "any",          # "off" | "any" (complete) | "basis_only" (heuristic)
-    fallback_full_if_empty: bool = True,   # <-- NEW
     dynamic_refine_every: int = 0,
     coeffs: Optional[np.ndarray] = None,
     coeff_labels: Optional[List[int]] = None,
     extra_column_invariants: str = "none",
     p2_bitset: str = "auto",
-    enforce_base_on_dependents: bool = False,
-) -> List[Dict[int, int]]:
+    F_known_debug: Optional[np.ndarray] = None,
+    debug_known_permutation: Optional[Dict[int, int]] = None,
+    color_mode: str = "wl",   # "wl" | "coeffs_only" | "none"
+    max_wl_rounds: int = 10,
+) -> List[Circuit]:
     """
     Return up to k automorphisms preserving S and the vector set. See flags above.
     """
@@ -531,9 +532,12 @@ def find_k_automorphisms_symplectic(
                 raise ValueError("coeffs length does not match number of labels; supply coeff_labels.")
             coeffs_aligned = coeffs
 
-    # Extra invariants from G? Be careful: these are *not* invariants under left GL(k,p)!
+     # Build G as before
+    G, basis_order, basis_mask = _build_generator_matrix(independent, dependencies, pres_labels, p)
+
+    # SAFE: no extra invariants unless you *really* mean it
+    col_invariants = None
     if extra_column_invariants != "none":
-        # Strong advice: leave this as "none" unless you know left GL(k,p) preserves your chosen invariants.
         G_for_inv, _, _ = _build_generator_matrix(independent, dependencies, pres_labels, p)
         if extra_column_invariants == "hist":
             inv = np.zeros((n, min(p, 16)), dtype=np.int64)
@@ -541,99 +545,282 @@ def find_k_automorphisms_symplectic(
                 col = np.array([int(x) for x in G_for_inv[:, j]])
                 cnt = np.bincount(col, minlength=p)
                 inv[j, :min(p, 16)] = cnt[:min(p, 16)]
+            col_invariants = inv
         else:
-            raise ValueError("extra_column_invariants must be 'none', 'support', or 'hist'.")
+            raise ValueError("extra_column_invariants must be 'none' or 'hist'.")
 
-    # Base (safe) partition from S (+coeffs only)
-    base_colors = _wl_colors_from_S(S_mod, p, coeffs=coeffs_aligned, col_invariants=None, max_rounds=10)
-    base_classes = _color_classes(base_colors)
+    # ---------- NEW: choose the base partition via color_mode ----------
+    base_colors, base_classes = _build_base_partition(
+        S_mod, p,
+        coeffs=coeffs_aligned,               # OK to seed WL with coeff IDs if you want
+        col_invariants=col_invariants if color_mode == "wl" else None,
+        max_rounds=max_wl_rounds,
+        color_mode=color_mode,
+    )
 
-    # Build G & basis mask
-    G, basis_order, basis_mask = _build_generator_matrix(independent, dependencies, pres_labels, p)
+        # --- : quick debug feasibility check of known permutation under current coloring ---
+    # if debug_known_permutation is not None:
+    #     _debug_check_coloring_allows_perm(
+    #         labels=pres_labels,
+    #         base_colors=base_colors,
+    #         coeffs_aligned=coeffs_aligned,   # weight preservation check too
+    #         debug_perm_dict=debug_known_permutation,
+    #         header="COLOR-CHECK"
+    #     )
 
     # p=2 bitset?
     use_bitset = (p == 2 and (p2_bitset is True or (p2_bitset == "auto" and n <= 256)))
 
-    if basis_first in ("any", "basis_only"):
-        # If "basis_only", shrink feasible targets for basis to basis indices
-        if basis_first == "basis_only":
-            basis_set_idx = set(np.where(basis_mask)[0])
-            base_classes_for_basis = {
-                c: [y for y in ys if y in basis_set_idx] for c, ys in base_classes.items()
-            }
+    return _full_dfs_complete(
+        pauli_sum,
+        independent,
+        S_mod,
+        coeffs=coeffs_aligned,
+        base_colors=base_colors,
+        base_classes=base_classes,
+        G=G, basis_order=basis_order, basis_mask=basis_mask, labels=pres_labels,
+        k_wanted=k,
+        p2_bitset=use_bitset,
+        dynamic_refine_every=int(dynamic_refine_every),
+        F_known_debug=F_known_debug,
+        debug_known_permutation=debug_known_permutation,
+    )
+
+
+def _gf_rank(A_int: np.ndarray, p: int) -> int:
+    """Rank over GF(p) via simple row-echelon pivot count."""
+    GF = galois.GF(p)
+    A = GF(A_int % p).copy()
+    N, M = A.shape
+    r = 0  # next pivot row
+    for c in range(M):
+        # find pivot in column c, below (and including) row r
+        pivot = None
+        for i in range(r, N):
+            if A[i, c] != GF(0):
+                pivot = i
+                break
+        if pivot is None:
+            continue
+        if pivot != r:
+            tmp = A[r, :].copy()
+            A[r, :], A[pivot, :] = A[pivot, :], tmp
+        inv = GF(1) / A[r, c]
+        A[r, :] = A[r, :] * inv
+        for i in range(N):
+            if i == r:
+                continue
+            if A[i, c] != GF(0):
+                A[i, :] = A[i, :] - A[i, c] * A[r, :]
+        r += 1
+        if r == N:
+            break
+    return r
+
+def _gf_solve_one_solution(A_int: np.ndarray, b_int: np.ndarray, p: int) -> Optional[np.ndarray]:
+    """Gauss–Jordan elimination over GF(p). Return one solution (free vars=0) or None if inconsistent."""
+    GF = galois.GF(p)
+    A = GF(A_int % p)
+    b = GF(b_int % p)
+    N, M = A.shape
+    Ab = np.concatenate([A, b.reshape(-1, 1)], axis=1)
+
+    row = 0
+    pivots = []
+    for col in range(M):
+        pivot = None
+        for r in range(row, N):
+            if Ab[r, col] != GF(0):
+                pivot = r
+                break
+        if pivot is None:
+            continue
+        if pivot != row:
+            tmp = Ab[row, :].copy()
+            Ab[row, :], Ab[pivot, :] = Ab[pivot, :], tmp
+        inv = GF(1) / Ab[row, col]
+        Ab[row, :] = Ab[row, :] * inv
+        for r in range(N):
+            if r == row:
+                continue
+            if Ab[r, col] != GF(0):
+                Ab[r, :] = Ab[r, :] - Ab[r, col] * Ab[row, :]
+        pivots.append(col)
+        row += 1
+        if row == N:
+            break
+
+    # inconsistency: [0 ... 0 | nonzero]
+    for r in range(N):
+        if np.all(Ab[r, :M] == GF(0)) and Ab[r, M] != GF(0):
+            return None
+
+    x = GF.Zeros(M)
+    for r, c in enumerate(pivots):
+        if r < N:
+            x[c] = Ab[r, M]
+    return np.array([int(v) for v in x], dtype=int)
+
+# ---------- main solver with diagnostics ----------
+
+def solve_phase_vector_h_from_residual(
+    tableau_in: np.ndarray,   # (N, 2n) ints; rows of input Paulis
+    delta_2L: np.ndarray,     # (N,) ints mod 2L; desired phase corrections
+    dimensions: np.ndarray | List[int],
+    *,
+    verbose: bool = False,
+) -> Optional[np.ndarray]:
+    """
+    Solve tableau_in @ h ≡ delta_2L (mod 2L), where h is the additional phase vector.
+
+    Returns h or None if inconsistent.
+    """
+    A = np.asarray(tableau_in, dtype=int)
+    b = np.asarray(delta_2L, dtype=int)
+    dims = np.asarray(dimensions, dtype=int)
+    if A.ndim != 2:
+        raise ValueError("tableau_in must be a 2D array")
+    N, M = A.shape
+    if M != 2 * dims.size:
+        raise ValueError("tableau_in columns must equal 2 * number of qudits")
+
+    L = int(np.lcm.reduce(dims))
+    modulus = 2 * L
+
+    sol = _solve_mod_linear_system(A % modulus, b % modulus, modulus)
+    if sol is not None:
+        if verbose:
+            print("[phase] direct solve mod", modulus, "succeeded")
+        return sol % modulus
+
+    if verbose:
+        print("[phase] direct mod", modulus, "solve failed")
+
+    # Fallbacks when the general solver is unavailable (e.g. missing SymPy)
+    if dims.size and np.all(dims == dims[0]):
+        p = int(dims[0])
+        if p == 2:
+            if np.any(b % 2 != 0):
+                if verbose:
+                    print("[phase] qubit fallback: residual has odd entries, cannot fix")
+                return None
+            A2 = A % 2
+            b2 = ((b // 2) % 2).astype(int)
+            h2 = _gf_solve_one_solution(A2, b2, 2)
+            if h2 is not None:
+                return (2 * h2) % modulus
         else:
-            base_classes_for_basis = base_classes
+            A_p = A % p
+            b_p = b % p
+            h_p = _gf_solve_one_solution(A_p, b_p, p)
+            if h_p is not None:
+                return h_p % modulus
 
-        sols = _basis_first_any(
-            S_mod,
-            coeffs=coeffs_aligned,
-            base_colors=base_colors,
-            base_classes=base_classes_for_basis,  # used for basis; dependents controlled by flag
-            G=G, basis_order=basis_order, basis_mask=basis_mask, labels=pres_labels,
-            k_wanted=k, require_nontrivial=require_nontrivial,
-            p2_bitset=use_bitset,
-            enforce_base_on_dependents=bool(enforce_base_on_dependents),
-        )
-        if sols or not fallback_full_if_empty:
-            return sols
-        # Safety net: fall back once to full DFS (complete)
-        return _full_dfs_complete(
-            S_mod,
-            coeffs=coeffs_aligned,
-            base_colors=base_colors,
-            base_classes=base_classes,
-            G=G, basis_order=basis_order, basis_mask=basis_mask, labels=pres_labels,
-            k_wanted=k, require_nontrivial=require_nontrivial,
-            p2_bitset=use_bitset,
-            dynamic_refine_every=int(dynamic_refine_every),
-        )
+    return None
 
-    if basis_first == "off":
-        return _full_dfs_complete(
-            S_mod,
-            coeffs=coeffs_aligned,
-            base_colors=base_colors,
-            base_classes=base_classes,
-            G=G, basis_order=basis_order, basis_mask=basis_mask, labels=pres_labels,
-            k_wanted=k, require_nontrivial=require_nontrivial,
-            p2_bitset=use_bitset,
-            dynamic_refine_every=int(dynamic_refine_every),
-        )
+def _row_basis_indices(A_int: np.ndarray, p: int, want_cols: int) -> np.ndarray:
+    """Select indices of rows giving up to `want_cols` independent equations over GF(p)."""
+    GF = galois.GF(p)
+    A = GF(A_int % p).copy()
+    N, M = A.shape
+    used = np.zeros(N, dtype=bool)
+    basis = []
+    col = 0
+    for _ in range(N):
+        if col >= M:
+            break
+        pick = None
+        for r in range(N):
+            if used[r]:
+                continue
+            if A[r, col] != GF(0):
+                pick = r; break
+        if pick is None:
+            col += 1
+            continue
+        basis.append(pick)
+        used[pick] = True
+        inv = GF(1) / A[pick, col]
+        A[pick, :] = A[pick, :] * inv
+        for r in range(N):
+            if r == pick or used[r]:
+                continue
+            if A[r, col] != GF(0):
+                A[r, :] = A[r, :] - A[r, col] * A[pick, :]
+        col += 1
+        if len(basis) >= want_cols:
+            break
+    return np.array(basis, dtype=int)
 
-    raise ValueError("basis_first must be 'off', 'any', or 'basis_only'.")
+def known_permutation(pauli_sum: PauliSum, symmetry: Gate):
+    pi = {}
+    for i in range(pauli_sum.n_paulis()):
+        pauli_out = symmetry.act(pauli_sum[i])
+        index = -1
+        for j in range(pauli_sum.n_paulis()):
+            if pauli_out == pauli_sum[j]:
+                index = j
+                break
+        if index == -1:
+            return None
+        pi[i] = index
+
+    return pi
 
 
 if __name__ == "__main__":
     from quaos.core.finite_field_solvers import get_linear_dependencies
     from quaos.models.random_hamiltonian import random_gate_symmetric_hamiltonian
-    from quaos.core.circuits import SWAP
 
-    # sym = SWAP(0, 1, 2)
-    # H = random_gate_symmetric_hamiltonian(sym, 2, 4, scrambled=True)
+    from quaos.core.circuits import SWAP, SUM, PHASE, Hadamard, Circuit
 
-    # independent, dependencies = get_linear_dependencies(H.tableau(), H.dimensions)
+    failed = 0
+    for _ in range(3):
+        sym = SWAP(0, 1, 2)
+        # symC = Circuit.from_random(2, 10, [2, 2])
+        # print(symC)
+        # sym = symC.composite_gate()
+        H = random_gate_symmetric_hamiltonian(sym, 50, 120, scrambled=False)
+        C = Circuit.from_random(H.n_qudits(), 100, H.dimensions).composite_gate()
+        # C = Circuit(H.dimensions, [Hadamard(i, 2) for i in range(H.n_qudits())])
+        H = C.act(H)
+        H.weight_to_phase()
+        scrambled_sym = Circuit(H.dimensions, [C.inv(), sym, C]).composite_gate()
+        assert H.standard_form() == scrambled_sym.act(H).standard_form(
+        ), f"\n{H.standard_form().__str__()}\n{sym.act(H).standard_form().__str__()}"
 
-    # S = H.symplectic_product_matrix()
-    # coeffs = H.weights
+        known_perm = known_permutation(H, scrambled_sym)
+        print(scrambled_sym.phase_vector)
+        # print('known_perm = ', known_perm)
 
-    independent = [0, 1, 2, 3]
-    dependencies = {4: [(1, 1), (3, 1)], 5: [(0, 1), (2, 1)], 6: [(0, 1), (1, 1)]}
-    S = np.array([[0, 0, 0, 1, 1, 0, 0],
-         [0, 0, 1, 0, 0, 1, 0],
-         [0, 1, 0, 1, 0, 0, 1],
-         [1, 0, 1, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 1, 1],
-         [0, 1, 0, 0, 1, 0, 1],
-         [0, 0, 1, 1, 1, 1, 0]])
-    coeffs = np.array([ 0.+1.j,  0.+1.j, -1.+0.j,  1.+0.j, -1.+0.j,  1.+0.j,  2.+0.j])
-    print('independent = ', independent)
-    print('dependencies = ', dependencies)
+        independent, dependencies = get_linear_dependencies(H.tableau(), 2)
+        known_F = scrambled_sym.symplectic
+        circ = find_k_automorphisms_symplectic(H, independent, dependencies,
+                                               S=H.symplectic_product_matrix(), p=2, k=1,
+                                               coeffs=H.weights,                  # hard weight constraint
+                                               dynamic_refine_every=0,            # keep ordering fixed
+                                               F_known_debug=known_F,
+                                               debug_known_permutation=known_perm,)
 
-    print('S = ', S)
-    print('coeffs = ', coeffs)
+        print(len(circ))
+        if len(circ) == 0:
+            failed += 1
+        else:
+            for c in circ:
+                print(np.all(c.composite_gate().symplectic == known_F) and np.all(
+                    c.composite_gate().phase_vector == scrambled_sym.phase_vector))
+                H_s = H.standard_form()
+                H_out = c.act(H).standard_form()
+                H_s.weight_to_phase()
+                H_out.weight_to_phase()
+                print(np.all(H_s.tableau() == H_out.tableau()))
+                print(np.all(H_s.phases == H_out.phases))
+                print(np.all(H_s.weights == H_out.weights))
+                # print(H_s.weights)
+                # print(H_out.weights)
+                # print(c.composite_gate().symplectic)
 
-    perms = find_k_automorphisms_symplectic(independent, dependencies,
-                                            S=S, p=2, k=1,
-                                            coeffs=coeffs)
+                if c.act(H).standard_form() != H.standard_form():
+                    failed += 1
 
-    print('permutations = ', perms)  # either [{'perm':..., 'h':...}] when return_phase=True, or [perm_dict]
+    print('Failed = ', failed)
