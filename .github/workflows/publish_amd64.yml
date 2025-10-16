@@ -218,7 +218,8 @@ jobs:
 
       - name: Test wheel
         run: |
-          pip install dist\quaos*.whl
+          $wheels = Get-ChildItem -Path dist -Filter 'quaos*.whl'
+          foreach ($w in $wheels) { pip install $w.FullName }
           python -c "from quaos.core.light import Aquire; aquire = Aquire('h', [], {})"
 
       - name: List built wheels
