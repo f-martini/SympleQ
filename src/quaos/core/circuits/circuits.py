@@ -215,9 +215,11 @@ class Circuit:
     def composite_gate(self) -> Gate:
         """Composes the list of symplectics acting on all qudits to a single symplectic"""
 
-        total_indexes = []
-        total_symplectic = np.eye(2 * self.n_qudits(), dtype=np.uint8)
+        n_qudits = self.n_qudits()
+        total_symplectic = np.eye(2 * n_qudits, dtype=np.uint8)
         lcm = np.lcm.reduce(self.dimensions)
+        total_phase_vector = np.zeros(2 * n_qudits, dtype=int)
+
         for i, gate in enumerate(self.gates):
             symplectic = gate.symplectic
             indexes = gate.qudit_indices
@@ -233,9 +235,7 @@ class Circuit:
 
             total_symplectic = np.mod(total_symplectic @ F.T, lcm)
 
-            total_indexes.extend(indexes)
-
-        total_indexes = list(set(np.sort(total_indexes)))
+        total_indexes = list(range(n_qudits))
         total_symplectic = total_symplectic.T
         return Gate('CompositeGate', total_indexes, total_symplectic, self.dimensions, total_phase_vector)
 

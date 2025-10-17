@@ -3,7 +3,7 @@ from quaos.core.circuits.target import find_map_to_target_pauli_sum
 from quaos.core.circuits import Gate, Circuit
 from quaos.core.paulis import PauliSum
 from quaos.core.finite_field_solvers import get_linear_dependencies
-from scripts.experiments.symmetries.src.matroid_w_spm import find_k_automorphisms_symplectic
+from scripts.experiments.symmetries.src.matroid_w_spm import find_clifford_symmetries
 from .phase_correction import pauli_phase_correction
 
 
@@ -18,13 +18,13 @@ def clifford_symmetry(pauli_sum: PauliSum,
     independent_paulis, dependencies = get_linear_dependencies(pauli_sum.tableau(), d)
 
     S = pauli_sum.symplectic_product_matrix()
-    perms = find_k_automorphisms_symplectic(independent_paulis, dependencies,
-                                            S=S, p=2, k=n_symmetries,
-                                            require_nontrivial=True,
-                                            basis_first="any",
-                                            dynamic_refine_every=0,           # or a small number like 8 if helpful
-                                            extra_column_invariants="none",   # or "hist" if k is modest
-                                            )
+    perms = find_clifford_symmetries(independent_paulis, dependencies,
+                                     S=S, p=2, num_symmetries=n_symmetries,
+                                     require_nontrivial=True,
+                                     basis_first="any",
+                                     dynamic_refine_every=0,           # or a small number like 8 if helpful
+                                     extra_column_invariants="none",   # or "hist" if k is modest
+                                     )
     automorphism = []
     for i in independent_paulis:
         automorphism.append(perms[0][i])
