@@ -19,103 +19,103 @@ env:
   CMAKE_TOOLCHAIN_FILE: /tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
 
 jobs:
-  #build-linux-x64:
-  #  name: Build Linux - ${{ matrix.arch }} - Python ${{ matrix.python }}
-  #  runs-on: ubuntu-latest
-  #  strategy:
-  #    fail-fast: false
-  #    matrix:
-  #      arch: [x64]
-  #      python: ["3.11", "3.12", "3.13"]
-  #
-  #  steps:
-  #    - name: Checkout repository
-  #      uses: actions/checkout@v4
-  #      with:
-  #        submodules: recursive
-  #
-  #    # ===== Free up disk space =====
-  #    - name: Free up disk space (Linux)
-  #      run: |
-  #        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-  #        sudo apt-get clean
-  #        sudo rm -rf /var/lib/apt/lists/*
-  #        docker system prune -af
-  #        df -h
-  #
-  #    - name: Set up Python
-  #      uses: actions/setup-python@v5
-  #      with:
-  #        python-version: ${{ matrix.python }}
-  #        architecture: ${{ matrix.arch }}
-  #
-  #    - name: Set CIBW_BUILD for Python version
-  #      shell: bash
-  #      run: |
-  #        PYTHON_VERSION="${{ matrix.python }}"
-  #        CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
-  #        echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
-  #
-  #    - name: Install build dependencies
-  #      run: |
-  #        python -m pip install --upgrade pip setuptools wheel
-  #        python -m pip install cibuildwheel twine
-  #
-  #    - name: Build wheels (Linux)
-  #      env:
-  #        CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
-  #        CIBW_ARCHS: ${{ env.CIBW_ARCHS_X64 }}
-  #        CIBW_SKIP: "pp* *-musllinux*"
-  #        CIBW_BUILD_VERBOSITY: 1
-  #
-  #        CIBW_ENVIRONMENT: >-
-  #          CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
-  #          CUDA_PATH=/usr/local/cuda
-  #          VCPKG_ROOT=/tmp/vcpkg
-  #          PATH=/usr/local/cuda/bin:/opt/rh/gcc-toolset-12/root/usr/bin:$PATH
-  #          LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-  #
-  #        CIBW_BEFORE_ALL_LINUX: >-
-  #          yum install -y epel-release &&
-  #          yum remove -y gcc gcc-c++ &&
-  #          yum install -y make git which gcc-toolset-${{ env.GCC_VERSION }} curl zip unzip tar &&
-  #          source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable &&
-  #          export CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc &&
-  #          export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++ &&
-  #          curl -fsSL "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}.0/local_installers/cuda_${{ env.CUDA_VERSION }}.0_560.28.03_linux.run" -o cuda_installer.run &&
-  #          sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
-  #          ln -sf "/usr/local/cuda-${{ env.CUDA_VERSION }}" /usr/local/cuda &&
-  #          git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
-  #          cd /tmp/vcpkg &&
-  #          git checkout "${{ env.VCPKG_COMMIT_ID }}" &&
-  #          ./bootstrap-vcpkg.sh
-  #
-  #        CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
-  #        CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.LINUX_PRESET_X64 }}
-  #
-  #        CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
-  #
-  #        CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
-  #          export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-  #          export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-  #          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" &&
-  #          auditwheel repair -w {dest_dir} {wheel}
-  #
-  #      run: python -m cibuildwheel --output-dir ./dist
-  #
-  #    - name: Upload wheels as artifacts
-  #      uses: actions/upload-artifact@v4
-  #      with:
-  #        name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
-  #        path: dist/*.whl
-  #        retention-days: 30
-  #
-  #    - name: Post cleanup (Linux)
-  #      run: |
-  #        rm -rf dist/*
-  #        docker system prune -af || true
-  #        rm -rf /tmp/vcpkg || true
-  #        df -h
+  build-linux-x64:
+    name: Build Linux - ${{ matrix.arch }} - Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64]
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # ===== Free up disk space =====
+      - name: Free up disk space (Linux)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          docker system prune -af
+          df -h
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.arch }}
+
+      - name: Set CIBW_BUILD for Python version
+        shell: bash
+        run: |
+          PYTHON_VERSION="${{ matrix.python }}"
+          CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
+          echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install cibuildwheel twine
+
+      - name: Build wheels (Linux)
+        env:
+          CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
+          CIBW_ARCHS: ${{ env.CIBW_ARCHS_X64 }}
+          CIBW_SKIP: "pp* *-musllinux*"
+          CIBW_BUILD_VERBOSITY: 1
+
+          CIBW_ENVIRONMENT: >-
+            CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
+            CUDA_PATH=/usr/local/cuda
+            VCPKG_ROOT=/tmp/vcpkg
+            PATH=/usr/local/cuda/bin:/opt/rh/gcc-toolset-12/root/usr/bin:$PATH
+            LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+          CIBW_BEFORE_ALL_LINUX: >-
+            yum install -y epel-release &&
+            yum remove -y gcc gcc-c++ &&
+            yum install -y make git which gcc-toolset-${{ env.GCC_VERSION }} curl zip unzip tar &&
+            source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable &&
+            export CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc &&
+            export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++ &&
+            curl -fsSL "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}.0/local_installers/cuda_${{ env.CUDA_VERSION }}.0_560.28.03_linux.run" -o cuda_installer.run &&
+            sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
+            ln -sf "/usr/local/cuda-${{ env.CUDA_VERSION }}" /usr/local/cuda &&
+            git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
+            cd /tmp/vcpkg &&
+            git checkout "${{ env.VCPKG_COMMIT_ID }}" &&
+            ./bootstrap-vcpkg.sh
+
+          CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
+          CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.LINUX_PRESET_X64 }}
+
+          CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
+
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
+            export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
+            export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
+            echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" &&
+            auditwheel repair -w {dest_dir} {wheel}
+
+        run: python -m cibuildwheel --output-dir ./dist
+
+      - name: Upload wheels as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
+          path: dist/*.whl
+          retention-days: 30
+
+      - name: Post cleanup (Linux)
+        run: |
+          rm -rf dist/*
+          docker system prune -af || true
+          rm -rf /tmp/vcpkg || true
+          df -h
 
   build-windows-x64:
     name: Build Windows x64 - ${{ matrix.arch }} - Python ${{ matrix.python }}
@@ -124,7 +124,7 @@ jobs:
       fail-fast: false
       matrix:
         arch: [x64]
-        python: ["3.11"] #, "3.12", "3.13"]
+        python: ["3.11", "3.12", "3.13"]
 
     env:
       CMAKE_CUDA_COMPILER: "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6\\bin\\nvcc.exe"
@@ -138,15 +138,15 @@ jobs:
         with:
           submodules: recursive
 
-      # - name: Free up disk space (Windows)
-      #   run: |
-      #     Get-PSDrive
-      #     Remove-Item -Path "C:\Program Files\dotnet" -Recurse -Force -ErrorAction SilentlyContinue
-      #     Remove-Item -Path "C:\Program Files (x86)\Android" -Recurse -Force -ErrorAction SilentlyContinue
-      #     Remove-Item -Path "C:\ghc" -Recurse -Force -ErrorAction SilentlyContinue
-      #     Remove-Item -Path "C:\hostedtoolcache\CodeQL" -Recurse -Force -ErrorAction SilentlyContinue
-      #     Get-PSDrive
-      #   shell: pwsh
+      - name: Free up disk space (Windows)
+        run: |
+          Get-PSDrive
+          Remove-Item -Path "C:\Program Files\dotnet" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path "C:\Program Files (x86)\Android" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path "C:\ghc" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path "C:\hostedtoolcache\CodeQL" -Recurse -Force -ErrorAction SilentlyContinue
+          Get-PSDrive
+        shell: pwsh
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -236,7 +236,7 @@ jobs:
 
   # ===== Collect and publish wheels =====
   publish:
-    needs: [build-windows-x64] # build-linux-x64]
+    needs: [build-windows-x64, build-linux-x64]
     runs-on: ubuntu-latest
     # if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
 
