@@ -51,12 +51,6 @@ jobs:
           sudo rm -rf /var/cache/apt/*
           df -h
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-          architecture: arm64
-
       - name: Set build environment variables
         shell: bash
         run: |
@@ -65,17 +59,10 @@ jobs:
           echo "CUDA_PATH=" >> $GITHUB_ENV  # No CUDA for ARM64
           echo "VCPKG_ROOT=/tmp/vcpkg" >> $GITHUB_ENV
 
-      - name: Set CIBW_BUILD for Python version
-        shell: bash
-        run: |
-          PYTHON_VERSION="${{ matrix.python }}"
-          CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
-          echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
-
-      - name: Install build dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install cibuildwheel twine
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
 
       - name: Extra free disk before build
         run: |
@@ -84,8 +71,9 @@ jobs:
           df -h
 
       - name: Build wheels (Linux ARM64)
+        uses: pypa/cibuildwheel@v3.2.1
         env:
-          CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
+          CIBW_BUILD: cp${{ matrix.python }}${{ matrix.python }}-*
           CIBW_ARCHS: ${{ env.CIBW_ARCHS }}
 
           CIBW_SKIP: "pp* *-musllinux*"
@@ -93,21 +81,20 @@ jobs:
           CIBW_ENVIRONMENT: >-
             CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
             VCPKG_ROOT=${{ env.VCPKG_ROOT }}
+            CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc
+            CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++
 
           CIBW_BEFORE_ALL_LINUX: >-
             yum install -y epel-release &&
             yum remove -y gcc gcc-c++ &&
             yum install -y make git which gcc-toolset-${{ env.GCC_VERSION }} curl zip unzip tar &&
             source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable &&
-            export CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc &&
-            export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++ &&
             curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/cuda-rhel8.repo -o /etc/yum.repos.d/cuda-rhel8.repo &&
             curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/D42D0685.pub | rpm --import - &&
             yum clean all &&
             yum makecache &&
             CUDA_PKG_VERSION=$(echo "${{ env.CUDA_VERSION }}" | tr '.' '-') &&
-            echo "CUDA_PKG_VERSION=$CUDA_PKG_VERSION" >> $GITHUB_ENV &&
-            yum install -y "cuda-toolkit-${CUDA_PKG_VERSION}-0" &&
+            yum install -y "cuda-toolkit-${CUDA_PKG_VERSION}" &&
             ln -sf "/usr/local/cuda-${{ env.CUDA_VERSION }}" /usr/local/cuda &&
             git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
             cd /tmp/vcpkg &&
@@ -127,8 +114,8 @@ jobs:
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
             echo "Running auditwheel repair for ARM64..." &&
             auditwheel repair -w {dest_dir} {wheel}
-
-        run: python -m cibuildwheel --output-dir ./dist
+        with:
+          output-dir: ./dist
 
       - name: Upload wheels as artifacts
         uses: actions/upload-artifact@v4

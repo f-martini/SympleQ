@@ -180,13 +180,6 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           vcpkgJsonGlob: "**\\vcpkg.json"
 
-      - name: Set CIBW_BUILD for Python version
-        shell: bash
-        run: |
-          PYTHON_VERSION="${{ matrix.python }}"
-          CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
-          echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
-
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
@@ -204,8 +197,6 @@ jobs:
       - name: Repair wheel with delvewheel
         shell: pwsh
         run: |
-          dir
-          dir ${{ github.workspace }}/${{ env.NATIVE_SRC_PATH }}/quaos.libs
           $wheels = Get-ChildItem -Path dist -Filter 'quaos*.whl' -ErrorAction SilentlyContinue
           if (-not $wheels) {
             Write-Host "No quaos wheels found in dist; skipping delvewheel repair"
@@ -221,11 +212,6 @@ jobs:
           $wheels = Get-ChildItem -Path dist -Filter 'quaos*.whl'
           foreach ($w in $wheels) { pip install $w.FullName }
           python -c "from quaos.core.light import Aquire; aquire = Aquire('h', [], {})"
-
-      - name: List built wheels
-        run: |
-          echo "Built wheels:"
-          ls dist/
 
       - name: Upload wheels as artifacts
         uses: actions/upload-artifact@v4
