@@ -73,7 +73,7 @@ jobs:
       - name: Build wheels (Linux ARM64)
         uses: pypa/cibuildwheel@v3.2.1
         env:
-          CIBW_BUILD: cp${{ matrix.python }}${{ matrix.python }}-*
+          CIBW_BUILD: cp${{ matrix.python }}-* -*
           CIBW_ARCHS: ${{ env.CIBW_ARCHS }}
 
           CIBW_SKIP: "pp* *-musllinux*"
