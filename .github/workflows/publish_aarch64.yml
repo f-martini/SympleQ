@@ -14,8 +14,6 @@ env:
   CIBW_ARCHS_X64: x86_64
   CIBW_ARCHS_X64_WIN: AMD64
   CIBW_ARCHS_ARM64: aarch64
-  SETUP_SCRIPT_PATH_X64: scripts/tools/ci/manylinux_x86_64.sh
-  SETUP_SCRIPT_PATH_ARM64: scripts/tools/ci/manylinux_arm64.sh
   CMAKE_TOOLCHAIN_FILE: /tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
 
 jobs:
@@ -55,20 +53,12 @@ jobs:
         shell: bash
         run: |
           echo "CIBW_ARCHS=${{ env.CIBW_ARCHS_ARM64 }}" >> $GITHUB_ENV
-          echo "CIBW_SCRIPT=${{ env.SETUP_SCRIPT_PATH_ARM64 }}" >> $GITHUB_ENV
-          echo "CUDA_PATH=" >> $GITHUB_ENV  # No CUDA for ARM64
-          echo "VCPKG_ROOT=/tmp/vcpkg" >> $GITHUB_ENV
+          echo "CIBW_PYTHON=${{ matrix.python }}" | sed 's/\.//g' >> $GITHUB_ENV
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-
-      - name: Extra free disk before build
-        run: |
-          docker system prune -af
-          rm -rf /var/cache/yum/*
-          df -h
 
       - name: Build wheels (Linux ARM64)
         uses: pypa/cibuildwheel@v3.2.1
@@ -120,7 +110,7 @@ jobs:
       - name: Upload wheels as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
+          name: wheels-linux-${{ matrix.arch }}-py${{ env.CIBW_PYTHON }}
           path: dist/*.whl
           retention-days: 30
 
