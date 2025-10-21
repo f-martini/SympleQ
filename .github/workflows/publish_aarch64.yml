@@ -85,7 +85,9 @@ jobs:
             yum clean all &&
             yum makecache &&
             CUDA_PKG_VERSION=$(echo "${{ env.CUDA_VERSION }}" | tr '.' '-') &&
-            yum install -y "cuda-toolkit-${CUDA_PKG_VERSION}" &&
+            yum search cuda-toolkit | grep -i "${CUDA_PKG_VERSION}" || echo "Package not found, listing available CUDA packages:" &&
+            yum search cuda | grep -i toolkit || true &&
+            yum install -y cuda-toolkit-${CUDA_PKG_VERSION} || yum install -y cuda-toolkit-$(echo "${{ env.CUDA_VERSION }}" | cut -d'.' -f1)-$(echo "${{ env.CUDA_VERSION }}" | cut -d'.' -f2) || yum install -y cuda &&
             ln -sf "/usr/local/cuda-${{ env.CUDA_VERSION }}" /usr/local/cuda &&
             git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
             cd /tmp/vcpkg &&
