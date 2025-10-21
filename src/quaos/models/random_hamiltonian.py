@@ -84,8 +84,8 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand'):
         else:
             coefficients.append(coeff.real)
 
-    rand_ham = PauliSum(pauli_strings, weights=coefficients)
-    #rand_ham.combine_equivalent_paulis()
+    rand_ham = PauliSum(pauli_strings, weights=coefficients, standardise=False)
+    # rand_ham.combine_equivalent_paulis()
     return rand_ham
 
 

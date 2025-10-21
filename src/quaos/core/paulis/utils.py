@@ -470,3 +470,63 @@ def solve_mod_d(A: np.ndarray,
             break
 
     return solutions
+
+
+def make_hermitian(PauliSum: PauliSum) -> PauliSum:
+    """
+    Makes a hermitian PauliSum from a given PauliSum.
+
+    A hermitian PauliSum is a PauliSum that is equal to its own hermitian conjugate.
+
+    Parameters
+    ----------
+    self : PauliSum
+        The PauliSum to make hermitian
+
+    Returns
+    -------
+    PauliSum
+        The hermitian PauliSum
+
+    Notes
+    -----
+    This function first makes a copy of the given PauliSum, then combines equivalent paulis and finally iterates
+    over the paulis to find their hermitian conjugates. If it finds a symplectic that matches the hermitian
+    conjugate it will make sure that the weights and phases are correct, if not it will add phases to make
+    everything hermitian. Finally, if no hermitian conjugate is found it will be added to the PauliSum.
+
+    Examples
+    --------
+    >>> H = PauliSum(['x1z1'], weights=[1], dimensions=[2])
+    >>> H.make_hermitian()
+    PauliSum(['x1z1'], weights=[1], dimensions=[2], phases=[1])
+    """
+    H = PauliSum.copy()
+    H.combine_equivalent_paulis()
+    for i in range(H.n_paulis()):
+        pauli_string = H[i]
+        hermitian_pauli_string = pauli_string.hermitian_conjugate()
+        hermitian_found = False
+        for j in range(H.n_paulis()):
+            if H[j, :] == hermitian_pauli_string[0, :]:
+                hermitian_found = True
+                if i == j:
+                    if not pauli_string.is_hermitian():
+                        H.weights[i] = np.abs(H.weights[i])
+                        H.phases[i] = int(np.sum(H.x_exp[i, :] * H.z_exp[i, :])) * H.lcm / 2
+                    else:
+                        break
+                else:
+                    if (H.weights[i] * np.exp(2 * np.pi * 1j * H.phases[i] / (2 * H.lcm)) -
+                        H.weights[j] * np.exp(2 * np.pi * 1j * H.phases[j] / (2 * H.lcm))) > 10**-10:
+                        # Step 1: Weight
+                        H.weights[j] = H.weights[i]
+                        # Step 2: Phase
+                        H.phases[i] = 0
+                        H.phases[j] = np.sum([H.x_exp[i0, :] * H.z_exp[i0, :] * H.lcm / H.dimensions[i0]
+                                              for i0 in range(H.n_qudits())])
+                    else:
+                        break
+        if not hermitian_found:
+            H = H + hermitian_pauli_string
+    return H

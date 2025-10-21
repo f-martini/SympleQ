@@ -1,6 +1,7 @@
 import numpy as np
 from quaos.core.measurement.allocation import scale_variances
 from quaos.core.measurement.covariance_graph import graph
+from quaos.core.paulis import PauliSum
 
 
 def calculate_mean_estimate(data: np.ndarray, weights: np.ndarray):
@@ -51,7 +52,7 @@ def calculate_systematic_variance_estimate(data: np.ndarray, weights: np.ndarray
     return np.abs(error_correction)**2
 
 
-def true_mean(H, psi):
+def true_mean(H: PauliSum, psi):
     mu = np.real(np.transpose(np.conjugate(psi)) @ H.matrix_form() @ psi)
     return mu
 

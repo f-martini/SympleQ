@@ -144,10 +144,10 @@ class Aquire:
 
         """
         P, pauli_block_sizes = sort_hamiltonian(H)
-        P.phase_to_weight()
+        #P.phase_to_weight()
         if P.n_paulis() < H.n_paulis():
             for i in range(H.n_paulis()):
-                if H.weights[i] != 0 and H[i,:].is_identity():
+                if H.weights[i] != 0 and H[i, :].is_identity():
                     print("Identity term with weight", H.weights[i].real, "ignored.")
 
         # supposed to be permanent
@@ -182,7 +182,7 @@ class Aquire:
         # dependent on changeable parameters
         self.CG = commutation_graph(self.H) if general_commutation else quditwise_commutation_graph(self.H)
         self.clique_covering = weighted_vertex_covering_maximal_cliques(self.CG, cc=self.weights, k=3)
-        self.k_phases = get_phase_matrix(self.H, self.CG)
+        # self.k_phases = get_phase_matrix(self.H, self.CG)
 
         # supposed to change during experiment
         self.data = np.zeros((self.n_paulis, self.n_paulis, self.dimension))
@@ -403,7 +403,6 @@ class Aquire:
         self.data = update_data(self.last_update_cliques,
                                 measurement_results,
                                 self.data,
-                                self.k_phases,
                                 self.circuit_dictionary)
 
         self.measurement_results += measurement_results
@@ -501,7 +500,6 @@ class Aquire:
         self.data = update_data(self.last_update_cliques,
                                 simulated_measurement_results,
                                 self.data,
-                                self.k_phases,
                                 self.circuit_dictionary)
 
         self.measurement_results += simulated_measurement_results

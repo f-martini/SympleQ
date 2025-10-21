@@ -185,7 +185,7 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}):
         P1._delete_paulis([i for i in range(P.n_paulis()) if i not in aa])
 
         # add products
-        k_dict = {str(j0): [(a0, a0)] for j0, a0 in enumerate(aa)}
+        k_dict = {str(j0): [(a0, a0, P1.phases[j0])] for j0, a0 in enumerate(aa)}
         for j0, a0 in enumerate(aa):
             for j1, a1 in enumerate(aa):
                 if j0 != j1:
@@ -195,16 +195,19 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}):
                     P_a1 = P1[j1]
                     # compute their product pauli
                     P2 = P_a0c * P_a1
-                    P2.weights = [1]
+                    P2.weights[0] = 1
                     # check if the product is in the original pauli list
-                    if P2[0,:] not in P1:
-                        k_dict[str(P1.n_paulis())] = [(a0, a1)]
+                    if P2[0, :] not in P1.pauli_strings:
+                        k_dict[str(P1.n_paulis())] = [(a0, a1, P2.phases[0])]
+                        # add the product but make sure to account for possibly different phases
+                        P2.phases[0] = 0
                         P1 = P1 + P2
                     else:
                         P1_s = [str(ps) for ps in P1.pauli_strings]
-                        k_dict[str(P1_s.index(str(P2[0,:])))].append((a0, a1))
+                        k_dict[str(P1_s.index(str(P2[0, :])))].append((a0, a1, P2.phases[0]))
 
         C = diagonalize(P1)
+        P1.phases = np.zeros(P1.n_paulis())
         P1 = C.act(P1)
         D[str(aa)] = (P1, C, k_dict)
     return C, D
@@ -324,21 +327,19 @@ def is_diagonalizing_circuit(P, C, aa):
     return P1.is_z()
 
 
-def update_data(xxx, rr, X, k_phases, D):
+def update_data(xxx, rr, X, D):
     d = len(X[0, 0])
     for i, aa in enumerate(xxx):
         (P1, _, k_dict) = D[str(aa)]
         p1, q1, phases1 = P1.n_paulis(), P1.n_qudits(), P1.phases
         bases_a1 = rr[i]
-        phases1 = phases1 / 2
-        ss = [(phases1[i0] + sum((bases_a1[i1] * P1.z_exp[i0, i1] * P1.lcm) // P1.dimensions[i1]
+        ss = [(sum((bases_a1[i1] * P1.z_exp[i0, i1] * P1.lcm) // P1.dimensions[i1]
                for i1 in range(q1))) % P1.lcm for i0 in range(p1)]
         for j0, s0 in enumerate(ss):
-            for a0, a1 in k_dict[str(j0)]:
-                if a0 != a1:
-                    X[a0, a1, int((s0 + k_phases[a0, a1]) % d)] += 1
-                else:
-                    X[a0, a1, int(s0)] += 1
+            for a0, a1, s1 in k_dict[str(j0)]:
+                if (phases1[j0] + s1) % 2 == 1:
+                    print('warning, odd phase detected for sorting into data matrix',phases1[j0] + s1,phases1[j0],s1)
+                X[a0, a1, int(s0 + (phases1[j0] + s1) / 2) % d] += 1
     return X
 
 

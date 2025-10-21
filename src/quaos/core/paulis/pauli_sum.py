@@ -972,7 +972,9 @@ class PauliSum:
         self._delete_qudits(to_delete)
 
     def remove_zero_weight_paulis(self):
-        # If weight of Pauli string is 0, remove it
+        """
+        Removes zero weight Pauli strings from the sum.
+        """
         to_delete = []
         for i in range(self.n_paulis()):
             if np.abs(self.weights[i]) <= 1e-14:
@@ -1378,13 +1380,40 @@ class PauliSum:
 
     def hermitian_conjugate(self):
         conjugate_weights = np.conj(self.weights)
-        conjugate_phases = (- self.phases) % (2 * self.lcm)
+        conjugate_initial_phases = (- self.phases) % (2 * self.lcm)
+        acquired_phases = []
+        for i in range(self.n_paulis()):
+            hermitian_conjugate_phase = 0
+            for j in range(self.n_qudits()):
+                r = self.x_exp[i, j]
+                s = self.z_exp[i, j]
+                hermitian_conjugate_phase += (r * s % self.lcm) * self.lcm / self.dimensions[j]
+            acquired_phases.append(2 * hermitian_conjugate_phase)
+        conjugate_phases = conjugate_initial_phases + np.array(acquired_phases, dtype=int)
         conjugate_dimensions = self.dimensions
         conjugate_pauli_strings = [p.hermitian() for p in self.pauli_strings]
         return PauliSum(conjugate_pauli_strings, conjugate_weights, conjugate_phases, conjugate_dimensions,
                         standardise=False)
 
     H = hermitian_conjugate
+
+    def is_hermitian(self):
+        P = self.copy()
+        P.combine_equivalent_paulis()
+        P.phase_to_weight()
+        # First Try: Just Primitive Check
+        for i in range(P.n_paulis()):
+            pauli_string = P[i]
+            hermitian_pauli_string = pauli_string.hermitian_conjugate()
+            hermitian_pauli_string.phase_to_weight()
+            for j in range(P.n_paulis()):
+                if P[j, :] == hermitian_pauli_string[0, :]:
+                    if np.abs(hermitian_pauli_string.weights[0] - P.weights[j]) > 1e-10:
+                        return False
+                    else:
+                        break
+
+        return True
 
     # TODO: Move this to a better location and amend where it is used in the Pauli reduction code
     @staticmethod
