@@ -80,7 +80,8 @@ jobs:
             yum install -y make git which gcc-toolset-${{ env.GCC_VERSION }} curl zip unzip tar &&
             source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable &&
             curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/cuda-rhel8.repo -o /etc/yum.repos.d/cuda-rhel8.repo &&
-            curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/D42D0685.pub | rpm --import - &&
+            curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/aarch64/D42D0685.pub -o /tmp/cuda-key.pub &&
+            rpm --import /tmp/cuda-key.pub &&
             yum clean all &&
             yum makecache &&
             CUDA_PKG_VERSION=$(echo "${{ env.CUDA_VERSION }}" | tr '.' '-') &&
