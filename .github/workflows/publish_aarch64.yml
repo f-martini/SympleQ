@@ -63,7 +63,7 @@ jobs:
       - name: Build wheels (Linux ARM64)
         uses: pypa/cibuildwheel@v3.2.1
         env:
-          CIBW_BUILD: cp${{ matrix.python }}-*
+          CIBW_BUILD: cp${{ env.CIBW_PYTHON }}-*
           CIBW_ARCHS: ${{ env.CIBW_ARCHS }}
 
           CIBW_SKIP: "pp* *-musllinux*"
@@ -110,7 +110,7 @@ jobs:
       - name: Upload wheels as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux-${{ matrix.arch }}-py${{ env.CIBW_PYTHON }}
+          name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
           path: dist/*.whl
           retention-days: 30
 
