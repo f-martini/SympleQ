@@ -3,13 +3,14 @@ from typing import overload
 import numpy as np
 import functools
 import re
+
+from .constants import DEFAULT_QUDIT_DIMENSION
 from .pauli import Pauli
 from .bases_manipulation import bases_to_int
 
 
 @functools.total_ordering
 class PauliString:
-    DEFAULT_QUDIT_DIMENSION = 2
     '''
     Tensor product of Pauli operators acting on multiple qudits.
     This class supports qudits of arbitrary dimensions and provides methods for construction,
@@ -73,7 +74,7 @@ class PauliString:
             z_exp = np.array([z_exp])
 
         if dimensions is None:
-            self.dimensions = self.DEFAULT_QUDIT_DIMENSION * np.ones(len(x_exp), dtype=int)
+            self.dimensions = DEFAULT_QUDIT_DIMENSION * np.ones(len(x_exp), dtype=int)
         elif type(dimensions) is int:
             self.dimensions = dimensions * np.ones(len(x_exp), dtype=int)
         else:
@@ -110,9 +111,9 @@ class PauliString:
             raise ValueError(f"Number of x exponents ({len(self.x_exp)})"
                              f" and dimensions ({len(self.dimensions)}) must be equal.")
 
-        if np.any(self.dimensions < PauliString.DEFAULT_QUDIT_DIMENSION):
-            bad_dims = self.dimensions[self.dimensions < PauliString.DEFAULT_QUDIT_DIMENSION]
-            raise ValueError(f"Dimensions {bad_dims} are less than {PauliString.DEFAULT_QUDIT_DIMENSION}")
+        if np.any(self.dimensions < DEFAULT_QUDIT_DIMENSION):
+            bad_dims = self.dimensions[self.dimensions < DEFAULT_QUDIT_DIMENSION]
+            raise ValueError(f"Dimensions {bad_dims} are less than {DEFAULT_QUDIT_DIMENSION}")
 
         if np.any((self.x_exp >= self.dimensions) | (self.z_exp >= self.dimensions)):
             bad_indices = np.where((self.x_exp >= self.dimensions) | (self.z_exp >= self.dimensions))[0]
@@ -663,7 +664,7 @@ class PauliString:
     def tableau(self) -> np.ndarray:
         """
         Returns the tableau representation of the Pauli string.
-        The tableau representation is a binary vector of length 2 * n_qudits,
+        The tableau representation is a vector of length 2 * n_qudits,
         where the first n_qudits entries correspond to the X exponents and the
         last n_qudits entries correspond to the Z exponents of the Pauli string.
         It is essential for efficient algebraic operations on Pauli strings, see
