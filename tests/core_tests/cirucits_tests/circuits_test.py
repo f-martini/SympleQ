@@ -181,6 +181,31 @@ class TestCircuits():
             assert U_circ.shape == U_gate.shape
             assert np.allclose(U_circ, U_gate)
 
+    def test_mixed_qudits_phase_with_unitary(self):
+        N = 1000
+        dimensions = [2, 3, 5]
+        n_paulis = 1
+        n_qudits = 3
+        for _ in range(N):
+            P = PauliSum.from_random(n_paulis, n_qudits, dimensions, rand_weights=False)
+            C = Circuit.from_random(n_qudits, depth=np.random.randint(1, 6), dimensions=dimensions)
+            U = C.unitary()
+
+            ps_m = P.matrix_form()
+            ps_res = C.act(P)
+            ps_res_m = ps_res.matrix_form()
+            phase_symplectic = ps_res.phases[0]
+            ps_res.phases = [0]
+            ps_res_m = ps_res.matrix_form()
+            ps_m_res = U @ ps_m @ U.conj().T
+            mask = (ps_res_m.toarray() != 0)
+            factors = np.unique(np.around(ps_m_res.toarray()[mask] / ps_res_m.toarray()[mask], 10))
+            assert len(factors) == 1
+            factor = factors[0]
+            d = int(P.lcm)
+            phase_unitary = int(np.around((d * np.angle(factor) / (np.pi)) % (2 * d), 1))
+            assert phase_symplectic == phase_unitary
+
     def test_phase_mixed_species(self):
         def debug_steps(C: Circuit, P: PauliSum):
             print(f"Initial phases: {P.phases} -- exponents: {P.tableau()}")

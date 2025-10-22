@@ -914,7 +914,7 @@ class PauliSum:
         x_exp : np.ndarray
         Array of X exponents for each qudit.
         """
-        return self._tableau[:self.n_qudits()]
+        return self._tableau[:, :self.n_qudits()]
 
     @property
     def z_exp(self) -> np.ndarray:
@@ -922,7 +922,7 @@ class PauliSum:
         z_exp : np.ndarray
         Array of Z exponents for each qudit.
         """
-        return self._tableau[self.n_qudits():]
+        return self._tableau[:, self.n_qudits():]
 
     def standardise(self):
         """
@@ -1312,21 +1312,19 @@ class PauliSum:
         if pauli_string_index is not None:
             ps = self.select_pauli_string(pauli_string_index)
             return PauliSum(ps).matrix_form()
-        else:
-            list_of_pauli_matrices = []
-            for i in range(self.n_paulis()):
-                X, Z, dim, phase = int(self.x_exp[i, 0]), int(self.z_exp[i, 0]), self.dimensions[0], self.phases[i]
-                h = self.xz_mat(dim, X, Z)
 
-                for n in range(1, self.n_qudits()):
-                    X, Z, dim, phase = int(self.x_exp[i, n]), int(self.z_exp[i, n]), self.dimensions[n], self.phases[i]
-                    h_next = self.xz_mat(dim, X, Z)
+        list_of_pauli_matrices = []
+        for i in range(self.n_paulis()):
+            X, Z, dim, phase = int(self.x_exp[i, 0]), int(self.z_exp[i, 0]), self.dimensions[0], self.phases[i]
+            h = self.xz_mat(dim, X, Z)
 
-                    h = scipy.sparse.kron(h, h_next, format="csr")
-                list_of_pauli_matrices.append(np.exp(phase * 2 * np.pi * 1j / (2 * self.lcm)) * self.weights[i] * h)
-            m = sum(list_of_pauli_matrices)
+            for n in range(1, self.n_qudits()):
+                X, Z, dim, phase = int(self.x_exp[i, n]), int(self.z_exp[i, n]), self.dimensions[n], self.phases[i]
+                h_next = self.xz_mat(dim, X, Z)
+                h = scipy.sparse.kron(h, h_next, format="csr")
+            list_of_pauli_matrices.append(np.exp(phase * 2 * np.pi * 1j / (2 * self.lcm)) * self.weights[i] * h)
 
-        return m
+        return sum(list_of_pauli_matrices)
 
     def acquire_phase(self,
                       phases: list[int],
