@@ -6,12 +6,6 @@ from quaos.core.paulis.pauli_string import PauliString
 from quaos.core.paulis.pauli_sum import PauliSum
 
 
-@pytest.mark.benchmark
-def test_main_function(benchmark):
-    # TODO: Add meaningful benchmark when a stable version of the project will be available
-    pass
-
-
 @pytest.mark.benchmark(group="PauliSum")
 def test_paulisum_sum(benchmark):
     n_paulis = 20
