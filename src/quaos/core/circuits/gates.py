@@ -96,25 +96,13 @@ class Gate:
         P = P._replace_symplectic(local_symplectic, list(self.qudit_indices))
         return P, acquired_phase
 
-    def acquired_phase_from_pauli_sum(self, p_tableau: np.ndarray) -> np.ndarray:
-        """
-        Returns the phase acquired by the PauliString P when acted upon by this gate.
-
-        See PHYSICAL REVIEW A 71, 042315 (2005)
-
-        """
-
-        # Each row in `p_tableau` is a local symplectic vector (a), and `self.modified_phase_vector` is a 1D array (v).
-        # The expression `p_tableau @ self.modified_phase_vector` computes vᵀ·a for each row, matching the original
-        # scalar form `np.dot(self.modified_phase_vector, a)`. The result is a 1D array of linear phase terms.
-
-        linear_terms = p_tableau @ self.modified_phase_vector
-
-        # For each row b of p_tableau, compute a_b^T @ P @ a_b.
-        quadratic_terms = np.sum(p_tableau * (p_tableau @ self.p_part), axis=1)
-        return linear_terms + quadratic_terms
-
     def _act_on_pauli_sum(self, pauli_sum: PauliSum) -> PauliSum:
+        """
+        Returns the updated tableau and phases acquired by the PauliSum when acted upon by this gate.
+
+        See Eq.[7] in PHYSICAL REVIEW A 71, 042315 (2005) 
+
+        """
         if not np.array_equal(self.dimensions, pauli_sum.dimensions[self.qudit_indices]):
             raise ValueError("Gate and PauliSum slice have different dimensions.")
 
@@ -123,14 +111,21 @@ class Gate:
         # Precompute tableau mask. This will be applied to the PauliSum tableau to get
         # the subset of affected columns.
         tableau_mask = np.concatenate([self.qudit_indices, self.qudit_indices + pauli_sum.n_qudits()])
-        T_affected = T[:, tableau_mask]
 
-        updated_tableau = T_affected @ self.symplectic.T
+        T_affected = T[:, tableau_mask]
+        relevant_dimensions = np.tile(pauli_sum.dimensions[self.qudit_indices], 2)
+        updated_tableau = np.mod(T_affected @ self.symplectic.T, relevant_dimensions)
         new_tableau = T.copy()
         new_tableau[:, tableau_mask] = updated_tableau
 
-        acquired_phases = self.acquired_phase_from_pauli_sum(T_affected)
-        phases = np.mod(pauli_sum.phases + acquired_phases, 2 * pauli_sum.lcm)
+        linear_terms = T_affected @ self.modified_phase_vector
+        quadratic_terms = np.sum(T_affected * (T_affected @ self.p_part), axis=1)
+
+        # FIXME: this is a but of a hack
+        dimensional_factor = pauli_sum.lcm // np.lcm.reduce(pauli_sum.dimensions[self.qudit_indices])
+        acquired_phases = (linear_terms + quadratic_terms) * dimensional_factor
+
+        phases = (pauli_sum.phases + acquired_phases) % (2 * pauli_sum.lcm)
 
         return PauliSum.from_tableau(new_tableau, pauli_sum.dimensions, pauli_sum.weights, phases=phases)
 
