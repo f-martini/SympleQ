@@ -181,6 +181,124 @@ class TestCircuits():
             assert U_circ.shape == U_gate.shape
             assert np.allclose(U_circ, U_gate)
 
+    def test_mixed_qudits_phase_with_unitary(self):
+        N = 1000
+        dimensions = [2, 3, 5]
+        n_paulis = 1
+        n_qudits = 3
+        for _ in range(N):
+            P = PauliSum.from_random(n_paulis, n_qudits, dimensions, rand_weights=False)
+            C = Circuit.from_random(n_qudits, depth=np.random.randint(1, 6), dimensions=dimensions)
+            U = C.unitary()
+
+            ps_m = P.matrix_form()
+            ps_res = C.act(P)
+            ps_res_m = ps_res.matrix_form()
+            phase_symplectic = ps_res.phases[0]
+            ps_res.phases = [0]
+            ps_res_m = ps_res.matrix_form()
+            ps_m_res = U @ ps_m @ U.conj().T
+            mask = (ps_res_m.toarray() != 0)
+            factors = np.unique(np.around(ps_m_res.toarray()[mask] / ps_res_m.toarray()[mask], 10))
+            assert len(factors) == 1
+            factor = factors[0]
+            d = int(P.lcm)
+            phase_unitary = int(np.around((d * np.angle(factor) / (np.pi)) % (2 * d), 1))
+            assert phase_symplectic == phase_unitary
+
+    def test_phase_mixed_species(self):
+        def debug_steps(C: Circuit, P: PauliSum):
+            print(f"Initial phases: {P.phases} -- exponents: {P.tableau()}")
+            for i, partial_p in enumerate(C.act_iter(P)):
+                gate = C.gates[i]
+                print(f"Phases after {gate.name}: {partial_p.phases} -- exponents: {partial_p.tableau()}")
+
+        # Test multiplication
+        P1 = PauliSum(['x1z1 x0z0'],
+                      dimensions=[3, 2],
+                      weights=[1], phases=[0])
+
+        P2 = PauliSum(['x2z2 x0z0'],
+                      dimensions=[3, 2],
+                      weights=[1], phases=[0])
+
+        product = P1.H() * P2
+        assert product.phases == [8]
+
+        # Test 1: Simple qutrit + qubit
+        P = PauliSum(['x2z0 x0z0'],
+                     dimensions=[3, 2],
+                     weights=[1], phases=[0])
+        idx = 0
+        C = Circuit(dimensions=P.dimensions, gates=[PHASE(idx, P.dimensions[idx])])
+        debug_steps(C, P)
+        P = C.act(P)
+        assert P.phases[0] == 4
+
+        # Test 2: Simple ququint + qubit
+        P = PauliSum(['x2z0 x0z0'],
+                     dimensions=[5, 2],
+                     weights=[1], phases=[0])
+
+        idx = 0
+        C = Circuit(dimensions=P.dimensions, gates=[PHASE(idx, P.dimensions[idx])])
+        debug_steps(C, P)
+        P = C.act(P)
+        assert P.phases[0] == 4
+
+        # Test 3: More complex ququint + qubit
+        P = PauliSum(['x3z0 x0z0'],
+                     dimensions=[5, 2],
+                     weights=[1], phases=[0])
+        idx = 0
+        C = Circuit(dimensions=P.dimensions, gates=[PHASE(idx, P.dimensions[idx])])
+        debug_steps(C, P)
+        P = C.act(P)
+        assert P.phases[0] == 12
+
+        # Test 4: Simple ququint + qutrit
+        P = PauliSum(['x2z0 x0z0'],
+                     dimensions=[5, 3],
+                     weights=[1], phases=[0])
+        idx = 0
+        C = Circuit(dimensions=P.dimensions, gates=[PHASE(idx, P.dimensions[idx])])
+        debug_steps(C, P)
+        P = C.act(P)
+        assert P.phases[0] == 6
+
+        # Test 5: Simple qutritt + qubit but action on qubit
+        P = PauliSum(['x0z0 x1z0'],
+                     dimensions=[3, 2],
+                     weights=[1], phases=[0])
+        idx = 1
+        C = Circuit(dimensions=P.dimensions, gates=[PHASE(idx, P.dimensions[idx])])
+        debug_steps(C, P)
+        P = C.act(P)
+        assert P.phases[0] == 3
+
+        # Test 6: Simple ququint + qutrit + qubit
+        P = PauliSum(['x2z0 x0z0 x0z0'],
+                     dimensions=[5, 3, 2],
+                     weights=[1], phases=[0])
+        idx = 0
+        C = Circuit(dimensions=P.dimensions, gates=[PHASE(idx, P.dimensions[idx])])
+        debug_steps(C, P)
+        P = C.act(P)
+        assert P.phases[0] == 12
+
+        # Test 7: composite circuit
+        P = PauliSum(['x2z2 x0z0'],
+                     dimensions=[3, 2],
+                     weights=[1], phases=[0])
+        idx = 0
+        C = Circuit(dimensions=P.dimensions, gates=[
+            PHASE(idx, P.dimensions[idx]),
+            PHASE(idx, P.dimensions[idx]),
+            Hadamard(idx, P.dimensions[idx])])
+        debug_steps(C, P)
+        P = C.act(P)
+        assert P.phases[0] == 8
+
     @staticmethod
     def _linear_index(dims, idxs):
         # Row-major: idx = sum_k idxs[k] * prod_{l>k} dims[l]

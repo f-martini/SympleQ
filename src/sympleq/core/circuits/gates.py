@@ -13,10 +13,13 @@ import scipy.sparse as sp
 class Gate:
 
     def __init__(self, name: str,
-                 qudit_indices: list[int],
+                 qudit_indices: list[int] | np.ndarray,
                  symplectic: np.ndarray,
                  dimensions: int | list[int] | np.ndarray,
                  phase_vector: np.ndarray | list[int]):
+
+        if len(qudit_indices) == 0:
+            raise ValueError("Gate must act on at least one qudit_indices.")
 
         if isinstance(dimensions, int) or isinstance(dimensions, np.signedinteger):
             dimensions = dimensions * np.ones(len(qudit_indices), dtype=int)
@@ -25,11 +28,28 @@ class Gate:
 
         self.dimensions = dimensions
         self.name = name
+
+        if isinstance(qudit_indices, list):
+            qudit_indices = np.asarray(qudit_indices, dtype=int)
+
         self.qudit_indices = qudit_indices
         self.n_qudits = len(qudit_indices)
-        self.symplectic = symplectic
+        self.symplectic: np.ndarray = symplectic
         self.phase_vector = phase_vector
         self.lcm = np.lcm.reduce(self.dimensions)
+
+        # U = [[0_n, 0_n],
+        #      [I_n, 0_n]]
+        U = np.zeros((2 * self.n_qudits, 2 * self.n_qudits), dtype=int)
+        U[self.n_qudits:, :self.n_qudits] = np.eye(self.n_qudits, dtype=int)
+        self.U_symplectic_conjugated = self.symplectic.T @ U @ self.symplectic
+
+        self.V_diag = np.diag(self.U_symplectic_conjugated)
+        # This is the part associated with the linear form.
+        self.modified_phase_vector = self.phase_vector - self.V_diag  # h - V_diag
+        # Remove diagonal part to match definition in Eq.[7] in PHYSICAL REVIEW A 71, 042315 (2005).
+        # This is the part associated with the quadratic form.
+        self.p_part = 2 * np.triu(self.U_symplectic_conjugated) - np.diag(self.V_diag)
 
     @classmethod
     def solve_from_target(cls, name: str, input_pauli_sum: PauliSum, target_pauli_sum: PauliSum,
@@ -69,24 +89,47 @@ class Gate:
         return cls(f"R{n_transvection}", list(range(n_qudits)), symplectic, dimension, phase_vector)
 
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
-        if np.all(self.dimensions != P.dimensions[self.qudit_indices]):
+        if np.any(self.dimensions != P.dimensions[self.qudit_indices]):
             raise ValueError("Gate and PauliString have different dimensions.")
         local_symplectic = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])
         acquired_phase = self.acquired_phase(P)
 
         local_symplectic = (local_symplectic @ self.symplectic.T) % self.lcm
-        P = P._replace_symplectic(local_symplectic, self.qudit_indices)
+        P = P._replace_symplectic(local_symplectic, list(self.qudit_indices))
         return P, acquired_phase
 
     def _act_on_pauli_sum(self, pauli_sum: PauliSum) -> PauliSum:
-        pauli_strings: list[PauliString] = []
-        phases: list[int] = []
-        for i, p in enumerate(pauli_sum.pauli_strings):
-            ps, phase = self._act_on_pauli_string(p)
-            pauli_strings.append(ps)
-            phases.append(pauli_sum.phases[i] + phase)
+        """
+        Returns the updated tableau and phases acquired by the PauliSum when acted upon by this gate.
 
-        return PauliSum(pauli_strings, pauli_sum.weights, np.asarray(phases), pauli_sum.dimensions, False)
+        See Eq.[7] in PHYSICAL REVIEW A 71, 042315 (2005) 
+
+        """
+        if not np.array_equal(self.dimensions, pauli_sum.dimensions[self.qudit_indices]):
+            raise ValueError("Gate and PauliSum slice have different dimensions.")
+
+        T = pauli_sum.tableau()
+
+        # Precompute tableau mask. This will be applied to the PauliSum tableau to get
+        # the subset of affected columns.
+        tableau_mask = np.concatenate([self.qudit_indices, self.qudit_indices + pauli_sum.n_qudits()])
+
+        T_affected = T[:, tableau_mask]
+        relevant_dimensions = np.tile(pauli_sum.dimensions[self.qudit_indices], 2)
+        updated_tableau = np.mod(T_affected @ self.symplectic.T, relevant_dimensions)
+        new_tableau = T.copy()
+        new_tableau[:, tableau_mask] = updated_tableau
+
+        linear_terms = T_affected @ self.modified_phase_vector
+        quadratic_terms = np.sum(T_affected * (T_affected @ self.p_part), axis=1)
+
+        # FIXME: this is a but of a hack
+        dimensional_factor = pauli_sum.lcm // np.lcm.reduce(pauli_sum.dimensions[self.qudit_indices])
+        acquired_phases = (linear_terms + quadratic_terms) * dimensional_factor
+
+        phases = (pauli_sum.phases + acquired_phases) % (2 * pauli_sum.lcm)
+
+        return PauliSum.from_tableau(new_tableau, pauli_sum.dimensions, pauli_sum.weights, phases=phases)
 
     def __repr__(self):
         return f"Gate(name={self.name}, qudit_indices={self.qudit_indices}, " \
@@ -122,18 +165,11 @@ class Gate:
 
         """
 
-        U = np.zeros((2 * self.n_qudits, 2 * self.n_qudits), dtype=int)
-        U[self.n_qudits:, :self.n_qudits] = np.eye(self.n_qudits, dtype=int)
-
-        C = self.symplectic
-
-        U_conjugated = C.T @ U @ C
         h = self.phase_vector
         a = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])  # local symplectic
-        p1 = np.dot(np.diag(U_conjugated), a)
+        p1 = np.dot(np.diag(self.U_symplectic_conjugated), a)
         # negative sign in below as definition in paper is strictly upper diagonal, not including diagonal part
-        p_part = 2 * np.triu(U_conjugated) - np.diag(np.diag(U_conjugated))
-        p2 = np.dot(a.T, np.dot(p_part, a))
+        p2 = np.dot(a.T, np.dot(self.p_part, a))
         return (np.dot(h, a) - p1 + p2) % (2 * P.lcm)
 
     def copy(self) -> 'Gate':

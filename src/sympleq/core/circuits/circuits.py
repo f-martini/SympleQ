@@ -1,4 +1,4 @@
-from typing import overload
+from typing import Generator, overload
 import numpy as np
 from qiskit import QuantumCircuit
 from .gates import Gate, Hadamard, PHASE, SUM, SWAP, CNOT
@@ -154,6 +154,13 @@ class Circuit:
         for gate in self.gates:
             pauli = gate.act(pauli)
         return pauli
+
+    def act_iter(self, pauli_sum:  PauliSum) -> Generator[PauliSum]:
+        if np.any(self.dimensions != pauli_sum.dimensions):
+            raise ValueError("Pauli dimensions do not match circuit dimensions")
+        for gate in self.gates:
+            pauli_sum = gate.act(pauli_sum)
+            yield pauli_sum
 
     def show(self):
         if np.all(np.array(self.dimensions) != 2):
