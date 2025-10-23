@@ -1,5 +1,5 @@
 import numpy as np
-from quaos.core.paulis import PauliSum, PauliString, Pauli
+from sympleq.core.paulis import PauliSum, PauliString, Pauli
 
 
 class TestPaulis:

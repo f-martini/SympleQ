@@ -1,4 +1,4 @@
-from quaos.core.paulis import PauliSum
+from sympleq.core.paulis import PauliSum
 
 
 class ToricCode:

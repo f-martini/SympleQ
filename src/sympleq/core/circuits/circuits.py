@@ -2,7 +2,7 @@ from typing import overload
 import numpy as np
 from qiskit import QuantumCircuit
 from .gates import Gate, Hadamard, PHASE, SUM, SWAP, CNOT
-from quaos.core.paulis import PauliSum, PauliString, Pauli
+from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from .utils import embed_symplectic
 import scipy.sparse as sp
 from .gates import Hadamard as H, SUM as CX, PHASE as S

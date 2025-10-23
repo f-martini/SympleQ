@@ -1,7 +1,7 @@
 import numpy as np
-from quaos.core.measurement.allocation import scale_variances
-from quaos.core.measurement.covariance_graph import graph
-from quaos.core.paulis import PauliSum
+from sympleq.core.measurement.allocation import scale_variances
+from sympleq.core.measurement.covariance_graph import graph
+from sympleq.core.paulis import PauliSum
 
 
 def calculate_mean_estimate(data: np.ndarray, weights: np.ndarray):

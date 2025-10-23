@@ -1,8 +1,8 @@
 import random
 import numpy as np
-from quaos.core.paulis import PauliSum, PauliString
-from quaos.core.circuits import Gate
-from quaos.utils import int_to_bases, bases_to_int
+from sympleq.core.paulis import PauliSum, PauliString
+from sympleq.core.circuits import Gate
+from sympleq.utils import int_to_bases, bases_to_int
 
 
 def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand'):

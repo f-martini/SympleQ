@@ -1,8 +1,8 @@
 # from quaos.core.paulis import random_pauli_string
-from quaos.core.circuits.known_circuits import to_x, to_ix
-from quaos.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
-from quaos.core.circuits.utils import embed_symplectic
-from quaos.core.paulis import PauliSum, PauliString
+from sympleq.core.circuits.known_circuits import to_x, to_ix
+from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
+from sympleq.core.circuits.utils import embed_symplectic
+from sympleq.core.paulis import PauliSum, PauliString
 import numpy as np
 import scipy.sparse as sp
 
@@ -86,7 +86,7 @@ class TestCircuits():
                 gate = Hadamard(np.random.randint(0, n_qudits), dimension)
             elif gate_int == 1:
                 gate = PHASE(np.random.randint(0, n_qudits), dimension)
-            elif gate_int == 2: 
+            elif gate_int == 2:
                 # two random non-equal numbers
                 q1, q2 = np.random.randint(0, n_qudits, 2)
                 while q1 == q2:

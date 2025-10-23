@@ -7,7 +7,7 @@ from openfermion.transforms.opconversions.jordan_wigner import jordan_wigner
 from openfermion.transforms.opconversions.conversions import get_fermion_operator
 from openfermionpyscf import run_pyscf
 
-from quaos.core.paulis import PauliSum
+from sympleq.core.paulis import PauliSum
 
 
 def qubit_pauli_tableau(qubit_op, n_qubits=None):

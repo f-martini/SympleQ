@@ -1,7 +1,7 @@
 from .gates import SUM as CX, PHASE as S, Hadamard as H
 from .circuits import Circuit
-from quaos.core.finite_field_solvers import solve_modular_linear_additive
-from quaos.core.paulis import PauliString, PauliSum
+from sympleq.core.finite_field_solvers import solve_modular_linear_additive
+from sympleq.core.paulis import PauliString, PauliSum
 
 
 def add_phase(xz_pauli_sum: PauliSum, qudit_index: int, qudit_index_2: int, phase_key: str) -> Circuit:

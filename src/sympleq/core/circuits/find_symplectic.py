@@ -5,8 +5,8 @@ So far it only works for GF(2), as in the original paper. It could be extended t
 """
 
 import numpy as np
-from quaos.core.finite_field_solvers import solve_gf2
-from quaos.core.circuits.utils import transvection_matrix, symplectic_product, symplectic_product_matrix
+from sympleq.core.finite_field_solvers import solve_gf2
+from sympleq.core.circuits.utils import transvection_matrix, symplectic_product, symplectic_product_matrix
 
 
 def find_symplectic_solution(u: np.ndarray, v: np.ndarray) -> np.ndarray:

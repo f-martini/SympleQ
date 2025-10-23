@@ -1,10 +1,10 @@
 import sys
 import numpy as np
 sys.path.append("./")
-from quaos.paulis import PauliString, PauliSum
-from quaos.circuits import Circuit
-from quaos.circuits.utils import solve_modular_linear
-from quaos.circuits.known_circuits import to_x, to_ix
+from SympleQ.paulis import PauliString, PauliSum
+from SympleQ.circuits import Circuit
+from SympleQ.circuits.utils import solve_modular_linear
+from SympleQ.circuits.known_circuits import to_x, to_ix
 from quaos.hamiltonian import random_pauli_hamiltonian, pauli_reduce
 
 
@@ -23,12 +23,12 @@ def find_anticommuting_pairs(pauli_sum: PauliSum) -> list[tuple[int, int]]:
                     anticommuting_pairs.append((i, j))
                     used_paulis.append(i)
                     used_paulis.append(j)
-                        
+
     return anticommuting_pairs
 
 
 def to_basis(pauli_sum: PauliSum, anticommuting_pairs: list[tuple[int, int]]) -> Circuit:
-    
+
     # now we loop through the pairs making them XIIII, ZIIII, IXIIII, IZIIII, IIIXII, IIIZII, ....
 
     if len(anticommuting_pairs) > 2 * pauli_sum.n_qudits():
@@ -61,9 +61,8 @@ def to_basis(pauli_sum: PauliSum, anticommuting_pairs: list[tuple[int, int]]) ->
             i += 1
             ps = c_temp.act(ps)
             c += c_temp
-    
-    linear_operations = []  # list of tuples of (pauli1, pauli2) of the the paulis multiplied together
 
+    linear_operations = []  # list of tuples of (pauli1, pauli2) of the the paulis multiplied together
 
     return c
 
@@ -132,7 +131,7 @@ def standard_form_to_basis(pauli_sum: PauliSum) -> tuple[PauliSum, list[tuple[in
     multiplied_paulis = []
 
     for q in range(pauli_sum.n_qudits()):
-    
+
         ixs, izs = find_ix_iz(new_ps, q)
         if len(ixs) == 0 and len(izs) == 0:
             print('No ix or iz found for qudit ', q)
@@ -218,7 +217,7 @@ def is_basis(pauli_sum: PauliSum) -> tuple[bool, list[int]]:
 
 
 if __name__ == "__main__":
-    from quaos.paulis import commutation_graph
+    from SympleQ.paulis import commutation_graph
     import matplotlib.pyplot as plt
     n_qudits = 7
     dims = [2] * n_qudits

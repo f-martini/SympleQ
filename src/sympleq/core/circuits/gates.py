@@ -1,12 +1,12 @@
 import numpy as np
-from quaos.core.paulis import PauliString, PauliSum, Pauli
+from sympleq.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
-from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
-from quaos.core.circuits.utils import (transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func,
-                                       SWAP_func)
-from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
-from quaos.utils import get_linear_dependencies
-from quaos.core.circuits.random_symplectic import symplectic_random_transvection
+from sympleq.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
+from sympleq.core.circuits.utils import (transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func,
+                                         SWAP_func)
+from sympleq.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
+from sympleq.utils import get_linear_dependencies
+from sympleq.core.circuits.random_symplectic import symplectic_random_transvection
 import scipy.sparse as sp
 
 

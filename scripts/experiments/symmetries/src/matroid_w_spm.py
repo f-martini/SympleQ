@@ -604,9 +604,9 @@ def find_k_automorphisms_symplectic(
 
 
 if __name__ == "__main__":
-    from quaos.utils import get_linear_dependencies
-    from quaos.models.random_hamiltonian import random_gate_symmetric_hamiltonian
-    from quaos.core.circuits import SWAP
+    from SympleQ.utils import get_linear_dependencies
+    from SympleQ.models.random_hamiltonian import random_gate_symmetric_hamiltonian
+    from SympleQ.core.circuits import SWAP
 
     # sym = SWAP(0, 1, 2)
     # H = random_gate_symmetric_hamiltonian(sym, 2, 4, scrambled=True)
@@ -619,13 +619,13 @@ if __name__ == "__main__":
     independent = [0, 1, 2, 3]
     dependencies = {4: [(1, 1), (3, 1)], 5: [(0, 1), (2, 1)], 6: [(0, 1), (1, 1)]}
     S = np.array([[0, 0, 0, 1, 1, 0, 0],
-         [0, 0, 1, 0, 0, 1, 0],
-         [0, 1, 0, 1, 0, 0, 1],
-         [1, 0, 1, 0, 0, 0, 1],
-         [1, 0, 0, 0, 0, 1, 1],
-         [0, 1, 0, 0, 1, 0, 1],
-         [0, 0, 1, 1, 1, 1, 0]])
-    coeffs = np.array([ 0.+1.j,  0.+1.j, -1.+0.j,  1.+0.j, -1.+0.j,  1.+0.j,  2.+0.j])
+                  [0, 0, 1, 0, 0, 1, 0],
+                  [0, 1, 0, 1, 0, 0, 1],
+                  [1, 0, 1, 0, 0, 0, 1],
+                  [1, 0, 0, 0, 0, 1, 1],
+                  [0, 1, 0, 0, 1, 0, 1],
+                  [0, 0, 1, 1, 1, 1, 0]])
+    coeffs = np.array([0.+1.j,  0.+1.j, -1.+0.j,  1.+0.j, -1.+0.j,  1.+0.j,  2.+0.j])
     print('independent = ', independent)
     print('dependencies = ', dependencies)
 

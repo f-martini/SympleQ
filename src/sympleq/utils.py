@@ -1,7 +1,7 @@
 import numpy as np
-from quaos.core.paulis import PauliSum
+from sympleq.core.paulis import PauliSum
 import galois
-from quaos.core.finite_field_solvers import solve_modular_linear_system
+from sympleq.core.finite_field_solvers import solve_modular_linear_system
 from collections import defaultdict
 
 
@@ -157,7 +157,7 @@ def commutation_graph(P: PauliSum) -> np.ndarray:
                     j-th Pauli operators commute, otherwise 0.
     """
     p = P.n_paulis()
-    return np.array([[int(P[i0].commute(P[i1])) for i1 in range(p)] for i0 in range(p)])
+    return np.array([[int(P[i0,:].commute(P[i1,:])) for i1 in range(p)] for i0 in range(p)])
 
 
 def complex_phase_value(phase, dimension):

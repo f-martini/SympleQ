@@ -1,4 +1,4 @@
-from quaos.utils import get_linearly_independent_rows, get_linear_dependencies
+from sympleq.utils import get_linearly_independent_rows, get_linear_dependencies
 import numpy as np
 import galois
 
