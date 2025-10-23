@@ -157,7 +157,7 @@ def commutation_graph(P: PauliSum) -> np.ndarray:
                     j-th Pauli operators commute, otherwise 0.
     """
     p = P.n_paulis()
-    return np.array([[int(P[i0,:].commute(P[i1,:])) for i1 in range(p)] for i0 in range(p)])
+    return np.array([[int(P[i0, :].commute(P[i1, :])) for i1 in range(p)] for i0 in range(p)])
 
 
 def complex_phase_value(phase, dimension):

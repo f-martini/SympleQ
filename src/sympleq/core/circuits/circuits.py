@@ -155,7 +155,7 @@ class Circuit:
             pauli = gate.act(pauli)
         return pauli
 
-    def act_iter(self, pauli_sum:  PauliSum) -> Generator[PauliSum, None, None]:
+    def act_iter(self, pauli_sum: PauliSum) -> Generator[PauliSum, None, None]:
         if np.any(self.dimensions != pauli_sum.dimensions):
             raise ValueError("Pauli dimensions do not match circuit dimensions")
         for gate in self.gates:

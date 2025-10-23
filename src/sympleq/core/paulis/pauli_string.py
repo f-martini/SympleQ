@@ -205,7 +205,9 @@ class PauliString:
         return cls(x_exp=x_exp, z_exp=z_exp, dimensions=dimensions, sanity_check=sanity_check)
 
     @classmethod
-    def from_random(cls, n_qudits: int, dimensions: list[int] | np.ndarray, seed=None, sanity_check: bool = True) -> PauliString:
+    def from_random(cls, n_qudits: int,
+                    dimensions: list[int] | np.ndarray,
+                    seed=None, sanity_check: bool = True) -> PauliString:
         """
         Generate a random PauliString instance for a given number of qudits and their dimensions.
 
