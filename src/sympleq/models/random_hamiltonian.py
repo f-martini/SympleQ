@@ -120,7 +120,7 @@ def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=
 
     Examples
     --------
-    >>> from quaos.models.random_hamiltonian import random_pauli_symmetry_hamiltonian
+    >>> from sympleq.models.random_hamiltonian import random_pauli_symmetry_hamiltonian
     >>> random_pauli_symmetry_hamiltonian(2, 4)
     PauliSum of size 4x2 with 4 terms and 0 redundant or conditional qubits.
     """

@@ -1,8 +1,8 @@
 import numpy as np
-from SympleQ.core.circuits.target import find_map_to_target_pauli_sum
-from SympleQ.core.circuits import Gate, Circuit
-from SympleQ.core.paulis import PauliSum
-from SympleQ.utils import get_linear_dependencies
+from sympleq.core.circuits.target import find_map_to_target_pauli_sum
+from sympleq.core.circuits import Gate, Circuit
+from sympleq.core.paulis import PauliSum
+from sympleq.utils import get_linear_dependencies
 from scripts.experiments.symmetries.src.matroid_w_spm import find_k_automorphisms_symplectic
 from .phase_correction import pauli_phase_correction
 

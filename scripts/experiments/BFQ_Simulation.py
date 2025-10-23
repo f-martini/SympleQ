@@ -9,18 +9,18 @@ sys.path.append(str(root_path))
 
 # TODO: duplicate variance_graph definition in the two modules. A rename is required.
 # currently using the one from prime_Functions_quditV2
-from SympleQ.core.prime_Functions_Andrew import *
-from SympleQ.core.prime_Functions_quditV2 import *
+from sympleq.core.prime_Functions_Andrew import *
+from sympleq.core.prime_Functions_quditV2 import *
 
-from SympleQ.core.prime_Functions_Andrew import (
+from sympleq.core.prime_Functions_Andrew import (
     ground_state, weighted_vertex_covering_maximal_cliques, scale_variances,
     Hamiltonian_Mean, graph
 )
-from SympleQ.core.prime_Functions_quditV2 import (
+from sympleq.core.prime_Functions_quditV2 import (
     random_pauli_hamiltonian, sort_hamiltonian, bucket_filling_qudit,
     bayes_covariance_graph, error_correction_estimation
 )
-from SympleQ.core.pauli import pauli
+from sympleq.core.pauli import pauli
 
 np.set_printoptions(linewidth=200)
 

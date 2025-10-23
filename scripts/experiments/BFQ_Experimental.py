@@ -8,14 +8,14 @@ sys.path.append(str(root_path))
 
 # TODO: duplicate variance_graph definition in the two modules. A rename is required.
 # currently using the one from prime_Functions_quditV2
-from SympleQ.core.prime_Functions_Andrew import *
-from SympleQ.core.prime_Functions_quditV2 import *
+from sympleq.core.prime_Functions_Andrew import *
+from sympleq.core.prime_Functions_quditV2 import *
 
-from SympleQ.core.prime_Functions_Andrew import (
+from sympleq.core.prime_Functions_Andrew import (
     ground_state, weighted_vertex_covering_maximal_cliques, scale_variances,
     Hamiltonian_Mean
 )
-from SympleQ.core.prime_Functions_quditV2 import (
+from sympleq.core.prime_Functions_quditV2 import (
     sort_hamiltonian, bfq_experiment_initial,
     read_luca_test_2, example_results, noise_adder, bfq_experiment,
     diagnosis_states, example_results_calibration, error_calibration,

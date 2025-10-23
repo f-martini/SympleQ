@@ -1,4 +1,4 @@
-# from quaos.core.paulis import random_pauli_string
+# from sympleq.core.paulis import random_pauli_string
 from sympleq.core.circuits.known_circuits import to_x, to_ix
 from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
 from sympleq.core.circuits.utils import embed_symplectic

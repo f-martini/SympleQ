@@ -633,9 +633,9 @@ def find_k_automorphisms_symplectic(
 
 
 if __name__ == "__main__":
-    from SympleQ.utils import get_linear_dependencies
-    from SympleQ.models.random_hamiltonian import random_gate_symmetric_hamiltonian
-    from SympleQ.core.circuits import SWAP
+    from sympleq.utils import get_linear_dependencies
+    from sympleq.models.random_hamiltonian import random_gate_symmetric_hamiltonian
+    from sympleq.core.circuits import SWAP
 
     sym = SWAP(0, 1, 2)
     H = random_gate_symmetric_hamiltonian(sym, 2, 4, scrambled=True)

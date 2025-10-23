@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Dict, List, Tuple, Optional
 import numpy as np
 import galois
-from SympleQ.utils import get_linear_dependencies
+from sympleq.utils import get_linear_dependencies
 
 # Optional: if you want to JIT tiny kernels, you can import numba and
 # swap in numba-accelerated versions of consistency checks. The pure-numpy
@@ -854,8 +854,8 @@ def find_k_automorphisms_symplectic(
 
 
 if __name__ == "__main__":
-    from SympleQ.models.random_hamiltonian import random_gate_symmetric_hamiltonian
-    from SympleQ.core.circuits import SWAP, Gate
+    from sympleq.models.random_hamiltonian import random_gate_symmetric_hamiltonian
+    from sympleq.core.circuits import SWAP, Gate
 
     sym = SWAP(0, 1, 2)
     n_qudits = 3

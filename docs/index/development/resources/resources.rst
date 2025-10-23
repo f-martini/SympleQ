@@ -19,7 +19,7 @@ sub/folders are further described.
     ├── .vscode/
     ├── .configs/
     ├── docs/
-    ├── quaos/
+    ├── sympleq/
     ├── scripts/
     └── tests/
 
@@ -97,13 +97,13 @@ scripts
         ├── python/
         └── shell/
 
-quaos
+sympleq
 #####
 
 .. code-block:: text
 
     QuditMeasurements/
-    └── quaos/
+    └── sympleq/
 
 
 tests
