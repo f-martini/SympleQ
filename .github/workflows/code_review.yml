@@ -1,8 +1,6 @@
 name: Linting And Testing
 
-on:
-  pull_request:
-    branches: [main, dev]
+on: pull_request
 
 env:
   PRJ_NAME: sympleq
