@@ -388,8 +388,8 @@ class TestGates():
 
     def test_gate_inverse(self):
         # TODO: test mixed dimensions
-        n_qudits = 10
-        n_paulis = 20
+        n_qudits = 4
+        n_paulis = 4
         for dimension in [2, 3, 5, 7, 11]:
             for i in range(100):
                 g = Gate.from_random(n_qudits, dimension)

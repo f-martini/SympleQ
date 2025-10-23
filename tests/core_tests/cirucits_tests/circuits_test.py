@@ -206,7 +206,7 @@ class TestCircuits():
         expected = np.zeros(D, dtype=complex)
         expected[self._linear_index(dims, [j, i])] = 1.0
 
-        assert np.allclose(phi, expected)
+        assert np.allclose(phi, expected), f"Expected:\n{expected}\nGot:\n{phi}"
 
     def test_sum_embedding_on_three_qudits(self):
         # Verify SUM on qudits (1,2) inside a 3-qudit system.

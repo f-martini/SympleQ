@@ -185,15 +185,15 @@ def get_phase_vector(
             # Right-action displacement phase uses u' J h; parity (mod 2) is (u' J h)/2 mod 2,
             # which for qubits reduces to (u' J h) mod 2 since only parity matters.
             # Build J mod 2
-            I = np.eye(n, dtype=int)
-            J2 = np.block([[np.zeros((n, n), dtype=int),  I],
-                           [I,                              np.zeros((n, n), dtype=int)]]) % 2  # (since -I == I mod 2)
+            Id = np.eye(n, dtype=int)
+            J2 = np.block([[np.zeros((n, n), dtype=int), Id],
+                           [Id, np.zeros((n, n), dtype=int)]]) % 2  # (since -I == I mod 2)
             par = (T2 @ (J2 @ (h % 2))) % 2  # shape (N,)
             # If some rows are odd while the problem expects even parity after lift,
             # try swapped order automatically.
             if np.any(par == 1):
                 h_alt = np.concatenate([hz0, hx0], axis=0) % 2 if order == "AB_CD" \
-                        else np.concatenate([hx0, hz0], axis=0) % 2
+                    else np.concatenate([hx0, hz0], axis=0) % 2
                 par_alt = (T2 @ (J2 @ (h_alt % 2))) % 2
                 # If the alternate order reduces odd parity, use it
                 if par_alt.sum() < par.sum():
@@ -214,6 +214,27 @@ def get_phase_vector(
         h = np.concatenate([hz, hx], axis=0) % p
 
     return h.astype(int, copy=False)
+
+# def get_phase_vector(gate_symplectic: np.ndarray, dimension: int) -> np.ndarray:
+#     """
+#     Calculate the phase vector for a gate given its symplectic matrix.
+
+#     See PRA 71, 042315 (2005) Eq. (10).
+#     Solves for h
+
+#     Args:
+#         gate_symplectic (np.ndarray): The symplectic matrix of the gate.
+#         dimension (int): The dimension of the qudit.
+
+#     Returns:
+#         np.ndarray: The phase vector of the gate.
+#     """
+#     n_qudits = gate_symplectic.shape[0] // 2
+
+#     U = np.zeros((2 * n_qudits, 2 * n_qudits), dtype=int)
+#     U[n_qudits:, :n_qudits] = np.eye(n_qudits, dtype=int)
+#     lhs = (dimension - 1) * np.diag(gate_symplectic.T @ U @ gate_symplectic) % 2
+#     return lhs
 
 
 def str_to_int(string):
