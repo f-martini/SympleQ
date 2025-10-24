@@ -4,9 +4,11 @@ import numpy as np
 import galois
 from numba import njit
 from quaos.core.circuits.target import find_map_to_target_pauli_sum
-from phase_correction import _solve_mod_linear_system
+from quaos.core.finite_field_solvers import solve_linear_system_over_gf
 from quaos.core.paulis import PauliSum
 from quaos.core.circuits import Gate, Circuit
+from quaos.core.finite_field_solvers import get_linear_dependencies
+
 Label = int
 DepPairs = Dict[Label, List[Tuple[Label, int]]]
 
@@ -18,42 +20,6 @@ DepPairs = Dict[Label, List[Tuple[Label, int]]]
 def _labels_union(independent: List[int], dependencies: DepPairs) -> List[int]:
     return sorted(set(independent) | set(dependencies.keys()))
 
-
-# =============================================================================
-# Generator matrix over GF(p) (vectorized; no mixed types)
-# =============================================================================
-
-
-def _build_generator_matrix(
-    independent: List[int],
-    dependencies: DepPairs,
-    labels: List[int],
-    p: int,
-) -> Tuple[galois.FieldArray, List[int], np.ndarray]:
-    """
-    Build G in systematic form (k x n), columns ordered by `labels`.
-    Returns (G, basis_order, basis_mask[idx]=True if labels[idx] in basis).
-    """
-    GF = galois.GF(p)
-    basis_order = sorted(independent)
-    k, n = len(basis_order), len(labels)
-    label_to_col = {lab: j for j, lab in enumerate(labels)}
-    basis_index = {b: i for i, b in enumerate(basis_order)}
-
-    G_int = np.zeros((k, n), dtype=int)
-    for b in basis_order:
-        G_int[basis_index[b], label_to_col[b]] = 1
-    for d, pairs in dependencies.items():
-        j = label_to_col[d]
-        for b, m in pairs:
-            G_int[basis_index[b], j] += int(m)
-    G_int %= p
-    G = GF(G_int)
-
-    basis_mask = np.zeros(n, dtype=bool)
-    for b in basis_order:
-        basis_mask[label_to_col[b]] = True
-    return G, basis_order, basis_mask
 
 # =============================================================================
 # WL-1 base partition (safe). You can extend the seed with extra invariants.
@@ -157,16 +123,6 @@ def _build_base_partition(
         raise ValueError("color_mode must be 'wl', 'coeffs_only', or 'none'.")
 
     return base_colors, _color_classes(base_colors)
-
-
-def _perm_dict_to_index(labels: List[int], perm: Dict[int,int]) -> np.ndarray:
-    """Convert {label->label} dict to index permutation over `labels`."""
-    lab_to_idx = {lab: i for i, lab in enumerate(labels)}
-    pi = np.arange(len(labels), dtype=int)
-    for src_lab, dst_lab in perm.items():
-        i = lab_to_idx[src_lab]; j = lab_to_idx[dst_lab]
-        pi[i] = j
-    return pi
 
 
 # =============================================================================
@@ -275,7 +231,7 @@ def _full_dfs_complete(
     p2_bitset: bool,
     dynamic_refine_every: int = 0,
     F_known_debug: Optional[np.ndarray] = None,
-) -> List[Circuit]:
+) -> List[Gate]:
     """
     Complete interleaved DFS that maps all labels with feasibility constrained ONLY by base partition.
     Dynamic WL (if enabled) is used only for ordering every `dynamic_refine_every` steps.
@@ -342,7 +298,7 @@ def _full_dfs_complete(
                     break
         return best_i
 
-    def at_leaf(pi: np.ndarray) -> Circuit | None:
+    def at_leaf(pi: np.ndarray) -> Gate | None:
         """
         This is where the heavy checks happen - if we are here, we are at a leaf
         (i.e. all mapped). If it returns None, then the permutation is not correct, even though it satisfies al colour
@@ -397,7 +353,7 @@ def _full_dfs_complete(
 
         # ---- 4) solve for h on the FULL post-F tableau ----
         h_lin = solve_phase_vector_h_from_residual(base_tableau, delta, pauli_sum.dimensions,
-                                                   verbose=True, row_basis_cache=row_basis_cache)
+                                                   debug=True, row_basis_cache=row_basis_cache)
         if h_lin is None:
             return None
 
@@ -418,7 +374,7 @@ def _full_dfs_complete(
         if not np.array_equal(H_out_cf.weights, ref_weights):
             return None
 
-        return Circuit(pauli_sum.dimensions, [SG])
+        return SG
 
     def maybe_dynamic_refine():
         nonlocal cur_colors
@@ -482,7 +438,7 @@ def find_clifford_symmetries(
     F_known_debug: Optional[np.ndarray] = None,
     color_mode: str = "wl",   # "wl" | "coeffs_only" | "none"
     max_wl_rounds: int = 10,
-) -> List[Circuit]:
+) -> List[Gate]:
     """
     Return up to k automorphisms preserving S and the vector set. See flags above.
     """
@@ -591,7 +547,7 @@ def solve_phase_vector_h_from_residual(
     delta_2L: np.ndarray,     # (N,) ints mod 2L; desired phase corrections
     dimensions: np.ndarray | List[int],
     *,
-    verbose: bool = False,
+    debug: bool = False,
     row_basis_cache: dict[str, np.ndarray] | None = None,
 ) -> Optional[np.ndarray]:
     """
@@ -616,7 +572,7 @@ def solve_phase_vector_h_from_residual(
         p_uni = int(dims[0])
         if p_uni == 2:
             if np.any(b % 2 != 0):
-                if verbose:
+                if debug:
                     print("[phase] qubit fallback: residual has odd entries, cannot fix")
                 return None
             rows = None
@@ -632,8 +588,6 @@ def solve_phase_vector_h_from_residual(
             b2 = ((b[rows] // 2) % 2).astype(int, copy=False)
             sol2 = _gf_solve_one_solution(A2, b2, 2)
             if sol2 is not None:
-                if verbose:
-                    print("[phase] qubit fallback succeeded (GF(2) solve)")
                 return (2 * sol2.astype(int)) % modulus
         else:
             rows = None
@@ -649,17 +603,17 @@ def solve_phase_vector_h_from_residual(
             b_p = (b[rows] % p_uni).astype(int, copy=False)
             sol_p = _gf_solve_one_solution(A_p, b_p, p_uni)
             if sol_p is not None:
-                if verbose:
+                if debug:
                     print(f"[phase] GF({p_uni}) fallback succeeded")
                 return sol_p.astype(int) % modulus
 
-    sol = _solve_mod_linear_system(A % modulus, b % modulus, modulus)
+    sol = solve_linear_system_over_gf(A % modulus, b % modulus, modulus)
     if sol is not None:
-        if verbose:
+        if debug:
             print("[phase] direct solve mod", modulus, "succeeded")
         return sol % modulus
 
-    if verbose:
+    if debug:
         print("[phase] direct mod", modulus, "solve failed")
 
     return None
@@ -702,9 +656,8 @@ def _row_basis_indices(A_int: np.ndarray, p: int, want_cols: int) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    from quaos.core.finite_field_solvers import get_linear_dependencies
     from quaos.models.random_hamiltonian import random_gate_symmetric_hamiltonian
-    from quaos.core.circuits import SWAP, SUM, PHASE, Hadamard, Circuit
+    from quaos.core.circuits import SWAP
 
     failed = 0
     for _ in range(3):
@@ -727,8 +680,8 @@ if __name__ == "__main__":
             failed += 1
         else:
             for c in circ:
-                print(np.all(c.composite_gate().symplectic == known_F) and np.all(
-                    c.composite_gate().phase_vector == scrambled_sym.phase_vector))
+                print(np.all(c.symplectic == known_F) and np.all(
+                    c.phase_vector == scrambled_sym.phase_vector))
                 H_s = H.standard_form()
                 H_out = c.act(H).standard_form()
                 H_s.weight_to_phase()

@@ -71,7 +71,7 @@ class PauliSum:
         self.pauli_strings = sanitized_pauli_list
         self.weights = np.asarray(sanitized_weights, dtype=np.complex128)
         self.dimensions = sanitized_dimensions
-        self.lcm = np.lcm.reduce(self.dimensions)
+        self.lcm = int(np.lcm.reduce(self.dimensions))
         self.phases = np.asarray(sanitized_phases, dtype=int) % (2 * self.lcm)
 
         self._set_exponents()

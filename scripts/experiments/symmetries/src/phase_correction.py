@@ -1,69 +1,9 @@
-import math
 import numpy as np
 import galois
 from quaos.core.circuits.utils import symplectic_form
 from quaos.core.paulis import PauliSum, PauliString
 from quaos.core.circuits.gates import Gate, PauliGate
-from quaos.core.finite_field_solvers import gf_solve
-
-
-def _solve_mod_linear_system(A: np.ndarray, b: np.ndarray, modulus: int) -> np.ndarray | None:
-    A = np.asarray(A, dtype=int)
-    b = np.asarray(b, dtype=int).reshape(-1)
-
-    try:
-        import sympy as sp
-        from sympy import ZZ
-        from sympy.matrices.normalforms import smith_normal_form as sympy_snf
-    except ImportError:
-        return None
-
-    A_sym = sp.Matrix(A.tolist())
-
-    try:
-        S_sym, U_sym, V_sym = sympy_snf(A_sym, domain=ZZ)
-    except Exception:
-        return None
-
-    S = np.array(S_sym, dtype=int)
-    U = np.array(U_sym, dtype=int)
-    V = np.array(V_sym, dtype=int)
-
-    m, n = S.shape
-    b_vec = b.reshape(-1, 1) % modulus
-    b_dash = (U @ b_vec) % modulus
-
-    y = np.zeros((n, 1), dtype=int)
-
-    diag_len = min(m, n)
-    for i in range(diag_len):
-        d = S[i, i]
-        b_i = int(b_dash[i, 0]) % modulus
-        if d == 0:
-            if b_i % modulus != 0:
-                return None
-            continue
-        g = math.gcd(abs(d), modulus)
-        if b_i % g != 0:
-            return None
-        mod_red = modulus // g
-        d_red = (d // g) % mod_red
-        b_red = (b_i // g) % mod_red
-        if mod_red == 1:
-            y_val = 0
-        else:
-            try:
-                inv = pow(d_red, -1, mod_red)
-            except ValueError:
-                return None
-            y_val = (b_red * inv) % mod_red
-        y[i, 0] = y_val
-
-    x = V @ y
-    sol = np.array(x.reshape(-1), dtype=int) % modulus
-    if np.any((A @ sol) % modulus != (b % modulus)):
-        return None
-    return sol
+from quaos.core.finite_field_solvers import gf_solve, solve_linear_system_over_gf
 
 
 def pauli_phase_correction(H, delta_phi_2p, p, dimensions=None):
@@ -90,7 +30,7 @@ def pauli_phase_correction(H, delta_phi_2p, p, dimensions=None):
     delta_phi_2p = np.asarray(delta_phi_2p, dtype=int) % modulus
 
     # 1) Try solving for a phase-only Clifford (identity symplectic, unknown h)
-    h_vec = _solve_mod_linear_system(H, delta_phi_2p % modulus, modulus)
+    h_vec = solve_linear_system_over_gf(H, delta_phi_2p % modulus, modulus)
     if h_vec is not None:
         symplectic = np.eye(2 * n, dtype=int)
         return Gate("PhaseFix", list(range(n)), symplectic, dims, h_vec % modulus)

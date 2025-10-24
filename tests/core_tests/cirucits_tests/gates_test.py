@@ -395,7 +395,7 @@ class TestGates():
                 g = Gate.from_random(n_qudits, dimension)
                 gt = g.inv()
                 rps = PauliSum.from_random(n_paulis, n_qudits, [dimension] * n_qudits, False)  #, seed=1
-                assert rps == g.act(gt.act(rps)), f'Inversion Error run {i}:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
+                assert rps == gt.act(g.act(rps)), f'Inversion Error run {i}:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
 
     def phase_table_local(self, G):
         d = G.dimensions[0]

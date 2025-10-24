@@ -71,11 +71,11 @@ class Gate:
     def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
         if np.all(self.dimensions != P.dimensions[self.qudit_indices]):
             raise ValueError("Gate and PauliString have different dimensions.")
-        local_symplectic = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])
+        local_tableau = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])
         acquired_phase = self.acquired_phase(P)
 
-        local_symplectic = (local_symplectic @ self.symplectic.T) % self.lcm
-        P = P._replace_symplectic(local_symplectic, self.qudit_indices)
+        local_tableau = (local_tableau @ self.symplectic.T) % self.lcm
+        P = P._replace_symplectic(local_tableau, self.qudit_indices)
         return P, acquired_phase
 
     def _act_on_pauli_sum(self, pauli_sum: PauliSum) -> PauliSum:

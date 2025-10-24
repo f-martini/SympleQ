@@ -372,10 +372,10 @@ def krylov_closure(F: np.ndarray, v: np.ndarray, p: int, cap: int | None = None)
     w = v.reshape(-1, 1)
     r0 = 0
     for _ in range(cap):
-        cand = np.concatenate([V, w], axis=1)
-        r = rank_mod(cand, p)
+        can = np.concatenate([V, w], axis=1)
+        r = rank_mod(can, p)
         if r > r0:
-            V = cand
+            V = can
             r0 = r
             w = matmul_mod(F, w, p)
         else:
@@ -608,29 +608,30 @@ def complete_symplectic_local(Tblk: np.ndarray, p: int) -> np.ndarray:
         raise RuntimeError("Local completion is not symplectic (T_local^T Ω T_local ≠ Ω).")
     return T_local
 
-def block_decompose_min_largest(F: np.ndarray, p: int, min_block_size: int = 2) -> Tuple[np.ndarray, np.ndarray]:
+def block_decompose(F: np.ndarray, p: int, min_block_size: int = 2) -> Tuple[np.ndarray, np.ndarray]:
     """
     Find S = T^{-1} F T with the largest block as small as possible.
     Strategy: pick the smallest NONTRIVIAL block (with size >= min_block_size), then Ω-complement.
     """
     assert is_symplectic(F, p), "F must be symplectic"
     n2 = F.shape[0]
-    n  = n2 // 2
-    Ω  = omega_matrix(n, p)
+    n = n2 // 2
+    Omega = omega_matrix(n, p)
 
     # 1) minimal nontrivial block on full space respecting the size floor
     Tblk = minimal_symplectic_block_full(F, p, trials=128, min_block_size=min_block_size)  # [U_blk|V_blk]
-    k2   = Tblk.shape[1]; k = k2 // 2
+    k2 = Tblk.shape[1]; k = k2 // 2
     U_blk, V_blk = Tblk[:, :k], Tblk[:, k:]
 
     # 2) exact Ω-orthogonal complement
-    A = modp(Tblk.T @ Ω, p)
+    A = modp(Tblk.T @ Omega, p)
     N = nullspace_mod(A, p)
 
     # 3) canonical basis on the complement
     if N.shape[1] > 0:
         T_perp = symplectic_basis_from_span(N, p)   # [U_perp|V_perp]
-        k2p    = T_perp.shape[1]; kp = k2p // 2
+        k2p = T_perp.shape[1]
+        kp = k2p // 2
         U_perp, V_perp = T_perp[:, :kp], T_perp[:, kp:]
     else:
         U_perp = np.zeros((n2, 0), dtype=np.int64)
@@ -640,14 +641,13 @@ def block_decompose_min_largest(F: np.ndarray, p: int, min_block_size: int = 2) 
     T = np.concatenate([U_blk, U_perp, V_blk, V_perp], axis=1)
 
     # 5) strict symplectic check
-    assert np.array_equal(modp(T.T @ Ω @ T, p), Ω % p), "Constructed T is not symplectic"
+    assert np.array_equal(modp(T.T @ Omega @ T, p), Omega % p), "Constructed T is not symplectic"
 
     # 6) compute S = T^{-1} F T
-    # 6) compute S = T^{-1} F T
-    J     = modp(T.T @ Ω @ T, p)   # = Ω
-    Jinv  = inv_mod_mat(J, p)
-    Linv  = matmul_mod(Jinv, matmul_mod(T.T, Ω, p), p)
-    S     = matmul_mod(Linv, matmul_mod(F, T, p), p)
+    J = modp(T.T @ Omega @ T, p)
+    Jinv = inv_mod_mat(J, p)
+    Linv = matmul_mod(Jinv, matmul_mod(T.T, Omega, p), p)
+    S = matmul_mod(Linv, matmul_mod(F, T, p), p)
 
     # 7) Reorder modes symplectically so blocks are contiguous and smallest nontrivial comes first
     S, T = _apply_mode_permutation_to_ST(S, T, p)
@@ -656,9 +656,6 @@ def block_decompose_min_largest(F: np.ndarray, p: int, min_block_size: int = 2) 
     assert is_symplectic(T, p)
     assert np.array_equal(S, modp(inv_mod_mat(T, p) @ F @ T, p))
     return S, T
-
-    return S, T
-
 
 
 def minimal_symplectic_block_full(
@@ -670,27 +667,27 @@ def minimal_symplectic_block_full(
     Returns Tblk (n2 x 2k) canonical: Tblk^T Ω Tblk = Ω_k.
     """
     n2 = F.shape[0]
-    n  = n2 // 2
-    Ω  = omega_matrix(n, p)
+    n = n2 // 2
+    Ω = omega_matrix(n, p)
     rng = np.random.default_rng(2025)
 
     # seeds: standard basis then random
-    seeds = [np.eye(n2, dtype=np.int64)[:, i:i+1] for i in range(n2)]
+    seeds = [np.eye(n2, dtype=np.int64)[:, i: i+1] for i in range(n2)]
     seeds += [rng.integers(0, p, size=(n2, 1), dtype=np.int64) for _ in range(trials)]
 
     best = None  # tuple(size, score, Tblk)
     for v in seeds:
         if np.all(v % p == 0):
             continue
-        K  = krylov_closure(F, v, p)
+        K = krylov_closure(F, v, p)
         if K.shape[1] == 0:
             continue
         try:
-            z  = build_partner_for_krylov(F, K, p)
+            z = build_partner_for_krylov(F, K, p)
         except RuntimeError:
             continue
         Kz = krylov_closure(F, z, p)
-        W  = np.concatenate([K, Kz], axis=1)
+        W = np.concatenate([K, Kz], axis=1)
 
         # independent columns
         B = np.zeros((n2, 0), dtype=np.int64)
@@ -715,7 +712,7 @@ def minimal_symplectic_block_full(
             continue
 
         # compute restricted action Sblk and its "nontriviality score" = rank(Sblk - I)
-        J    = modp(Tblk.T @ Ω @ Tblk, p)
+        J = modp(Tblk.T @ Ω @ Tblk, p)
         Jinv = inv_mod_mat(J, p)
         Linv = matmul_mod(Jinv, matmul_mod(Tblk.T, Ω, p), p)
         Sblk = matmul_mod(Linv, matmul_mod(F, Tblk, p), p)
@@ -725,9 +722,10 @@ def minimal_symplectic_block_full(
             continue  # reject trivial block
 
         size = Tblk.shape[1]
-        cand = (size, -rscore, Tblk)  # minimize size, then maximize rscore (hence minus)
-        if (best is None) or (cand < best):
-            best = cand
+        if (best is None or
+                size < best[0] or
+                (size == best[0] and rscore > best[1])):
+            best = (size, rscore, Tblk)
             # early-exit if we hit the size floor with strong nontriviality
             if size == min_block_size and rscore > 0:
                 break
@@ -736,169 +734,3 @@ def minimal_symplectic_block_full(
         raise RuntimeError("Failed to find a nontrivial symplectic block meeting the size floor")
     return best[2]
 
-
-
-# =========================
-# Generators & test: scrambled SWAP
-# =========================
-
-def swap_symplectic(n: int, i: int, j: int, p: int) -> np.ndarray:
-    """Swap qudits i and j (0-based) in phase space: diag(P, P) in [x|z] ordering."""
-    assert 0 <= i < n and 0 <= j < n and i != j
-    P = np.eye(n, dtype=np.int64)
-    P[[i, j]] = P[[j, i]]
-    O = np.zeros((n, n), dtype=np.int64)
-    return np.block([[P, O],
-                     [O, P]]) % p
-
-def random_symplectic(n: int, p: int, rng=None, steps: int = 5) -> np.ndarray:
-    """Lightweight scrambler (not uniform) built from generators preserving Ω."""
-    if rng is None:
-        rng = np.random.default_rng()
-    F = np.eye(2*n, dtype=np.int64)
-    # qudit permutation
-    perm = np.arange(n); rng.shuffle(perm)
-    P = np.eye(n, dtype=np.int64)[perm]
-    O = np.zeros((n, n), dtype=np.int64)
-    F = matmul_mod(np.block([[P, O], [O, P]]), F, p)
-    # local X↔Z swaps (Hadamard-like): [[0,1],[-1,0]] at sites
-    H = np.array([[0, 1], [-1 % p, 0]], dtype=np.int64)
-    D = np.eye(2*n, dtype=np.int64)
-    for q in range(n):
-        if rng.integers(0, 2):
-            ix, iz = q, n + q
-            D[[ix, ix, iz, iz], [ix, iz, ix, iz]] = [0, 1, (-1) % p, 0]
-    F = matmul_mod(D, F, p)
-    # symmetric shears (upper and lower)
-    for _ in range(steps):
-        A = rng.integers(0, p, size=(n, n), dtype=np.int64)
-        A = modp(A + A.T, p)
-        U = np.block([[np.eye(n, dtype=np.int64), A],
-                      [np.zeros((n, n), dtype=np.int64), np.eye(n, dtype=np.int64)]])
-        F = matmul_mod(U, F, p)
-        B = rng.integers(0, p, size=(n, n), dtype=np.int64)
-        B = modp(B + B.T, p)
-        L = np.block([[np.eye(n, dtype=np.int64), np.zeros((n, n), dtype=np.int64)],
-                      [B, np.eye(n, dtype=np.int64)]])
-        F = matmul_mod(L, F, p)
-    assert is_symplectic(F, p)
-    return F
-
-def symplectic_block_sizes_from_mode_graph(S: np.ndarray, p: int) -> list[int]:
-    """
-    Return exact block sizes (in phase-space dimension) by building the mode graph.
-    S is in canonical [U_all | V_all] order. A 'mode' is indices (i, k+i).
-    Two modes i,j are connected if the 4x4 cross-block between them is nonzero mod p
-    (in any quadrant). The connected components correspond to blocks.
-    """
-    n2 = S.shape[0]
-    assert n2 % 2 == 0
-    k = n2 // 2
-    M = (S % p).copy()
-
-    # adjacency
-    adj = [[] for _ in range(k)]
-    for i in range(k):
-        rows_i = [i, k + i]
-        for j in range(i + 1, k):
-            cols_j = [j, k + j]
-            # any coupling between mode i and j?
-            if (M[np.ix_(rows_i, cols_j)] % p).any() or (M[np.ix_([j, k + j], [i, k + i])] % p).any():
-                adj[i].append(j)
-                adj[j].append(i)
-
-    # components
-    seen = [False] * k
-    comps = []
-    for s in range(k):
-        if seen[s]:
-            continue
-        stack = [s]
-        seen[s] = True
-        comp = []
-        while stack:
-            u = stack.pop()
-            comp.append(u)
-            for v in adj[u]:
-                if not seen[v]:
-                    seen[v] = True
-                    stack.append(v)
-        comps.append(sorted(comp))
-
-    # sizes in phase-space dimension: 2 * (#modes)
-    sizes = [2 * len(c) for c in comps]
-    return sizes
-
-def ordered_block_sizes(S: np.ndarray, p: int) -> list[int]:
-    n2 = S.shape[0]
-    k = n2 // 2
-    sizes = []
-    # reuse adjacency/components from function above
-    # compute rank of (S - I) restricted to each component as nontriviality
-    M = (S - np.eye(n2, dtype=np.int64)) % p
-
-    # build comps first (copy the same adjacency/components code)
-    adj = [[] for _ in range(k)]
-    for i in range(k):
-        rows_i = [i, k + i]
-        for j in range(i + 1, k):
-            cols_j = [j, k + j]
-            if (S[np.ix_(rows_i, cols_j)] % p).any() or (S[np.ix_([j, k + j], [i, k + i])] % p).any():
-                adj[i].append(j); adj[j].append(i)
-    seen = [False]*k
-    comps = []
-    for s in range(k):
-        if seen[s]: continue
-        st=[s]; seen[s]=True; comp=[]
-        while st:
-            u=st.pop(); comp.append(u)
-            for v in adj[u]:
-                if not seen[v]: seen[v]=True; st.append(v)
-        comps.append(sorted(comp))
-
-    def comp_rank(comp):
-        idx = comp + [c + k for c in comp]
-        # rank_mod must be your GF(p) rank
-        return rank_mod(M[np.ix_(idx, idx)], p)
-
-    info = [{"modes": c, "nmodes": len(c), "rank": comp_rank(c)} for c in comps]
-    nontriv_ge2 = [d for d in info if d["rank"] > 0 and d["nmodes"] >= 2]
-    nontriv_1   = [d for d in info if d["rank"] > 0 and d["nmodes"] == 1]
-    triv        = [d for d in info if d["rank"] == 0]
-
-    nontriv_ge2.sort(key=lambda d: (d["nmodes"], -d["rank"]))
-    nontriv_1.sort(key=lambda d: -d["rank"])
-    triv.sort(key=lambda d: d["nmodes"])
-
-    ordered = nontriv_ge2 + nontriv_1 + triv
-    return [2 * d["nmodes"] for d in ordered]
-
-
-def test_scrambled_swap(p: int = 3, n: int = 6, i: int = 1, j: int = 4, seed: int = 42):
-    rng = np.random.default_rng(seed)
-    S_true = swap_symplectic(n, i, j, p)
-    R = random_symplectic(n, p, rng=rng, steps=6)
-    F = modp(inv_mod_mat(R, p) @ S_true @ R, p)
-
-    # Ask the solver to find the coupling block first
-    S, T = block_decompose_min_largest(F, p, min_block_size=4)
-
-    assert is_symplectic(T, p)
-    assert np.array_equal(S, modp(inv_mod_mat(T, p) @ F @ T, p))
-
-    sizes = ordered_block_sizes(S, p) 
-    assert max(sizes) == 4, f"Expected max block size 4, got {max(sizes)} ({sizes})"
-    assert sizes[0] == 4, f"Expected first block size 4, got {sizes[0]} ({sizes})"
-
-    n2 = 2 * n
-    M = modp(S - np.eye(n2, dtype=np.int64), p)
-    # assert np.all(M[4:, 4:] % p == 0), "Trailing part is not identity"
-    # print("OK: recovered single 2-qudit block first; rest identity. Block sizes:", sizes)
-    return S, T, F
-
-
-if __name__ == "__main__":
-    for _ in range(100):
-        seed = np.random.randint(0, 2**32)
-        S, T, F = test_scrambled_swap(p=17, n=20, i=1, j=2, seed=seed)
-    print('passed all tests')

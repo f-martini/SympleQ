@@ -4,7 +4,71 @@ import galois
 from collections import defaultdict
 
 
-def solve_gf2(A: np.ndarray, b: np.ndarray) -> np.ndarray:
+def solve_linear_system_over_gf(A: np.ndarray, b: np.ndarray, GF: type | int) -> np.ndarray:
+    """
+    Solve the system A @ x = b over a finite field.
+    Returns one particular solution with free variables set to zero.
+    Raises ValueError if the system is inconsistent.
+    """
+    if isinstance(GF, int):
+        GF = galois.GF(GF)
+
+    A_gf = GF(A)
+    b_gf = GF(b).reshape(-1, 1)
+
+    if A_gf.ndim != 2:
+        raise ValueError("Coefficient matrix must be 2-dimensional.")
+    if A_gf.shape[0] != b_gf.shape[0]:
+        raise ValueError(
+            f"Incompatible shapes for A ({A_gf.shape}) and b ({b_gf.shape})."
+        )
+
+    m, n = A_gf.shape
+    augmented = np.hstack((A_gf, b_gf))
+    R = augmented.copy()
+
+    pivot_rows: list[tuple[int, int]] = []
+    row = 0
+    for col in range(n):
+        pivot = None
+        for r in range(row, m):
+            if R[r, col] != GF(0):
+                pivot = r
+                break
+        if pivot is None:
+            continue
+
+        if pivot != row:
+            R[[row, pivot], :] = R[[pivot, row], :]
+
+        pivot_val = R[row, col]
+        R[row, :] /= pivot_val
+
+        for r in range(m):
+            if r != row and R[r, col] != GF(0):
+                R[r, :] -= R[r, col] * R[row, :]
+
+        pivot_rows.append((row, col))
+        row += 1
+        if row == m:
+            break
+
+    for r in range(m):
+        if all(R[r, c] == GF(0) for c in range(n)) and R[r, n] != GF(0):
+            raise ValueError("Inconsistent linear system over GF(p).")
+
+    x = GF.Zeros(n)
+    for row_idx, pivot_col in reversed(pivot_rows):
+        value = R[row_idx, n]
+        for j in range(pivot_col + 1, n):
+            if R[row_idx, j] != GF(0):
+                value -= R[row_idx, j] * x[j]
+        x[pivot_col] = value
+
+    return x.copy()
+
+
+def solve_gf2(A: np.ndarray, b: np.ndarray) -> np.ndarray | None:
     """
     Solve the linear system Ax = b over GF(2) using Gaussian elimination.
 
@@ -15,60 +79,15 @@ def solve_gf2(A: np.ndarray, b: np.ndarray) -> np.ndarray:
     Returns:
         Solution vector or None if no solution exists
     """
-    A = A.astype(int)
-    b = b.astype(int)
-    m, n = A.shape
+    GF2 = galois.GF(2)
+    try:
+        solution = solve_linear_system_over_gf(
+            np.asarray(A, dtype=int) % 2, np.asarray(b, dtype=int) % 2, GF2
+        )
+    except ValueError:
+        return None
 
-    # Augmented matrix
-    Ab = np.hstack([A, b.reshape(-1, 1)])
-
-    # Forward elimination
-    pivot_row = 0
-    pivot_cols = []
-
-    for col in range(n):
-        # Find pivot
-        pivot_found = False
-        for row in range(pivot_row, m):
-            if Ab[row, col] == 1:
-                # Swap rows
-                if row != pivot_row:
-                    Ab[[pivot_row, row]] = Ab[[row, pivot_row]]
-                pivot_found = True
-                break
-
-        if not pivot_found:
-            continue
-
-        pivot_cols.append(col)
-
-        # Eliminate
-        for row in range(m):
-            if row != pivot_row and Ab[row, col] == 1:
-                Ab[row] = (Ab[row] + Ab[pivot_row]) % 2
-
-        pivot_row += 1
-
-    # Check for inconsistency
-    for row in range(pivot_row, m):
-        if Ab[row, -1] == 1:
-            raise ValueError(f"No solution exists\n{A}\n{b}")
-
-    # Back substitution - find particular solution
-    x = np.zeros(n, dtype=int)
-
-    for i in range(len(pivot_cols) - 1, -1, -1):
-        col = pivot_cols[i]
-        # Find the row with pivot in this column
-        row = i
-
-        # Calculate value for this variable
-        val = Ab[row, -1]
-        for j in range(col + 1, n):
-            val = (val + Ab[row, j] * x[j]) % 2
-        x[col] = val
-
-    return x
+    return solution.view(np.ndarray).astype(int, copy=False)
 
 
 def solve_modular_linear_additive(x: int, z: int, d: int) -> int:
@@ -101,89 +120,18 @@ def solve_modular_linear_system(B, v):
     Solve x @ B = v over GF(p) using row-reduction (RREF)
     """
     GF = type(B)
-    m, n = B.shape
-    # Transpose to solve B^T x^T = v^T
-    A = GF(np.hstack([B.T, v.reshape(-1, 1)]))
-    R = A.row_reduce()
-
-    num_vars = B.shape[0]
-    x = GF.Zeros(num_vars)
-
-    # Identify pivot columns and back-substitute
-    pivot_cols = []
-    for row in R:
-        nz = np.nonzero(row[:-1])[0]
-        if len(nz) > 0:
-            pivot_cols.append(nz[0])
-
-    for i, col in enumerate(pivot_cols):
-        x[col] = R[i, -1]
-
-    # Verify solution
-    if not np.array_equal(x @ B, v):
-        raise Exception("Failed to solve linear system")
-    return x
-
-
-def mod_inv(M: np.ndarray, p: int):
-    GFP = galois.GF(p)
-    M = GFP(M)
-    return np.linalg.inv(M)
-
-
-def gf_rref(A: np.ndarray, GF: type) -> tuple[np.ndarray, list[int]]:
-    A = GF(A)
-    m, n = A.shape
-    R = A.copy()
-    pivots = []
-    r = 0
-    for c in range(n):
-        piv = None
-        for rr in range(r, m):
-            if R[rr, c] != GF(0):
-                piv = rr
-                break
-        if piv is None:
-            continue
-        if piv != r:
-            R[[r, piv], :] = R[[piv, r], :]
-        inv = GF(1) / R[r, c]
-        R[r, :] *= inv
-        for rr in range(m):
-            if rr != r and R[rr, c] != GF(0):
-                R[rr, :] -= R[rr, c] * R[r, :]
-        pivots.append(c)
-        r += 1
-        if r == m:
-            break
-    return R, pivots
+    solution = solve_linear_system_over_gf(B.T, v, GF)
+    if not np.array_equal(solution @ B, v):
+        raise ValueError("Failed to solve linear system over GF(p).")
+    return solution
 
 
 def gf_solve(A: np.ndarray, b: np.ndarray, GF: type) -> np.ndarray:
     """
     Solve A x = b over GF(p). Returns one particular solution or raises ValueError if inconsistent.
     """
-    A = GF(A)
-    b = GF(b).reshape(-1, 1)
-    m, n = A.shape
-    M = np.hstack((A, b))
-    R, _ = gf_rref(M, GF)
-    # consistency check
-    for i in range(m):
-        if np.all(R[i, :n] == GF(0)) and R[i, n] != GF(0):
-            raise ValueError("Inconsistent linear system over GF(p).")
-    # particular solution (free vars = 0)
-    x = GF.Zeros(n)
-    row = 0
-    for c in range(n):
-        if row < m and R[row, c] == GF(1) and np.all(R[row, :c] == GF(0)):
-            s = GF(0)
-            for j in range(c + 1, n):
-                s += R[row, j] * x[j]
-            x[c] = R[row, n] - s
-            row += 1
-    return np.asarray(x).reshape(n, 1)
-
+    solution = solve_linear_system_over_gf(A, b, GF)
+    return solution.reshape(-1, 1)
 
 
 def get_linear_dependencies(vectors: np.ndarray,
@@ -341,4 +289,3 @@ def get_linear_dependencies(vectors: np.ndarray,
         dependencies = {}
 
     return pivot_indices, dependencies
-
