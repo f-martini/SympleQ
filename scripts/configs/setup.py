@@ -21,7 +21,7 @@ def get_version():
 
 
 setup(
-    name='quaos',
+    name='sympleq',
     version=get_version(),
     description='QuAOS: Quantum Algorithms, Optomechanics and Simulations',
     long_description=(current_file_path / '../..' / 'README.md').read_text(),

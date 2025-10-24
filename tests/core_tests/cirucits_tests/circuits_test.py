@@ -1,8 +1,8 @@
-# from quaos.core.paulis import random_pauli_string
-from quaos.core.circuits.known_circuits import to_x, to_ix
-from quaos.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
-from quaos.core.circuits.utils import embed_symplectic
-from quaos.core.paulis import PauliSum, PauliString
+# from sympleq.core.paulis import random_pauli_string
+from sympleq.core.circuits.known_circuits import to_x, to_ix
+from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
+from sympleq.core.circuits.utils import embed_symplectic
+from sympleq.core.paulis import PauliSum, PauliString
 import numpy as np
 import scipy.sparse as sp
 

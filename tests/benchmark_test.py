@@ -1,9 +1,9 @@
 import pytest
 import numpy as np
 
-from quaos.core.circuits.gates import Hadamard
-from quaos.core.paulis.pauli_string import PauliString
-from quaos.core.paulis.pauli_sum import PauliSum
+from sympleq.core.circuits.gates import Hadamard
+from sympleq.core.paulis.pauli_string import PauliString
+from sympleq.core.paulis.pauli_sum import PauliSum
 
 
 @pytest.mark.benchmark(group="PauliSum")

@@ -1,9 +1,9 @@
 """Codes for finding target Paulis and gates which map a given Pauli to a target Pauli."""
-from quaos.core.paulis import PauliString, PauliSum
+from sympleq.core.paulis import PauliString, PauliSum
 import numpy as np
 from collections import defaultdict
 from itertools import product
-from quaos.core.circuits.find_symplectic import map_pauli_sum_to_target_tableau
+from sympleq.core.circuits.find_symplectic import map_pauli_sum_to_target_tableau
 
 
 def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) -> tuple[np.ndarray, np.ndarray,
@@ -137,7 +137,7 @@ def get_phase_vector(gate_symplectic: np.ndarray, dimension: int) -> np.ndarray:
 
     U = np.zeros((2 * n_qudits, 2 * n_qudits), dtype=int)
     U[n_qudits:, :n_qudits] = np.eye(n_qudits, dtype=int)
-    lhs = (dimension - 1) * np.diag(gate_symplectic.T @ U @ gate_symplectic) % 2  
+    lhs = (dimension - 1) * np.diag(gate_symplectic.T @ U @ gate_symplectic) % 2
     return lhs
 
 

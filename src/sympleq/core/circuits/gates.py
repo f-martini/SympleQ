@@ -1,10 +1,10 @@
 import numpy as np
-from quaos.core.paulis import PauliString, PauliSum, Pauli
+from sympleq.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
-from quaos.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
-from quaos.core.circuits.utils import (transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func,
-                                       SWAP_func)
-from quaos.utils import get_linear_dependencies
+from sympleq.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
+from sympleq.core.circuits.utils import (transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func,
+                                         SWAP_func)
+from sympleq.utils import get_linear_dependencies
 import scipy.sparse as sp
 
 
@@ -100,7 +100,7 @@ class Gate:
         """
         Returns the updated tableau and phases acquired by the PauliSum when acted upon by this gate.
 
-        See Eq.[7] in PHYSICAL REVIEW A 71, 042315 (2005) 
+        See Eq.[7] in PHYSICAL REVIEW A 71, 042315 (2005)
 
         """
         if not np.array_equal(self.dimensions, pauli_sum.dimensions[self.qudit_indices]):

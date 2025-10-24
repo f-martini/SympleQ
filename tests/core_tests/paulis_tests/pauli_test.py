@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-from quaos.core.paulis import PauliSum, PauliString, Pauli
-from quaos.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
+from sympleq.core.paulis import PauliSum, PauliString, Pauli
+from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 
 
 class TestPaulis:

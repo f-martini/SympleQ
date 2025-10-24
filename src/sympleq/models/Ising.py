@@ -1,4 +1,4 @@
-from quaos.core.paulis import PauliSum, PauliString
+from sympleq.core.paulis import PauliSum, PauliString
 import numpy as np
 
 

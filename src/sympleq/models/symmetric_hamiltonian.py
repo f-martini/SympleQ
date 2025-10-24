@@ -1,6 +1,6 @@
 import numpy as np
-from quaos.core.paulis import PauliSum
-from quaos.core.circuits import Circuit
+from sympleq.core.paulis import PauliSum
+from sympleq.core.circuits import Circuit
 from collections import defaultdict
 
 

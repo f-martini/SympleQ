@@ -1,8 +1,8 @@
 import random
 import numpy as np
-from quaos.core.paulis import PauliSum, PauliString
-from quaos.core.circuits import Gate
-from quaos.utils import int_to_bases, bases_to_int
+from sympleq.core.paulis import PauliSum, PauliString
+from sympleq.core.circuits import Gate
+from sympleq.utils import int_to_bases, bases_to_int
 
 
 def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand'):
@@ -120,7 +120,7 @@ def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=
 
     Examples
     --------
-    >>> from quaos.models.random_hamiltonian import random_pauli_symmetry_hamiltonian
+    >>> from sympleq.models.random_hamiltonian import random_pauli_symmetry_hamiltonian
     >>> random_pauli_symmetry_hamiltonian(2, 4)
     PauliSum of size 4x2 with 4 terms and 0 redundant or conditional qubits.
     """

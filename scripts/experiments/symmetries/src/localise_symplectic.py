@@ -194,7 +194,7 @@ def minimize_largest_component(F, max_passes=8):
 
 if __name__ == "__main__":
 
-    from quaos.core.circuits import Circuit, Gate
+    from sympleq.core.circuits import Circuit, Gate
     # Example: a 3-qubit symplectic with some inter-qubit coupling
     n = 50
     Om = Omega(n)
