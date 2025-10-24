@@ -518,7 +518,7 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
                         break
                 else:
                     if (H.weights[i] * np.exp(2 * np.pi * 1j * H.phases[i] / (2 * H.lcm)) -
-                        H.weights[j] * np.exp(2 * np.pi * 1j * H.phases[j] / (2 * H.lcm))) > 10**-10:
+                            H.weights[j] * np.exp(2 * np.pi * 1j * H.phases[j] / (2 * H.lcm))) > 10**-10:
                         # Step 1: Weight
                         H.weights[j] = H.weights[i]
                         # Step 2: Phase

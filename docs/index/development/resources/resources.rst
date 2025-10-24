@@ -158,4 +158,4 @@ is it possible to browse the full PEP 8 style guide.
    detect PEP 8 violations highlighting them in the editor as warnings
    and providing suggestions to fix them.
 
-This page provides a collection of resources to help you with the development of QuAOS and the surrounding ecosyst.
+This page provides a collection of resources to help you with the development of SympleQ and the surrounding ecosyst.

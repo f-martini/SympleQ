@@ -4,9 +4,7 @@ from typing import overload
 from sympleq.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
 from sympleq.core.circuits.utils import (transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func,
                                          SWAP_func)
-from sympleq.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size
 from sympleq.utils import get_linear_dependencies
-from sympleq.core.circuits.random_symplectic import symplectic_random_transvection
 import scipy.sparse as sp
 
 
@@ -102,7 +100,7 @@ class Gate:
         """
         Returns the updated tableau and phases acquired by the PauliSum when acted upon by this gate.
 
-        See Eq.[7] in PHYSICAL REVIEW A 71, 042315 (2005) 
+        See Eq.[7] in PHYSICAL REVIEW A 71, 042315 (2005)
 
         """
         if not np.array_equal(self.dimensions, pauli_sum.dimensions[self.qudit_indices]):

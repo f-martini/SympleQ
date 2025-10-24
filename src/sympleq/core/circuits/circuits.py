@@ -155,7 +155,7 @@ class Circuit:
             pauli = gate.act(pauli)
         return pauli
 
-    def act_iter(self, pauli_sum:  PauliSum) -> Generator[PauliSum]:
+    def act_iter(self, pauli_sum: PauliSum) -> Generator[PauliSum, None, None]:
         if np.any(self.dimensions != pauli_sum.dimensions):
             raise ValueError("Pauli dimensions do not match circuit dimensions")
         for gate in self.gates:
@@ -195,7 +195,7 @@ class Circuit:
             new_gate = gate.copy()
             if qudit_indices is not None:
                 new_indexes = [qudit_indices[j] for j in gate.qudit_indices]
-                new_gate.qudit_indices = new_indexes
+                new_gate.qudit_indices = np.ndarray(new_indexes)
             self.add_gate(new_gate)
 
     def _composite_phase_vector(self, F_1: np.ndarray, F_2: np.ndarray, h_2: np.ndarray, lcm: int) -> np.ndarray:
