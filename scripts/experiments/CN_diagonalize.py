@@ -5,9 +5,9 @@ import sys
 sys.path.append("./")
 
 import numpy as np
-from quaos.prime_Functions_Andrew import *
-from quaos.prime_Functions_quditV2 import *
-from quaos.pauli import *
+from sympleq.prime_Functions_Andrew import *
+from sympleq.prime_Functions_quditV2 import *
+from sympleq.pauli import *
 
 
 def main():

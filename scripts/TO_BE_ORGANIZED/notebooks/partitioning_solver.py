@@ -70,8 +70,8 @@ def solve_HT_equals_PH_blockwise(H, c, d):
 
 if __name__ == "__main__":
     import sys
-    sys.path.append('./')  # Adjust path to import quaos
-    from quaos.hamiltonian import random_pauli_hamiltonian
+    sys.path.append('./')  # Adjust path to import sympleq
+    from sympleq.hamiltonian import random_pauli_hamiltonian
     from time import time
 
     if True:
@@ -121,7 +121,8 @@ if __name__ == "__main__":
             #     else:
             #         successes2.append((H, M, P))
 
-        print(f"Total time for SCIP solver: {time_solve1:.2f} seconds, average {time_solve1 / n_tests:.2f} seconds per test.")
+        print(
+            f"Total time for SCIP solver: {time_solve1:.2f} seconds, average {time_solve1 / n_tests:.2f} seconds per test.")
         # print(f'Total time for global solver: {time_solve2:.2f} seconds, average {time_solve2 / n_tests:.2f} seconds per test.')
         print(len(successes), "successful tests for SCIP solver.")
         # print(len(successes2), "successful tests for global solver.")

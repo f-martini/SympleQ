@@ -9,18 +9,18 @@ sys.path.append(str(root_path))
 
 # TODO: duplicate variance_graph definition in the two modules. A rename is required.
 # currently using the one from prime_Functions_quditV2
-from quaos.core.prime_Functions_Andrew import *
-from quaos.core.prime_Functions_quditV2 import *
+from sympleq.core.prime_Functions_Andrew import *
+from sympleq.core.prime_Functions_quditV2 import *
 
-from quaos.core.prime_Functions_Andrew import (
+from sympleq.core.prime_Functions_Andrew import (
     ground_state, weighted_vertex_covering_maximal_cliques, scale_variances,
     Hamiltonian_Mean, graph
 )
-from quaos.core.prime_Functions_quditV2 import (
-    random_pauli_hamiltonian, sort_hamiltonian, bucket_filling_qudit, 
+from sympleq.core.prime_Functions_quditV2 import (
+    random_pauli_hamiltonian, sort_hamiltonian, bucket_filling_qudit,
     bayes_covariance_graph, error_correction_estimation
 )
-from quaos.core.pauli import pauli
+from sympleq.core.pauli import pauli
 
 np.set_printoptions(linewidth=200)
 
@@ -28,7 +28,7 @@ np.set_printoptions(linewidth=200)
 def estimate_mean(measurements: np.ndarray, P: pauli, cc: np.ndarray) -> float:
     summation = 0
     for i0 in range(p):
-        
+
         tmp = 0
         normalizer = sum(measurements[i0, i0, i1] for i1 in range(P.lcm))
         if normalizer > 0:
@@ -36,7 +36,7 @@ def estimate_mean(measurements: np.ndarray, P: pauli, cc: np.ndarray) -> float:
                 tmp += (
                     measurements[i0, i0, i1] * math.e**(2 * 1j * math.pi * i1 / P.lcm)
                 )
-            tmp /= normalizer 
+            tmp /= normalizer
 
         summation += cc[i0] * tmp
     return summation.real
@@ -83,7 +83,7 @@ def main():
         M_list=intermediate_results_list,
         allocation_mode=allocation_mode,
         mcmc_shot_scale=mcmc_shot_scale,
-        N_mcmc=N, 
+        N_mcmc=N,
         N_mcmc_max=N_max,
         p_noise=p_noise,
         Q_progress_bar=False
@@ -94,10 +94,12 @@ def main():
     if X is not None:
         # mean = estimate_mean()
         # print('Est. mean:', mean)
-        print('Est. mean:', sum(cc[i0] * sum(X[i0, i0, i1] * math.e**(2 * 1j * math.pi * i1 / P.lcm) for i1 in range(P.lcm)) / sum(X[i0, i0, i1] for i1 in range(P.lcm)) if sum(X[i0, i0, i1] for i1 in range(P.lcm)) > 0 else 0 for i0 in range(p)).real)
+        print('Est. mean:', sum(cc[i0] * sum(X[i0, i0, i1] * math.e**(2 * 1j * math.pi * i1 / P.lcm) for i1 in range(P.lcm)) / sum(
+            X[i0, i0, i1] for i1 in range(P.lcm)) if sum(X[i0, i0, i1] for i1 in range(P.lcm)) > 0 else 0 for i0 in range(p)).real)
     print('True error:', np.sqrt(np.sum(scale_variances(variance_graph(P, cc, psi), S).adj)).real)
     if X is not None:
-        print('Est. error:', np.sqrt(np.sum(scale_variances(graph(bayes_covariance_graph(X, np.array(cc), CG.adj, p, pauli_block_sizes, int(P.lcm), N=N, N_max=N_max)), S).adj)).real)
+        print('Est. error:', np.sqrt(np.sum(scale_variances(graph(bayes_covariance_graph(
+            X, np.array(cc), CG.adj, p, pauli_block_sizes, int(P.lcm), N=N, N_max=N_max)), S).adj)).real)
     print()
     print()
     print()
@@ -108,8 +110,10 @@ def main():
     for k, X in enumerate(X_list):
         print('k', k)
         S = S_list[k]
-        results[k, 0] = sum(cc[i0] * sum(X[i0, i0, i1] * math.e**(2 * 1j * math.pi * i1 / P.lcm) for i1 in range(P.lcm)) / sum(X[i0, i0, i1] for i1 in range(P.lcm)) if sum(X[i0, i0, i1] for i1 in range(P.lcm)) > 0 else 0 for i0 in range(p)).real
-        results[k, 1] = np.sqrt(np.sum(scale_variances(graph(bayes_covariance_graph(X, np.array(cc), CG.adj, p, pauli_block_sizes, int(P.lcm), N=N, N_max=N_max)), S).adj)).real
+        results[k, 0] = sum(cc[i0] * sum(X[i0, i0, i1] * math.e**(2 * 1j * math.pi * i1 / P.lcm) for i1 in range(P.lcm)) / sum(
+            X[i0, i0, i1] for i1 in range(P.lcm)) if sum(X[i0, i0, i1] for i1 in range(P.lcm)) > 0 else 0 for i0 in range(p)).real
+        results[k, 1] = np.sqrt(np.sum(scale_variances(graph(bayes_covariance_graph(
+            X, np.array(cc), CG.adj, p, pauli_block_sizes, int(P.lcm), N=N, N_max=N_max)), S).adj)).real
         results[k, 2] = np.sqrt(np.sum(scale_variances(vg, S).adj)).real
 
     x_dat = intermediate_results_list
@@ -120,8 +124,8 @@ def main():
 
     fig, ax = plt.subplots(figsize=(9, 6))
 
-    for j in range(len(intermediate_results_list)): 
-        y_dat[j] = results[j, 1]**2 * intermediate_results_list[j] / (H_mean)**2  
+    for j in range(len(intermediate_results_list)):
+        y_dat[j] = results[j, 1]**2 * intermediate_results_list[j] / (H_mean)**2
         y_true_dat[j] = results[j, 2]**2 * intermediate_results_list[j] / (H_mean)**2
 
     ax.plot(x_dat, y_true_dat, marker='s', label='True Error')
@@ -167,15 +171,15 @@ def main():
 
     # simulation
     S, X, xxx, CG, X_list, S_list, D = bucket_filling_qudit(
-        P, cc, psi, shots, part_func, pauli_block_sizes, 
-        full_simulation=full_simulation, 
-        update_steps=update_steps, 
-        general_commutation=general_commutation, 
-        D=D, 
-        M_list=intermediate_results_list, 
+        P, cc, psi, shots, part_func, pauli_block_sizes,
+        full_simulation=full_simulation,
+        update_steps=update_steps,
+        general_commutation=general_commutation,
+        D=D,
+        M_list=intermediate_results_list,
         allocation_mode=allocation_mode,
         mcmc_shot_scale=mcmc_shot_scale,
-        N_mcmc=N, 
+        N_mcmc=N,
         N_mcmc_max=N_max,
         p_noise=p_noise,
         Q_progress_bar=False
@@ -188,10 +192,12 @@ def main():
     print('True mean:', Hamiltonian_Mean(P, cc, psi).real)
     # TODO: check why the mean estimation, sometimes, fails in the profiling pipeline
     if X is not None:
-        print('Est. mean:', sum(cc[i0] * sum(X[i0, i0, i1] * math.e**(2 * 1j * math.pi * i1 / P.lcm) for i1 in range(P.lcm)) / sum(X[i0, i0, i1] for i1 in range(P.lcm)) if sum(X[i0, i0, i1] for i1 in range(P.lcm)) > 0 else 0 for i0 in range(p)).real)
+        print('Est. mean:', sum(cc[i0] * sum(X[i0, i0, i1] * math.e**(2 * 1j * math.pi * i1 / P.lcm) for i1 in range(P.lcm)) / sum(
+            X[i0, i0, i1] for i1 in range(P.lcm)) if sum(X[i0, i0, i1] for i1 in range(P.lcm)) > 0 else 0 for i0 in range(p)).real)
     print('True error (without correction):', np.sqrt(np.sum(scale_variances(variance_graph(P, cc, psi), S).adj).real))
     if X is not None:
-        print('Est. error:', np.sqrt(np.sum(scale_variances(graph(bayes_covariance_graph(X, np.array(cc), CG.adj, p, pauli_block_sizes, int(P.lcm), N=N, N_max=N_max)), S).adj).real + error_correction))
+        print('Est. error:', np.sqrt(np.sum(scale_variances(graph(bayes_covariance_graph(X, np.array(cc),
+              CG.adj, p, pauli_block_sizes, int(P.lcm), N=N, N_max=N_max)), S).adj).real + error_correction))
     print()
     print()
     print()
@@ -202,8 +208,10 @@ def main():
     for k, X in enumerate(X_list):
         print('k', k)
         S = S_list[k]
-        results[k, 0] = sum(cc[i0] * sum(X[i0, i0, i1] * math.e**(2 * 1j * math.pi * i1 / P.lcm) for i1 in range(P.lcm)) / sum(X[i0, i0, i1] for i1 in range(P.lcm)) if sum(X[i0, i0, i1] for i1 in range(P.lcm)) > 0 else 0 for i0 in range(p)).real
-        results[k, 1] = np.sqrt(np.sum(scale_variances(graph(bayes_covariance_graph(X, np.array(cc), CG.adj, p, pauli_block_sizes, int(P.lcm), N=N, N_max=N_max)), S).adj)).real
+        results[k, 0] = sum(cc[i0] * sum(X[i0, i0, i1] * math.e**(2 * 1j * math.pi * i1 / P.lcm) for i1 in range(P.lcm)) / sum(
+            X[i0, i0, i1] for i1 in range(P.lcm)) if sum(X[i0, i0, i1] for i1 in range(P.lcm)) > 0 else 0 for i0 in range(p)).real
+        results[k, 1] = np.sqrt(np.sum(scale_variances(graph(bayes_covariance_graph(
+            X, np.array(cc), CG.adj, p, pauli_block_sizes, int(P.lcm), N=N, N_max=N_max)), S).adj)).real
         results[k, 2] = np.sqrt(np.sum(scale_variances(vg, S).adj)).real
         results[k, 3] = error_correction_estimation(P, cc, X, xxx[0:intermediate_results_list[k]], p_noise)
 
@@ -215,8 +223,8 @@ def main():
 
     fig, ax = plt.subplots(figsize=(9, 6))
 
-    for j in range(len(intermediate_results_list)): 
-        y_dat[j] = (results[j, 1]**2 + results[j, 3]) * intermediate_results_list[j] / (H_mean)**2  
+    for j in range(len(intermediate_results_list)):
+        y_dat[j] = (results[j, 1]**2 + results[j, 3]) * intermediate_results_list[j] / (H_mean)**2
         y_true_dat[j] = results[j, 2]**2 * intermediate_results_list[j] / (H_mean)**2
 
     ax.plot(x_dat, y_true_dat, marker='s', label='True Error (uncorrected)')

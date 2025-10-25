@@ -1,5 +1,7 @@
 import numpy as np
-from quaos.core.paulis import PauliSum, PauliString, Pauli, Xnd, Ynd, Znd, Id
+import pytest
+from sympleq.core.paulis import PauliSum, PauliString, Pauli
+from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 
 
 class TestPaulis:
@@ -204,6 +206,17 @@ class TestPaulis:
 
         assert x1y1 == x1y1_2
 
+        x1y0 = PauliString([1, 1], [1, 0])
+        x1y0_2 = PauliString.from_string('x1z1 x1z0', dimensions=DEFAULT_QUDIT_DIMENSION)
+        x1y0_3 = PauliString.from_string('x1z1 x1z0', dimensions=dims)
+
+        assert x1y0 == x1y0_2
+        assert x1y0 != x1y0_3
+
+        # Test minimum allowed qudit dimension.
+        with pytest.raises(ValueError):
+            _ = PauliString.from_string('x0z0 x0z0', dimensions=DEFAULT_QUDIT_DIMENSION - 1)
+
     def test_pauli_sum_addition(self):
 
         for dim in [2, 3, 5]:
@@ -272,10 +285,16 @@ class TestPaulis:
                       phases=[0, 0, 1, 1],
                       dimensions=dims, standardise=False)
 
-        assert ps[0] == PauliString.from_string('x2z0 x2z0 x1z1', dimensions=dims)
-        assert ps[1] == PauliString.from_string('x2z0 x2z0 x0z0', dimensions=dims)
-        assert ps[2] == PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)
-        assert ps[3] == PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)
+        ps0 = PauliSum([PauliString.from_string('x2z0 x2z0 x1z1', dimensions=dims)], weights=[1], phases=[0])
+        ps1 = PauliSum([PauliString.from_string('x2z0 x2z0 x0z0', dimensions=dims)], weights=[1], phases=[0])
+        ps2 = PauliSum([PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)], weights=[0.5 + 0j], phases=[1],
+                       standardise=False)
+        ps3 = PauliSum([PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)], weights=[0.5 + 0j], phases=[1],
+                       standardise=False)
+        assert ps[0] == ps0, f'{ps[0].__str__()}\n{ps0.__str__()}'
+        assert ps[1] == ps1, f'{ps[1].__str__()}\n{ps1.__str__()}'
+        assert ps[2] == ps2, f'{ps[2].__str__()}\n{ps2.__str__()}'
+        assert ps[3] == ps3, f'{ps[3].__str__()}\n{ps3.__str__()}'
         assert ps[0:2] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z0 x0z0'], dimensions=dims, standardise=False)
         assert ps[[0, 3]] == PauliSum(['x2z0 x2z0 x1z1', 'x2z0 x2z1 x1z1'], weights=[1, 0.5], phases=[0, 1],
                                       dimensions=dims, standardise=False)
@@ -283,6 +302,32 @@ class TestPaulis:
                                          standardise=False)
         assert ps[[0, 2], [0, 2]] == PauliSum(['x2z0 x1z1', 'x2z0 x2z0'], weights=[1, 0.5], phases=[0, 1],
                                               dimensions=[3, 3], standardise=False)
+
+    def test_pauli_sum_amend(self):
+        dims = [2, 3]
+        # p1 = X on qubit, p2 = Z on qutrit, p3 = XZ on qutrit
+        p1 = PauliString(x_exp=[1, 0], z_exp=[0, 0], dimensions=dims)
+        p2 = PauliString(x_exp=[0, 0], z_exp=[0, 1], dimensions=dims)
+        p3 = PauliString(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)
+        ps = PauliSum(pauli_list=[p1, p2, p3],
+                      weights=None, phases=None, dimensions=dims, standardise=False)
+
+        ps.pauli_strings[0] = ps.pauli_strings[0].amend(0, 0, 1)
+        ps.pauli_strings[1] = ps.pauli_strings[1].amend(1, 1, 1)
+        ps[2] = ps.pauli_strings[2].amend(1, 1, 2)  # Try assignment via __setitem__
+
+        # p1 = Z on qubit, p2 = XZ on qutrit, p3 = XZ^2 on qutrit
+        new_p1 = PauliString(x_exp=[0, 0], z_exp=[1, 0], dimensions=dims)
+        new_p2 = PauliString(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)
+        new_p3 = PauliString(x_exp=[0, 1], z_exp=[0, 2], dimensions=dims)
+        new_ps = PauliSum(pauli_list=[new_p1, new_p2, new_p3],
+                          weights=None, phases=None, dimensions=dims, standardise=False)
+
+        assert p1 == new_p1
+        assert p2 == new_p2
+        assert p3 == new_p3
+
+        assert ps == new_ps
 
     def test_ordering(self):
         # check that the symplectic basis gives the identity when ordered
@@ -295,7 +340,83 @@ class TestPaulis:
         np.random.shuffle(shuffled_basis)
         ps = PauliSum.from_tableau(np.array(shuffled_basis), [d] * n_qudits)
 
-        assert np.all(ps.tableau() == symplectic_basis), 'Error in PauliSum ordering to symplectic basis'
+        assert np.all(ps.standard_form().tableau() == symplectic_basis)
+
+    def test_paulisum_delete_qudits(self):
+        dims = [2, 3, 5, 6, 7]
+
+        ps1 = PauliString(x_exp=[1, 2, 0, 0, 3], z_exp=[0, 1, 4, 4, 5], dimensions=dims)
+        ps2 = PauliString(x_exp=[0, 1, 3, 4, 3], z_exp=[1, 0, 2, 4, 5], dimensions=dims)
+        psum = PauliSum([ps1, ps2], standardise=False)
+        psum._delete_qudits([1, 3])
+
+        expected_ps1 = PauliString(x_exp=[1, 0, 3], z_exp=[0, 4, 5], dimensions=[2, 5, 7])
+        expected_ps2 = PauliString(x_exp=[0, 3, 3], z_exp=[1, 2, 5], dimensions=[2, 5, 7])
+        expected_psum = PauliSum([expected_ps1, expected_ps2], standardise=False)
+
+        assert psum == expected_psum, f"Expected {expected_psum}, got {psum}"
+
+    def test_symplectic_product(self):
+        P1 = PauliString.from_string('x1z0', dimensions=[2])
+        P2 = PauliString.from_string('x0z1', dimensions=[2])
+        assert P1.symplectic_product(P2) == 1
+
+        P1 = PauliString.from_string('x1z0', dimensions=[2])
+        P2 = PauliString.from_string('x1z0', dimensions=[2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x0z1', dimensions=[2])
+        P2 = PauliString.from_string('x0z1', dimensions=[2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z0 x1z0', dimensions=[2, 2])
+        P2 = PauliString.from_string('x0z1 x0z1', dimensions=[2, 2])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z0 x0z1', dimensions=[2, 2])
+        P2 = PauliString.from_string('x1z0 x1z0', dimensions=[2, 2])
+        assert P1.symplectic_product(P2) == 1
+
+        P1 = PauliString.from_string('x1z0', dimensions=[3])
+        P2 = PauliString.from_string('x2z0', dimensions=[3])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z2', dimensions=[3])
+        P2 = PauliString.from_string('x2z1', dimensions=[3])
+        assert P1.symplectic_product(P2) == 0
+
+        P1 = PauliString.from_string('x1z2 x1z1', dimensions=[3, 2])
+        P2 = PauliString.from_string('x2z1 x1z1', dimensions=[3, 2])
+        assert P1.symplectic_product(P2) == 0
+
+    def test_hermitian_generation(self):
+        P1 = PauliString.from_string('x1z0', dimensions=[3])
+        P2 = PauliString.from_string('x2z0', dimensions=[3])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x1z1', dimensions=[3])
+        P2 = PauliString.from_string('x2z2', dimensions=[3])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x2z1', dimensions=[3])
+        P2 = PauliString.from_string('x1z2', dimensions=[3])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x0z0', dimensions=[3])
+        P2 = PauliString.from_string('x0z0', dimensions=[3])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x0z1 x1z1', dimensions=[3, 2])
+        P2 = PauliString.from_string('x0z2 x1z1', dimensions=[3, 2])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x0z1 x1z0', dimensions=[5, 2])
+        P2 = PauliString.from_string('x0z4 x1z0', dimensions=[5, 2])
+        assert P1.hermitian() == P2
+
+        P1 = PauliString.from_string('x2z1 x0z1', dimensions=[5, 2])
+        P2 = PauliString.from_string('x3z4 x0z1', dimensions=[5, 2])
+        assert P1.hermitian() == P2
 
     def test_qubit_XZ_phase_is_minus_one(self):
         # Single qubit (dimension 2): X * Z = (-1) Z * X  => scalar exponent r = 1 mod 2
@@ -414,37 +535,3 @@ class TestPaulis:
         # Spot-check against pairwise method:
         ps = S.pauli_strings
         assert SPM[1, 3] % L == ps[1].symplectic_product(ps[3], as_scalar=True) % L
-
-
-    def test_symplectic_product(self):
-        P1 = PauliString.from_string('x1z0', dimensions=[2])
-        P2 = PauliString.from_string('x0z1', dimensions=[2])
-        assert P1.symplectic_product(P2) == 1
-
-        P1 = PauliString.from_string('x1z0', dimensions=[2])
-        P2 = PauliString.from_string('x1z0', dimensions=[2])
-        assert P1.symplectic_product(P2) == 0
-
-        P1 = PauliString.from_string('x0z1', dimensions=[2])
-        P2 = PauliString.from_string('x0z1', dimensions=[2])
-        assert P1.symplectic_product(P2) == 0
-
-        P1 = PauliString.from_string('x1z0 x1z0', dimensions=[2, 2])
-        P2 = PauliString.from_string('x0z1 x0z1', dimensions=[2, 2])
-        assert P1.symplectic_product(P2) == 0
-
-        P1 = PauliString.from_string('x1z0 x0z1', dimensions=[2, 2])
-        P2 = PauliString.from_string('x1z0 x1z0', dimensions=[2, 2])
-        assert P1.symplectic_product(P2) == 1
-
-        P1 = PauliString.from_string('x1z0', dimensions=[3])
-        P2 = PauliString.from_string('x2z0', dimensions=[3])
-        assert P1.symplectic_product(P2) == 0
-
-        P1 = PauliString.from_string('x1z2', dimensions=[3])
-        P2 = PauliString.from_string('x2z1', dimensions=[3])
-        assert P1.symplectic_product(P2) == 0
-
-        P1 = PauliString.from_string('x1z2 x1z1', dimensions=[3, 2])
-        P2 = PauliString.from_string('x2z1 x1z1', dimensions=[3, 2])
-        assert P1.symplectic_product(P2) == 0

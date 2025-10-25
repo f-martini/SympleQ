@@ -1,4 +1,4 @@
-from quaos.core.circuits.find_symplectic import (
+from sympleq.core.circuits.find_symplectic import (
     map_single_pauli_string_to_target,
     check_mappable_via_clifford,
     find_symplectic_solution,
@@ -7,11 +7,11 @@ from quaos.core.circuits.find_symplectic import (
     map_pauli_sum_to_target_tableau
 )
 import numpy as np
-from quaos.core.circuits.utils import transvection, transvection_matrix, symplectic_product
-from quaos.utils import get_linear_dependencies
-from quaos.core.paulis import PauliSum
-from quaos.models import random_hamiltonian
-from quaos.core.circuits import Gate, Circuit, SWAP
+from sympleq.core.circuits.utils import transvection, transvection_matrix, symplectic_product
+from sympleq.utils import get_linear_dependencies
+from sympleq.core.paulis import PauliSum
+from sympleq.models import random_hamiltonian
+from sympleq.core.circuits import Gate, Circuit, SWAP
 
 
 class TestSymplecticSolver:
@@ -89,7 +89,7 @@ class TestSymplecticSolver:
     def test_map_single_pauli_string_to_target(self):
         n = 14
         p = 2
-        for _ in range(1000):
+        for _ in range(10000):
             input_ps = np.random.randint(p, size=2 * n)
             target_ps = np.random.randint(p, size=2 * n)
             if np.array_equal(input_ps, np.zeros(2 * n)):
@@ -183,7 +183,7 @@ class TestSymplecticSolver:
     def test_map_pauli_sum_to_target(self):
 
         for i in range(1000):
-            print(i)
+            # print(i)
             # choose random properties of the system
             n = np.random.randint(2, 5)  # , 50)  # Number of qudits
             allowed_dims = [2]  # , 3, 5, 7, 11]  # allowed dimensions
