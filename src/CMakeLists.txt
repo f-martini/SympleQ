@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(quaos LANGUAGES CXX CUDA)
+project(sympleq LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,7 +20,7 @@ if(DEFINED ENV{VCPKG_ROOT})
 endif()
 
 set(PACKAGE_PY_PATH ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} CACHE STRING "Python package relative install path")
-set(LIBS_PATH "${CMAKE_SOURCE_DIR}/quaos.libs" CACHE STRING "Shared libs location")
+set(LIBS_PATH "${CMAKE_SOURCE_DIR}/sympleq.libs" CACHE STRING "Shared libs location")
 set(PYTHON_PACKAGE_INSTALL_DIR "${CMAKE_BINARY_DIR}/install/${PACKAGE_PY_PATH}")
 
 # Direct global output into the staged install tree for Release config only

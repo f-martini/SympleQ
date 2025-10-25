@@ -93,11 +93,11 @@ jobs:
           CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
           CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.LINUX_PRESET_X64 }}
 
-          CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
+          CIBW_TEST_COMMAND: 'python -c "from sympleq.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
             export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-            export LD_LIBRARY_PATH="$(find / -type d -path '*/quaos.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
+            export LD_LIBRARY_PATH="$(find / -type d -path '*/sympleq.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
             echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" &&
             auditwheel repair -w {dest_dir} {wheel}
 
@@ -128,8 +128,8 @@ jobs:
 
     env:
       CMAKE_CUDA_COMPILER: "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6\\bin\\nvcc.exe"
-      VCPKG_ROOT: "D:\\a\\quaos\\quaos\\vcpkg"
-      CMAKE_TOOLCHAIN_FILE: "D:\\a\\quaos\\quaos\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
+      VCPKG_ROOT: "D:\\a\\sympleq\\sympleq\\vcpkg"
+      CMAKE_TOOLCHAIN_FILE: "D:\\a\\sympleq\\sympleq\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
       CUDA_PATH: "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6"
 
     steps:
@@ -197,21 +197,21 @@ jobs:
       - name: Repair wheel with delvewheel
         shell: pwsh
         run: |
-          $wheels = Get-ChildItem -Path dist -Filter 'quaos*.whl' -ErrorAction SilentlyContinue
+          $wheels = Get-ChildItem -Path dist -Filter 'sympleq*.whl' -ErrorAction SilentlyContinue
           if (-not $wheels) {
-            Write-Host "No quaos wheels found in dist; skipping delvewheel repair"
+            Write-Host "No sympleq wheels found in dist; skipping delvewheel repair"
           } else {
-            Remove-Item -Path dist\* -Include *.whl -Exclude quaos*.whl -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path dist\* -Include *.whl -Exclude sympleq*.whl -Force -ErrorAction SilentlyContinue
             foreach ($w in $wheels) {
-              python -m delvewheel repair --add-path ${{ github.workspace }}/${{ env.NATIVE_SRC_PATH }}/quaos.libs --wheel-dir dist $w.FullName
+              python -m delvewheel repair --add-path ${{ github.workspace }}/${{ env.NATIVE_SRC_PATH }}/sympleq.libs --wheel-dir dist $w.FullName
             }
           }
 
       - name: Test wheel
         run: |
-          $wheels = Get-ChildItem -Path dist -Filter 'quaos*.whl'
+          $wheels = Get-ChildItem -Path dist -Filter 'sympleq*.whl'
           foreach ($w in $wheels) { pip install $w.FullName }
-          python -c "from quaos.core.light import Aquire; aquire = Aquire('h', [], {})"
+          python -c "from sympleq.core.light import Aquire; aquire = Aquire('h', [], {})"
 
       - name: Upload wheels as artifacts
         uses: actions/upload-artifact@v4
@@ -256,7 +256,7 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TEST }}
         run: |
-          python -m twine upload --repository testpypi dist/quaos-*.whl --verbose --skip-existing
+          python -m twine upload --repository testpypi dist/sympleq-*.whl --verbose --skip-existing
 
       - name: Publish to PyPI (on release)
         if: github.event_name == 'release'
@@ -264,4 +264,4 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
-          python -m twine upload dist/quaos-*.whl --verbose
+          python -m twine upload dist/sympleq-*.whl --verbose

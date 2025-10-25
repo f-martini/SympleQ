@@ -9,7 +9,7 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "quaos/core/light",
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "sympleq/core/light",
         "LIGHT_SRC_DIRECTORY": "${sourceDir}/light"
       }
     },
@@ -20,7 +20,7 @@
     "binaryDir": "${sourceDir}/build/${presetName}",
     "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/quaos/core/light",
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/sympleq/core/light",
         "LIGHT_SRC_DIRECTORY": "${sourceDir}/light"
       }
     },

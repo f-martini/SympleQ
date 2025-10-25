@@ -102,7 +102,7 @@ jobs:
 
           CIBW_BUILD_VERBOSITY: 1
 
-          CIBW_TEST_COMMAND: 'python -c "from quaos.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
+          CIBW_TEST_COMMAND: 'python -c "from sympleq.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
 
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
             echo "Running auditwheel repair for ARM64..." &&
@@ -152,7 +152,7 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TEST }}
         run: |
-          python -m twine upload --repository testpypi dist/quaos-*.whl --verbose --skip-existing
+          python -m twine upload --repository testpypi dist/sympleq-*.whl --verbose --skip-existing
 
       - name: Publish to PyPI (on release)
         if: github.event_name == 'release'
@@ -160,4 +160,4 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
-          python -m twine upload dist/quaos-*.whl --verbose
+          python -m twine upload dist/sympleq-*.whl --verbose

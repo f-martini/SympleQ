@@ -3,8 +3,8 @@
     {
       "name": "windows-gcc-x64",
       "includePath": [
-        "${workspaceFolder}/src/quaos/core/light/src/Base/include/**",
-        "${workspaceFolder}/src/quaos/core/light/src/Base/include/Base/**",
+        "${workspaceFolder}/src/sympleq/core/light/src/Base/include/**",
+        "${workspaceFolder}/src/sympleq/core/light/src/Base/include/Base/**",
         "${workspaceFolder}/**",
         "${env:LOCALAPPDATA}/Programs/Python/Python311/include"
       ],
