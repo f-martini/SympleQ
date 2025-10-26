@@ -73,6 +73,7 @@
         "keras",
         "kitaev",
         "kron",
+        "LIGHTMATH",
         "linalg",
         "luca",
         "markersize",

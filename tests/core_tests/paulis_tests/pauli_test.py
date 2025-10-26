@@ -184,6 +184,16 @@ class TestPaulis:
         assert x1 * z1 == y1
         assert x1 * x1 * x1 == id
 
+    def test_pauli_equality(self):
+        dims = 3
+        p1 = Pauli.from_string('x1z0', dimension=dims)
+        p2 = Pauli.from_string('x0z1', dimension=dims)
+        p3 = Pauli.from_string('x1z1', dimension=dims)
+
+        assert Xnd(1, dims) == p1
+        assert Znd(1, dims) == p2
+        assert Ynd(1, dims) == p3
+
     def test_pauli_string_construction(self):
         dims = [3, 3]
         x1x1 = PauliString.from_string('x1z0 x1z0', dimensions=dims)
