@@ -192,6 +192,7 @@ def embed_unitary(U_local: np.ndarray,
     return P.conj().T @ U_kron @ P
 
 
+# FIXME: add typing
 def tensor(mm):
     # Inputs:
     #     mm - (list{scipy.sparse.csr_matrix}) - matrices to tensor
@@ -205,16 +206,19 @@ def tensor(mm):
         return sp.kron(mm[0], tensor(mm[1:]), format="csr")
 
 
+# FIXME: add typing
 def I_mat(d):
     #
     return sp.csr_matrix(np.diag([1] * d))
 
 
+# FIXME: add typing
 def H_mat(d):
     omega = np.exp(2 * np.pi * 1j / d)
     return sp.csr_matrix(1 / np.sqrt(d) * np.array([[omega ** (i0 * i1) for i0 in range(d)] for i1 in range(d)]))
 
 
+# FIXME: add typing
 def S_mat(d):
     if d == 2:
         return sp.csr_matrix(np.diag([1, 1j]))

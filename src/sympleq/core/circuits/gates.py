@@ -1,15 +1,19 @@
 import numpy as np
-from sympleq.core.paulis import PauliString, PauliSum, Pauli
-from typing import overload
+import scipy.sparse as sp
+from typing import TypeVar, overload
+
+from sympleq.core.paulis import Pauli, PauliString, PauliSum, PauliObject
 from sympleq.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
 from sympleq.core.circuits.utils import (transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func,
                                          SWAP_func)
 from sympleq.utils import get_linear_dependencies
-import scipy.sparse as sp
+
+# We define a type using TypeVar to let the type checker know that
+# the input and output of the `act` function share the same type.
+P = TypeVar("P", bound="PauliObject")
 
 
 class Gate:
-
     def __init__(self, name: str,
                  qudit_indices: list[int] | np.ndarray,
                  symplectic: np.ndarray,
@@ -86,89 +90,56 @@ class Gate:
         phase_vector = get_phase_vector(symplectic, dimension)
         return cls(f"R{n_transvection}", list(range(n_qudits)), symplectic, dimension, phase_vector)
 
-    def _act_on_pauli_string(self, P: PauliString) -> tuple[PauliString, int]:
-        if np.any(self.dimensions != P.dimensions[self.qudit_indices]):
-            raise ValueError("Gate and PauliString have different dimensions.")
-        local_symplectic = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])
-        acquired_phase = self.acquired_phase(P)
+    def __repr__(self):
+        return f"Gate(name={self.name}, qudit_indices={self.qudit_indices}, " \
+            f"dimensions={self.dimensions}, phase_vector={self.phase_vector})"
 
-        local_symplectic = (local_symplectic @ self.symplectic.T) % self.lcm
-        P = P._replace_symplectic(local_symplectic, list(self.qudit_indices))
-        return P, acquired_phase
+    @overload
+    def act(self, pauli: Pauli) -> Pauli:
+        ...
 
-    def _act_on_pauli_sum(self, pauli_sum: PauliSum) -> PauliSum:
+    @overload
+    def act(self, pauli: PauliString) -> PauliString:
+        ...
+
+    @overload
+    def act(self, pauli: PauliSum) -> PauliSum:
+        ...
+
+    def act(self, pauli: P) -> P:
         """
         Returns the updated tableau and phases acquired by the PauliSum when acted upon by this gate.
 
         See Eq.[7] in PHYSICAL REVIEW A 71, 042315 (2005)
 
         """
-        if not np.array_equal(self.dimensions, pauli_sum.dimensions[self.qudit_indices]):
-            raise ValueError("Gate and PauliSum slice have different dimensions.")
+        if not np.array_equal(self.dimensions, pauli.dimensions()[self.qudit_indices]):
+            raise ValueError("Gate and Pauli object have different dimensions.")
 
-        T = pauli_sum.tableau()
+        T = pauli.tableau()
 
         # Precompute tableau mask. This will be applied to the PauliSum tableau to get
         # the subset of affected columns.
-        tableau_mask = np.concatenate([self.qudit_indices, self.qudit_indices + pauli_sum.n_qudits()])
+        tableau_mask = np.concatenate([self.qudit_indices, self.qudit_indices + pauli.n_qudits()])
 
         T_affected = T[:, tableau_mask]
-        relevant_dimensions = np.tile(pauli_sum.dimensions[self.qudit_indices], 2)
+        relevant_dimensions = np.tile(pauli.dimensions()[self.qudit_indices], 2)
         updated_tableau = np.mod(T_affected @ self.symplectic.T, relevant_dimensions)
         new_tableau = T.copy()
         new_tableau[:, tableau_mask] = updated_tableau
 
+        # FIXME: should we move this to a separate function?
         linear_terms = T_affected @ self.modified_phase_vector
         quadratic_terms = np.sum(T_affected * (T_affected @ self.p_part), axis=1)
 
         # FIXME: this is a but of a hack
-        dimensional_factor = pauli_sum.lcm // np.lcm.reduce(pauli_sum.dimensions[self.qudit_indices])
+        dimensional_factor = pauli.lcm() // np.lcm.reduce(pauli.dimensions()[self.qudit_indices])
         acquired_phases = (linear_terms + quadratic_terms) * dimensional_factor
 
-        phases = (pauli_sum.phases + acquired_phases) % (2 * pauli_sum.lcm)
+        new_phases = (pauli.phases() + acquired_phases) % (2 * pauli.lcm())
 
-        return PauliSum.from_tableau(new_tableau, pauli_sum.dimensions, pauli_sum.weights, phases=phases)
-
-    def __repr__(self):
-        return f"Gate(name={self.name}, qudit_indices={self.qudit_indices}, " \
-            f"dimensions={self.dimensions}, phase_vector={self.phase_vector})"
-
-    @overload
-    def act(self, P: Pauli) -> PauliSum:
-        ...
-
-    @overload
-    def act(self, P: PauliString) -> PauliString:
-        ...
-
-    @overload
-    def act(self, P: PauliSum) -> PauliSum:
-        ...
-
-    def act(self, P: Pauli | PauliString | PauliSum):
-        if isinstance(P, Pauli):
-            P = PauliString.from_pauli(P)
-        if isinstance(P, PauliString):
-            return self._act_on_pauli_string(P)[0]
-        elif isinstance(P, PauliSum):
-            return self._act_on_pauli_sum(P)
-        else:
-            raise TypeError(f"Unsupported type {type(P)} for Gate.act. Expected Pauli, PauliString or PauliSum.")
-
-    def acquired_phase(self, P: PauliString) -> int:
-        """
-        Returns the phase acquired by the PauliString P when acted upon by this gate.
-
-        See PHYSICAL REVIEW A 71, 042315 (2005)
-
-        """
-
-        h = self.phase_vector
-        a = np.concatenate([P.x_exp[self.qudit_indices], P.z_exp[self.qudit_indices]])  # local symplectic
-        p1 = np.dot(np.diag(self.U_symplectic_conjugated), a)
-        # negative sign in below as definition in paper is strictly upper diagonal, not including diagonal part
-        p2 = np.dot(a.T, np.dot(self.p_part, a))
-        return (np.dot(h, a) - p1 + p2) % (2 * P.lcm)
+        return pauli.__class__(tableau=new_tableau, dimensions=pauli.dimensions(),
+                               weights=pauli.weights(), phases=new_phases)
 
     def copy(self) -> 'Gate':
         """
@@ -251,7 +222,7 @@ class Gate:
         return Gate(self.name + '_inv', self.qudit_indices.copy(), C_inv.T, self.dimensions,
                     h_inv)
 
-    def unitary(self, dims=None):
+    def unitary(self, dims=None) -> np.ndarray:
         if dims is None:
             dims = self.dimensions
         raise NotImplementedError("Unitary not implemented for generic Gate. Use specific gate subclasses.")
@@ -270,7 +241,7 @@ class SUM(Gate):
 
         super().__init__("SUM", [control, target], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self, dims=None):
+    def unitary(self, dims=None) -> np.ndarray:
         if dims is None:
             dims = self.dimensions
         D = np.prod(dims)
@@ -280,7 +251,7 @@ class SUM(Gate):
         aa2 = np.array([1 for i in range(D)])
         aa3 = np.array([CX_func(i, a0, a1, dims) for i in range(D)])
         aa4 = np.array([i for i in range(D)])
-        return sp.csr_matrix((aa2, (aa3, aa4)))
+        return sp.csr_matrix((aa2, (aa3, aa4))).toarray()
 
     def copy(self) -> 'Gate':
         """
@@ -302,7 +273,7 @@ class SWAP(Gate):
 
         super().__init__("SWAP", [index1, index2], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self, dims=None):
+    def unitary(self, dims=None) -> np.ndarray:
         # SWAP on two qudits of equal dimension: |i, j> -> |j, i>.
         # Basis ordering |i>⊗|j> with linear index idx(i, j) = i * d + j.
         if dims is None:
@@ -315,7 +286,7 @@ class SWAP(Gate):
         aa2 = np.array([1 for i in range(D)])
         aa3 = np.array([i for i in range(D)])
         aa4 = np.array([SWAP_func(i, a0, a1, dims) for i in range(D)])
-        return sp.csr_matrix((aa2, (aa3, aa4)))
+        return sp.csr_matrix((aa2, (aa3, aa4))).toarray()
 
     def copy(self) -> 'Gate':
         """
@@ -337,7 +308,7 @@ class CNOT(Gate):
 
         super().__init__("SUM", [control, target], symplectic, dimensions=2, phase_vector=phase_vector)
 
-    def unitary(self, dims=None):
+    def unitary(self, dims=None) -> np.ndarray:
         if dims is None:
             dims = self.dimensions
         D = np.prod(dims)
@@ -347,7 +318,7 @@ class CNOT(Gate):
         aa2 = np.array([1 for i in range(D)])
         aa3 = np.array([CX_func(i, a0, a1, dims) for i in range(D)])
         aa4 = np.array([i for i in range(D)])
-        return sp.csr_matrix((aa2, (aa3, aa4)))
+        return sp.csr_matrix((aa2, (aa3, aa4))).toarray()
 
     def copy(self) -> 'Gate':
         """
@@ -374,10 +345,14 @@ class Hadamard(Gate):
         name = "H" if not inverse else "H_inv"
         super().__init__(name, [index], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self, dims=None):
+    def unitary(self, dims=None) -> np.ndarray:
         if dims is None:
             dims = self.dimensions
-        return tensor([H_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])
+
+        # FIXME: clarify return type: can we cast it to np.ndarray?
+        return tensor(
+            [H_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))]
+        ).toarray()
 
     def copy(self) -> 'Gate':
         """
@@ -400,10 +375,10 @@ class PHASE(Gate):
 
         super().__init__("S", [index], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self, dims=None):
+    def unitary(self, dims=None) -> np.ndarray:
         if dims is None:
             dims = self.dimensions
-        return tensor([S_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])
+        return tensor([S_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))]).toarray()
 
     def copy(self) -> 'Gate':
         """

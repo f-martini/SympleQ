@@ -28,6 +28,8 @@ def bases_to_int(aa: list[int] | np.ndarray,
     The function interprets `aa` as a vector of coefficients, each referring to an integer basis with dimension
     specified by `dims`: sum(aa[i] * prod(dims[:i]) for i in range(len(aa)))
     """
+
+    # FIXME: Avoid doing extra flips.
     dims = np.flip(dims)
     aa = np.flip(aa)
     a = aa[0] + sum([aa[i1] * np.prod(dims[:i1]) for i1 in range(1, len(dims))])

@@ -1,12 +1,17 @@
-from typing import Generator, overload
+from typing import Generator, overload, TypeVar
 import numpy as np
 from qiskit import QuantumCircuit
-from .gates import Gate, Hadamard, PHASE, SUM, SWAP, CNOT
-from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from .utils import embed_symplectic
 import scipy.sparse as sp
-from .gates import Hadamard as H, SUM as CX, PHASE as S
 import random
+
+from .gates import Hadamard as H, SUM, PHASE, Gate, SWAP, CNOT
+from sympleq.core.paulis import PauliSum, PauliString, Pauli, PauliObject
+
+
+# We define a type using TypeVar to let the type checker know that
+# the input and output of the `act` function share the same type.
+P = TypeVar("P", bound="PauliObject")
 
 
 class Circuit:
@@ -54,7 +59,7 @@ class Circuit:
         else:
             g_max = 2  # all gates possible
 
-        gate_list = [H, S, CX]
+        gate_list = [H, PHASE, SUM]
         gg = []
         for i in range(depth):
             g_i = np.random.randint(g_max)
@@ -135,31 +140,38 @@ class Circuit:
         return str_out
 
     @overload
-    def act(self, pauli: Pauli | PauliString) -> PauliString:
+    def act(self, pauli: Pauli) -> Pauli:
+        ...
+
+    @overload
+    def act(self, pauli: PauliString) -> PauliString:
         ...
 
     @overload
     def act(self, pauli: PauliSum) -> PauliSum:
         ...
 
-    def act(self, pauli: Pauli | PauliString | PauliSum) -> PauliString | PauliSum:
-        if isinstance(pauli, Pauli):
-            if self.dimensions[0] != pauli.dimension or len(self.dimensions) != 1:
-                raise ValueError("Pauli dimension does not match circuit dimensions")
-            else:
-                pauli = PauliString.from_pauli(pauli)
-
-        elif np.any(self.dimensions != pauli.dimensions):
-            raise ValueError("Pauli dimensions do not match circuit dimensions")
+    def act(self, pauli: Pauli | PauliString | PauliSum) -> Pauli | PauliString | PauliSum:
         for gate in self.gates:
             pauli = gate.act(pauli)
+
         return pauli
 
-    def act_iter(self, pauli_sum: PauliSum) -> Generator[PauliSum, None, None]:
-        if np.any(self.dimensions != pauli_sum.dimensions):
-            raise ValueError("Pauli dimensions do not match circuit dimensions")
+    @overload
+    def act_iter(self, pauli: Pauli) -> Generator[Pauli, None, None]:
+        ...
+
+    @overload
+    def act_iter(self, pauli: PauliString) -> Generator[PauliString, None, None]:
+        ...
+
+    @overload
+    def act_iter(self, pauli: PauliSum) -> Generator[PauliSum, None, None]:
+        ...
+
+    def act_iter(self, pauli: Pauli | PauliString | PauliSum) -> Generator[Pauli | PauliString | PauliSum, None, None]:
         for gate in self.gates:
-            pauli_sum = gate.act(pauli_sum)
+            pauli_sum = gate.act(pauli)
             yield pauli_sum
 
     def show(self):
@@ -247,13 +259,13 @@ class Circuit:
         total_symplectic = total_symplectic.T
         return Gate('CompositeGate', total_indexes, total_symplectic, self.dimensions, total_phase_vector)
 
-    def unitary(self):
-        known_unitaries = (Hadamard, PHASE, SUM, SWAP, CNOT)
+    def unitary(self) -> np.ndarray:
+        known_unitaries = (H, PHASE, SUM, SWAP, CNOT)
         if not np.all([isinstance(gate, known_unitaries) for gate in self.gates]):
             print(self.gates)
             raise NotImplementedError("Unitary not implemented for all gates in the circuit.")
         q = self.dimensions
-        m = sp.csr_matrix(([1] * (np.prod(q)), (range(np.prod(q)), range(np.prod(q)))))
+        m = sp.csr_matrix(([1] * (np.prod(q)), (range(np.prod(q)), range(np.prod(q))))).toarray()
         for g in self.gates:
             m = g.unitary(dims=self.dimensions) @ m
         return m

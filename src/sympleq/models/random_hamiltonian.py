@@ -84,7 +84,7 @@ def random_pauli_hamiltonian(num_paulis, qudit_dims, mode='rand'):
         else:
             coefficients.append(coeff.real)
 
-    rand_ham = PauliSum(pauli_strings, weights=coefficients, standardise=False)
+    rand_ham = PauliSum.from_pauli_strings(pauli_strings, weights=coefficients)
     # rand_ham.combine_equivalent_paulis()
     return rand_ham
 
@@ -179,7 +179,7 @@ def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=
     elif phase_mode == 'random':
         phases = np.random.randint(0, 2, size=n_paulis, dtype=int)
 
-    P = PauliSum(pauli_strings, weights=weights, dimensions=[2] * n_qudits, phases=phases, standardise=False)
+    P = PauliSum.from_string(pauli_strings, dimensions=[2] * n_qudits, weights=weights, phases=phases)
 
     g = Gate.from_random(n_qudits, 2)
     P = g.act(P)
@@ -227,7 +227,7 @@ def random_gate_symmetric_hamiltonian(G: 'Gate',
     P_sym = P + P_prime
     P_sym.phase_to_weight()
     P_sym.combine_equivalent_paulis()
-    P_sym.weights = np.around(P_sym.weights, decimals=10)
+    P_sym._weights = np.around(P_sym.weights(), decimals=10)
     P_sym.remove_zero_weight_paulis()
     if scrambled is True:
         g = Gate.from_random(n_qudits, 2)
