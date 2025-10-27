@@ -92,6 +92,18 @@ class PauliObject(ABC):
         pass
 
     @abstractmethod
+    def n_paulis(self) -> int:
+        """
+        Returns the number of Pauli strings represented by the Pauli-like object.
+
+        Returns
+        -------
+        int
+            The number of Pauli strings.
+        """
+        pass
+
+    @abstractmethod
     def phases(self) -> np.ndarray:
         # FIXME: improve docstring
         """
@@ -116,3 +128,26 @@ class PauliObject(ABC):
             The weights as a 1d-vector.
         """
         pass
+
+    def hermitian_conjugate(self):
+        conjugate_weights = np.conj(self.weights())
+
+        acquired_phases = []
+        for i in range(self.n_paulis()):
+            hermitian_conjugate_phase = 0
+            for j in range(self.n_qudits()):
+                r = self.tableau()[i, j]
+                s = self.tableau()[i, j + self.n_qudits()]
+                hermitian_conjugate_phase += (r * s % self.lcm()) * self.lcm() / self.dimensions()[j]
+            acquired_phases.append(2 * hermitian_conjugate_phase)
+        acquired_phases = np.asarray(acquired_phases, dtype=int)
+
+        conjugate_initial_phases = (-self.phases()) % (2 * self.lcm())
+        conjugate_phases = (conjugate_initial_phases + acquired_phases) % (2 * self.lcm())
+
+        conjugate_tableau = (-self.tableau()) % np.tile(self.dimensions(), 2)
+
+        return self.__class__(tableau=conjugate_tableau, dimensions=self.dimensions(),
+                              weights=conjugate_weights, phases=conjugate_phases)
+
+    H = hermitian_conjugate

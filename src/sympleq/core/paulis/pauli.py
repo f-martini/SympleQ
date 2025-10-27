@@ -264,6 +264,17 @@ class Pauli(PauliObject):
         """
         return 1
 
+    def n_paulis(self) -> int:
+        """
+        Returns the number of Pauli strings represented by the Pauli operator (always 1).
+
+        Returns
+        -------
+        int
+            The number of Pauli strings.
+        """
+        return 1
+
     def phases(self) -> np.ndarray:
         """
         Returns the phases associated with the Pauli object.

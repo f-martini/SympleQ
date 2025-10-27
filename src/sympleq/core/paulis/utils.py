@@ -473,7 +473,7 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
     H = PauliSum.copy()
     H.combine_equivalent_paulis()
     for i in range(H.n_paulis()):
-        pauli_string = H[i]
+        pauli_string = PauliSum.from_pauli_strings(H[i])
         hermitian_pauli_string = pauli_string.hermitian_conjugate()
         hermitian_found = False
         for j in range(H.n_paulis()):
@@ -481,18 +481,18 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
                 hermitian_found = True
                 if i == j:
                     if not pauli_string.is_hermitian():
-                        H.weights[i] = np.abs(H.weights[i])
-                        H.phases[i] = int(np.sum(H.x_exp[i, :] * H.z_exp[i, :])) * H.lcm / 2
+                        H._weights[i] = np.abs(H.weights()[i])
+                        H._phases[i] = int(np.sum(H.x_exp[i, :] * H.z_exp[i, :])) * H.lcm() / 2
                     else:
                         break
                 else:
-                    if (H.weights[i] * np.exp(2 * np.pi * 1j * H.phases[i] / (2 * H.lcm)) -
-                            H.weights[j] * np.exp(2 * np.pi * 1j * H.phases[j] / (2 * H.lcm))) > 10**-10:
+                    if (H.weights()[i] * np.exp(2 * np.pi * 1j * H.phases()[i] / (2 * H.lcm())) -
+                            H.weights()[j] * np.exp(2 * np.pi * 1j * H.phases()[j] / (2 * H.lcm()))) > 10**-10:
                         # Step 1: Weight
-                        H.weights[j] = H.weights[i]
+                        H._weights[j] = H.weights()[i]
                         # Step 2: Phase
-                        H.phases[i] = 0
-                        H.phases[j] = np.sum([H.x_exp[i0, :] * H.z_exp[i0, :] * H.lcm / H.dimensions[i0]
+                        H._phases[i] = 0
+                        H._phases[j] = np.sum([H.x_exp[i0, :] * H.z_exp[i0, :] * H.lcm() / H.dimensions()[i0]
                                               for i0 in range(H.n_qudits())])
                     else:
                         break

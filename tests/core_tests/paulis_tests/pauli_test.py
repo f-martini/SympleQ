@@ -330,9 +330,9 @@ class TestPaulis:
         basis_list = [symplectic_basis[i, :] for i in range(n_paulis)]
         shuffled_basis = basis_list.copy()
         np.random.shuffle(shuffled_basis)
-        ps = PauliSum.from_tableau(np.array(shuffled_basis), [d] * n_qudits)
+        ps = PauliSum.from_tableau(np.array(shuffled_basis), d)
 
-        assert np.all(ps.standard_form().tableau() == symplectic_basis)
+        assert np.all(ps.to_standard_form().tableau() == symplectic_basis)
 
     def test_pauli_sum_delete_qudits(self):
         dims = [2, 3, 5, 6, 7]

@@ -386,7 +386,7 @@ class PauliSum(PauliObject):
         self._phases = np.zeros(self.n_paulis(), dtype=int)
         self._weights = new_weights
 
-    def standard_form(self) -> 'PauliSum':
+    def to_standard_form(self) -> PauliSum:
         """
         Get the PauliSum in standard form.
 
@@ -406,12 +406,12 @@ class PauliSum(PauliObject):
 
     @overload
     def __getitem__(self,
-                    key: tuple[int, slice] | tuple[int, list[int]]) -> PauliString:
+                    key: int | tuple[int, slice | list[int] | np.ndarray]) -> PauliString:
         ...
 
     @overload
     def __getitem__(self,
-                    key: int | slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] |
+                    key: slice | np.ndarray | list[int] | tuple[slice, int] | tuple[slice, slice] |
                     tuple[slice, int] |
                     tuple[slice, list[int]] | tuple[slice, np.ndarray] | tuple[list[int], int] |
                     tuple[np.ndarray, int] | tuple[np.ndarray, slice] | tuple[np.ndarray, list[int]] |
@@ -478,65 +478,6 @@ class PauliSum(PauliObject):
             return self.get_subspace(qudit_indices, pauli_indices)
 
         raise TypeError(f"Key must be int or slice, not {type(key)}")
-
-    @overload
-    def _setitem_tuple(self,
-                       key: tuple[int, int],
-                       value: Pauli):
-        ...
-
-    @overload
-    def _setitem_tuple(self,
-                       key: tuple[int, slice],
-                       value: PauliString):
-        ...
-
-    @overload
-    def _setitem_tuple(self,
-                       key: tuple[slice, int] | tuple[slice, slice],
-                       value: PauliSum):
-        ...
-
-    def _setitem_tuple(self, key, value):
-        """
-        Set a value in the PauliSum using a tuple `key`. It takes the PauliString
-        identified by the first element of the `key` and substitutes the Pauli
-        identified by the second with `value`.
-
-        Parameters
-        ----------
-        key : tuple
-            The key identifying which Pauli operator to change.
-        value : Pauli | PauliString | PauliSum
-            The value to set the Pauli operator to.
-
-        Raises
-        -------
-        ValueError
-            If the key is not of length 2.
-        """
-        if len(key) != 2:
-            raise ValueError("Tuple key must be of length 2")
-
-        # FIXME: Isn't this actually enough??
-        self._tableau[key] = value
-
-        # if isinstance(key[0], int):
-        #     if isinstance(key[1], int):  # key[0] indexes the pauli string, key[1] indexes the qudit
-        #         self._tableau[key[0]][key[1]] = value
-        #     elif isinstance(key[1], slice):  # key[0] indexes the pauli string, key[1] indexes the qudits
-        #         self.pauli_strings[key[0]][key[1]] = value
-        #     self._tableau[key[0], :] = self.pauli_strings[key[0]].tableau()
-        # if isinstance(key[0], slice):
-        #     indices = np.arange(self.n_paulis())[key[0]]
-        #     if isinstance(key[1], int):  # key[0] indexes the pauli strings, key[1] indexes the qudit
-        #         for i in indices:
-        #             self.pauli_strings[int(i)][key[1]] = value[int(i)]
-        #     elif isinstance(key[1], slice):  # key[0] indexes the pauli strings, key[1] indexes the qudits
-        #         for i_val, i in enumerate(indices):
-        #             self.pauli_strings[i][key[1]] = value[int(i_val)]
-        #     for i in indices:
-        #         self._tableau[i, :] = self.pauli_strings[i].tableau()
 
     @overload
     def __setitem__(self,
@@ -1061,38 +1002,14 @@ class PauliSum(PauliObject):
         adding phase factors to the weights then resetting the phases.
         """
         self.phase_to_weight()
-
-        # # Zip together, sort by PauliString's ordering, then unzip
-        # combined = list(zip(self.pauli_strings, self.weights()))
-        # combined.sort(key=lambda t: t[0])  # t[0] is a PauliString, so __lt__ is used
-
-        # self.pauli_strings = [t[0] for t in combined]
-        # self._weights = np.array([t[1] for t in combined], dtype=np.complex128)
-        # # Do the same for phases if needed
-
-        # # Recalculate tableau
-        # self._tableau = np.empty([self.n_paulis(), 2 * self.n_qudits()], dtype=int)
-
-        # for i, p in enumerate(self.pauli_strings):
-        #     self._tableau[i, :] = p.tableau()
-
         T = self.tableau()
         W = self.weights()
 
-        # Lexicographic sort — columns must be reversed for correct order
-        order = np.lexsort(T.T[::-1])
+        # FIXME: Lexicographic sort, I'm not sure why this works, but it does.
+        order = np.lexsort(T.T)
 
         self._tableau = T[order]
         self._weights = W[order]
-
-    def to_standard_form(self) -> PauliSum:
-        """
-        Same as standardise, but returns a new PauliSum.
-        """
-
-        P = self.copy()
-        P.standardise()
-        return P
 
     def combine_equivalent_paulis(self):
         """
@@ -1122,10 +1039,7 @@ class PauliSum(PauliObject):
         Removes trivial Pauli strings (those that are identity operators) from the sum.
         """
         # If entire Pauli string is x0z0, remove it
-        to_delete = []
-        for i in range(self.n_paulis()):
-            if np.all(self.tableau()[i, :] == 0):
-                to_delete.append(i)
+        to_delete = np.where(~self.tableau().any(axis=1))[0]
         self._delete_paulis(to_delete)
 
     def remove_trivial_qudits(self):
@@ -1135,7 +1049,9 @@ class PauliSum(PauliObject):
         # If entire qudit is I, remove it
         to_delete = []
         for i in range(self.n_qudits()):
-            if np.all(self.tableau()[:, i] == 0):
+            x_col = self.tableau()[:, i]
+            z_col = self.tableau()[:, self.n_qudits() + i]
+            if np.all(x_col == 0) and np.all(z_col == 0):
                 to_delete.append(i)
         self._delete_qudits(to_delete)
 
@@ -1235,7 +1151,7 @@ class PauliSum(PauliObject):
         # meaning that they could be modified from the PauliString.
         return PauliString(self.tableau()[index], self.dimensions())
 
-    def _delete_paulis(self, pauli_indices: list[int] | int):
+    def _delete_paulis(self, pauli_indices: int | list[int] | np.ndarray):
         """
         Deletes PauliStrings from the PauliSum.
 
@@ -1424,8 +1340,8 @@ class PauliSum(PauliObject):
         sub_phases = self.phases()[pauli_indices]
         sub_dims = self.dimensions()[qudit_indices]
 
-        return PauliSum.from_tableau(tableau=sub_tableau, dimensions=sub_dims,
-                                     weights=sub_weights, phases=sub_phases)
+        return PauliSum(tableau=sub_tableau, dimensions=sub_dims,
+                        weights=sub_weights, phases=sub_phases)
 
     # FIXME: do we really need this return type?
     def matrix_form(self, pauli_string_index: int | None = None) -> scipy.sparse.csr_matrix:
@@ -1444,8 +1360,9 @@ class PauliSum(PauliObject):
             Matrix representation of input Pauli.
         """
         if pauli_string_index is not None:
-            ps = self.select_pauli_string(pauli_string_index)
-            return PauliSum.from_pauli_strings(ps).matrix_form()
+            return PauliSum(
+                self.tableau()[pauli_string_index], self.dimensions(),
+                self.weights(), self.phases()).matrix_form()
 
         list_of_pauli_matrices = []
         for i in range(self.n_paulis()):
@@ -1527,28 +1444,28 @@ class PauliSum(PauliObject):
         self._phases[index_1], self._phases[index_2] = self.phases()[index_2], self.phases()[index_1]
         self._tableau[index_1], self._tableau[index_2] = self._tableau[index_2], self._tableau[index_1]
 
-    def hermitian_conjugate(self):
-        conjugate_weights = np.conj(self.weights())
+    # def hermitian_conjugate(self):
+        # conjugate_weights = np.conj(self.weights())
 
-        acquired_phases = []
-        for i in range(self.n_paulis()):
-            hermitian_conjugate_phase = 0
-            for j in range(self.n_qudits()):
-                r = self.x_exp[i, j]
-                s = self.z_exp[i, j]
-                hermitian_conjugate_phase += (r * s % self.lcm()) * self.lcm() / self.dimensions()[j]
-            acquired_phases.append(2 * hermitian_conjugate_phase)
-        acquired_phases = np.asarray(acquired_phases, dtype=int)
+        # acquired_phases = []
+        # for i in range(self.n_paulis()):
+        #     hermitian_conjugate_phase = 0
+        #     for j in range(self.n_qudits()):
+        #         r = self.x_exp[i, j]
+        #         s = self.z_exp[i, j]
+        #         hermitian_conjugate_phase += (r * s % self.lcm()) * self.lcm() / self.dimensions()[j]
+        #     acquired_phases.append(2 * hermitian_conjugate_phase)
+        # acquired_phases = np.asarray(acquired_phases, dtype=int)
 
-        conjugate_initial_phases = (-self.phases()) % (2 * self.lcm())
-        conjugate_phases = (conjugate_initial_phases + acquired_phases) % (2 * self.lcm())
+        # conjugate_initial_phases = (-self.phases()) % (2 * self.lcm())
+        # conjugate_phases = (conjugate_initial_phases + acquired_phases) % (2 * self.lcm())
 
-        conjugate_tableau = (-self.tableau()) % np.tile(self.dimensions(), 2)
+        # conjugate_tableau = (-self.tableau()) % np.tile(self.dimensions(), 2)
 
-        return PauliSum.from_tableau(tableau=conjugate_tableau, dimensions=self.dimensions(),
-                                     weights=conjugate_weights, phases=conjugate_phases)
+        # return PauliSum.from_tableau(tableau=conjugate_tableau, dimensions=self.dimensions(),
+        #                              weights=conjugate_weights, phases=conjugate_phases)
 
-    H = hermitian_conjugate
+    # H = hermitian_conjugate
 
     def is_hermitian(self):
         P = self.copy()
@@ -1556,7 +1473,7 @@ class PauliSum(PauliObject):
         P.phase_to_weight()
         # First Try: Just Primitive Check
         for i in range(P.n_paulis()):
-            pauli_string = P[i]
+            pauli_string = PauliSum.from_pauli_strings(P[i])
             hermitian_pauli_string = pauli_string.hermitian_conjugate()
             hermitian_pauli_string.phase_to_weight()
             for j in range(P.n_paulis()):

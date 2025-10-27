@@ -2,7 +2,6 @@ from sympleq.core.circuits.known_circuits import to_x, to_ix
 from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
 from sympleq.core.paulis import PauliSum, PauliString
 import numpy as np
-import scipy.sparse as sp
 
 
 class TestCircuits():
@@ -156,7 +155,7 @@ class TestCircuits():
             C = Circuit.from_random(n_qudits=n_qudits, depth=10, dimensions=dimensions)
             ps = PauliSum.from_random(10, dimensions)
             out = C.act(ps)
-            assert np.all(out.dimensions == dimensions)
+            assert np.all(out.dimensions() == dimensions)
 
     def test_single_hadamard_unitary(self):
         # For a single-qudit circuit with one Hadamard, the circuit unitary
@@ -165,7 +164,7 @@ class TestCircuits():
             gate = Hadamard(0, d)
             circuit = Circuit([d], [gate])
             U_circ = circuit.unitary()
-            assert sp.issparse(U_circ)
+            # assert sp.issparse(U_circ)  # NOTE: skipping this after changing return type
             U_gate = gate.unitary()
             assert U_circ.shape == U_gate.shape
             assert np.allclose(U_circ, U_gate)
