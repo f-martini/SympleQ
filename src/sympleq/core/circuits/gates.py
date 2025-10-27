@@ -222,7 +222,7 @@ class Gate:
         return Gate(self.name + '_inv', self.qudit_indices.copy(), C_inv.T, self.dimensions,
                     h_inv)
 
-    def unitary(self, dims=None) -> np.ndarray:
+    def unitary(self, dims=None) -> sp.csr_matrix:
         if dims is None:
             dims = self.dimensions
         raise NotImplementedError("Unitary not implemented for generic Gate. Use specific gate subclasses.")
@@ -241,7 +241,7 @@ class SUM(Gate):
 
         super().__init__("SUM", [control, target], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self, dims=None) -> np.ndarray:
+    def unitary(self, dims=None) -> sp.csr_matrix:
         if dims is None:
             dims = self.dimensions
         D = np.prod(dims)
@@ -251,7 +251,7 @@ class SUM(Gate):
         aa2 = np.array([1 for i in range(D)])
         aa3 = np.array([CX_func(i, a0, a1, dims) for i in range(D)])
         aa4 = np.array([i for i in range(D)])
-        return sp.csr_matrix((aa2, (aa3, aa4))).toarray()
+        return sp.csr_matrix((aa2, (aa3, aa4)))
 
     def copy(self) -> 'Gate':
         """
@@ -273,7 +273,7 @@ class SWAP(Gate):
 
         super().__init__("SWAP", [index1, index2], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self, dims=None) -> np.ndarray:
+    def unitary(self, dims=None) -> sp.csr_matrix:
         # SWAP on two qudits of equal dimension: |i, j> -> |j, i>.
         # Basis ordering |i>⊗|j> with linear index idx(i, j) = i * d + j.
         if dims is None:
@@ -286,7 +286,7 @@ class SWAP(Gate):
         aa2 = np.array([1 for i in range(D)])
         aa3 = np.array([i for i in range(D)])
         aa4 = np.array([SWAP_func(i, a0, a1, dims) for i in range(D)])
-        return sp.csr_matrix((aa2, (aa3, aa4))).toarray()
+        return sp.csr_matrix((aa2, (aa3, aa4)))
 
     def copy(self) -> 'Gate':
         """
@@ -308,7 +308,7 @@ class CNOT(Gate):
 
         super().__init__("SUM", [control, target], symplectic, dimensions=2, phase_vector=phase_vector)
 
-    def unitary(self, dims=None) -> np.ndarray:
+    def unitary(self, dims=None) -> sp.csr_matrix:
         if dims is None:
             dims = self.dimensions
         D = np.prod(dims)
@@ -318,7 +318,7 @@ class CNOT(Gate):
         aa2 = np.array([1 for i in range(D)])
         aa3 = np.array([CX_func(i, a0, a1, dims) for i in range(D)])
         aa4 = np.array([i for i in range(D)])
-        return sp.csr_matrix((aa2, (aa3, aa4))).toarray()
+        return sp.csr_matrix((aa2, (aa3, aa4)))
 
     def copy(self) -> 'Gate':
         """
@@ -345,14 +345,14 @@ class Hadamard(Gate):
         name = "H" if not inverse else "H_inv"
         super().__init__(name, [index], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self, dims=None) -> np.ndarray:
+    def unitary(self, dims=None) -> sp.csr_matrix:
         if dims is None:
             dims = self.dimensions
 
         # FIXME: clarify return type: can we cast it to np.ndarray?
         return tensor(
             [H_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))]
-        ).toarray()
+        )
 
     def copy(self) -> 'Gate':
         """
@@ -375,12 +375,12 @@ class PHASE(Gate):
 
         super().__init__("S", [index], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
-    def unitary(self, dims=None) -> np.ndarray:
+    def unitary(self, dims=None) -> sp.csr_matrix:
         if dims is None:
             dims = self.dimensions
 
         unitary = tensor([S_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])
-        return unitary.toarray()
+        return unitary
 
     def copy(self) -> 'Gate':
         """

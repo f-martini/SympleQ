@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Union, overload, TYPE_CHECKING
 import numpy as np
-import scipy
+import scipy.sparse as sp
 
 from .constants import DEFAULT_QUDIT_DIMENSION
 from .pauli_object import PauliObject
@@ -1344,7 +1344,7 @@ class PauliSum(PauliObject):
                         weights=sub_weights, phases=sub_phases)
 
     # FIXME: do we really need this return type?
-    def matrix_form(self, pauli_string_index: int | None = None) -> scipy.sparse.csr_matrix:
+    def matrix_form(self, pauli_string_index: int | None = None) -> sp.csr_matrix:
         """
         Get the matrix form of the PauliSum as a sparse matrix. This is inclusive of the weights.
 
@@ -1360,9 +1360,8 @@ class PauliSum(PauliObject):
             Matrix representation of input Pauli.
         """
         if pauli_string_index is not None:
-            return PauliSum(
-                self.tableau()[pauli_string_index], self.dimensions(),
-                self.weights(), self.phases()).matrix_form()
+            ps = PauliSum(self.tableau()[pauli_string_index], self.dimensions(), self.weights(), self.phases())
+            return ps.matrix_form()
 
         list_of_pauli_matrices = []
         for i in range(self.n_paulis()):
@@ -1372,10 +1371,16 @@ class PauliSum(PauliObject):
             for n in range(1, self.n_qudits()):
                 X, Z, dim, phase = int(self.x_exp[i, n]), int(self.z_exp[i, n]), self.dimensions()[n], self.phases()[i]
                 h_next = self.xz_mat(dim, X, Z)
-                h = scipy.sparse.kron(h, h_next, format="csr")
-            list_of_pauli_matrices.append(np.exp(phase * 2 * np.pi * 1j / (2 * self.lcm())) * self.weights()[i] * h)
+                h = sp.csr_matrix(sp.kron(h, h_next, format="csr"))
 
-        return sum(list_of_pauli_matrices)
+            e = np.exp(phase * 2 * np.pi * 1j / (2 * self.lcm())) * self.weights()[i]
+            list_of_pauli_matrices.append(e * h)
+
+        h = list_of_pauli_matrices[0]
+        for m in list_of_pauli_matrices[1:]:
+            h = h + m
+
+        return h
 
     def acquire_phase(self,
                       phases: list[int],
@@ -1488,9 +1493,7 @@ class PauliSum(PauliObject):
 
     # TODO: Move this to a better location and amend where it is used in the Pauli reduction code
     @staticmethod
-    def xz_mat(d: int,
-               aX: int,
-               aZ: int) -> scipy.sparse.csr_matrix:
+    def xz_mat(d: int, aX: int, aZ: int) -> sp.csr_matrix:
         """
         Temporary function for pauli reduction.
 
@@ -1514,11 +1517,11 @@ class PauliSum(PauliObject):
         aa0 = np.array([1 for i in range(d)])
         aa1 = np.array([i for i in range(d)])
         aa2 = np.array([(i - aX) % d for i in range(d)])
-        X = scipy.sparse.csr_matrix((aa0, (aa1, aa2)))
+        X = sp.csr_matrix((aa0, (aa1, aa2)))
         aa0 = np.array([omega**(i * aZ) for i in range(d)])
         aa1 = np.array([i for i in range(d)])
         aa2 = np.array([i for i in range(d)])
-        Z = scipy.sparse.csr_matrix((aa0, (aa1, aa2)))
+        Z = sp.csr_matrix((aa0, (aa1, aa2)))
         # if (d == 2) and (aX % 2 == 1) and (aZ % 2 == 1):
         #    return 1j * (X @ Z)
         return X @ Z

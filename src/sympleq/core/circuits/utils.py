@@ -192,36 +192,33 @@ def embed_unitary(U_local: np.ndarray,
     return P.conj().T @ U_kron @ P
 
 
-# FIXME: add typing
-def tensor(mm):
+def tensor(mm: list[sp.csr_matrix]) -> sp.csr_matrix:
     # Inputs:
     #     mm - (list{scipy.sparse.csr_matrix}) - matrices to tensor
     # Outputs:
     #     (scipy.sparse.csr_matrix) - tensor product of matrices
     if len(mm) == 0:
         return sp.csr_matrix([])
-    elif len(mm) == 1:
+
+    if len(mm) == 1:
         return mm[0]
-    else:
-        return sp.kron(mm[0], tensor(mm[1:]), format="csr")
+
+    return sp.csr_matrix(sp.kron(mm[0], tensor(mm[1:]), format="csr"))
 
 
-# FIXME: add typing
-def I_mat(d):
-    #
+def I_mat(d: int) -> sp.csr_matrix:
     return sp.csr_matrix(np.diag([1] * d))
 
 
-# FIXME: add typing
-def H_mat(d):
+def H_mat(d: int) -> sp.csr_matrix:
     omega = np.exp(2 * np.pi * 1j / d)
     return sp.csr_matrix(1 / np.sqrt(d) * np.array([[omega ** (i0 * i1) for i0 in range(d)] for i1 in range(d)]))
 
 
-# FIXME: add typing
-def S_mat(d):
+def S_mat(d: int) -> sp.csr_matrix:
     if d == 2:
         return sp.csr_matrix(np.diag([1, 1j]))
+
     omega = np.exp(2 * np.pi * 1j / d)
     return sp.csr_matrix(np.diag([omega ** (i * (i - 1) / 2) for i in range(d)]))
 

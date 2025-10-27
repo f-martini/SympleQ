@@ -259,13 +259,15 @@ class Circuit:
         total_symplectic = total_symplectic.T
         return Gate('CompositeGate', total_indexes, total_symplectic, self.dimensions, total_phase_vector)
 
-    def unitary(self) -> np.ndarray:
+    def unitary(self) -> sp.csr_matrix:
         known_unitaries = (H, PHASE, SUM, SWAP, CNOT)
         if not np.all([isinstance(gate, known_unitaries) for gate in self.gates]):
             print(self.gates)
             raise NotImplementedError("Unitary not implemented for all gates in the circuit.")
+
         q = self.dimensions
-        m = sp.csr_matrix(([1] * (np.prod(q)), (range(np.prod(q)), range(np.prod(q))))).toarray()
+        m = sp.csr_matrix(([1] * (np.prod(q)), (range(np.prod(q)), range(np.prod(q)))))
         for g in self.gates:
             m = g.unitary(dims=self.dimensions) @ m
+
         return m

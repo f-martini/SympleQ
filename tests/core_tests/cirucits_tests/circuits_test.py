@@ -2,6 +2,7 @@ from sympleq.core.circuits.known_circuits import to_x, to_ix
 from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
 from sympleq.core.paulis import PauliSum, PauliString
 import numpy as np
+from scipy.sparse import issparse
 
 
 class TestCircuits():
@@ -164,10 +165,10 @@ class TestCircuits():
             gate = Hadamard(0, d)
             circuit = Circuit([d], [gate])
             U_circ = circuit.unitary()
-            # assert sp.issparse(U_circ)  # NOTE: skipping this after changing return type
+            assert issparse(U_circ)
             U_gate = gate.unitary()
             assert U_circ.shape == U_gate.shape
-            assert np.allclose(U_circ, U_gate)
+            assert np.allclose(U_circ.toarray(), U_gate.toarray())
 
     def test_mixed_qudits_phase_with_unitary(self):
         N = 100
@@ -187,7 +188,7 @@ class TestCircuits():
             # FIXME: maybe create a new PauliSum, or add API to assign phases
             ps_res._phases = np.asarray([0], dtype=int)
             ps_res_m = ps_res.matrix_form().toarray()
-            ps_m_res = U @ ps_m @ U.conj().T
+            ps_m_res = (U @ ps_m @ U.conj().T).toarray()
             mask = (ps_res_m != 0)
             factors = np.unique(np.around(ps_m_res[mask] / ps_res_m[mask], 10))
             assert len(factors) == 1
