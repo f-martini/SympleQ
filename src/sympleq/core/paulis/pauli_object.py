@@ -2,30 +2,27 @@ from abc import ABC, abstractmethod
 import numpy as np
 from typing import TypeVar
 
-from .constants import DEFAULT_QUDIT_DIMENSION
-
 P = TypeVar("P", bound="PauliObject")
 
 
 class PauliObject(ABC):
     @abstractmethod
     def __init__(self, tableau: np.ndarray, dimensions: int | list[int] | np.ndarray | None = None,
-                 weights: list[int] | np.ndarray | None = None, phases: list[int] | np.ndarray | None = None):
-        f"""
+                 weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
+                 phases: int | list[int] | np.ndarray | None = None):
+        """
         Abstract initializer for Pauli-like objects represented in symplectic tableau form.
 
         Parameters
         ----------
         tableau : np.ndarray
-            Symplectic tableau representation of the object.
-            - For a single Pauli: a 1-D array of length 2 (x_exp, z_exp).
-            - For a PauliString: a 1-D array of length 2 * n_qudits (concatenated x and z exponents).
-            - For a PauliSum: a 2-D array with shape (n_paulis, 2 * n_qudits).
+            Symplectic tableau representation of the object. A 2-D array with shape (n_paulis, 2 * n_qudits).
+            For a single Pauli and a PauliString, n_paulis = 1.
         dimensions : int | list[int] | np.ndarray | None, optional
             Qudit dimension(s).
             - If int, a single qudit dimension is assumed or broadcast where appropriate.
             - If list/np.ndarray, must match the number of qudits implied by `tableau`.
-            - If None, all dimensions are defaulted to {DEFAULT_QUDIT_DIMENSION}.
+            - If None, all dimensions are defaulted to DEFAULT_QUDIT_DIMENSION.
         weights : list | np.ndarray | None, optional
             Coefficients associated with each PauliString (for PauliSum).
             If None, it defaults to 1.
