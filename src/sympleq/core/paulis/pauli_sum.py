@@ -1151,6 +1151,24 @@ class PauliSum(PauliObject):
         # meaning that they could be modified from the PauliString.
         return PauliString(self.tableau()[index], self.dimensions())
 
+    def select_pauli(self, index: tuple[int, int]) -> Pauli:
+        """
+        Selects a Pauli from the PauliSum.
+
+        Parameters
+        ----------
+        pauli_index : (int, int)
+            The indices of the Pauli to select.
+
+        Returns
+        -------
+        Pauli
+            The selected Pauli.
+        """
+        # FIXME: We pass a view to the tableau row and the dimensions,
+        # meaning that they could be modified from the PauliString.
+        return Pauli(self.tableau()[index], self.dimensions())
+
     def _delete_paulis(self, pauli_indices: int | list[int] | np.ndarray):
         """
         Deletes PauliStrings from the PauliSum.
