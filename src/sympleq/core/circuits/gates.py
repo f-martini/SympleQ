@@ -378,7 +378,9 @@ class PHASE(Gate):
     def unitary(self, dims=None) -> np.ndarray:
         if dims is None:
             dims = self.dimensions
-        return tensor([S_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))]).toarray()
+
+        unitary = tensor([S_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])
+        return unitary.toarray()
 
     def copy(self) -> 'Gate':
         """

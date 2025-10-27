@@ -197,13 +197,7 @@ class TestCircuits():
             phase_unitary = int(np.around((d * np.angle(factor) / (np.pi)) % (2 * d), 1))
             assert phase_symplectic == phase_unitary
 
-    def test_phase_mixed_species(self):
-        def debug_steps(C: Circuit, P: PauliSum):
-            print(f"Initial phases: {P.phases} -- exponents: {P.tableau()}")
-            for i, partial_p in enumerate(C.act_iter(P)):
-                gate = C.gates[i]
-                print(f"Phases after {gate.name}: {partial_p.phases} -- exponents: {partial_p.tableau()}")
-
+    def test_product_mixed_species(self):
         # Test multiplication
         P1 = PauliSum.from_string(['x1z1 x0z0'],
                                   dimensions=[3, 2],
@@ -214,7 +208,14 @@ class TestCircuits():
                                   weights=[1], phases=[0])
 
         product = P1.H() * P2
-        # assert product.phases() == [8]
+        assert product.phases() == [8]
+
+    def test_phase_mixed_species(self):
+        def debug_steps(C: Circuit, P: PauliSum):
+            print(f"Initial phases: {P.phases} -- exponents: {P.tableau()}")
+            for i, partial_p in enumerate(C.act_iter(P)):
+                gate = C.gates[i]
+                print(f"Phases after {gate.name}: {partial_p.phases} -- exponents: {partial_p.tableau()}")
 
         # Test 1: Simple qutrit + qubit
         P = PauliSum.from_string(['x2z0 x0z0'],
@@ -302,7 +303,7 @@ class TestCircuits():
         # Verify SWAP on qudits (0,1) within a 2-qudit system with equal dimensions.
         dims = [3, 3]
         c = Circuit(dims, [SWAP(0, 1, 3)])
-        U = c.unitary().toarray()
+        U = c.unitary()
 
         # Start in |i,j> with i=1, j=2
         i, j = 1, 2
@@ -322,7 +323,7 @@ class TestCircuits():
         d = 5
         dims = [d, d, d]
         c = Circuit(dims, [SUM(1, 2, d)])
-        U = c.unitary().toarray()
+        U = c.unitary()
 
         # Start in |i,j,k> = |3,1,4>
         i, j, k = 3, 1, 4
@@ -342,7 +343,7 @@ class TestCircuits():
         d0, d1, d2 = 3, 5, 2
         dims = [d0, d1, d2]
         c = Circuit(dims, [PHASE(1, d1)])
-        U = c.unitary().toarray()
+        U = c.unitary()
 
         # Basis |i,j,k> = |2,3,1>
         i, j, k = 2, 3, 1

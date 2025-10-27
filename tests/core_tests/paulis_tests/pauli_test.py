@@ -144,8 +144,8 @@ class TestPaulis:
 
     def test_pauli_sum_tensor_product(self):
 
-        for dim in [2, 3, 5]:
-            for i in range(100):
+        for dim in [2, 3, 5, 17]:
+            for _ in range(50):
                 p_string1, r1, r2, s1, s2 = self.random_pauli_string(dim)
                 p_string2, r12, r22, s12, s22 = self.random_pauli_string(dim)
                 p_string3, r13, r23, s13, s23 = self.random_pauli_string(dim)
@@ -163,7 +163,6 @@ class TestPaulis:
         sp = PauliSum.from_string(pauli_list, dimensions=[2], weights=weights)
         expected_matrix = np.array([[1, 0]])
 
-        print("TABLEAU", sp.tableau())
         np.testing.assert_array_equal(sp.tableau(), expected_matrix)
 
     def test_symplectic_matrix_multiple_paulis(self):
@@ -283,20 +282,14 @@ class TestPaulis:
                                   phases=[0, 0, 1, 1],
                                   dimensions=dims)
 
-        ps0 = PauliSum.from_pauli_strings([PauliString.from_string(
-            'x2z0 x2z0 x1z1', dimensions=dims)], weights=[1], phases=[0])
-        ps1 = PauliSum.from_pauli_strings([PauliString.from_string(
-            'x2z0 x2z0 x0z0', dimensions=dims)], weights=[1], phases=[0])
-        ps2 = PauliSum.from_pauli_strings(
-            [PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)],
-            weights=[0.5 + 0j], phases=[1])
-        ps3 = PauliSum.from_pauli_strings(
-            [PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)],
-            weights=[0.5 + 0j], phases=[1])
-        assert ps[0] == ps0, f'{ps[0].__str__()}\n{ps0.__str__()}'
-        assert ps[1] == ps1, f'{ps[1].__str__()}\n{ps1.__str__()}'
-        assert ps[2] == ps2, f'{ps[2].__str__()}\n{ps2.__str__()}'
-        assert ps[3] == ps3, f'{ps[3].__str__()}\n{ps3.__str__()}'
+        ps0 = PauliString.from_string('x2z0 x2z0 x1z1', dimensions=dims)
+        ps1 = PauliString.from_string('x2z0 x2z0 x0z0', dimensions=dims)
+        ps2 = PauliString.from_string('x2z0 x2z1 x2z0', dimensions=dims)
+        ps3 = PauliString.from_string('x2z0 x2z1 x1z1', dimensions=dims)
+        assert ps.select_pauli_string(0) == ps0, f'{ps[0].__str__()}\n{ps0.__str__()}'
+        assert ps.select_pauli_string(1) == ps1, f'{ps[1].__str__()}\n{ps1.__str__()}'
+        assert ps.select_pauli_string(2) == ps2, f'{ps[2].__str__()}\n{ps2.__str__()}'
+        assert ps.select_pauli_string(3) == ps3, f'{ps[3].__str__()}\n{ps3.__str__()}'
         assert ps[0:2] == PauliSum.from_string(['x2z0 x2z0 x1z1', 'x2z0 x2z0 x0z0'], dimensions=dims)
         assert ps[[0, 3]] == PauliSum.from_string(['x2z0 x2z0 x1z1', 'x2z0 x2z1 x1z1'], weights=[1, 0.5], phases=[0, 1],
                                                   dimensions=dims)
@@ -322,9 +315,9 @@ class TestPaulis:
         new_p3 = PauliString.from_exponents(x_exp=[0, 1], z_exp=[0, 2], dimensions=dims)
         new_ps = PauliSum.from_pauli_strings([new_p1, new_p2, new_p3])
 
-        assert p1 == new_p1
-        assert p2 == new_p2
-        assert p3 == new_p3
+        assert ps.select_pauli_string(0) == new_p1
+        assert ps.select_pauli_string(1) == new_p2
+        assert ps.select_pauli_string(2) == new_p3
 
         assert ps == new_ps
 
