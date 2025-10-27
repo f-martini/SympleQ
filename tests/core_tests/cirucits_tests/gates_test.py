@@ -1,9 +1,9 @@
-from quaos.core.circuits import SUM, SWAP, Hadamard, PHASE, Gate, Circuit
-from quaos.core.circuits.utils import is_symplectic
-# from quaos.core.circuits.target import find_map_to_target_pauli_sum, map_pauli_sum_to_target_tableau
-from quaos.core.paulis import PauliSum, PauliString
+from sympleq.core.circuits import SUM, SWAP, Hadamard, PHASE, Gate, Circuit
+from sympleq.core.circuits.utils import is_symplectic
+from sympleq.core.circuits.target import find_map_to_target_pauli_sum, map_pauli_sum_to_target_tableau
+from sympleq.core.paulis import PauliSum, PauliString
 import numpy as np
-from quaos.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size, symplectic_random_transvection
+from sympleq.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size, symplectic_random_transvection
 import random
 
 

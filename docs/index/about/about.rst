@@ -1,8 +1,8 @@
-About QuAOS
+About SympleQ
 ===========
 
-| **QuAOS** (Quantum Algorithms on Stabilizers) is a unified framework that consolidates our established quantum-inspired algorithms into a cohesive, extensible platform designed to support researchers and accelerate future developments. 
-| QuAOS primarily focuses on classically efficient, quantum-inspired techniques, leveraging tools such as stabilizer states, the Clifford group, and graph theory to approach quantum computing problems from novel, tractable perspectives. 
+| **SympleQ** (Quantum Algorithms on Stabilizers) is a unified framework that consolidates our established quantum-inspired algorithms into a cohesive, extensible platform designed to support researchers and accelerate future developments. 
+| SympleQ primarily focuses on classically efficient, quantum-inspired techniques, leveraging tools such as stabilizer states, the Clifford group, and graph theory to approach quantum computing problems from novel, tractable perspectives. 
 
 **Applications include:**
 

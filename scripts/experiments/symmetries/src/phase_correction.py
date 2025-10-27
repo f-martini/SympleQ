@@ -1,9 +1,9 @@
 import numpy as np
 import galois
-from quaos.core.circuits.utils import symplectic_form
-from quaos.core.paulis import PauliSum, PauliString
-from quaos.core.circuits.gates import Gate, PauliGate
-from quaos.core.finite_field_solvers import gf_solve, solve_linear_system_over_gf
+from sympleq.core.circuits.utils import symplectic_form
+from sympleq.core.paulis import PauliSum, PauliString
+from sympleq.core.circuits.gates import PauliGate
+from sympleq.core.finite_field_solvers import gf_solve
 
 
 def pauli_phase_correction(H, delta_phi_2p, p, dimensions=None):

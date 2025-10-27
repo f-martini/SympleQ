@@ -1,8 +1,10 @@
 import numpy as np
-from quaos.core.circuits import Gate, Circuit
-from quaos.core.paulis import PauliSum
-from scripts.experiments.symmetries.src.matroid_w_spm import find_clifford_symmetries
-from scripts.experiments.symmetries.src.block_decomposition import block_decompose, ordered_block_sizes
+from sympleq.core.circuits.target import find_map_to_target_pauli_sum
+from sympleq.core.circuits import Gate, Circuit
+from sympleq.core.paulis import PauliSum
+from sympleq.utils import get_linear_dependencies
+from scripts.experiments.symmetries.src.matroid_w_spm import find_k_automorphisms_symplectic
+from .phase_correction import pauli_phase_correction
 
 
 def clifford_symmetry(pauli_sum: PauliSum,

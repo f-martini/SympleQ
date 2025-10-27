@@ -10,7 +10,7 @@ import numpy as np
 import itertools
 import random
 import networkx as nx
-from quaos.core.paulis import PauliSum
+from sympleq.core.paulis import PauliSum
 
 
 class graph:
@@ -239,7 +239,7 @@ def vertex_covering_maximal_cliques(A, k=1):
 
 def post_process_cliques(A, aaa, k=1):
     # Inputs:
-    #     A   - (graph)           - varaince graph from which weights of cliques can be obtained
+    #     A   - (graph)           - variance graph from which weights of cliques can be obtained
     #     aaa - (list{list{int}}) - a clique covering of the Hamiltonian
     #     k   - (int)             - number of times each vertex must be covered
     # Outputs:

@@ -1,10 +1,10 @@
 import numpy as np
 import random
 import itertools
-from quaos.core.paulis import PauliSum, PauliString
-from quaos.core.measurement.covariance_graph import graph
-from quaos.core.circuits import Circuit
-from quaos.core.circuits.gates import Hadamard as H, SUM as CX, PHASE as S
+from sympleq.core.paulis import PauliSum, PauliString
+from sympleq.core.measurement.covariance_graph import graph
+from sympleq.core.circuits import Circuit
+from sympleq.core.circuits.gates import Hadamard as H, SUM as CX, PHASE as S
 
 
 def sort_hamiltonian(P: PauliSum):
@@ -77,6 +77,7 @@ def sort_hamiltonian(P: PauliSum):
     return sorted_paulis, np.array(pauli_block_sizes)
 
 
+'''
 def levi_civita(i, j, k):
     if (i == j) or (j == k) or (i == k):
         return 0
@@ -84,7 +85,6 @@ def levi_civita(i, j, k):
         return 1
     else:
         return -1
-
 
 def quditwise_inner_product(P0: PauliString, P1: PauliString):
     P0_paulis = [int(2 * P0.x_exp[i] + P0.z_exp[i]) for i in range(P0.n_qudits())]
@@ -145,6 +145,7 @@ def get_phase_matrix(P: PauliSum, CG: graph):
                     k_phases[i, j] = np.sum(pauli_phases) % d
 
     return k_phases
+'''
 
 
 def choose_measurement(S, V, aaa, allocation_mode):
@@ -185,7 +186,7 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}):
         P1._delete_paulis([i for i in range(P.n_paulis()) if i not in aa])
 
         # add products
-        k_dict = {str(j0): [(a0, a0)] for j0, a0 in enumerate(aa)}
+        k_dict = {str(j0): [(a0, a0, P1.phases[j0])] for j0, a0 in enumerate(aa)}
         for j0, a0 in enumerate(aa):
             for j1, a1 in enumerate(aa):
                 if j0 != j1:
@@ -195,16 +196,19 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}):
                     P_a1 = P1[j1]
                     # compute their product pauli
                     P2 = P_a0c * P_a1
-                    P2.weights = [1]
+                    P2.weights[0] = 1
                     # check if the product is in the original pauli list
-                    if P2[0,:] not in P1:
-                        k_dict[str(P1.n_paulis())] = [(a0, a1)]
+                    if P2[0, :] not in P1.pauli_strings:
+                        k_dict[str(P1.n_paulis())] = [(a0, a1, P2.phases[0])]
+                        # add the product but make sure to account for possibly different phases
+                        P2.phases[0] = 0
                         P1 = P1 + P2
                     else:
                         P1_s = [str(ps) for ps in P1.pauli_strings]
-                        k_dict[str(P1_s.index(str(P2[0,:])))].append((a0, a1))
+                        k_dict[str(P1_s.index(str(P2[0, :])))].append((a0, a1, P2.phases[0]))
 
         C = diagonalize(P1)
+        P1.phases = np.zeros(P1.n_paulis())
         P1 = C.act(P1)
         D[str(aa)] = (P1, C, k_dict)
     return C, D
@@ -324,21 +328,19 @@ def is_diagonalizing_circuit(P, C, aa):
     return P1.is_z()
 
 
-def update_data(xxx, rr, X, k_phases, D):
+def update_data(xxx, rr, X, D):
     d = len(X[0, 0])
     for i, aa in enumerate(xxx):
         (P1, _, k_dict) = D[str(aa)]
         p1, q1, phases1 = P1.n_paulis(), P1.n_qudits(), P1.phases
         bases_a1 = rr[i]
-        phases1 = phases1 / 2
-        ss = [(phases1[i0] + sum((bases_a1[i1] * P1.z_exp[i0, i1] * P1.lcm) // P1.dimensions[i1]
+        ss = [(sum((bases_a1[i1] * P1.z_exp[i0, i1] * P1.lcm) // P1.dimensions[i1]
                for i1 in range(q1))) % P1.lcm for i0 in range(p1)]
         for j0, s0 in enumerate(ss):
-            for a0, a1 in k_dict[str(j0)]:
-                if a0 != a1:
-                    X[a0, a1, int((s0 + k_phases[a0, a1]) % d)] += 1
-                else:
-                    X[a0, a1, int(s0)] += 1
+            for a0, a1, s1 in k_dict[str(j0)]:
+                if (phases1[j0] + s1) % 2 == 1:
+                    print('warning, odd phase detected for sorting into data matrix', phases1[j0] + s1, phases1[j0], s1)
+                X[a0, a1, int(s0 + (phases1[j0] + s1) / 2) % d] += 1
     return X
 
 
@@ -367,7 +369,7 @@ def scale_variances(A, S):
     return graph(S1 * A.adj * s1 * s1[:, None])
 
 
-def diagnostic_circuits(circuit_list):
+def construct_diagnostic_circuits(circuit_list):
     diagnostic_circuits = []
     for circ in circuit_list:
         C_diag = Circuit(dimensions=circ.dimensions)
@@ -381,7 +383,7 @@ def diagnostic_circuits(circuit_list):
     return diagnostic_circuits
 
 
-def diagnostic_states(diagnostic_circuits: list[Circuit], mode='Zero'):
+def construct_diagnostic_states(diagnostic_circuits: list[Circuit], mode='Zero'):
     if mode == 'Zero':
         state = [0] * np.prod(diagnostic_circuits[0].dimensions)
         state[0] = 1
@@ -407,3 +409,29 @@ def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.00
 
 def standard_error_function(result, dims):
     return np.array([np.random.randint(dims[j]) for j in range(len(dims))])
+
+
+def extract_phase(weight, dimension):
+    phase = np.floor(dimension * np.angle(weight) / (2 * np.pi))
+    remainder = np.angle(weight) - phase * 2 * np.pi / dimension
+    return phase, remainder
+
+
+def weight_to_phase(H):
+    if 2 not in H.dimensions:
+        for i in range(H.n_paulis()):
+            weight_phase, weight_remainder = extract_phase(H.weights[i], H.lcm)
+            H.phases[i] += 2 * (weight_phase % H.lcm)
+            H.weights[i] = np.abs(H.weights[i]) * np.exp(weight_remainder * 1j)
+    else:
+        for i in range(H.n_paulis()):
+            num_Ys = np.sum([H.x_exp[i, j] * H.z_exp[i, j] for j in range(H.n_qudits()) if H.dimensions[j] == 2])
+            if (num_Ys % 2 == 0 and H.phases[i] % 2 == 1) or (num_Ys % 2 == 1 and H.phases[i] % 2 == 0):
+                weight_phase, weight_remainder = extract_phase(H.weights[i], 2 * H.lcm)
+                H.phases[i] += weight_phase % (2 * H.lcm)
+                H.weights[i] = np.abs(H.weights[i]) * np.exp(weight_remainder * 1j)
+            else:
+                weight_phase, weight_remainder = extract_phase(H.weights[i], H.lcm)
+                H.phases[i] += 2 * (weight_phase % H.lcm)
+                H.weights[i] = np.abs(H.weights[i]) * np.exp(weight_remainder * 1j)
+    return H

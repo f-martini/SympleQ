@@ -1,8 +1,8 @@
 import sys
 sys.path.append("./")
 
-from quaos.hamiltonian import symplectic_pauli_reduction, pauli_reduce
-from quaos.paulis import PauliSum
+from sympleq.hamiltonian import symplectic_pauli_reduction, pauli_reduce
+from sympleq.paulis import PauliSum
 
 
 ham = ['x1z0 x1z0 x0z0', 'x0z0 x1z0 x1z0', 'x0z1 x0z0 x0z1']

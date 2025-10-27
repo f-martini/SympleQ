@@ -1,7 +1,7 @@
 from __future__ import annotations
 import numpy as np
 import scipy.sparse as sp
-from quaos.utils import int_to_bases, bases_to_int
+from sympleq.utils import int_to_bases, bases_to_int
 
 
 def is_symplectic(F, p: int) -> bool:

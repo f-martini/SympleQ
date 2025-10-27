@@ -1,14 +1,12 @@
 name: Linting And Testing
 
-on:
-  pull_request:
-    branches: [main, dev]
+on: pull_request
 
 env:
-  PRJ_NAME: quaos
+  PRJ_NAME: sympleq
   CONFIG_DIR: ./scripts/configs
   SETUP_PY: ./scripts/configs
-  SRC_DIR: ./src/quaos
+  SRC_DIR: ./src/sympleq
   TEST_DIR: ./tests
   PYTEST_INI: ./scripts/configs/pytest.ini
   DEV_REQUIREMENTS: ./scripts/configs/dev_requirements.txt
@@ -63,7 +61,7 @@ jobs:
           flake8 ${{ env.SRC_DIR }} --config=${{ env.FLAKE8_CONFIG }}
 
   testing:
-    needs: [set-runner, linting]
+    needs: [set-runner]
     runs-on: ${{ needs.set-runner.outputs.runner }}
 
     steps:
