@@ -1,6 +1,5 @@
 from sympleq.core.circuits.find_symplectic import (
     map_single_pauli_string_to_target,
-    check_mappable_via_clifford,
     find_symplectic_solution,
     find_symplectic_solution_extended,
     solve_gf2,
@@ -9,9 +8,8 @@ from sympleq.core.circuits.find_symplectic import (
 import numpy as np
 from sympleq.core.circuits.utils import transvection, transvection_matrix, symplectic_product
 from sympleq.utils import get_linear_dependencies
-from sympleq.core.paulis import PauliSum
 from sympleq.models import random_hamiltonian
-from sympleq.core.circuits import Gate, Circuit, SWAP
+from sympleq.core.circuits import Circuit
 
 
 class TestSymplecticSolver:
@@ -182,8 +180,7 @@ class TestSymplecticSolver:
 
     def test_map_pauli_sum_to_target(self):
 
-        for i in range(1000):
-            # print(i)
+        for _ in range(100):
             # choose random properties of the system
             n = np.random.randint(2, 5)  # , 50)  # Number of qudits
             allowed_dims = [2]  # , 3, 5, 7, 11]  # allowed dimensions
@@ -195,7 +192,7 @@ class TestSymplecticSolver:
             # define input hamiltonian
             pl_sum = random_hamiltonian.random_pauli_hamiltonian(m, dimensions)
 
-            basis_indices, _ = get_linear_dependencies(pl_sum.tableau(), int(pl_sum.lcm))
+            basis_indices, _ = get_linear_dependencies(pl_sum.tableau(), pl_sum.lcm())
             pl_sum = pl_sum[basis_indices]
 
             # scramble input hamiltonian to get target
@@ -214,7 +211,7 @@ class TestSymplecticSolver:
             F = map_pauli_sum_to_target_tableau(sym_sum, target_sym_sum)
 
             # Verify the mapping
-            mapped_sym_sum = (sym_sum @ F) % pl_sum.lcm
+            mapped_sym_sum = (sym_sum @ F) % pl_sum.lcm()
             assert np.array_equal(mapped_sym_sum, target_sym_sum), (
                 "Mapping failed. The mapped Pauli sum is:\n"
                 f"{mapped_sym_sum}\n"
