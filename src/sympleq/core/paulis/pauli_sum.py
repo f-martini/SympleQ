@@ -413,7 +413,7 @@ class PauliSum:
         ps_out.standardise()
         ps_out = ps_out.round_weights()
         return ps_out
-    
+
     def round_weights(self) -> 'PauliSum':
         """
         Round the weights of the PauliSum to the nearest integer.
@@ -1073,7 +1073,7 @@ class PauliSum:
         # If entire qudit is I, remove it
         to_delete = []
         for i in range(self.n_qudits()):
-            if np.all(self.tableau()[:, i] == 0):
+            if np.all(self.tableau()[:, i] == 0) and np.all(self.tableau()[:, i + self.n_qudits()] == 0):
                 to_delete.append(i)
         self._delete_qudits(to_delete)
 
@@ -1562,7 +1562,7 @@ class PauliSum:
         basis_mask = np.zeros(self.n_paulis(), dtype=bool)
         basis_mask[basis_order] = True
         return basis_mask
-       
+
     def is_hermitian(self):
         P = self.copy()
         P.combine_equivalent_paulis()

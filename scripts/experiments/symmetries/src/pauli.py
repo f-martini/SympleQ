@@ -230,29 +230,32 @@ if __name__ == "__main__":
     #     print(h)
 
     # random hamiltonian example
+    from sympleq.models.random_hamiltonian import random_pauli_hamiltonian, random_pauli_symmetry_hamiltonian
 
-    # n_qudits = 10
-    # n_paulis = 10
-    # dimension = 2
-    # ham = random_pauli_hamiltonian(n_paulis, [dimension] * n_qudits, mode='uniform')
-    # circuit = symplectic_pauli_reduction(ham)
-    # print(ham)
-    # h_reduced, conditioned_hams, reducing_circuit, eigenvalues = pauli_reduce(ham)
-    # print(h_reduced)
+    n_qudits = 12
+    n_paulis = 24
+    dimension = 2
+    ham = random_pauli_symmetry_hamiltonian(n_qudits, n_paulis, n_redundant=0, n_conditional=2)
+    circuit = symplectic_pauli_reduction(ham)
+    print(ham)
+    h_reduced, conditioned_hams, reducing_circuit, eigenvalues = pauli_reduce(ham)
+    print(h_reduced)
+    print(len(conditioned_hams))
+
     # for h in conditioned_hams:
     #     print(h)
 
-    ps = ['x1z0 x1z0',
-          'x1z0 x0z1',
-          'x1z0 x0z0',
-          'x1z0 x1z1'
-          ]
+    # ps = ['x1z0 x1z0',
+    #       'x1z0 x0z1',
+    #       'x1z0 x0z0',
+    #       'x1z0 x1z1'
+    #       ]
 
-    ps = PauliSum(ps, dimensions=[2, 2], standardise=True)
-    print(ps)
-    circuit = symplectic_pauli_reduction(ps)
-    h_reduced, conditioned_hams, reducing_circuit, eigenvalues = pauli_reduce(ps)
+    # ps = PauliSum(ps, dimensions=[2, 2], standardise=True)
+    # print(ps)
+    # circuit = symplectic_pauli_reduction(ps)
+    # h_reduced, conditioned_hams, reducing_circuit, eigenvalues = pauli_reduce(ps)
 
-    print(circuit.act(ps))
-    for h in conditioned_hams:
-        print(h)
+    # print(circuit.act(ps))
+    # for h in conditioned_hams:
+    #     print(h)

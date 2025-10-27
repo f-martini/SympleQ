@@ -3,11 +3,11 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import galois
 from numba import njit
-from quaos.core.circuits.target import find_map_to_target_pauli_sum
-from quaos.core.finite_field_solvers import solve_linear_system_over_gf
-from quaos.core.paulis import PauliSum
-from quaos.core.circuits import Gate, Circuit
-from quaos.core.finite_field_solvers import get_linear_dependencies
+from sympleq.core.circuits.target import find_map_to_target_pauli_sum
+from sympleq.core.finite_field_solvers import solve_linear_system_over_gf
+from sympleq.core.paulis import PauliSum
+from sympleq.core.circuits import Gate, Circuit
+from sympleq.core.finite_field_solvers import get_linear_dependencies
 
 Label = int
 DepPairs = Dict[Label, List[Tuple[Label, int]]]
@@ -656,8 +656,8 @@ def _row_basis_indices(A_int: np.ndarray, p: int, want_cols: int) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    from quaos.models.random_hamiltonian import random_gate_symmetric_hamiltonian
-    from quaos.core.circuits import SWAP
+    from sympleq.models.random_hamiltonian import random_gate_symmetric_hamiltonian
+    from sympleq.core.circuits import SWAP
 
     failed = 0
     for _ in range(3):

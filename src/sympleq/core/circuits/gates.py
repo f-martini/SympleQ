@@ -4,7 +4,7 @@ from typing import overload
 from sympleq.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
 from sympleq.core.circuits.utils import (transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func,
                                          SWAP_func)
-from sympleq.utils import get_linear_dependencies
+from sympleq.core.finite_field_solvers import get_linear_dependencies
 import scipy.sparse as sp
 
 
@@ -177,7 +177,7 @@ class Gate:
         return Gate(self.name, self.qudit_indices.copy(), self.symplectic.copy(), self.dimensions,
                     self.phase_vector.copy())
 
-	    def inv(self) -> 'Gate':
+    def inv(self) -> 'Gate':
         n = self.n_qudits
         L = int(self.lcm)
 
@@ -210,7 +210,6 @@ class Gate:
 
         return Gate(self.name + "-inv", self.qudit_indices, C_inv, self.dimensions, h_inv.astype(int))
 
-                    
     def transvection(self, transvection_vector: np.ndarray | list, transvection_weight: int = 1) -> 'Gate':
         """
         Returns a new gate that is the transvection of this gate by the given vector.
