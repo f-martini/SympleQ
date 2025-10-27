@@ -598,13 +598,6 @@ def complete_symplectic_local(Tblk: np.ndarray, p: int) -> np.ndarray:
     # Strict symplectic check in the trailing subspace
     G = modp(T_local.T @ Ω_sub @ T_local, p)
     if not np.array_equal(G % p, Ω_sub % p):
-        # As a softer fallback (shouldn't trigger), allow equality up to column permutation Π
-        # that swaps pair interleavings; comment out if you prefer strictness only:
-        # from numpy import eye
-        # k = n2_sub // 2
-        # Π = np.eye(n2_sub, dtype=np.int64)
-        # # optional: try standard [U|V] <-> [w1,z1,w2,z2,...] permutations here
-        # if not np.array_equal(modp(T_local.T @ Ω_sub @ T_local, p), Ω_sub % p):
         raise RuntimeError("Local completion is not symplectic (T_local^T Ω T_local ≠ Ω).")
     return T_local
 
@@ -734,3 +727,52 @@ def minimal_symplectic_block_full(
         raise RuntimeError("Failed to find a nontrivial symplectic block meeting the size floor")
     return best[2]
 
+
+def ordered_block_sizes(S: np.ndarray, p: int) -> list[int]:
+    n2 = S.shape[0]
+    k = n2 // 2
+    # compute rank of (S - I) restricted to each component as nontriviality
+    M = (S - np.eye(n2, dtype=np.int64)) % p
+
+    # build comps first (copy the same adjacency/components code)
+    adj = [[] for _ in range(k)]
+    for i in range(k):
+        rows_i = [i, k + i]
+        for j in range(i + 1, k):
+            cols_j = [j, k + j]
+            if (S[np.ix_(rows_i, cols_j)] % p).any() or (S[np.ix_([j, k + j], [i, k + i])] % p).any():
+                adj[i].append(j)
+                adj[j].append(i)
+    seen = [False] * k
+    comps = []
+    for s in range(k):
+        if seen[s]:
+            continue
+        st = [s]
+        seen[s] = True
+        comp = []
+        while st:
+            u = st.pop()
+            comp.append(u)
+            for v in adj[u]:
+                if not seen[v]:
+                    seen[v] = True
+                    st.append(v)
+        comps.append(sorted(comp))
+
+    def comp_rank(comp):
+        idx = comp + [c + k for c in comp]
+        # rank_mod must be your GF(p) rank
+        return rank_mod(M[np.ix_(idx, idx)], p)
+
+    info = [{"modes": c, "nmodes": len(c), "rank": comp_rank(c)} for c in comps]
+    nontriv_ge2 = [d for d in info if d["rank"] > 0 and d["nmodes"] >= 2]
+    nontriv_1 = [d for d in info if d["rank"] > 0 and d["nmodes"] == 1]
+    triv = [d for d in info if d["rank"] == 0]
+
+    nontriv_ge2.sort(key=lambda d: (d["nmodes"], -d["rank"]))
+    nontriv_1.sort(key=lambda d: -d["rank"])
+    triv.sort(key=lambda d: d["nmodes"])
+
+    ordered = nontriv_ge2 + nontriv_1 + triv
+    return [2 * d["nmodes"] for d in ordered]
