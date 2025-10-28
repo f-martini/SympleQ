@@ -207,7 +207,7 @@ def pauli_reduce(hamiltonian: PauliSum) -> tuple[PauliSum, list[PauliSum], Circu
         for i, z_symmetry in enumerate(list_of_z_symmetries):
 
             phase_factor[list_of_z_symmetries[i][1]] += all_phases[sector]
-        conditioned_hamiltonian.set_phases((conditioned_hamiltonian.phases() + \
+        conditioned_hamiltonian.set_phases((conditioned_hamiltonian.phases() +
                                            phase_factor) % conditioned_hamiltonian.lcm())
         # TODO: evaluate if it is correct to set _delete_qudits as internal methods
 
