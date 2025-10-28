@@ -227,9 +227,3 @@ def CX_func(i, a0, a1, dims):
     aa = int_to_bases(i, dims)
     aa[a1] = (aa[a1] + aa[a0]) % dims[a1]
     return bases_to_int(aa, dims)
-
-
-def SWAP_func(i, a0, a1, dims):
-    aa = int_to_bases(i, dims)
-    aa[a0], aa[a1] = aa[a1], aa[a0]
-    return sum([aa[i] * int(np.prod(dims[:i])) for i in range(len(aa))])

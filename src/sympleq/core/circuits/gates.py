@@ -4,8 +4,7 @@ from typing import TypeVar, overload
 
 from sympleq.core.paulis import Pauli, PauliString, PauliSum, PauliObject
 from sympleq.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
-from sympleq.core.circuits.utils import (transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func,
-                                         SWAP_func)
+from sympleq.core.circuits.utils import transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func
 from sympleq.utils import get_linear_dependencies
 
 # We define a type using TypeVar to let the type checker know that
@@ -285,7 +284,7 @@ class SWAP(Gate):
         a1 = q - 1 - aa[1]
         aa2 = np.array([1 for i in range(D)])
         aa3 = np.array([i for i in range(D)])
-        aa4 = np.array([SWAP_func(i, a0, a1, dims) for i in range(D)])
+        aa4 = np.array([SWAP._swap_linear_index(i, a0, a1, dims) for i in range(D)])
         return sp.csr_matrix((aa2, (aa3, aa4)))
 
     def copy(self) -> 'Gate':
@@ -293,6 +292,25 @@ class SWAP(Gate):
         Returns a copy of the SWAP gate.
         """
         return SWAP(self.qudit_indices[0], self.qudit_indices[1], self.dimensions)
+
+    @staticmethod
+    def _swap_linear_index(i, a0, a1, dims):
+        # Convert linear index i to multi-index in row-major order
+        multi_idx = []
+        rem = i
+        for d in reversed(dims):
+            multi_idx.append(rem % d)
+            rem //= d
+        multi_idx = multi_idx[::-1]
+
+        # Swap the two qudits
+        multi_idx[a0], multi_idx[a1] = multi_idx[a1], multi_idx[a0]
+
+        # Convert back to linear index (row-major)
+        idx = 0
+        for j, dim in enumerate(dims):
+            idx = idx * dim + multi_idx[j]
+        return idx
 
 
 class CNOT(Gate):
@@ -349,7 +367,6 @@ class Hadamard(Gate):
         if dims is None:
             dims = self.dimensions
 
-        # FIXME: clarify return type: can we cast it to np.ndarray?
         return tensor(
             [H_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))]
         )
