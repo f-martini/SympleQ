@@ -334,6 +334,39 @@ class TestPaulis:
 
         assert np.all(ps.to_standard_form().tableau() == symplectic_basis)
 
+    def test_pauli_sum_product_mixed_species(self):
+        # Test multiplication
+        P1 = PauliSum.from_string(['x1z1 x0z0'],
+                                  dimensions=[3, 2],
+                                  weights=[1], phases=[0])
+
+        P2 = PauliSum.from_string(['x2z2 x0z0'],
+                                  dimensions=[3, 2],
+                                  weights=[1], phases=[0])
+
+        product = P2 * P2
+        assert product.phases() == [4]
+
+        product = P1.H() * P2
+        assert product.phases() == [8]
+
+        N = 250
+        dimensions = [2, 3, 5]
+        for n_paulis in range(1, 4):
+            for _ in range(N):
+                P1 = PauliSum.from_random(n_paulis, dimensions)
+                P2 = PauliSum.from_random(n_paulis, dimensions)
+                P_res = P1 * P2
+                phase_symplectic = P_res.phases()[0]
+
+                phase_computed = 0
+                for j in range(3):
+                    s1 = P1.z_exp[0, j]
+                    r2 = P2.x_exp[0, j]
+                    phase_computed += ((s1 * r2) % dimensions[j]) * P1.lcm() / dimensions[j]
+                phase_computed = phase_computed * 2 % (2 * P1.lcm())
+                assert phase_symplectic == phase_computed
+
     def test_pauli_sum_delete_qudits(self):
         dims = [2, 3, 5, 6, 7]
 

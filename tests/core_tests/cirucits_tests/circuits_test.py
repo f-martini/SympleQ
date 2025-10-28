@@ -197,19 +197,6 @@ class TestCircuits():
             phase_unitary = int(np.around((d * np.angle(factor) / (np.pi)) % (2 * d), 1))
             assert phase_symplectic == phase_unitary
 
-    def test_product_mixed_species(self):
-        # Test multiplication
-        P1 = PauliSum.from_string(['x1z1 x0z0'],
-                                  dimensions=[3, 2],
-                                  weights=[1], phases=[0])
-
-        P2 = PauliSum.from_string(['x2z2 x0z0'],
-                                  dimensions=[3, 2],
-                                  weights=[1], phases=[0])
-
-        product = P1.H() * P2
-        assert product.phases() == [8]
-
     def test_phase_mixed_species(self):
         def debug_steps(C: Circuit, P: PauliSum):
             print(f"Initial phases: {P.phases} -- exponents: {P.tableau()}")

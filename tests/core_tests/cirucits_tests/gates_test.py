@@ -409,7 +409,7 @@ class TestGates():
             for j in range(d):
                 pauli_string = 'x' + str(i) + 'z' + str(j)
                 ps = PauliSum.from_string(pauli_string, d, weights=[1], phases=[0])
-                ps_m = ps.matrix_form().toarray()
+                ps_m = ps.matrix_form()
 
                 ps_res = G.act(ps)
                 phase_table_symplectic[i, j] = ps_res.phases()[0]
@@ -417,7 +417,7 @@ class TestGates():
                 ps_res._phases = np.asarray([0], dtype=int)
                 ps_res_m = ps_res.matrix_form().toarray()
 
-                ps_m_res = G.unitary() @ ps_m @ G.unitary().conj().T
+                ps_m_res = (G.unitary() @ ps_m @ G.unitary().conj().T).toarray()
 
                 mask = (ps_res_m != 0)
                 factors = np.around(ps_m_res[mask] / ps_res_m[mask], 14)
@@ -457,6 +457,9 @@ class TestGates():
             G = Hadamard(0, d)
             phase_table_unitary, phase_table_symplectic = self.phase_table_local(G)
             diff_m = np.around(phase_table_unitary - phase_table_symplectic, 10)
+            print(phase_table_unitary)
+            print(phase_table_symplectic)
+
             assert not np.any(diff_m), 'Symplectic phase table does not match unitary phase table for Hadamard gate'
 
             G = PHASE(0, d)
