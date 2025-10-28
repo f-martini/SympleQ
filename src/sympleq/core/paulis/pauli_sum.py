@@ -829,11 +829,12 @@ class PauliSum(PauliObject):
 
         # Extract z- and x-parts from tableau
         n1, n2 = self.n_qudits(), A.n_qudits()
-        a_z = self.tableau()[:, n1:]      # shape (n_paulis1, n_qudits1)
-        b_x = A.tableau()[:, :n2]         # shape (n_paulis2, n_qudits2)
+        a_z = self.tableau()[:, n1:]
+        b_x = A.tableau()[:, :n2]
 
-        # Compute acquired phases via symplectic form (this is PauliString.acquired_phase)
-        acquired_phases = 2 * (a_z @ b_x.T) % (2 * self.lcm())  # shape (n_paulis1, n_paulis2)
+        # Compute acquired phases via symplectic form
+        factors = (self.lcm() // self.dimensions())
+        acquired_phases = 2 * factors * a_z  @ b_x.T
 
         # Combine with existing phases and flatten
         new_phases = (p1 + p2 + acquired_phases) % (2 * self.lcm())
@@ -1469,48 +1470,6 @@ class PauliSum(PauliObject):
         self._weights[index_1], self._weights[index_2] = self.weights()[index_2], self.weights()[index_1]
         self._phases[index_1], self._phases[index_2] = self.phases()[index_2], self.phases()[index_1]
         self._tableau[index_1], self._tableau[index_2] = self._tableau[index_2], self._tableau[index_1]
-
-    # def hermitian_conjugate(self):
-        # conjugate_weights = np.conj(self.weights())
-
-        # acquired_phases = []
-        # for i in range(self.n_paulis()):
-        #     hermitian_conjugate_phase = 0
-        #     for j in range(self.n_qudits()):
-        #         r = self.x_exp[i, j]
-        #         s = self.z_exp[i, j]
-        #         hermitian_conjugate_phase += (r * s % self.lcm()) * self.lcm() / self.dimensions()[j]
-        #     acquired_phases.append(2 * hermitian_conjugate_phase)
-        # acquired_phases = np.asarray(acquired_phases, dtype=int)
-
-        # conjugate_initial_phases = (-self.phases()) % (2 * self.lcm())
-        # conjugate_phases = (conjugate_initial_phases + acquired_phases) % (2 * self.lcm())
-
-        # conjugate_tableau = (-self.tableau()) % np.tile(self.dimensions(), 2)
-
-        # return PauliSum.from_tableau(tableau=conjugate_tableau, dimensions=self.dimensions(),
-        #                              weights=conjugate_weights, phases=conjugate_phases)
-
-    # H = hermitian_conjugate
-
-    def is_hermitian(self):
-        P = self.copy()
-        P.combine_equivalent_paulis()
-        P.phase_to_weight()
-        # First Try: Just Primitive Check
-        for i in range(P.n_paulis()):
-            pauli_string = PauliSum.from_pauli_strings(P[i])
-            hermitian_pauli_string = pauli_string.hermitian_conjugate()
-            hermitian_pauli_string.phase_to_weight()
-            for j in range(P.n_paulis()):
-                if P[j, :] == hermitian_pauli_string[0, :]:
-                    # FIXME: move magic number to constant
-                    if np.abs(hermitian_pauli_string.weights()[0] - P.weights()[j]) > 1e-10:
-                        return False
-                    else:
-                        break
-
-        return True
 
     # TODO: Move this to a better location and amend where it is used in the Pauli reduction code
     @staticmethod

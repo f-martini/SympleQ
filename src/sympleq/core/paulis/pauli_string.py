@@ -898,6 +898,7 @@ class PauliString(PauliObject):
             The acquired phase, as an integer modulo ``2 * self.lcm``.
         """
 
+        # FIXME: should check dimensions
         n = self.n_qudits()
         a = self.tableau()[0]
         b = other_pauli.tableau()[0]
