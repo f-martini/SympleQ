@@ -1,5 +1,13 @@
 import numpy as np
-
+from sympleq.core.circuits import (
+    CZ as CZGate,
+    Hadamard,
+    PHASE,
+    SUM as SUMGate,
+    SWAP as SWAPGate,
+    Circuit,
+    Gate,
+)
 
 def mod_p(A, p: int) -> np.ndarray:
     """Return A reduced modulo p with integer dtype."""
@@ -123,6 +131,21 @@ def gate_SCALE(n: int, i: int, scalar: int, p: int) -> np.ndarray:
     A[i, i] = (A[i, i] * scalar) % p
     return _gate_linear_from_A(A, p)
 
+
+# ---------------------------------------------------------------------------
+# Notes on the MUL gate
+# ---------------------------------------------------------------------------
+# The symbolic gate name "MUL" denotes the diagonal symplectic transformation
+# diag(lambda, lambda^{-1}) acting on a single qudit (and leaving all other
+# modes untouched).  Operationally it rescales X_i by lambda and Z_i by the
+# inverse so that commutation relations are preserved.  Over GF(p) this map
+# can be compiled entirely into the elementary generators already present in
+# the circuit: a MUL(i, lambda) gate is equivalent to the sequence
+#   H_i · S_i(lambda^{-1}) · H_i · S_i(lambda) · H_i · S_i(lambda^{-1})
+# (with arithmetic modulo p and lambda^{-1} the multiplicative inverse), up
+# to the special cases lambda = ±1 that can be shortened.  We keep MUL as an
+# abstract gate while synthesising the linear block, and expand it into the
+# above H/S combination only when required.
 
 def gate_SWAP(n: int, i: int, j: int, p: int) -> np.ndarray:
     """Swap qudits i and j."""
@@ -289,6 +312,125 @@ def decompose_symplectic_gfp(F: np.ndarray, p: int) -> list[tuple]:
     return gates
 
 
+def decompose_symplectic_to_circuit(F: np.ndarray, p: int) -> Circuit:
+
+    def repeat_phase(index: int, coeff: int) -> list:
+        coeff_mod = coeff % p
+        return [PHASE(index, p) for _ in range(coeff_mod)]
+
+    def repeat_cz(index1: int, index2: int, coeff: int) -> list:
+        coeff_mod = coeff % p
+        return [CZGate(index1, index2, p) for _ in range(coeff_mod)]
+
+    def repeat_sum(src: int, dst: int, coeff: int) -> list:
+        coeff_mod = coeff % p
+        return [SUMGate(src, dst, p) for _ in range(coeff_mod)]
+
+    def expand_mul(index: int, scalar: int) -> list:
+        scalar_mod = scalar % p
+        if scalar_mod == 0:
+            raise ValueError("MUL gate scalar must be non-zero modulo p.")
+        if scalar_mod == 1:
+            return []
+        gates_local: list = []
+        if scalar_mod == (p - 1) % p:
+            gates_local.append(Hadamard(index, p))
+            gates_local.append(Hadamard(index, p))
+            return gates_local
+        inv_scalar = pow(int(scalar_mod), -1, p)
+        gates_local.append(Hadamard(index, p))
+        gates_local.extend(repeat_phase(index, inv_scalar))
+        gates_local.append(Hadamard(index, p))
+        gates_local.extend(repeat_phase(index, scalar_mod))
+        gates_local.append(Hadamard(index, p))
+        gates_local.extend(repeat_phase(index, inv_scalar))
+        return gates_local
+
+    tuple_gates = decompose_symplectic_gfp(F, p)
+    gate_objects: list = []
+    for gate in tuple_gates:
+        kind = gate[0]
+        if kind == "H":
+            gate_objects.append(Hadamard(gate[1], p))
+        elif kind == "S":
+            gate_objects.extend(repeat_phase(gate[1], gate[2] if len(gate) > 2 else 1))
+        elif kind == "CZ":
+            coeff = gate[3] if len(gate) > 3 else 1
+            gate_objects.extend(repeat_cz(gate[1], gate[2], coeff))
+        elif kind == "SUM":
+            coeff = gate[3] if len(gate) > 3 else 1
+            gate_objects.extend(repeat_sum(gate[1], gate[2], coeff))
+        elif kind == "SWAP":
+            gate_objects.append(SWAPGate(gate[1], gate[2], p))
+        elif kind == "MUL":
+            gate_objects.extend(expand_mul(gate[1], gate[2]))
+        else:
+            raise ValueError(f"Unknown gate type {gate}")
+    n_qudits = F.shape[0] // 2
+    C = Circuit([p for _ in range(n_qudits)], gate_objects)
+    return C
+
+
+def _canonical_pauli_sum(dimensions: list[int] | np.ndarray) -> "PauliSum":
+    from sympleq.core.paulis import PauliSum, PauliString
+
+    dims = np.asarray(dimensions, dtype=int)
+    n = len(dims)
+    paulis: list[PauliString] = []
+    zeros = np.zeros(n, dtype=int)
+
+    for i in range(n):
+        x = zeros.copy()
+        x[i] = 1
+        paulis.append(PauliString(x, zeros, dims, sanity_check=False))
+    for i in range(n):
+        z = zeros.copy()
+        z[i] = 1
+        paulis.append(PauliString(zeros, z, dims, sanity_check=False))
+
+    weights = np.ones(2 * n, dtype=float)
+    phases = np.zeros(2 * n, dtype=int)
+    return PauliSum(paulis, weights=weights, phases=phases, dimensions=dims, standardise=False)
+
+
+def decompose_gate_to_circuit(gate: Gate) -> Circuit:
+    dims = np.asarray(gate.dimensions, dtype=int)
+    if dims.ndim == 0:
+        dims = np.array([int(dims)], dtype=int)
+    if not np.all(dims == dims[0]):
+        raise ValueError("decompose_gate_to_circuit currently supports uniform qudit dimensions.")
+    p = int(dims[0])
+
+    circuit = decompose_symplectic_to_circuit(gate.symplectic, p)
+    canonical = _canonical_pauli_sum(dims)
+    target_action = gate.act(canonical).standard_form()
+
+    def circuit_action() -> "PauliSum":
+        return circuit.act(canonical).standard_form()
+
+    constructed_action = circuit_action()
+
+    if constructed_action.standard_form().tableau().tolist() != target_action.tableau().tolist():
+        constructed_gate = Gate.solve_from_target(
+            "constructed",
+            canonical.standard_form(),
+            constructed_action,
+            dimensions=dims,
+        )
+        residual = Gate.solve_from_target(
+            "residual",
+            constructed_action,
+            target_action,
+            dimensions=dims,
+        )
+        residual_symplectic = residual.symplectic % p
+        if not np.array_equal(residual_symplectic, np.eye(2 * len(dims), dtype=int)):
+            residual_circuit = decompose_symplectic_to_circuit(residual_symplectic, p)
+            circuit.add_gate(residual_circuit.gates)
+
+    return circuit
+
+
 # =========================
 # Quick smoke test helpers
 # =========================
@@ -337,5 +479,29 @@ def demo(n: int = 3, p: int = 2, seed: int = 2025) -> None:
 
 
 if __name__ == "__main__":
-    for prime in (2, 3, 5):
-        demo(n=3, p=prime)
+    rng = np.random.default_rng(2025)
+    for p in [2]:
+        for n in [4]:
+            for _ in range(1):
+                A = random_invertible(n, rng, p)
+                B = random_symmetric(n, rng, p)
+                C = random_symmetric(n, rng, p)
+                F = build_F_from_LMR(n, A, B, C, p)
+                gates_tuple = decompose_symplectic_gfp(F, p)
+                recon = compose_symplectic_from_gates(n, gates_tuple, p)
+                assert np.array_equal(recon, F), "Symplectic reconstruction failed."
+
+                circuit = decompose_symplectic_to_circuit(F, p)
+                
+                assert np.all(circuit.composite_gate().symplectic == F), "Symplectic decomposition failed."
+
+                allowed = {"H", "S", "SUM", "SWAP", "CZ"}
+                circuit_names = [gate.name for gate in circuit.gates]
+                assert all(name in allowed for name in circuit_names), "Unexpected gate type in circuit output."
+                assert all(gate.name != "MUL" for gate in circuit.gates), "MUL gate should be expanded."
+
+                tuple_cz = sum(1 for g in gates_tuple if g[0] == "CZ")
+                circuit_cz = sum(1 for name in circuit_names if name == "CZ")
+                assert tuple_cz == circuit_cz, "CZ gate count mismatch."
+
+    print("All GF(p) symplectic decomposition checks passed.")

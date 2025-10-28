@@ -163,8 +163,8 @@ class Circuit:
             yield pauli_sum
 
     def show(self):
-        if np.all(np.array(self.dimensions) != 2):
-            print("Circuit dimensions are all 2, using Qiskit QuantumCircuit, some gates may not be supported")
+        if not np.all(np.array(self.dimensions) == 2):
+            print("Circuit dimensions are not all 2, using Qiskit QuantumCircuit, some gates may not be supported")
         circuit = QuantumCircuit(len(self.dimensions))
         dict = {'X': circuit.x, 'H': circuit.h, 'S': circuit.s, 'SUM': circuit.cx, 'CNOT': circuit.cx,
                 'Hdag': circuit.h}

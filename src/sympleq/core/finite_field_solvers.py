@@ -2,6 +2,7 @@ import numpy as np
 from math import gcd
 import galois
 from collections import defaultdict
+# TODO: Move tests to test suite (and write more!)
 
 
 def solve_linear_system_over_gf(A: np.ndarray, b: np.ndarray, GF: type | int) -> np.ndarray:
@@ -181,7 +182,7 @@ def get_linear_dependencies(vectors: np.ndarray,
             mode = "per-row"
         else:
             raise AssertionError(
-                f"Length of p must be either rows={m}, cols={n}, or cols/2={n//2} (for qudits). Got {lp}"
+                f"Length of p must be either rows={m}, cols={n}, or cols/2={n // 2} (for qudits). Got {lp}"
             )
     else:
         raise TypeError(f"p must be int or list/np.ndarray of ints, it is {type(p)}")
@@ -289,3 +290,215 @@ def get_linear_dependencies(vectors: np.ndarray,
         dependencies = {}
 
     return pivot_indices, dependencies
+
+
+def gf_inv(A, p: int = 2):
+    """
+    Compute the inverse of a square matrix over GF(p) for a prime p.
+    Defaults to GF(2) for backwards compatibility.
+    """
+    A = np.asarray(A, dtype=int) % p
+    if A.ndim != 2 or A.shape[0] != A.shape[1]:
+        raise ValueError("Matrix must be square to compute an inverse over GF(p).")
+
+    n = A.shape[0]
+    Id = np.eye(n, dtype=int) % p
+    AI = np.concatenate((A.copy(), Id), axis=1)
+
+    for i in range(n):
+        pivot_row = None
+        for r in range(i, n):
+            if AI[r, i] % p != 0:
+                pivot_row = r
+                break
+        if pivot_row is None:
+            raise ValueError("Matrix is singular over GF(p); inverse does not exist.")
+        if pivot_row != i:
+            AI[[i, pivot_row]] = AI[[pivot_row, i]]
+
+        pivot_val = int(AI[i, i] % p)
+        pivot_inv = pow(pivot_val, -1, p)
+        AI[i, :] = (AI[i, :] * pivot_inv) % p
+
+        for r in range(n):
+            if r == i:
+                continue
+            factor = AI[r, i] % p
+            if factor != 0:
+                AI[r, :] = (AI[r, :] - factor * AI[i, :]) % p
+
+    return AI[:, n:] % p
+
+
+def gf_rref(A, p: int = 2):
+    """
+    Compute the reduced row echelon form of a matrix over GF(p) for a prime p.
+    Returns the transformed matrix, the left transformation matrix M (row ops),
+    the right transformation matrix N (column ops), and the rank.
+    Defaults to GF(2) for backwards compatibility.
+    """
+    A = np.asarray(A, dtype=int) % p
+    if A.ndim != 2:
+        raise ValueError("Input matrix must be 2-dimensional for RREF.")
+
+    A = A.copy()
+    m, n = A.shape
+    i = j = 0
+    M = np.eye(m, dtype=int) % p
+    N = np.eye(n, dtype=int) % p
+
+    while i < m and j < n:
+        pivot_row = None
+        for r in range(i, m):
+            if A[r, j] % p != 0:
+                pivot_row = r
+                break
+
+        if pivot_row is None:
+            j += 1
+            continue
+
+        if pivot_row != i:
+            A[[i, pivot_row]] = A[[pivot_row, i]]
+            M[[i, pivot_row]] = M[[pivot_row, i]]
+
+        pivot_val = int(A[i, j] % p)
+        pivot_inv = pow(pivot_val, -1, p)
+        A[i, :] = (A[i, :] * pivot_inv) % p
+        M[i, :] = (M[i, :] * pivot_inv) % p
+
+        for r in range(m):
+            if r == i:
+                continue
+            factor = A[r, j] % p
+            if factor != 0:
+                A[r, :] = (A[r, :] - factor * A[i, :]) % p
+                M[r, :] = (M[r, :] - factor * M[i, :]) % p
+
+        for c in range(n):
+            if c == j:
+                continue
+            factor = A[i, c] % p
+            if factor != 0:
+                A[:, c] = (A[:, c] - factor * A[:, j]) % p
+                N[:, c] = (N[:, c] - factor * N[:, j]) % p
+
+        i += 1
+        j += 1
+
+    rank = i
+    return A % p, M % p, N % p, rank
+
+
+def gf_lu(A, p: int = 2):
+    """
+    Perform LU decomposition of a matrix over GF(p) for prime p.
+    Returns L, U, P such that P @ A = L @ U with unit diagonal L.
+    Defaults to GF(2) for backwards compatibility.
+    """
+    A = np.asarray(A, dtype=int) % p
+    if A.ndim != 2 or A.shape[0] != A.shape[1]:
+        raise ValueError("LU decomposition requires a square matrix over GF(p).")
+
+    m = A.shape[0]
+    U = A.copy()
+    L = np.eye(m, dtype=int) % p
+    P = np.eye(m, dtype=int)
+
+    for k in range(m):
+        pivot_candidates = np.where(U[k:, k] % p != 0)[0]
+        if pivot_candidates.size == 0:
+            continue
+        pivot = pivot_candidates[0] + k
+        if pivot != k:
+            U[[k, pivot], k:] = U[[pivot, k], k:]
+            L[[k, pivot], :k] = L[[pivot, k], :k]
+            P[[k, pivot]] = P[[pivot, k]]
+
+        pivot_val = int(U[k, k] % p)
+        pivot_inv = pow(pivot_val, -1, p)
+
+        for j in range(k + 1, m):
+            factor = (U[j, k] * pivot_inv) % p
+            L[j, k] = factor
+            if factor != 0:
+                U[j, k:] = (U[j, k:] - factor * U[k, k:]) % p
+
+    return L % p, U % p, P
+
+
+def _random_invertible_matrix(p: int, size: int, rng: np.random.Generator) -> np.ndarray:
+    """Generate a random invertible matrix over GF(p) with the given dimension."""
+    GFp = galois.GF(p)
+    while True:
+        mat = GFp(rng.integers(0, p, size=(size, size)))
+        if np.linalg.matrix_rank(mat) == size:
+            return np.asarray(mat, dtype=int) % p
+
+
+def _random_matrix(p: int, shape: tuple[int, int], rng: np.random.Generator) -> np.ndarray:
+    """Generate a random matrix over GF(p) with the given shape."""
+    return rng.integers(0, p, size=shape, dtype=int) % p
+
+
+def _is_permutation_matrix(P: np.ndarray) -> bool:
+    """Check whether a matrix is a permutation matrix."""
+    if P.ndim != 2 or P.shape[0] != P.shape[1]:
+        return False
+    return bool(np.all((P == 0) | (P == 1)) and np.all(P.sum(axis=0) == 1) and np.all(P.sum(axis=1) == 1))
+
+
+def _test_gf_inv() -> None:
+    rng = np.random.default_rng(1234)
+    for p in (2, 3, 5, 7):
+        for n in (1, 2, 4):
+            A = _random_invertible_matrix(p, n, rng)
+            inv = gf_inv(A, p=p)
+            prod = (A @ inv) % p
+            assert np.array_equal(prod, np.eye(n, dtype=int) % p), f"Inverse failed for p={p}, n={n}"
+
+
+def _test_gf_rref() -> None:
+    rng = np.random.default_rng(5678)
+    for p in (2, 3, 5):
+        m, n = 4, 6
+        for _ in range(5):
+            A = _random_matrix(p, (m, n), rng)
+            R, M, N, rank = gf_rref(A, p=p)
+            left = (M @ A) % p
+            recon = (left @ N) % p
+            assert np.array_equal(recon, R), f"Reconstruction failed for p={p}"
+            pivots = []
+            for row_idx in range(m):
+                row = R[row_idx]
+                nz = np.nonzero(row)[0]
+                if nz.size == 0:
+                    assert np.all(row % p == 0)
+                    continue
+                pivot_col = nz[0]
+                pivots.append(pivot_col)
+                assert row[pivot_col] % p == 1
+                assert np.all(row[:pivot_col] % p == 0)
+                assert np.all(row[pivot_col + 1:] % p == 0)
+            assert rank == len(pivots), f"Rank mismatch for p={p}"
+
+
+def _test_gflu() -> None:
+    rng = np.random.default_rng(91011)
+    for p in (2, 5, 11):
+        for n in (2, 3, 5):
+            A = _random_matrix(p, (n, n), rng)
+            L, U, P = gf_lu(A, p=p)
+            assert _is_permutation_matrix(P), f"P is not a permutation matrix for p={p}"
+            PA = (P @ A) % p
+            LU = (L @ U) % p
+            assert np.array_equal(PA, LU), f"LU factorization failed for p={p}"
+            assert np.array_equal(np.diag(L) % p, np.ones(n, dtype=int)), f"Diagonal of L not unit for p={p}"
+            assert np.all((np.triu(L, k=1) % p) == 0), f"L not lower-triangular for p={p}"
+
+
+if __name__ == "__main__":
+    _test_gf_inv()
+    _test_gf_rref()
+    _test_gflu()
+    print("All finite field solver self-tests passed.")

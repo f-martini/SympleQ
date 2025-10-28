@@ -268,6 +268,20 @@ class SUM(Gate):
         return SUM(self.qudit_indices[0], self.qudit_indices[1], self.dimensions)
 
 
+class CZ(Gate):
+    def __init__(self, index1, index2, dimension):
+        symplectic = np.array([
+            [1, 0, 0, 0],  # image of X0:  X0 -> X0
+            [0, 1, 0, 0],  # image of X1:  X1 -> X1
+            [0, 1, 1, 0],  # image of Z0:  Z0 -> Z0
+            [1, 0, 0, 1]  # image of Z1:  Z1 -> Z1
+        ], dtype=int).T
+
+        phase_vector = np.array([0, 0, 0, 0], dtype=int)
+
+        super().__init__("CZ", [index1, index2], symplectic, dimensions=dimension, phase_vector=phase_vector)
+
+
 class SWAP(Gate):
     def __init__(self, index1, index2, dimension):
         symplectic = np.array([
