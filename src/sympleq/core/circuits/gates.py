@@ -179,7 +179,9 @@ class Gate:
 
     def inv(self) -> 'Gate':
         n = self.n_qudits
-        L = int(self.lcm)
+        dims = np.asarray(self.dimensions, dtype=int)
+        L = int(np.lcm.reduce(dims))
+        modulus = 2 * L
 
         C = self.symplectic % L
 
@@ -193,18 +195,19 @@ class Gate:
         U = np.zeros((2 * n, 2 * n), dtype=int)
         U[n:, :n] = np.eye(n, dtype=int)
 
-        U_conj = C.T @ U @ C
-        U_inv_conj = C_inv.T @ U @ C_inv
+        U_C = (C.T @ U @ C) % L
+        U_Cinv = (C_inv.T @ U @ C_inv) % L
 
-        P = 2 * np.triu(U_conj) - np.diag(np.diag(U_conj))
-        P_inv = 2 * np.triu(U_inv_conj) - np.diag(np.diag(U_inv_conj))
+        P_C = (2 * np.triu(U_C) - np.diag(np.diag(U_C))) % L
+        P_Cinv = (2 * np.triu(U_Cinv) - np.diag(np.diag(U_Cinv))) % L
 
-        modulus = 2 * L
-        term1 = ((-(self.phase_vector % modulus) @ C_inv) % modulus).astype(int)
-        term2 = (((np.diag(U_conj) % modulus).T @ C_inv) % modulus).astype(int)
-        term3 = (np.diag((C_inv.T @ P @ C_inv) % modulus) % modulus).astype(int)
-        term4 = (np.diag(U_inv_conj) % modulus).astype(int)
-        term5 = (np.diag(P_inv) % modulus).astype(int)
+        h = (self.phase_vector % modulus).astype(int)
+
+        term1 = (-h @ C_inv) % modulus
+        term2 = (np.diag(U_C) % modulus) @ C_inv % modulus
+        term3 = np.diag((C_inv.T @ P_C @ C_inv) % modulus) % modulus
+        term4 = np.diag(U_Cinv) % modulus
+        term5 = np.diag(P_Cinv) % modulus
 
         h_inv = (term1 + term2 - term3 + term4 - term5) % modulus
 
