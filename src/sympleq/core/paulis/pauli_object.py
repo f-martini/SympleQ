@@ -131,10 +131,25 @@ class PauliObject(ABC):
 
     def hermitian_conjugate(self):
         conjugate_weights = np.conj(self.weights())
-        conjugate_phases = (-self.phases()) % (2 * self.lcm())
         conjugate_tableau = (-self.tableau()) % np.tile(self.dimensions(), 2)
+
+        acquired_phases = []
+        for i in range(self.n_paulis()):
+            hermitian_conjugate_phase = 0
+            for j in range(self.n_qudits()):
+                r = self.tableau()[i, j]
+                s = self.tableau()[i, j + self.n_qudits()]
+                hermitian_conjugate_phase += ((r * s) % self.dimensions()[j]) * self.lcm() / self.dimensions()[j]
+            acquired_phases.append(2 * hermitian_conjugate_phase)
+        acquired_phases = np.asarray(acquired_phases, dtype=int)
+
+        conjugate_initial_phases = (-self.phases()) % (2 * self.lcm())
+        conjugate_phases = (conjugate_initial_phases + acquired_phases) % (2 * self.lcm())
 
         return self.__class__(tableau=conjugate_tableau, dimensions=self.dimensions(),
                               weights=conjugate_weights, phases=conjugate_phases)
 
     H = hermitian_conjugate
+
+    def is_hermitian(self):
+        return self == self.H()
