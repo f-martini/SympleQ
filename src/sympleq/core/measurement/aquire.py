@@ -4,7 +4,8 @@ from sympleq.core.measurement.allocation import (sort_hamiltonian, choose_measur
                                                  construct_circuit_list, update_data,
                                                  construct_diagnostic_circuits, standard_error_function,
                                                  construct_diagnostic_states, weight_to_phase,
-                                                 update_diagnostic_data, standard_noise_probability_function)
+                                                 update_diagnostic_data, standard_noise_probability_function,
+                                                 mcmc_number_initial_samples, mcmc_number_max_samples)
 from sympleq.core.measurement.covariance_graph import (graph, quditwise_commutation_graph, commutation_graph,
                                                        weighted_vertex_covering_maximal_cliques)
 from sympleq.core.measurement.mcmc import bayes_covariance_graph
@@ -16,18 +17,95 @@ from sympleq.utils import int_to_bases
 from typing import Callable
 import pickle
 import matplotlib.pyplot as plt
+from dataclasses import dataclass
+import json
+import warnings
 
 
+@dataclass
 class AquireConfig:
+    H: PauliSum
+    psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None
 
-    def __init__(self) -> None:
-        self.true_values: bool = True
-        self.allocation_mode: str = "set"
-        self.N_chain: int = 8
-        self.N_mcmc: int = 500
-        self.N_mcmc_max: int = 2001
-        self.mcmc_shot_scale: float = 1 / 10000
-        self.diagnostic_mode: str | None = None
+    # different settings indicated by strings
+    commutation_mode: str = "general"  # "general" or "qudit-wise"/"bitwise"/"local"
+    allocation_mode: str = "set"  # "set" or "random"
+    diagnostic_mode: str = "Zero"  # None, "zero", "random (change checks to all lowercase)
+
+    # different settings indicated by booleans
+    calculate_true_values: bool = True
+    enable_diagnostics: bool = False
+    auto_update_covariance_graph: bool = True
+    verbose: bool = False
+    auto_update_settings: bool = True
+    enable_debug_checks: bool = False
+
+    # MCMC settings
+    mcmc_initial_samples_per_chain: int | Callable = mcmc_number_initial_samples
+    mcmc_initial_samples_per_chain_kwargs: dict = {'n_0': 500, 'scaling_factor': 1 / 10000}
+    mcmc_max_samples_per_chain: int | Callable = mcmc_number_max_samples
+    mcmc_max_samples_per_chain_kwargs: dict = {'n_0': 2001, 'scaling_factor': 1 / 10000}
+
+    # noise and error functions
+    noise_probability_function: Callable = standard_noise_probability_function
+    noise_args: tuple = ()
+    noise_kwargs: dict = {'p_entangling': 0.03, 'p_local': 0.001, 'p_measurement': 0.001}
+    error_function: Callable = standard_error_function
+    error_args: tuple = ()
+    error_kwargs: dict = {}
+
+    def __post_init__(self):
+        if self.psi is not None:
+            self.psi = np.array(self.psi)
+
+        if self.commutation_mode == "general":
+            self.commutation_graph = commutation_graph(self.H).adj
+        else:
+            self.commutation_graph = quditwise_commutation_graph(self.H).adj
+
+        self.clique_covering = weighted_vertex_covering_maximal_cliques(graph(self.commutation_graph),
+                                                                        cc=self.H.weights,
+                                                                        k=3)
+
+        if self.error_function is standard_error_function:
+            self.error_args = (self.H.dimensions,)
+
+    def update_all(self):
+        if self.verbose:
+            warnings.warn("Updating all dependent parameters ...", UserWarning)
+        if self.commutation_mode == "general":
+            self.commutation_graph = commutation_graph(self.H).adj
+        else:
+            self.commutation_graph = quditwise_commutation_graph(self.H).adj
+
+        self.clique_covering = weighted_vertex_covering_maximal_cliques(graph(self.commutation_graph),
+                                                                        cc=self.H.weights,
+                                                                        k=3)
+
+    # TODO: Check whether this works
+    @classmethod
+    def from_json(cls, path):
+        with open(path) as f:
+            data = json.load(f)
+        return cls(**data)
+
+    # TODO: Check whether this works
+    def to_json(self, path):
+        with open(path, 'w') as f:
+            json.dump(self.__dict__, f, indent=4)
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+
+        # only recalculate if a dependent parameter changed
+        if self.auto_update_settings:
+            if name == "commutation_mode":
+                self.update_all()
+        else:
+            if name == "commutation_mode":
+                warnings.warn("Changing commutation mode may cause commutation graph and clique covering to "
+                              "be deprecated. Run update_all() to update them.", UserWarning)
+                pass
 
 
 class Aquire:
@@ -41,7 +119,8 @@ class Aquire:
                  N_mcmc: int = 500,
                  N_mcmc_max: int = 2001,
                  mcmc_shot_scale: float = 1 / 10000,
-                 diagnostic_mode: str | None = None):
+                 diagnostic_mode: str | None = None,
+                 config: AquireConfig | None = None):
         """
         Constructor for the Aquire class.
 
@@ -110,24 +189,8 @@ class Aquire:
             diagnostic_results (list): List of diagnostic measurement results collected so far (only if diagnostics
                                        enabled)
 
-            # Variables that track changes since last covariance update
-            last_update_shots (int): Number of measurements allocated since last covariance graph update
-            last_update_cliques (list): List of cliques measured since last covariance graph update
-            last_update_circuits (list): List of circuits used for measurements since last covariance graph update
-
             # Checkpoints (some of the above data collected at specific points)
-            data_checkpoints (list): Measurement outcome data at each covariance graph update
-            scaling_matrix_checkpoints (list): Scaling matrix at each covariance graph update
             covariance_graph_checkpoints (list): Covariance graph at each covariance graph update
-            diagnostic_data_checkpoints (list): Diagnostic measurement outcome data at each covariance graph update
-                                                (only if diagnostics enabled)
-            last_update_diagnostic_circuits (list): List of diagnostic circuits constructed since last covariance graph
-                                                    update (only if diagnostics enabled)
-            last_update_diagnostic_states (list): List of diagnostic states constructed since last covariance graph
-                                                  update (only if diagnostics enabled)
-            last_update_diagnostic_state_preparation_circuits (list): List of circuits used to prepare diagnostic states
-                                                                      since last covariance graph update (only if
-                                                                      diagnostics enabled)
 
             # Results
             estimated_mean (list): Estimated mean of the Hamiltonian at each covariance graph update
@@ -143,7 +206,6 @@ class Aquire:
                                                     state psi at each covariance graph update (only if true_values_flag
                                                     is True)
 
-
         """
         P, pauli_block_sizes = sort_hamiltonian(H)
         P = weight_to_phase(P)
@@ -155,6 +217,12 @@ class Aquire:
         # supposed to be permanent
         self.H = P
         self.pauli_block_sizes = pauli_block_sizes  # might be able to write a function that can calculate this quickly
+
+        if config is None:
+            self.config = AquireConfig(self.H)
+        else:
+            self.config = config
+
         self.psi = np.array(psi)
         self.diagnostic_mode = diagnostic_mode  # maybe better way to save them
         self.true_values_flag = true_values  # maybe better way to save them
@@ -172,7 +240,7 @@ class Aquire:
             self.diagnostic_flag = False
 
         # dependent on changeable parameters
-        self.CG = commutation_graph(self.H).adj if general_commutation else quditwise_commutation_graph(self.H).adj
+        self.CG = commutation_graph(self.H).adj if self.general_commutation else quditwise_commutation_graph(self.H).adj
         self.clique_covering = weighted_vertex_covering_maximal_cliques(graph(self.CG), cc=self.H.weights, k=3)
 
         # supposed to change during experiment
@@ -465,7 +533,7 @@ class Aquire:
             self.covariance_graph, self.scaling_matrix))
         if self.true_values_flag:
             self.true_statistical_variance_value.append(true_statistical_variance(
-                self.H, self.psi, self.scaling_matrix, self.H.weights))
+                self.H, self.config.psi, self.scaling_matrix, self.H.weights))
 
     def input_measurement_data(self, measurement_results: list):
         """
