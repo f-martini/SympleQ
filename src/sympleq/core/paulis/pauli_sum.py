@@ -1406,7 +1406,7 @@ class PauliSum:
             for j in range(self.n_qudits()):
                 r = self.x_exp[i, j]
                 s = self.z_exp[i, j]
-                hermitian_conjugate_phase += (r * s % self.lcm) * self.lcm / self.dimensions[j]
+                hermitian_conjugate_phase += (r * s % self.dimensions[j]) * self.lcm / self.dimensions[j]
             acquired_phases.append(2 * hermitian_conjugate_phase)
         conjugate_phases = conjugate_initial_phases + np.array(acquired_phases, dtype=int)
         conjugate_dimensions = self.dimensions

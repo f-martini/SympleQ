@@ -420,13 +420,13 @@ class TestGates():
                 mask = (ps_res_m.toarray() != 0)
                 factors = np.around(ps_m_res.toarray()[mask] / ps_res_m.toarray()[mask], 14)
                 factor = factors[0]
-                phase_table_unitary[i, j] = factor
+                phase_table_unitary[i, j] = (d * np.angle(factor) / (np.pi)) % (2 * d)
         return phase_table_unitary, phase_table_symplectic
 
     def phase_table_entangling(self, G):
         d = G.dimensions[0]
-        phase_table_unitary = np.zeros((d, d))
-        phase_table_symplectic = np.zeros((d, d))
+        phase_table_unitary = np.zeros((d**2, d**2))
+        phase_table_symplectic = np.zeros((d**2, d**2))
         U = G.unitary()
         for i1 in range(d):
             for j1 in range(d):

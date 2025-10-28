@@ -617,6 +617,158 @@ class Aquire:
             self.systematic_variance.append(calculate_systematic_variance_estimate(self.data, self.H.weights,
                                                                                    self.diagnostic_data))
 
+    def simulate_measurement_results(self):
+        """
+        Simulate measurement results for newly allocated measurements.
+
+        Returns
+        -------
+        None
+
+        Changes
+        -------
+        self.data : np.ndarray
+            Updated with the simulated measurement results.
+        self.measurement_results : list
+            Extended with the simulated measurement results.
+        """
+        if self.psi is None:
+            raise Exception("State psi not provided, cannot simulate measurement results.")
+        simulated_measurement_results = []
+        for aa in self.cliques_since_last_update():
+            P1, C, _ = self.circuit_dictionary[str(aa)]
+            psi_diag = C.unitary() @ self.psi
+            pdf = np.abs(psi_diag * psi_diag.conj())
+            dims1 = P1.dimensions
+            a1 = np.random.choice(np.prod(dims1), p=pdf)
+            result = int_to_bases(a1, dims1)
+            if self.diagnostic_flag:
+                noise_probability = self.config.noise_probability_function(C, *self.config.noise_args,
+                                                                           **self.config.noise_kwargs)
+                if np.random.rand() < noise_probability:
+                    result = self.config.error_function(result, *self.config.error_args, **self.config.error_kwargs)
+            simulated_measurement_results.append(result)
+
+        self.data = update_data(self.cliques_since_last_update(),
+                                simulated_measurement_results,
+                                self.data,
+                                self.circuit_dictionary)
+
+        self.measurement_results += simulated_measurement_results
+
+    def simulate_diagnostic_results(self):
+        """
+        Simulate diagnostic results for newly allocated diagnostic measurements.
+
+        Returns
+        -------
+        None
+
+        Changes
+        -------
+        self.diagnostic_results : list
+            Extended with the simulated diagnostic results.
+        self.last_update_diagnostic_circuits : list
+            Trimmed to the length of the simulated diagnostic results if the length of the simulated
+            diagnostic results is less than the length of self.last_update_diagnostic_circuits.
+        self.diagnostic_data_checkpoints : list
+            Extended with the diagnostic data at each measurement step.
+        self.systematic_variance : list
+            Extended with the estimated systematic variance at each measurement step.
+        """
+        if self.psi is None:
+            raise Exception("State psi not provided, cannot simulate measurement results.")
+        self.diagnostic_flag = True
+        simulated_diagnostic_results = []
+        for i, dsp_circuit in enumerate(self.last_update_diagnostic_circuits):
+            psi_diag = dsp_circuit.unitary() @ self.diagnostic_states[i]
+            pdf = np.abs(psi_diag * psi_diag.conj())
+            dims = dsp_circuit.dimensions
+            a1 = np.random.choice(np.prod(dims), p=pdf)
+            result = int_to_bases(a1, dims)
+            if self.noise_probability_function is not None:
+                noise_probability = self.noise_probability_function(dsp_circuit, *self.noise_args, **self.noise_kwargs)
+            else:
+                noise_probability = standard_noise_probability_function(dsp_circuit)
+
+            if np.random.rand() < noise_probability:
+                if self.error_function is not None:
+                    result = self.error_function(result, *self.error_args, **self.error_kwargs)
+                else:
+                    result = standard_error_function(result, self.H.dimensions)
+            else:
+                pass
+
+            simulated_diagnostic_results.append(result)
+        self.diagnostic_results += simulated_diagnostic_results
+        if len(simulated_diagnostic_results) < len(self.last_update_diagnostic_circuits):
+            self.last_update_diagnostic_circuits = self.last_update_diagnostic_circuits[len(
+                simulated_diagnostic_results):]
+        else:
+            self.last_update_diagnostic_circuits = []
+
+        while len(self.diagnostic_data_checkpoints) < len(self.update_steps):
+            i = len(self.diagnostic_data_checkpoints)
+            if self.update_steps[i] > len(self.diagnostic_results):
+                break
+            new_cliques = self.cliques[self.update_steps[i - 1]:self.update_steps[i]]
+            new_diagnostic_results = self.diagnostic_results[self.update_steps[i - 1]:self.update_steps[i]]
+            self.diagnostic_data = update_diagnostic_data(new_cliques,
+                                                          new_diagnostic_results,
+                                                          self.diagnostic_data,
+                                                          mode=self.diagnostic_mode)
+            self.diagnostic_data_checkpoints.append(self.diagnostic_data.copy())
+            self.systematic_variance.append(calculate_systematic_variance_estimate(self.data, self.weights,
+                                                                                   self.diagnostic_data))
+
+    def simulate_observable(self, update_steps: list[int], hardware_noise: bool = False):
+        """
+        Simulate the measurement of an observable adaptively changing the underlying covariance graph at each value in
+        update_steps.
+
+        Parameters
+        ----------
+        update_steps : list[int]
+            A list of integers representing the total number of shots to take at each measurement step.
+        hardware_noise : bool
+            A boolean indicating whether to include hardware noise in the simulation.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        The simulate_observable method allocates measurements, simulates measurement results, updates the covariance
+        graph, and optionally constructs and simulates diagnostic circuits. It repeats this process for the number of
+        rounds specified by the update_steps list. The estimated mean, statistical variance, and optionally the
+        systematic variance are recorded at each measurement step.
+
+        Examples
+        --------
+        >>> acquire.simulate_observable([1000, 2000, 3000])
+        """
+        if self.psi is None:
+            raise Exception("State psi not provided, cannot simulate observable.")
+        if hardware_noise:
+            self.diagnostic_flag = True
+        initial_shots = update_steps[0]
+        rounds = len(update_steps) - 1
+        shots_per_round = [update_steps[i + 1] - update_steps[i] for i in range(rounds)]
+        self.allocate_measurements(initial_shots)
+        self.simulate_measurement_results()
+        self.update_covariance_graph()
+        if hardware_noise:
+            self.construct_diagnostic_circuits()
+            self.simulate_diagnostic_results()
+        for i in range(rounds):
+            self.allocate_measurements(shots_per_round[i])
+            self.simulate_measurement_results()
+            self.update_covariance_graph()
+            if hardware_noise:
+                self.construct_diagnostic_circuits()
+                self.simulate_diagnostic_results()
+
     def save(self, filename: str):
         """
         Save the current state of the Aquire object to a file.
