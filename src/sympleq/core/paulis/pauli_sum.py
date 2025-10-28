@@ -826,13 +826,16 @@ class PauliSum(PauliObject):
 
         p1 = self.phases()[:, None]
         p2 = A.phases()[None, :]
-        acquired_phases = np.empty((self.n_paulis(), A.n_paulis()), dtype=int)
-        for i in range(self.n_paulis()):
-            ps1 = self.select_pauli_string(i)
-            for j in range(A.n_paulis()):
-                ps2 = A.select_pauli_string(j)
-                acquired_phases[i, j] = ps1.acquired_phase(ps2)
 
+        # Extract z- and x-parts from tableau
+        n1, n2 = self.n_qudits(), A.n_qudits()
+        a_z = self.tableau()[:, n1:]      # shape (n_paulis1, n_qudits1)
+        b_x = A.tableau()[:, :n2]         # shape (n_paulis2, n_qudits2)
+
+        # Compute acquired phases via symplectic form (this is PauliString.acquired_phase)
+        acquired_phases = 2 * (a_z @ b_x.T) % (2 * self.lcm())  # shape (n_paulis1, n_paulis2)
+
+        # Combine with existing phases and flatten
         new_phases = (p1 + p2 + acquired_phases) % (2 * self.lcm())
         new_phases = new_phases.reshape(-1)
 
