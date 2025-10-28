@@ -339,6 +339,16 @@ class PauliSum(PauliObject):
         """
         return self._phases
 
+    def set_phases(self, new_phases: list[int] | np.ndarray):
+        if isinstance(new_phases, list):
+            new_phases = np.asarray(new_phases, dtype=int)
+
+        if len(new_phases) != self.n_paulis():
+            raise ValueError(
+                f"New phases ({len(new_phases)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
+
+        self._phases = new_phases
+
     def weights(self) -> np.ndarray:
         """
         Returns the weights associated with the Pauli-like object.
@@ -349,6 +359,16 @@ class PauliSum(PauliObject):
             The weights as a 1d-vector.
         """
         return self._weights
+
+    def set_weights(self, new_weights: list[int] | np.ndarray):
+        if isinstance(new_weights, list):
+            new_weights = np.asarray(new_weights, dtype=int)
+
+        if len(new_weights) != self.n_paulis():
+            raise ValueError(
+                f"New phases ({len(new_weights)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
+
+        self._weights = new_weights
 
     def n_paulis(self) -> int:
         """

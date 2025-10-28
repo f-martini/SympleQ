@@ -186,7 +186,7 @@ class TestCircuits():
             phase_symplectic = ps_res.phases()[0]
 
             # FIXME: maybe create a new PauliSum, or add API to assign phases
-            ps_res._phases = np.asarray([0], dtype=int)
+            ps_res.set_phases([0])
             ps_res_m = ps_res.matrix_form().toarray()
             ps_m_res = (U @ ps_m @ U.conj().T).toarray()
             mask = (ps_res_m != 0)

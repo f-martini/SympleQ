@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from typing import TypeVar
+from typing import TypeVar, Self
 
 P = TypeVar("P", bound="PauliObject")
 
@@ -117,6 +117,18 @@ class PauliObject(ABC):
         """
         pass
 
+    def set_phases(self, new_phases: list[int] | np.ndarray):
+        # FIXME: improve docstring
+        """
+        Set the phases associated with the Pauli-like object.
+
+        Parameters
+        -------
+        new_phases: list[int] | np.ndarray
+            The new phases as a 1d-vector.
+        """
+        pass
+
     @abstractmethod
     def weights(self) -> np.ndarray:
         """
@@ -129,7 +141,28 @@ class PauliObject(ABC):
         """
         pass
 
-    def hermitian_conjugate(self):
+    def set_weights(self, new_weights: list[int] | np.ndarray):
+        # FIXME: improve docstring
+        """
+        Set the weights associated with the Pauli-like object.
+
+        Parameters
+        -------
+        new_weights: list[int] | np.ndarray
+            The new weights as a 1d-vector.
+        """
+        pass
+
+    def hermitian_conjugate(self) -> Self:
+        # FIXME: add reference
+        """
+        Returns the Hermitian conjugate of the Pauli-like object.
+
+        Returns
+        -------
+        PauliObject
+            The PauliObject Hermitian conjugate
+        """
         conjugate_weights = np.conj(self.weights())
         conjugate_tableau = (-self.tableau()) % np.tile(self.dimensions(), 2)
 
@@ -151,5 +184,13 @@ class PauliObject(ABC):
 
     H = hermitian_conjugate
 
-    def is_hermitian(self):
+    def is_hermitian(self) -> bool:
+        """
+        Checks if the PauliObject is Hermitian
+
+        Returns
+        -------
+        bool
+            True if the PauliObject is Hermitian, False otherwise
+        """
         return self == self.H()

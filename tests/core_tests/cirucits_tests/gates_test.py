@@ -343,11 +343,11 @@ class TestGates():
         circuit = Circuit.from_random(n_qudits, 100, dimensions)
         target_ps = circuit.act(input_ps)
         # FIXME: create API to change phases and weights
-        target_ps._phases = np.zeros(n_qudits)
+        target_ps.set_phases(np.zeros(n_paulis))
 
         gate_from_solver = Gate.solve_from_target('ArbGate', input_ps, target_ps, dimensions)
         output_ps = gate_from_solver.act(input_ps)
-        output_ps._phases = np.zeros(n_qudits)
+        output_ps.set_phases(np.zeros(n_paulis))
         assert output_ps == target_ps, (
             'Error in gate_from_solver\n input:\n' + input_ps.__str__() +
             '\n target:\n' + target_ps.__str__() + '\n output:\n' + output_ps.__str__())
@@ -414,7 +414,7 @@ class TestGates():
                 ps_res = G.act(ps)
                 phase_table_symplectic[i, j] = ps_res.phases()[0]
                 # FIXME: create new PSum or open API to change phases
-                ps_res._phases = np.asarray([0], dtype=int)
+                ps_res.set_phases([0])
                 ps_res_m = ps_res.matrix_form().toarray()
 
                 ps_m_res = (G.unitary() @ ps_m @ G.unitary().conj().T).toarray()
