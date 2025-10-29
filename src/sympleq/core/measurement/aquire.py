@@ -120,7 +120,7 @@ class AquireConfig:
 
         # only recalculate if a dependent parameter changed
         if self.auto_update_settings:
-            if name == "commutation_mode":
+            if name == "commutation_mode" or name == "H":
                 self.update_all()
         else:
             if name == "commutation_mode":
@@ -236,6 +236,9 @@ class Aquire:
                 if H.weights[i] != 0 and H[i, :].is_identity():
                     warnings.warn("Identity term with weight" + str(H.weights[i].real) + "ignored.", UserWarning)
 
+        if not P.is_hermitian():
+            raise Exception("Hamiltonian is not Hermitian.")
+
         # supposed to be permanent
         self._H = P
         self._pauli_block_sizes = pauli_block_sizes  # might be able to write a function that can calculate this quickly
@@ -245,6 +248,7 @@ class Aquire:
             self.config = AquireConfig(self.H, psi=np.array(psi) if psi is not None else None)
         else:
             self.config = config
+            self.config.H = self.H
 
         # supposed to change during experiment
         self.cliques = []
@@ -572,6 +576,8 @@ class Aquire:
         self.estimated_mean.append(calculate_mean_estimate(self.data, self.H.weights))
         self.statistical_variance.append(calculate_statistical_variance_estimate(
             self.covariance_graph, self.scaling_matrix))
+        if self.config.enable_debug_checks:
+            self.check_results()
         if self.config.calculate_true_values:
             self.true_statistical_variance_value.append(true_statistical_variance(
                 self.H, self.config.psi, self.scaling_matrix, self.H.weights))
@@ -612,6 +618,9 @@ class Aquire:
 
         self.measurement_results += measurement_results
 
+        if self.config.enable_debug_checks:
+            self.check_measurement_data()
+
         if self.config.auto_update_covariance_graph:
             self.update_covariance_graph()
 
@@ -641,9 +650,9 @@ class Aquire:
             If too many diagnostic results input.
         """
         if len(diagnostic_results) > len(self.diagnostic_circuits_since_last_update()):
-            raise Exception(
-                ("Too many diagnostic results input. Please input at most as many results as the number of newly "
-                 "allocated diagnostic measurements."))
+            warnings.warn(
+                "Too many diagnostic results input. Please input at most as many results as the number of newly "
+                "allocated diagnostic measurements.", UserWarning)
         self.config.enable_diagnostics = True
         if self.config.diagnostic_mode is None:
             self.config.diagnostic_mode = 'Zero'
@@ -659,6 +668,8 @@ class Aquire:
                                                           new_diagnostic_results,
                                                           self.diagnostic_data,
                                                           mode=self.config.diagnostic_mode)
+            if self.config.enable_debug_checks:
+                self.check_diagnostic_data()
             self.systematic_variance.append(calculate_systematic_variance_estimate(self.data, self.H.weights,
                                                                                    self.diagnostic_data))
 
@@ -697,6 +708,9 @@ class Aquire:
                                 self.circuit_dictionary)
 
         self.measurement_results += simulated_measurement_results
+
+        if self.config.enable_debug_checks:
+            self.check_measurement_data()
 
         if self.config.auto_update_covariance_graph:
             self.update_covariance_graph()
@@ -747,6 +761,9 @@ class Aquire:
                                                           new_diagnostic_results,
                                                           self.diagnostic_data,
                                                           mode=self.config.diagnostic_mode)
+            if self.config.enable_debug_checks:
+                self.check_diagnostic_data()
+
             self.systematic_variance.append(calculate_systematic_variance_estimate(self.data, self.H.weights,
                                                                                    self.diagnostic_data))
 
@@ -916,6 +933,30 @@ class Aquire:
             aquire_str += "True means: " + str(self.true_mean_value) + '\n'
             aquire_str += "True statistical variances: " + str(self.true_statistical_variance_value)
         return aquire_str
+
+    ###################################################################
+    # Validation Check methods ########################################
+    ###################################################################
+
+    def check_measurement_data(self):
+        for i in range(self.H.n_paulis()):
+            for j in range(self.H.n_paulis()):
+                if self.data[i, j, :] < 0:
+                    warnings.warn("Negative value in data.", UserWarning)
+
+    def check_diagnostic_data(self):
+        for j in range(self.H.n_paulis()):
+            if self.diagnostic_data[j, 0] < 0:
+                warnings.warn("Negative value in diagnostic data.", UserWarning)
+            if self.diagnostic_data[j, 1] < 0:
+                warnings.warn("Negative value in diagnostic data.", UserWarning)
+            if np.sum(self.diagnostic_data[j, :]) > 10:
+                if self.diagnostic_data[j, 0] / np.sum(self.diagnostic_data[j, :]) > 0.9:
+                    warnings.warn("Abnormally high error rate.", UserWarning)
+
+    def check_results(self):
+        if self.statistical_variance[-1] < 0:
+            warnings.warn("Negative statistical variance estimate.", UserWarning)
 
 
 def simulate_measurement(PauliSum: PauliSum, psi: list[float | complex] | list[float] | list[complex] | np.ndarray,
