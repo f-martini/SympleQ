@@ -35,12 +35,14 @@ class AquireConfig:
     # different settings indicated by booleans
     calculate_true_values: bool = True
     enable_diagnostics: bool = False
+    enable_simulated_hardware_noise: bool = False
     auto_update_covariance_graph: bool = True
     verbose: bool = False
     auto_update_settings: bool = True
     enable_debug_checks: bool = False
 
     # MCMC settings
+    mcmc_number_of_chains: int = 8
     mcmc_initial_samples_per_chain: int | Callable = mcmc_number_initial_samples
     mcmc_initial_samples_per_chain_kwargs: dict = {'n_0': 500, 'scaling_factor': 1 / 10000}
     mcmc_max_samples_per_chain: int | Callable = mcmc_number_max_samples
@@ -70,6 +72,8 @@ class AquireConfig:
         if self.error_function is standard_error_function:
             self.error_args = (self.H.dimensions,)
 
+        self.test_mcmc_settings()
+
     def update_all(self):
         if self.verbose:
             warnings.warn("Updating all dependent parameters ...", UserWarning)
@@ -81,6 +85,23 @@ class AquireConfig:
         self.clique_covering = weighted_vertex_covering_maximal_cliques(graph(self.commutation_graph),
                                                                         cc=self.H.weights,
                                                                         k=3)
+
+    def test_mcmc_settings(self):
+        shot_tests = [100, 1000, 10000, 100000, 1000000]
+        for shots in shot_tests:
+            if isinstance(self.mcmc_initial_samples_per_chain, int):
+                N = self.mcmc_initial_samples_per_chain
+            else:
+                N = self.mcmc_initial_samples_per_chain(shots, **self.mcmc_initial_samples_per_chain_kwargs)
+
+            if isinstance(self.mcmc_max_samples_per_chain, int):
+                N_max = self.mcmc_max_samples_per_chain
+            else:
+                N_max = self.mcmc_max_samples_per_chain(shots, **self.mcmc_max_samples_per_chain_kwargs)
+
+            if N > N_max:
+                warnings.warn(f"Warning: For {shots} shots, initial MCMC samples per chain ({N}) "
+                              f"exceeds maximum MCMC samples per chain ({N_max}).", UserWarning)
 
     # TODO: Check whether this works
     @classmethod
@@ -107,19 +128,55 @@ class AquireConfig:
                               "be deprecated. Run update_all() to update them.", UserWarning)
                 pass
 
+    def __str__(self):
+        config_string = ''
+        config_string += 'Configuration class for AQUIRE experiment on observable: \n'
+        config_string += str(self.H)
+        if self.psi is None:
+            config_string += 'No state vector has been provided for the experiment.\n '
+        else:
+            config_string += 'State vector provided for the experiment: \n'
+            config_string += str(self.psi)
+
+        config_string += 'Commutation mode: ' + self.commutation_mode + '\n'
+        config_string += 'Allocation mode: ' + self.allocation_mode + '\n'
+        config_string += 'Diagnostic mode: ' + self.diagnostic_mode + '\n'
+        config_string += 'Enable simulated hardware noise: ' + str(self.enable_simulated_hardware_noise) + '\n'
+        config_string += 'Calculate true values: ' + str(self.calculate_true_values) + '\n'
+        config_string += 'Enable diagnostics: ' + str(self.enable_diagnostics) + '\n'
+        config_string += 'Auto update covariance graph: ' + str(self.auto_update_covariance_graph) + '\n'
+        config_string += 'Verbose: ' + str(self.verbose) + '\n'
+        config_string += 'Auto update settings: ' + str(self.auto_update_settings) + '\n'
+        config_string += 'Enable debug checks: ' + str(self.enable_debug_checks) + '\n'
+        config_string += 'MCMC number of chains: ' + str(self.mcmc_number_of_chains) + '\n'
+        if isinstance(self.mcmc_initial_samples_per_chain, int):
+            config_string += 'MCMC initial samples per chain: ' + str(self.mcmc_initial_samples_per_chain) + '\n'
+        else:
+            config_string += 'MCMC initial samples per chain: ' + \
+                str(self.mcmc_initial_samples_per_chain.__name__) + '\n'
+            config_string += str(self.mcmc_initial_samples_per_chain_kwargs) + '\n'
+
+        if isinstance(self.mcmc_max_samples_per_chain, int):
+            config_string += 'MCMC max samples per chain: ' + str(self.mcmc_max_samples_per_chain) + '\n'
+        else:
+            config_string += 'MCMC max samples per chain: ' + str(self.mcmc_max_samples_per_chain.__name__) + '\n'
+            config_string += str(self.mcmc_max_samples_per_chain_kwargs) + '\n'
+
+        config_string += 'Noise probability function: ' + str(self.noise_probability_function.__name__) + '\n'
+        config_string += str(self.noise_args) + '\n'
+        config_string += str(self.noise_kwargs) + '\n'
+
+        config_string += 'Error function: ' + str(self.error_function.__name__) + '\n'
+        config_string += str(self.error_args) + '\n'
+        config_string += str(self.error_kwargs) + '\n'
+
+        return config_string
+
 
 class Aquire:
     def __init__(self,
                  H: PauliSum,
                  psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,
-                 general_commutation: bool = False,
-                 true_values: bool = True,
-                 allocation_mode: str = "set",
-                 N_chain: int = 8,
-                 N_mcmc: int = 500,
-                 N_mcmc_max: int = 2001,
-                 mcmc_shot_scale: float = 1 / 10000,
-                 diagnostic_mode: str | None = None,
                  config: AquireConfig | None = None):
         """
         Constructor for the Aquire class.
@@ -127,48 +184,12 @@ class Aquire:
         Parameters:
             H (PauliSum): Hamiltonian of the system
             psi (list[float | complex] | list[float] | list[complex] | np.ndarray): Initial state of the system
-            general_commutation (bool): Whether to use general commutation or qudit-wise commutation
-            true_values (bool): Whether to calculate true mean and statistical variance
-            allocation_mode (str): Allocation mode for measurements
-            N_chain (int): Number of measurement chains
-            N_mcmc (int): Number of MCMC steps per chain
-            N_mcmc_max (int): Maximum number of MCMC steps
-            mcmc_shot_scale (float): Scale for MCMC steps
-            diagnostic_mode (str): Diagnostic mode for the experiment
+            config (AquireConfig | None): Configuration class for the Aquire experiment
 
         Attributes:
             # Permanent attributes
             H (PauliSum): Hamiltonian of the system
-            weights (np.ndarray): Weights of the Pauli terms in the Hamiltonian
             pauli_block_sizes (list): Sizes of the Pauli blocks in the Hamiltonian
-            psi (np.ndarray): State to calculate estimates for
-            n_paulis (int): Number of Pauli terms in the Hamiltonian
-            n_qudits (int): Number of qudits in the Hamiltonian
-            dimension (int): Dimension of the system
-            diagnostic_mode (str): Diagnostic mode for the experiment
-            noise_probability_function (Callable): Function to calculate the probability of a noisy measurement
-            error_function (Callable): Function to calculate the error applied to a measurement result
-            noise_args (list): Arguments for the noise probability function
-            noise_kwargs (dict): Keyword arguments for the noise probability function
-            error_args (list): Arguments for the error correction function
-            error_kwargs (dict): Keyword arguments for the error correction function
-            true_values_flag (bool): Whether to calculate true mean and statistical variance
-
-            # Changeable attributes
-            N_chain (int): Number of measurement chains
-            N_mcmc (int): Number of MCMC steps per chain
-            N_mcmc_max (int): Maximum number of MCMC steps
-            mcmc_shot_scale (float): Scale for MCMC steps
-            general_commutation (bool): Whether to use general commutation or qudit-wise commutation
-            allocation_mode (str): Allocation mode for measurements
-            diagnostic_flag (bool): Whether diagnostics for systematic errors are enabled (automatically set to True if
-                                    noise or error functions are provided or if diagnostic circuits are constructed)
-
-            # Dependent on changeable parameters
-            CG (graph): Commutation graph of the Hamiltonian
-            clique_covering (list): List of cliques covering the commutation graph
-            k_phases (np.ndarray): Matrix of phase of the products of Paulistrings in the Hamiltonian (could probably
-                                   be improved with new PauliSum and PauliString methods)
 
             # Supposed to change during experiment
             data (np.ndarray): Measurement outcome data collected so far for each Paulistring
@@ -207,46 +228,28 @@ class Aquire:
                                                     is True)
 
         """
+        # TODO: implement all the steps needed to prepare the Hamiltonian
         P, pauli_block_sizes = sort_hamiltonian(H)
         P = weight_to_phase(P)
         if P.n_paulis() < H.n_paulis():
             for i in range(H.n_paulis()):
                 if H.weights[i] != 0 and H[i, :].is_identity():
-                    print("Identity term with weight", H.weights[i].real, "ignored.")
+                    warnings.warn("Identity term with weight" + str(H.weights[i].real) + "ignored.", UserWarning)
 
         # supposed to be permanent
-        self.H = P
-        self.pauli_block_sizes = pauli_block_sizes  # might be able to write a function that can calculate this quickly
+        self._H = P
+        self._pauli_block_sizes = pauli_block_sizes  # might be able to write a function that can calculate this quickly
 
+        # Config for the experiment
         if config is None:
-            self.config = AquireConfig(self.H)
+            self.config = AquireConfig(self.H, psi=np.array(psi) if psi is not None else None)
         else:
             self.config = config
-
-        self.psi = np.array(psi)
-        self.diagnostic_mode = diagnostic_mode  # maybe better way to save them
-        self.true_values_flag = true_values  # maybe better way to save them
-
-        # changeable if so desired
-        self.N_chain = int(N_chain)  # maybe better way to save them
-        self.N_mcmc = int(N_mcmc)  # maybe better way to save them
-        self.N_mcmc_max = int(N_mcmc_max)  # maybe better way to save them
-        self.mcmc_shot_scale = mcmc_shot_scale  # maybe better way to save them
-        self.general_commutation = general_commutation  # maybe better way to save them
-        self.allocation_mode = allocation_mode  # maybe better way to save them
-        if self.diagnostic_mode is not None:
-            self.diagnostic_flag = True
-        else:
-            self.diagnostic_flag = False
-
-        # dependent on changeable parameters
-        self.CG = commutation_graph(self.H).adj if self.general_commutation else quditwise_commutation_graph(self.H).adj
-        self.clique_covering = weighted_vertex_covering_maximal_cliques(graph(self.CG), cc=self.H.weights, k=3)
 
         # supposed to change during experiment
         self.cliques = []
         self.circuits = []
-        _, self.circuit_dictionary = construct_circuit_list(self.H, self.clique_covering, {})
+        _, self.circuit_dictionary = construct_circuit_list(self.H, self.config.clique_covering, {})
         self.measurement_results = []
         self.scaling_matrix = np.eye(self.H.n_paulis(), dtype=int)
         self.data = np.zeros((self.H.n_paulis(), self.H.n_paulis(), int(self.H.lcm)))
@@ -269,14 +272,27 @@ class Aquire:
 
         # Comparison values: not used in the algorithm
         # initially set to None, can be set later if desired and H not too large
-        if self.true_values_flag and self.psi is not None:
-            self.true_mean_value = true_mean(self.H, self.psi)
+        if self.config.calculate_true_values and self.config.psi is not None:
+            self.true_mean_value = true_mean(self.H, self.config.psi)
             self.true_statistical_variance_value = []
-        elif self.true_values_flag and self.psi is None:
-            print("Warning: true values not available without state psi, true_values_flag set to False.")
-            self.true_values_flag = False
+        elif self.config.calculate_true_values and self.config.psi is None:
+            warnings.warn("Warning: true values not available without state psi, calculate_true_values set to False.",
+                          UserWarning)
+            self.config.calculate_true_values = False
         else:
             pass
+
+    @property
+    def H(self):
+        return self._H
+
+    @property
+    def pauli_block_sizes(self):
+        return self._pauli_block_sizes
+
+    ###################################################################
+    # Attribute-like Methods ##########################################
+    ###################################################################
 
     def total_shots(self):
         """
@@ -375,7 +391,7 @@ class Aquire:
             shot = [shot]
         scaling_matrices = []
         for s in shot:
-            # technically one can use that data to build up the next one, but this is simpler
+            # technically one can use that data to build up the next one, but this is simpler right now
             scaling_matrix = np.eye(self.H.n_paulis(), dtype=int)
             for aa in self.cliques[:s]:
                 scaling_matrix[np.ix_(aa, aa)] += np.ones((len(aa), len(aa)), dtype=int)
@@ -387,21 +403,35 @@ class Aquire:
             return scaling_matrices
 
     def diagnostic_data_at_shot(self, shot: int | list[int]):
-        if self.diagnostic_mode is None:
+        if self.config.diagnostic_mode is None:
             return
         data = np.zeros((self.H.n_paulis(), 2))
         if isinstance(shot, int):
             shot = [shot]
         for s in shot:
-            # technically one can use that data to build up the next one, but this is simpler
+            # technically one can use that data to build up the next one, but this is simpler right now
             data = update_diagnostic_data(self.cliques[:s],
                                           self.diagnostic_results[:s],
                                           data,
-                                          mode=self.diagnostic_mode)
+                                          mode=self.config.diagnostic_mode)
         if len(shot) == 1:
             return data
         else:
             return data
+
+    def set_mcmc_parameters(self, shots: int):
+        if isinstance(self.config.mcmc_initial_samples_per_chain, int):
+            N = self.config.mcmc_initial_samples_per_chain
+        else:
+            N = self.config.mcmc_initial_samples_per_chain(shots, **self.config.mcmc_initial_samples_per_chain_kwargs)
+
+        if isinstance(self.config.mcmc_max_samples_per_chain, int):
+            N_max = self.config.mcmc_max_samples_per_chain
+        else:
+            N_max = self.config.mcmc_max_samples_per_chain(shots, **self.config.mcmc_max_samples_per_chain_kwargs)
+        if N > N_max:
+            raise ValueError("Initial MCMC samples per chain cannot be greater than maximum MCMC samples per chain.")
+        return N, N_max
 
     def covariance_graph_at_shot(self, shot: int | list[int]):
         if isinstance(shot, int):
@@ -409,20 +439,25 @@ class Aquire:
         graphs = []
         for s in shot:
             data = self.data_at_shot(shot)
+            N, N_max = self.set_mcmc_parameters(s)
             A = bayes_covariance_graph(data,
                                        self.H.weights,
-                                       self.CG,
+                                       self.config.commutation_graph,
                                        self.H.n_paulis(),
                                        self.pauli_block_sizes,
                                        int(self.H.lcm),
-                                       N_chain=self.N_chain,
-                                       N=self.N_mcmc + int(s * self.mcmc_shot_scale),
-                                       N_max=self.N_mcmc_max + 4 * int(s * self.mcmc_shot_scale))
+                                       N_chain=self.config.mcmc_number_of_chains,
+                                       N=N,
+                                       N_max=N_max)
             graphs.append(graph(A))
         if len(shot) == 1:
             return graphs[0]
         else:
             return graphs
+
+    ###################################################################
+    # Main experiment methods #########################################
+    ###################################################################
 
     def allocate_measurements(self, shots):
         """
@@ -454,7 +489,7 @@ class Aquire:
         new_cliques = []
         for i in range(shots):
             aa = choose_measurement(self.scaling_matrix, self.covariance_graph.adj,
-                                    self.clique_covering, self.allocation_mode)
+                                    self.config.clique_covering, self.config.allocation_mode)
             new_cliques.append(aa)
             self.scaling_matrix[np.ix_(aa, aa)] += Ones[len(aa)]
 
@@ -462,6 +497,7 @@ class Aquire:
         self.scaling_matrix[range(self.H.n_paulis()), range(self.H.n_paulis())] -= np.ones(self.H.n_paulis(), dtype=int)
         circuit_list, self.circuit_dictionary = construct_circuit_list(self.H, new_cliques, self.circuit_dictionary)
         self.circuits += circuit_list
+        return circuit_list
 
     def construct_diagnostic_circuits(self):
         """
@@ -480,16 +516,17 @@ class Aquire:
         self.diagnostic_state_preparation_circuits : list
             Extended with the newly constructed diagnostic state preparation-circuits.
         """
-        self.diagnostic_flag = True
-        if self.diagnostic_mode is None:
-            self.diagnostic_mode = 'Zero'
+        self.config.enable_diagnostics = True
+        if self.config.diagnostic_mode is None:
+            self.config.diagnostic_mode = 'Zero'
         n = len(self.diagnostic_circuits)
         diagnostic_circuit_list = construct_diagnostic_circuits(self.circuits[n:])
         self.diagnostic_circuits += diagnostic_circuit_list
         diagnostic_state_list, dsp_circuits_list = construct_diagnostic_states(diagnostic_circuit_list,
-                                                                               mode=self.diagnostic_mode)
+                                                                               mode=self.config.diagnostic_mode)
         self.diagnostic_states += diagnostic_state_list
         self.diagnostic_state_preparation_circuits += dsp_circuits_list
+        return diagnostic_circuit_list, dsp_circuits_list
 
     def update_covariance_graph(self):
         """
@@ -514,16 +551,20 @@ class Aquire:
         self.true_statistical_variance_value : list
             Extended with the true statistical variance of the current data if true_values_flag is True.
         """
+        if self.total_shots() == self.update_steps[-1]:
+            warnings.warn("No new data to update covariance graph.", UserWarning)
+            return
         self.update_steps.append(self.total_shots())
+        N, N_max = self.set_mcmc_parameters(self.total_shots())
         A = bayes_covariance_graph(self.data,
                                    self.H.weights,
-                                   self.CG,
+                                   self.config.commutation_graph,
                                    self.H.n_paulis(),
                                    self.pauli_block_sizes,
                                    int(self.H.lcm),
-                                   N_chain=self.N_chain,
-                                   N=self.N_mcmc + int(self.total_shots() * self.mcmc_shot_scale),
-                                   N_max=self.N_mcmc_max + 4 * int(self.total_shots() * self.mcmc_shot_scale))
+                                   N_chain=self.config.mcmc_number_of_chains,
+                                   N=N,
+                                   N_max=N_max)
 
         self.covariance_graph = graph(A)
         self.covariance_graph_checkpoints.append(self.covariance_graph.copy())
@@ -531,7 +572,7 @@ class Aquire:
         self.estimated_mean.append(calculate_mean_estimate(self.data, self.H.weights))
         self.statistical_variance.append(calculate_statistical_variance_estimate(
             self.covariance_graph, self.scaling_matrix))
-        if self.true_values_flag:
+        if self.config.calculate_true_values:
             self.true_statistical_variance_value.append(true_statistical_variance(
                 self.H, self.config.psi, self.scaling_matrix, self.H.weights))
 
@@ -557,18 +598,22 @@ class Aquire:
             If data already input for all circuits or not enough measurement results input.
         """
         if len(self.measurement_results) == len(self.circuits):
-            raise Exception(
-                "Data already input for all circuits. Please allocate more measurements before inputting more data.")
+            warnings.warn("Data already input for all circuits.", UserWarning)
+            return
         if len(measurement_results) < len(self.cliques_since_last_update()):
-            raise Exception(
-                ("Not enough measurement results input. Please input at least as many results as the number of newly "
-                 "allocated measurements."))
+            warnings.warn("Not enough measurement results input. Please input at least as many results as the "
+                          "number of newly allocated measurements.", UserWarning)
+            return
+
         self.data = update_data(self.cliques_since_last_update(),
                                 measurement_results,
                                 self.data,
                                 self.circuit_dictionary)
 
         self.measurement_results += measurement_results
+
+        if self.config.auto_update_covariance_graph:
+            self.update_covariance_graph()
 
     def input_diagnostic_data(self, diagnostic_results: list):
         """
@@ -599,9 +644,9 @@ class Aquire:
             raise Exception(
                 ("Too many diagnostic results input. Please input at most as many results as the number of newly "
                  "allocated diagnostic measurements."))
-        self.diagnostic_flag = True
-        if self.diagnostic_mode is None:
-            self.diagnostic_mode = 'Zero'
+        self.config.enable_diagnostics = True
+        if self.config.diagnostic_mode is None:
+            self.config.diagnostic_mode = 'Zero'
         self.diagnostic_results += diagnostic_results
 
         while len(self.systematic_variance) < len(self.update_steps):
@@ -613,7 +658,7 @@ class Aquire:
             self.diagnostic_data = update_diagnostic_data(new_cliques,
                                                           new_diagnostic_results,
                                                           self.diagnostic_data,
-                                                          mode=self.diagnostic_mode)
+                                                          mode=self.config.diagnostic_mode)
             self.systematic_variance.append(calculate_systematic_variance_estimate(self.data, self.H.weights,
                                                                                    self.diagnostic_data))
 
@@ -632,17 +677,14 @@ class Aquire:
         self.measurement_results : list
             Extended with the simulated measurement results.
         """
-        if self.psi is None:
+        if self.config.psi is None:
             raise Exception("State psi not provided, cannot simulate measurement results.")
+
         simulated_measurement_results = []
         for aa in self.cliques_since_last_update():
             P1, C, _ = self.circuit_dictionary[str(aa)]
-            psi_diag = C.unitary() @ self.psi
-            pdf = np.abs(psi_diag * psi_diag.conj())
-            dims1 = P1.dimensions
-            a1 = np.random.choice(np.prod(dims1), p=pdf)
-            result = int_to_bases(a1, dims1)
-            if self.diagnostic_flag:
+            result = simulate_measurement(P1, self.config.psi, C)
+            if self.config.enable_simulated_hardware_noise:
                 noise_probability = self.config.noise_probability_function(C, *self.config.noise_args,
                                                                            **self.config.noise_kwargs)
                 if np.random.rand() < noise_probability:
@@ -655,6 +697,9 @@ class Aquire:
                                 self.circuit_dictionary)
 
         self.measurement_results += simulated_measurement_results
+
+        if self.config.auto_update_covariance_graph:
+            self.update_covariance_graph()
 
     def simulate_diagnostic_results(self):
         """
@@ -676,39 +721,24 @@ class Aquire:
         self.systematic_variance : list
             Extended with the estimated systematic variance at each measurement step.
         """
-        if self.psi is None:
+        if self.config.psi is None:
             raise Exception("State psi not provided, cannot simulate measurement results.")
-        self.diagnostic_flag = True
+        self.config.enable_diagnostics = True
         simulated_diagnostic_results = []
-        for i, dsp_circuit in enumerate(self.last_update_diagnostic_circuits):
-            psi_diag = dsp_circuit.unitary() @ self.diagnostic_states[i]
-            pdf = np.abs(psi_diag * psi_diag.conj())
-            dims = dsp_circuit.dimensions
-            a1 = np.random.choice(np.prod(dims), p=pdf)
-            result = int_to_bases(a1, dims)
-            if self.noise_probability_function is not None:
-                noise_probability = self.noise_probability_function(dsp_circuit, *self.noise_args, **self.noise_kwargs)
-            else:
-                noise_probability = standard_noise_probability_function(dsp_circuit)
+        for i, dsp_circuit in enumerate(self.diagnostic_circuits_since_last_update()):
+            result = simulate_measurement(self.H, self.config.psi, dsp_circuit)
+            noise_probability = self.config.noise_probability_function(dsp_circuit, *self.config.noise_args,
+                                                                       **self.config.noise_kwargs)
 
             if np.random.rand() < noise_probability:
-                if self.error_function is not None:
-                    result = self.error_function(result, *self.error_args, **self.error_kwargs)
-                else:
-                    result = standard_error_function(result, self.H.dimensions)
-            else:
-                pass
+                result = self.config.error_function(result, *self.config.error_args,
+                                                    **self.config.error_kwargs)
 
             simulated_diagnostic_results.append(result)
         self.diagnostic_results += simulated_diagnostic_results
-        if len(simulated_diagnostic_results) < len(self.last_update_diagnostic_circuits):
-            self.last_update_diagnostic_circuits = self.last_update_diagnostic_circuits[len(
-                simulated_diagnostic_results):]
-        else:
-            self.last_update_diagnostic_circuits = []
 
-        while len(self.diagnostic_data_checkpoints) < len(self.update_steps):
-            i = len(self.diagnostic_data_checkpoints)
+        while len(self.systematic_variance) < len(self.update_steps):
+            i = len(self.systematic_variance)
             if self.update_steps[i] > len(self.diagnostic_results):
                 break
             new_cliques = self.cliques[self.update_steps[i - 1]:self.update_steps[i]]
@@ -716,12 +746,11 @@ class Aquire:
             self.diagnostic_data = update_diagnostic_data(new_cliques,
                                                           new_diagnostic_results,
                                                           self.diagnostic_data,
-                                                          mode=self.diagnostic_mode)
-            self.diagnostic_data_checkpoints.append(self.diagnostic_data.copy())
-            self.systematic_variance.append(calculate_systematic_variance_estimate(self.data, self.weights,
+                                                          mode=self.config.diagnostic_mode)
+            self.systematic_variance.append(calculate_systematic_variance_estimate(self.data, self.H.weights,
                                                                                    self.diagnostic_data))
 
-    def simulate_observable(self, update_steps: list[int], hardware_noise: bool = False):
+    def simulate_observable(self, update_steps: list[int]):
         """
         Simulate the measurement of an observable adaptively changing the underlying covariance graph at each value in
         update_steps.
@@ -748,27 +777,25 @@ class Aquire:
         --------
         >>> acquire.simulate_observable([1000, 2000, 3000])
         """
-        if self.psi is None:
+        if self.config.psi is None:
             raise Exception("State psi not provided, cannot simulate observable.")
-        if hardware_noise:
-            self.diagnostic_flag = True
-        initial_shots = update_steps[0]
-        rounds = len(update_steps) - 1
-        shots_per_round = [update_steps[i + 1] - update_steps[i] for i in range(rounds)]
-        self.allocate_measurements(initial_shots)
-        self.simulate_measurement_results()
-        self.update_covariance_graph()
-        if hardware_noise:
-            self.construct_diagnostic_circuits()
-            self.simulate_diagnostic_results()
-        for i in range(rounds):
+
+        shots_per_round = [update_steps[0]] + [update_steps[i + 1] - update_steps[i]
+                                               for i in range(len(update_steps) - 1)]
+        for i in range(len(shots_per_round)):
             self.allocate_measurements(shots_per_round[i])
             self.simulate_measurement_results()
-            self.update_covariance_graph()
-            if hardware_noise:
+            if not self.config.auto_update_covariance_graph:
+                self.update_covariance_graph()
+            if self.config.enable_diagnostics:
                 self.construct_diagnostic_circuits()
                 self.simulate_diagnostic_results()
 
+    ###################################################################
+    # Meta methods ####################################################
+    ###################################################################
+
+    # TODO: construct working save function
     def save(self, filename: str):
         """
         Save the current state of the Aquire object to a file.
@@ -786,6 +813,7 @@ class Aquire:
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
 
+    # TODO: construct working load function
     @classmethod
     def load(cls, filename: str):
         """
@@ -831,16 +859,67 @@ class Aquire:
             'estimated_mean': self.estimated_mean,
             'statistical_variance': self.statistical_variance
         }
-        if self.diagnostic_flag:
+        if self.config.enable_diagnostics:
             results['systematic_variance'] = self.systematic_variance
-        if self.true_values_flag:
+        if self.config.calculate_true_values:
             results['true_mean'] = self.true_mean_value
             results['true_statistical_variance'] = self.true_statistical_variance_value
         with open(filename, 'wb') as f:
             pickle.dump(results, f)
 
+    def __str__(self) -> str:
+        aquire_str = "AQUIRE experiment for observable:\n"
+        aquire_str += str(self.H) + "\n"
+        if self.config.psi is not None:
+            aquire_str += "State vector psi:\n"
+            aquire_str += str(self.config.psi) + "\n"
+        aquire_str += " \n"
+        aquire_str += "General settings:\n"
+        aquire_str += 'Commutation mode: ' + self.config.commutation_mode + '\n'
+        aquire_str += 'Allocation mode: ' + self.config.allocation_mode + '\n'
+        if self.config.enable_diagnostics:
+            aquire_str += 'Diagnostic mode: ' + self.config.diagnostic_mode + '\n'
+        aquire_str += " \n"
+        aquire_str += "MCMC settings:\n"
+        aquire_str += 'MCMC number of chains: ' + str(self.config.mcmc_number_of_chains) + '\n'
+        if isinstance(self.config.mcmc_initial_samples_per_chain, int):
+            aquire_str += 'MCMC initial samples per chain: ' + str(self.config.mcmc_initial_samples_per_chain) + '\n'
+        else:
+            aquire_str += 'MCMC initial samples per chain: ' + \
+                str(self.config.mcmc_initial_samples_per_chain.__name__) + '\n'
+            aquire_str += str(self.config.mcmc_initial_samples_per_chain_kwargs) + '\n'
 
-def simulate_measurement(PauliSum: PauliSum, psi: np.ndarray, circuit: Circuit):
+        if isinstance(self.config.mcmc_max_samples_per_chain, int):
+            aquire_str += 'MCMC max samples per chain: ' + str(self.config.mcmc_max_samples_per_chain) + '\n'
+        else:
+            aquire_str += 'MCMC max samples per chain: ' + str(self.config.mcmc_max_samples_per_chain.__name__) + '\n'
+            aquire_str += str(self.config.mcmc_max_samples_per_chain_kwargs) + '\n'
+
+        if self.config.enable_simulated_hardware_noise:
+            aquire_str += " \n"
+            aquire_str += 'Noise probability function: ' + str(self.config.noise_probability_function.__name__) + '\n'
+            aquire_str += str(self.config.noise_args) + '\n'
+            aquire_str += str(self.config.noise_kwargs) + '\n'
+
+            aquire_str += 'Error function: ' + str(self.config.error_function.__name__) + '\n'
+            aquire_str += str(self.config.error_args) + '\n'
+            aquire_str += str(self.config.error_kwargs) + '\n'
+
+        aquire_str += " \n"
+        aquire_str += "Results:\n"
+        aquire_str += "Covariance graph updated at steps: " + str(self.update_steps) + '\n'
+        aquire_str += "Estimated means: " + str(self.estimated_mean) + '\n'
+        aquire_str += "Statistical variances: " + str(self.statistical_variance) + '\n'
+        if self.config.enable_diagnostics:
+            aquire_str += "Systematic variances: " + str(self.systematic_variance) + '\n'
+        if self.config.calculate_true_values:
+            aquire_str += "True means: " + str(self.true_mean_value) + '\n'
+            aquire_str += "True statistical variances: " + str(self.true_statistical_variance_value)
+        return aquire_str
+
+
+def simulate_measurement(PauliSum: PauliSum, psi: list[float | complex] | list[float] | list[complex] | np.ndarray,
+                         circuit: Circuit):
     # Simulate measurement
     psi_diag = circuit.unitary() @ psi
     pdf = np.abs(psi_diag * psi_diag.conj())
@@ -848,137 +927,6 @@ def simulate_measurement(PauliSum: PauliSum, psi: np.ndarray, circuit: Circuit):
     a1 = np.random.choice(np.prod(dims1), p=pdf)
     result = int_to_bases(a1, dims1)
     return result
-
-
-def apply_noise(result, circuit: Circuit, noise_probability_function: Callable | None = None,
-                noise_args: tuple = (), noise_kwargs: dict = {},
-                error_function: Callable | None = None,
-                error_args: tuple = (), error_kwargs: dict = {}):
-    if noise_probability_function is not None:
-        noise_probability = noise_probability_function(circuit, *noise_args, **noise_kwargs)
-    else:
-        noise_probability = standard_noise_probability_function(circuit)
-
-    if np.random.rand() < noise_probability:
-        if error_function is not None:
-            result = error_function(result, *error_args, **error_kwargs)
-        else:
-            result = standard_error_function(result, circuit.dimensions)
-    return result
-
-
-def simulate_measurement_results(model: Aquire, cliques: list[list[int]] | None = None,
-                                 noise_probability_function: Callable | None = None,
-                                 noise_args: tuple = (), noise_kwargs: dict = {},
-                                 error_function: Callable | None = None,
-                                 error_args: tuple = (), error_kwargs: dict = {}):
-    if model.psi is None:
-        raise Exception("State psi not provided, cannot simulate measurement results.")
-    simulated_measurement_results = []
-    if cliques is None:
-        cliques = model.cliques_since_last_update()
-    for aa in cliques:
-        P1, C, _ = model.circuit_dictionary[str(aa)]
-        result = simulate_measurement(P1, model.psi, C)
-        if model.diagnostic_flag:
-            result = apply_noise(result, C, noise_probability_function,
-                                 noise_args, noise_kwargs,
-                                 error_function, error_args, error_kwargs)
-        simulated_measurement_results.append(result)
-
-    return simulated_measurement_results
-
-
-def simulate_diagnostic_results(model: Aquire, diagnostic_states: list[np.ndarray] | None = None,
-                                diagnostic_circuits: list[Circuit] | None = None,
-                                noise_probability_function: Callable | None = None,
-                                noise_args: tuple = (), noise_kwargs: dict = {},
-                                error_function: Callable | None = None,
-                                error_args: tuple = (), error_kwargs: dict = {}):
-    """
-    Simulate diagnostic results for newly allocated diagnostic measurements.
-
-    Returns
-    -------
-    None
-
-    Changes
-    -------
-    self.diagnostic_results : list
-        Extended with the simulated diagnostic results.
-    self.last_update_diagnostic_circuits : list
-        Trimmed to the length of the simulated diagnostic results if the length of the simulated
-        diagnostic results is less than the length of self.last_update_diagnostic_circuits.
-    self.diagnostic_data_checkpoints : list
-        Extended with the diagnostic data at each measurement step.
-    self.systematic_variance : list
-        Extended with the estimated systematic variance at each measurement step.
-    """
-    if model.psi is None:
-        raise Exception("State psi not provided, cannot simulate measurement results.")
-    model.diagnostic_flag = True
-    simulated_diagnostic_results = []
-    if diagnostic_circuits is None:
-        diagnostic_circuits = model.diagnostic_circuits_since_last_update()
-    if diagnostic_states is None:
-        diagnostic_states = model.diagnostic_states_since_last_update()
-
-    for i, dsp_circuit in enumerate(diagnostic_circuits):
-        result = simulate_measurement(model.H, diagnostic_states[i], dsp_circuit)
-        result = apply_noise(result, dsp_circuit, noise_probability_function,
-                             noise_args, noise_kwargs, error_function, error_args, error_kwargs)
-
-        simulated_diagnostic_results.append(result)
-    return simulated_diagnostic_results
-
-
-def simulate_aquire(model: Aquire, update_steps: list[int], hardware_noise: bool = False):
-    """
-    Simulate the measurement of an observable adaptively changing the underlying covariance graph at each value in
-    update_steps.
-
-    Parameters
-    ----------
-    model : Aquire
-        The Aquire model to simulate.
-    update_steps : list[int]
-        A list of integers representing the total number of shots to take at each measurement step.
-    hardware_noise : bool
-        A boolean indicating whether to include hardware noise in the simulation.
-
-    Returns
-    -------
-    None
-
-    Notes
-    -----
-    The simulate_aquire function allocates measurements, simulates measurement results, updates the covariance
-    graph, and optionally constructs and simulates diagnostic circuits. It repeats this process for the number of
-    rounds specified by the update_steps list. The estimated mean, statistical variance, and optionally the
-    systematic variance are recorded at each measurement step.
-
-    Examples
-    --------
-    >>> simulate_aquire(acquire, [1000, 2000, 3000])
-    """
-    if model.psi is None:
-        raise Exception("State psi not provided, cannot simulate observable.")
-    if hardware_noise:
-        model.diagnostic_flag = True
-    initial_shots = update_steps[0]
-    rounds = len(update_steps) - 1
-    shots_per_round = [initial_shots] + [update_steps[i + 1] - update_steps[i] for i in range(rounds)]
-
-    for i in range(rounds):
-        model.allocate_measurements(shots_per_round[i])
-        measurement_results = simulate_measurement_results(model)
-        model.input_measurement_data(measurement_results)
-        model.update_covariance_graph()
-        if hardware_noise:
-            model.construct_diagnostic_circuits()
-            diagnostic_results = simulate_measurement_results(model,
-                                                              cliques=model.diagnostic_circuits_since_last_update())
-            model.input_diagnostic_data(diagnostic_results)
 
 
 def plot_aquire(model: Aquire, filename: str | None = None):
@@ -1023,23 +971,23 @@ def plot_aquire(model: Aquire, filename: str | None = None):
     M = np.array(model.update_steps)
     est_mean = np.array(model.estimated_mean)
     stat_var = np.array(model.statistical_variance)
-    if model.diagnostic_flag:
+    if model.config.enable_diagnostics:
         sys_var = np.array(model.systematic_variance)
 
     # Mean Plot
-    if model.true_values_flag:
+    if model.config.calculate_true_values:
         H_mean = model.true_mean_value
         plot_mean = np.abs(est_mean - H_mean) / np.abs(H_mean)
         ax[0].plot([M[0], M[-1]], [0, 0], 'k--')
         ax[0].set_ylabel(r'$|\widetilde{O} - \langle \hat{O} \rangle|$', fontsize=label_fontsize)
-        if model.diagnostic_flag:
+        if model.config.enable_diagnostics:
             plot_errorbar = np.sqrt(stat_var + sys_var) / np.abs(H_mean)
         else:
             plot_errorbar = np.sqrt(stat_var) / np.abs(H_mean)
     else:
         plot_mean = est_mean
         ax[0].set_ylabel(r'$\widetilde{O}$', fontsize=label_fontsize)
-        if model.diagnostic_flag:
+        if model.config.enable_diagnostics:
             plot_errorbar = np.sqrt(stat_var + sys_var)
         else:
             plot_errorbar = np.sqrt(stat_var)
@@ -1052,13 +1000,13 @@ def plot_aquire(model: Aquire, filename: str | None = None):
     ax[0].set_xlabel(r'shots $M$', fontsize=label_fontsize)
 
     # Error Plot
-    if model.true_values_flag:
+    if model.config.calculate_true_values:
         stat_error = stat_var * M / (H_mean)**2
-        if model.diagnostic_flag:
+        if model.config.enable_diagnostics:
             phys_error = sys_var * M / (H_mean)**2
     else:
         stat_error = stat_var * M
-        if model.diagnostic_flag:
+        if model.config.enable_diagnostics:
             phys_error = sys_var * M
 
     r = 1.25  # ~±22% in log10
@@ -1068,12 +1016,12 @@ def plot_aquire(model: Aquire, filename: str | None = None):
 
     ax[1].bar(lefts, stat_error, width=widths, align='edge',
               label='Statistical Variance', color=c_stat)
-    if model.diagnostic_flag:
+    if model.config.enable_diagnostics:
         ax[1].bar(lefts, phys_error, width=widths, align='edge',
                   bottom=stat_error, label='Systematic Variance',
                   color=c_dev)
 
-    if model.true_values_flag:
+    if model.config.calculate_true_values:
         ax[1].plot(M, model.true_statistical_variance_value * M / (H_mean)**2, 'k--', label='True Stat. Variance')
 
     ax[1].set_xscale('log')
