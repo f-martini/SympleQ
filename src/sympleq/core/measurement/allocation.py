@@ -7,6 +7,14 @@ from sympleq.core.circuits import Circuit
 from sympleq.core.circuits.gates import Hadamard as H, SUM as CX, PHASE as S
 
 
+def mcmc_number_initial_samples(shots: int, n_0: int = 500, scaling_factor: float = 1 / 10000):
+    return int(shots * scaling_factor) + n_0
+
+
+def mcmc_number_max_samples(shots: int, n_0: int = 2001, scaling_factor: float = 1 / 10000):
+    return 4 * int(shots * scaling_factor) + n_0
+
+
 def sort_hamiltonian(P: PauliSum):
     """
     Sorts the Hamiltonian's Pauli operators based on hermiticity, with hermitian ones first and then pairs of
@@ -395,7 +403,7 @@ def construct_diagnostic_states(diagnostic_circuits: list[Circuit], mode='Zero')
         raise Exception('Diagnostic state mode not recognized')
 
 
-def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.001, p_mes=0.001):
+def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.001, p_measurement=0.001):
     n_local = 0
     n_entangling = 0
     for g in circuit.gates:
@@ -403,12 +411,12 @@ def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.00
             n_entangling += 1
         else:
             n_local += 1
-    noise_prob = 1 - ((1 - p_mes) * (1 - p_entangling)**n_entangling * (1 - p_local)**n_local)
+    noise_prob = 1 - ((1 - p_measurement) * (1 - p_entangling)**n_entangling * (1 - p_local)**n_local)
     return noise_prob
 
 
-def standard_error_function(result, dims):
-    return np.array([np.random.randint(dims[j]) for j in range(len(dims))])
+def standard_error_function(result, dimensions):
+    return np.array([np.random.randint(dimensions[j]) for j in range(len(dimensions))])
 
 
 def extract_phase(weight, dimension):

@@ -423,7 +423,7 @@ class TestGates():
                 factors = np.around(ps_m_res[mask] / ps_res_m[mask], 14)
                 factor = factors[0]
                 phase_table_unitary[i, j] = np.around(d * np.angle(factor) / (np.pi), 6) % (2 * d)
-
+        
         return phase_table_unitary, phase_table_symplectic
 
     def phase_table_entangling(self, G: Gate) -> tuple[np.ndarray, np.ndarray]:
