@@ -403,29 +403,55 @@ def decompose_symplectic_gfp(F: np.ndarray, p: int) -> list[tuple]:
 
 def decompose_symplectic_to_circuit(F: np.ndarray, p: int) -> "Circuit":
     tuple_gates = decompose_symplectic_gfp(F, p)
-    gate_objects = []
+    gate_objects: list[Gate] = []
+
+    def instantiate(kind: str, indices: list[int], symp_local: np.ndarray) -> Gate:
+        symp_mod = mod_p(symp_local, p).T
+        phase = np.zeros(symp_mod.shape[0], dtype=int)
+        dims_arg: int | list[int]
+        if len(indices) == 1:
+            dims_arg = p
+        else:
+            dims_arg = [p] * len(indices)
+        if kind == "H":
+            gate = Hadamard(indices[0], p)
+        elif kind == "S":
+            gate = PHASE(indices[0], p)
+        elif kind == "SUM":
+            gate = SUM(indices[0], indices[1], p)
+        elif kind == "SWAP":
+            gate = SWAP(indices[0], indices[1], p)
+        elif kind == "CZ":
+            gate = CZ(indices[0], indices[1], p)
+        else:
+            raise ValueError(f"Unsupported gate kind {kind}")
+        Gate.__init__(gate, gate.name, indices, symp_mod, dims_arg, phase)
+        return gate
 
     for gate in tuple_gates:
         kind = gate[0]
         if kind == "H":
-            gate_objects.append(Hadamard(gate[1], p))
+            gate_objects.append(instantiate("H", [gate[1]], gate_H(1, 0, p)))
         elif kind == "S":
             coeff = gate[2] if len(gate) > 2 else 1
             coeff_mod = coeff % p
-            for _ in range(coeff_mod):
-                gate_objects.append(PHASE(gate[1], p))
+            if coeff_mod == 0:
+                continue
+            gate_objects.append(instantiate("S", [gate[1]], gate_S(1, 0, coeff_mod, p)))
         elif kind == "CZ":
             coeff = gate[3] if len(gate) > 3 else 1
             coeff_mod = coeff % p
-            for _ in range(coeff_mod):
-                gate_objects.append(CZ(gate[1], gate[2], p))
+            if coeff_mod == 0:
+                continue
+            gate_objects.append(instantiate("CZ", [gate[1], gate[2]], gate_CZ(2, 0, 1, coeff_mod, p)))
         elif kind == "SUM":
             coeff = gate[3] if len(gate) > 3 else 1
             coeff_mod = coeff % p
-            for _ in range(coeff_mod):
-                gate_objects.append(SUM(gate[1], gate[2], p))
+            if coeff_mod == 0:
+                continue
+            gate_objects.append(instantiate("SUM", [gate[1], gate[2]], gate_SUM(2, 0, 1, coeff_mod, p)))
         elif kind == "SWAP":
-            gate_objects.append(SWAP(gate[1], gate[2], p))
+            gate_objects.append(instantiate("SWAP", [gate[1], gate[2]], gate_SWAP(2, 0, 1, p)))
         elif kind == "MUL":
             scalar = gate[2] if len(gate) > 2 else 1
             scalar_mod = scalar % p
@@ -435,15 +461,17 @@ def decompose_symplectic_to_circuit(F: np.ndarray, p: int) -> "Circuit":
                 continue
             inv_scalar = pow(int(scalar_mod), -1, p)
             idx = gate[1]
-            gate_objects.append(Hadamard(idx, p))
+            symp_H = gate_H(1, 0, p)
+            symp_S = gate_S(1, 0, 1, p)
+            gate_objects.append(instantiate("H", [idx], symp_H))
             for _ in range(inv_scalar % p):
-                gate_objects.append(PHASE(idx, p))
-            gate_objects.append(Hadamard(idx, p))
+                gate_objects.append(instantiate("S", [idx], symp_S))
+            gate_objects.append(instantiate("H", [idx], symp_H))
             for _ in range(scalar_mod):
-                gate_objects.append(PHASE(idx, p))
-            gate_objects.append(Hadamard(idx, p))
+                gate_objects.append(instantiate("S", [idx], symp_S))
+            gate_objects.append(instantiate("H", [idx], symp_H))
             for _ in range(inv_scalar % p):
-                gate_objects.append(PHASE(idx, p))
+                gate_objects.append(instantiate("S", [idx], symp_S))
         else:
             raise ValueError(f"Unknown gate type {gate}")
 
