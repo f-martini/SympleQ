@@ -17,73 +17,323 @@ from sympleq.utils import int_to_bases
 from typing import Callable
 import pickle
 import matplotlib.pyplot as plt
-from dataclasses import dataclass
 import json
 import warnings
 
 
-@dataclass
 class AquireConfig:
-    H: PauliSum
-    psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None
 
-    # different settings indicated by strings
-    commutation_mode: str = "general"  # "general" or "qudit-wise"/"bitwise"/"local"
-    allocation_mode: str = "set"  # "set" or "random"
-    diagnostic_mode: str = "Zero"  # None, "zero", "random (change checks to all lowercase)
+    param_info = {
+        "Hamiltonian": {
+            "type": "PauliSum",
+            "optional": False,
+            "default": None,
+            "description": "Hamiltonian/Observable to be simulated.",
+            "accepted": "Any hermitian PauliSum.",
+            "example": "PauliSum(['x1z1 x1z0 x0z0', 'x0z0 x1z0 x1z0', 'x0z1 x0z0 x0z1'], dimensions=[2, 2, 2])",
+        },
+        "psi": {
+            "type": "np.ndarray | None",
+            "optional": True,
+            "default": None,
+            "description": ("State vector to simulate the average of the observable. If None, comparison of "
+                            "experimentally estimated values to true values is not possible."),
+            "accepted": "list[float | complex] | list[float] | list[complex] | np.ndarray | None",
+            "example": "np.ones(np.prod(Hamiltonian.dimensions)) / np.sqrt(np.prod(Hamiltonian.dimensions))",
+        },
+        "commutation_mode": {
+            "type": "str",
+            "optional": False,
+            "default": "general",
+            "description": ("Wether to use a general commutation graph or a bitwise commutation graph. 'bitwise', "
+                            "'local' or 'quditwise' all indicate a bitwise commutation graph."),
+            "accepted": "general | bitwise | local | quditwise"
+        },
+        "allocation_mode": {
+            "type": "str",
+            "optional": False,
+            "default": "set",
+            "description": ("Wether to allocate measurement shots to the clique with the highest (potential) decrease "
+                            "in error (set) or wether to build a random probability distribution proportional to the "
+                            "error decrease for each clique and distribute shots randomly according to that (random)"),
+            "accepted": "random | set"
+        },
+        "diagnostic_mode": {
+            "type": "str",
+            "optional": False,
+            "default": "Zero",
+            "description": ("Wether to use the zero state for hardware error diagnostics or a random (computational) "
+                            "stabilizer state of the circuit"),
+            "accepted": "Zero | Random | informed"
+        },
+        "calculate_true_values": {
+            "type": "bool",
+            "optional": False,
+            "default": True,
+            "description": ("Wether to calculate the true mean and true statistical variance of the observable.")
+        },
+        "enable_diagnostics": {
+            "type": "bool",
+            "optional": False,
+            "default": False,
+            "description": ("Wether to enable hardware error diagnostics.")
+        },
+        "auto_update_covariance_graph": {
+            "type": "bool",
+            "optional": False,
+            "default": True,
+            "description": ("Wether to automatically update the covariance graph after simulating or inputting "
+                            "measurement results.")
+        },
+        "enable_simulated_hardware_noise": {
+            "type": "bool",
+            "optional": False,
+            "default": False,
+            "description": ("Wether to enable simulated hardware noise (if measurements are simulated classically).")
+        },
+        "save_covariance_graph_checkpoints": {
+            "type": "bool",
+            "optional": False,
+            "default": False,
+            "description": ("Wether to save the covariance graph whenever it is updated.")
+        },
+        "verbose": {
+            "type": "bool",
+            "optional": False,
+            "default": False,
+            "description": ("Wether to print verbose output whenever settings are updated.")
+        },
+        "auto_update_settings": {
+            "type": "bool",
+            "optional": False,
+            "default": True,
+            "description": ("Wether to automatically update dependent settings after manual change of settings.")
+        },
+        "enable_debug_checks": {
+            "type": "bool",
+            "optional": False,
+            "default": False,
+            "description": ("Wether to checks that might slow down simulation but make sure that all values are "
+                            "correct.")
+        },
+        "mcmc_number_of_chains": {
+            "type": "int",
+            "optional": False,
+            "default": 8,
+            "description": ("Number of MCMC chains to use for covariance calculation.")
+        },
+        "mcmc_initial_samples_per_chain": {
+            "type": "int | Callable",
+            "optional": False,
+            "default": "function mcmc_number_initial_samples",
+            "description": ("Number of initial samples to use for each MCMC chain. Can be integer if the same number "
+                            "should be used for all shots, but normally for high shot numbers an increased precision "
+                            "in the covariance estimate is desired. In that case this can be a function that takes the "
+                            "current measurement shot number as well as other arguments as input to calculate the "
+                            "number of initial mcmc samples. The function should return an integer. Additional "
+                            "arguments can be parsed via mcmc_initial_samples_per_chain_kwargs."),
+            "accepted": "int | Callable"
+        },
+        "mcmc_max_samples_per_chain": {
+            "type": "int | Callable",
+            "optional": False,
+            "default": "function mcmc_number_max_samples",
+            "description": ("Maximum number of samples to use for each MCMC chain. MCMC calculation will increase "
+                            "number of samples either until convergence (according to geweke and rubin criterion) or "
+                            "until the max number of samples is reached. Can be integer if the same number "
+                            "should be used for all shots, but normally for high shot numbers an increased precision "
+                            "in the covariance estimate is desired. In that case this can be a function that takes the "
+                            "current measurement shot number as well as other arguments as input to calculate the "
+                            "number of mcmc samples. The function should return an integer. Additional arguments can "
+                            "be parsed via mcmc_max_samples_per_chain_kwargs."),
+            "accepted": "int | Callable"
+        },
+        "noise_probability_function": {
+            "type": "Callable",
+            "optional": False,
+            "default": "function standard_noise_probability_function",
+            "description": ("Function that takes a circuit and additional noise arguments as input and returns the "
+                            "noise probability of the circuit. Used to classically simulate noise during measurement. "
+                            "Additional arguments can be parsed via noise_probability_args and "
+                            "noise_probability_function_kwargs."),
+            "accepted": "Callable"
+        },
+        "error_function": {
+            "type": "Callable",
+            "optional": False,
+            "default": "function standard_error_function",
+            "description": ("Function that takes a measurement result and additional error arguments as input and "
+                            "returns a noisy measurement result. Used to classically simulate noise during measurement."
+                            " Additional arguments can be parsed via error_function_args and error_function_kwargs."),
+            "accepted": "Callable"
+        },
+        "commutation_graph": {
+            "type": "graph",
+            "description": ("Graph encoding the commutation relation between the paulistrings in the PauliSum. Here 1 "
+                            "indicates commutation and 0 indicates non-commutation. Will be calculated based on the "
+                            "input PauliSum and commutation_mode. Dependent setting that will automatically be updated "
+                            "if either Hamiltonian or commutation_mode are changed and auto_update_settings is True."),
+        },
+        "clique_covering": {
+            "type": "list[list[int]]",
+            "description": ("Clique covering of the commutation graph. Will be calculated based on the input PauliSum "
+                            "and commutation mode. Consists of a list of lists of integers. The integers refer to the "
+                            "index of the paulistrings in the maximally connected clique")
+        },
+        "validate_parameters": {
+            "type": "method",
+            "input": None,
+            "description": ("Checks that all parameters fulfill some loose validity criteria. Example: Normalization "
+                            "of the state vector psi")
+        },
+        "update_all": {
+            "type": "method",
+            "input": None,
+            "description": ("Updates all dependent parameters. Example: Commutation graph and clique covering.")
+        },
+        "from_json": {
+            "type": "class method",
+            "input": None,
+            "description": ("Loads config from a json file.")
+        },
+        "to_json": {
+            "type": "method",
+            "input": None,
+            "description": ("Saves config to a json file.")
+        },
+        "set_params": {
+            "type": "method",
+            "input": "kwargs",
+            "description": ("Set multiple parameters at once."),
+            "example": "AquireConfig.set_params(**{'commutation_mode': 'quditwise', 'auto_update_settings': False})"
+        }
+    }
 
-    # different settings indicated by booleans
-    calculate_true_values: bool = True
-    enable_diagnostics: bool = False
-    enable_simulated_hardware_noise: bool = False
-    auto_update_covariance_graph: bool = True
-    verbose: bool = False
-    auto_update_settings: bool = True
-    enable_debug_checks: bool = False
+    def __init__(self, Hamiltonian: PauliSum,
+                 psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,
+                 commutation_mode: str = "general",  # "general" or "quditwise"/"bitwise"/"local"
+                 allocation_mode: str = "set",  # random
+                 diagnostic_mode: str = "Zero",  # "Zero" or "Random" or  TODO: "informed" for readout error-mitigation
+                 calculate_true_values: bool = True,
+                 enable_diagnostics: bool = False,
+                 auto_update_covariance_graph: bool = True,
+                 enable_simulated_hardware_noise: bool = False,
+                 save_covariance_graph_checkpoints: bool = False,
+                 verbose: bool = False,
+                 auto_update_settings: bool = True,
+                 enable_debug_checks: bool = False,
+                 mcmc_number_of_chains: int = 8,
+                 mcmc_initial_samples_per_chain: int | Callable = mcmc_number_initial_samples,
+                 mcmc_initial_samples_per_chain_kwargs: dict = {'n_0': 500, 'scaling_factor': 1 / 10000},
+                 mcmc_max_samples_per_chain: int | Callable = mcmc_number_max_samples,
+                 mcmc_max_samples_per_chain_kwargs: dict = {'n_0': 2001, 'scaling_factor': 1 / 10000},
+                 noise_probability_function: Callable = standard_noise_probability_function,
+                 noise_probability_args: tuple = (),
+                 noise_probability_function_kwargs: dict = {
+                     'p_entangling': 0.03, 'p_local': 0.001, 'p_measurement': 0.001},
+                 error_function: Callable = standard_error_function,
+                 error_function_args: tuple = (),
+                 error_function_kwargs: dict = {'dimensions': None}):
+        self.Hamiltonian = Hamiltonian
+        self.psi = np.array(psi) if psi is not None else None
 
-    # MCMC settings
-    mcmc_number_of_chains: int = 8
-    mcmc_initial_samples_per_chain: int | Callable = mcmc_number_initial_samples
-    mcmc_initial_samples_per_chain_kwargs: dict = {'n_0': 500, 'scaling_factor': 1 / 10000}
-    mcmc_max_samples_per_chain: int | Callable = mcmc_number_max_samples
-    mcmc_max_samples_per_chain_kwargs: dict = {'n_0': 2001, 'scaling_factor': 1 / 10000}
+        # different settings indicated by strings
+        self.commutation_mode = commutation_mode
+        self.allocation_mode = allocation_mode
+        self.diagnostic_mode = diagnostic_mode
 
-    # noise and error functions
-    noise_probability_function: Callable = standard_noise_probability_function
-    noise_args: tuple = ()
-    noise_kwargs: dict = {'p_entangling': 0.03, 'p_local': 0.001, 'p_measurement': 0.001}
-    error_function: Callable = standard_error_function
-    error_args: tuple = ()
-    error_kwargs: dict = {}
+        # different settings indicated by booleans
+        self.calculate_true_values = calculate_true_values
+        self.enable_diagnostics = enable_diagnostics
+        self.enable_simulated_hardware_noise = enable_simulated_hardware_noise
+        self.save_covariance_graph_checkpoints = save_covariance_graph_checkpoints
+        self.auto_update_covariance_graph = auto_update_covariance_graph
+        self.verbose = verbose
+        self.auto_update_settings = auto_update_settings
+        self.enable_debug_checks = enable_debug_checks
+
+        # MCMC settings
+        self.mcmc_number_of_chains = mcmc_number_of_chains
+        self.mcmc_initial_samples_per_chain = mcmc_initial_samples_per_chain
+        self.mcmc_initial_samples_per_chain_kwargs = mcmc_initial_samples_per_chain_kwargs
+        self.mcmc_max_samples_per_chain = mcmc_max_samples_per_chain
+        self.mcmc_max_samples_per_chain_kwargs = mcmc_max_samples_per_chain_kwargs
+
+        # noise and error functions
+        self.noise_probability_function = noise_probability_function
+        self.noise_probability_args = noise_probability_args
+        self.noise_kwargs = noise_probability_function_kwargs
+        self.error_function = error_function
+        self.error_args = error_function_args
+        self.error_kwargs = error_function_kwargs
 
     def __post_init__(self):
         if self.psi is not None:
             self.psi = np.array(self.psi)
 
         if self.commutation_mode == "general":
-            self.commutation_graph = commutation_graph(self.H).adj
+            self.commutation_graph = commutation_graph(self.Hamiltonian).adj
         else:
-            self.commutation_graph = quditwise_commutation_graph(self.H).adj
+            self.commutation_graph = quditwise_commutation_graph(self.Hamiltonian).adj
 
         self.clique_covering = weighted_vertex_covering_maximal_cliques(graph(self.commutation_graph),
-                                                                        cc=self.H.weights,
+                                                                        cc=self.Hamiltonian.weights,
                                                                         k=3)
 
         if self.error_function is standard_error_function:
-            self.error_args = (self.H.dimensions,)
+            self.error_args = (self.Hamiltonian.dimensions,)
 
+        self.validate_parameters()
+
+    def validate_parameters(self):
+        # check psi
+        if self.psi is not None:
+            # check that psi has the correct dimensions
+            if np.prod(self.Hamiltonian.dimensions) != len(self.psi):
+                raise ValueError("Psi has incorrect dimensions for provided Hamiltonian.")
+            # check if psi is normalized
+            if not np.isclose(np.linalg.norm(self.psi), 1):
+                raise ValueError("Psi is not normalized.")
+
+        # check commutation mode
+        if self.commutation_mode not in ["general", "quditwise", "bitwise", "local"]:
+            raise ValueError("Commutation mode must be either 'general' or 'bitwise'/'local'/'quditwise'.")
+
+        # check allocation mode
+        if self.allocation_mode not in ["set", "random"]:
+            raise ValueError("Allocation mode must be either 'set' or 'random'.")
+
+        # check diagnostic mode
+        if self.diagnostic_mode not in ["Zero", "Random", "informed"]:
+            raise ValueError("Diagnostic mode must be either 'Zero', 'Random' or 'informed'.")
+        elif self.diagnostic_mode == "informed":
+            raise NotImplementedError("Diagnostic mode 'informed' is not implemented yet.")
+
+        # check calculate_true_values
+        if self.calculate_true_values and self.psi is None:
+            warnings.warn("Warning: true values not available without state psi, calculate_true_values set to False.",
+                          UserWarning)
+            self.calculate_true_values = False
+
+        # check mcmc settings
         self.test_mcmc_settings()
+
+        # check noise and error functions
+        self.test_noise_and_error_function()
+        pass
 
     def update_all(self):
         if self.verbose:
             warnings.warn("Updating all dependent parameters ...", UserWarning)
         if self.commutation_mode == "general":
-            self.commutation_graph = commutation_graph(self.H).adj
+            self.commutation_graph = commutation_graph(self.Hamiltonian).adj
+        elif self.commutation_mode in ["bitwise", "local", "quditwise"]:
+            self.commutation_graph = quditwise_commutation_graph(self.Hamiltonian).adj
         else:
-            self.commutation_graph = quditwise_commutation_graph(self.H).adj
+            raise ValueError("Commutation mode must be either 'general' or 'bitwise'/'local'/'quditwise'.")
 
         self.clique_covering = weighted_vertex_covering_maximal_cliques(graph(self.commutation_graph),
-                                                                        cc=self.H.weights,
+                                                                        cc=self.Hamiltonian.weights,
                                                                         k=3)
 
     def test_mcmc_settings(self):
@@ -99,9 +349,31 @@ class AquireConfig:
             else:
                 N_max = self.mcmc_max_samples_per_chain(shots, **self.mcmc_max_samples_per_chain_kwargs)
 
+            if not (isinstance(N, int) and isinstance(N_max, int)):
+                warnings.warn("Warning: Initial and maximum MCMC samples per chain must be integers.", UserWarning)
+
             if N > N_max:
                 warnings.warn(f"Warning: For {shots} shots, initial MCMC samples per chain ({N}) "
                               f"exceeds maximum MCMC samples per chain ({N_max}).", UserWarning)
+
+    def test_noise_and_error_function(self):
+        for i in range(10):
+            test_circuit = Circuit.from_random(self.Hamiltonian.n_qudits(),
+                                               depth=np.random.randint(1, 6),
+                                               dimensions=self.Hamiltonian.dimensions)
+
+            noise_prob = self.noise_probability_function(
+                test_circuit, *self.noise_probability_args, **self.noise_kwargs)
+            if noise_prob > 1 or noise_prob < 0:
+                raise ValueError(f"Noise probability function gives erroneous values. It must be between 0 and 1."
+                                 f"Wrong values where found for circuit: \n {test_circuit}.")
+
+            test_result = [np.random.randint(dim) for dim in self.Hamiltonian.dimensions]
+            error_test_result = self.error_function(test_result, *self.error_args, **self.error_kwargs)
+            for i0, j in enumerate(error_test_result):
+                if j > self.Hamiltonian.dimensions[i0] or j < 0:
+                    raise ValueError(f"Error function gives erroneous values. It must be between 0 and qudit dimension."
+                                     f"Wrong values where found for measurement outcome: \n {test_result}.")
 
     # TODO: Check whether this works
     @classmethod
@@ -128,10 +400,25 @@ class AquireConfig:
                               "be deprecated. Run update_all() to update them.", UserWarning)
                 pass
 
+    def set_params(self, **kwargs):
+        for key, value in kwargs.items():
+            if not hasattr(self, key):
+                raise AttributeError(f"Unknown parameter '{key}'")
+            setattr(self, key, value)
+
+            if self.auto_update_settings:
+                if key == "commutation_mode" or key == "H":
+                    self.update_all()
+            else:
+                if key == "commutation_mode":
+                    warnings.warn("Changing commutation mode may cause commutation graph and clique covering to "
+                                  "be deprecated. Run update_all() to update them.", UserWarning)
+                    pass
+
     def __str__(self):
         config_string = ''
         config_string += 'Configuration class for AQUIRE experiment on observable: \n'
-        config_string += str(self.H)
+        config_string += str(self.Hamiltonian)
         if self.psi is None:
             config_string += 'No state vector has been provided for the experiment.\n '
         else:
@@ -163,7 +450,7 @@ class AquireConfig:
             config_string += str(self.mcmc_max_samples_per_chain_kwargs) + '\n'
 
         config_string += 'Noise probability function: ' + str(self.noise_probability_function.__name__) + '\n'
-        config_string += str(self.noise_args) + '\n'
+        config_string += str(self.noise_probability_args) + '\n'
         config_string += str(self.noise_kwargs) + '\n'
 
         config_string += 'Error function: ' + str(self.error_function.__name__) + '\n'
@@ -172,8 +459,27 @@ class AquireConfig:
 
         return config_string
 
+    def info(self, name=None):
+        if name is None:
+            print("Available configuration parameters and methods:\n")
+            for key in self.param_info:
+                param_type = self.param_info[key].get("type")
+                print(key + ": " + param_type)
+            print("\nUse `config.info(name='parameter_name')` for detailed info.")
+        else:
+            if name in self.param_info:
+                print(self.param_info[name])
+            else:
+                warnings.warn(f"Unknown parameter '{name}'.", UserWarning)
+
 
 class Aquire:
+    # TODO: info method like config class
+    # TODO: add docstrings everywhere
+    # TODO: add typings everywhere
+    # TODO: add rollback method to go back to previous update
+    # TODO: make working save and load methods
+    # TODO: make summary method (also for config class) that only shows the most important information
     def __init__(self,
                  H: PauliSum,
                  psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,
@@ -248,7 +554,7 @@ class Aquire:
             self.config = AquireConfig(self.H, psi=np.array(psi) if psi is not None else None)
         else:
             self.config = config
-            self.config.H = self.H
+            self.config.Hamiltonian = self.H
 
         # supposed to change during experiment
         self.cliques = []
@@ -571,7 +877,8 @@ class Aquire:
                                    N_max=N_max)
 
         self.covariance_graph = graph(A)
-        self.covariance_graph_checkpoints.append(self.covariance_graph.copy())
+        if self.config.save_covariance_graph_checkpoints:
+            self.covariance_graph_checkpoints.append(self.covariance_graph.copy())
 
         self.estimated_mean.append(calculate_mean_estimate(self.data, self.H.weights))
         self.statistical_variance.append(calculate_statistical_variance_estimate(
@@ -696,7 +1003,7 @@ class Aquire:
             P1, C, _ = self.circuit_dictionary[str(aa)]
             result = simulate_measurement(P1, self.config.psi, C)
             if self.config.enable_simulated_hardware_noise:
-                noise_probability = self.config.noise_probability_function(C, *self.config.noise_args,
+                noise_probability = self.config.noise_probability_function(C, *self.config.noise_probability_args,
                                                                            **self.config.noise_kwargs)
                 if np.random.rand() < noise_probability:
                     result = self.config.error_function(result, *self.config.error_args, **self.config.error_kwargs)
@@ -741,7 +1048,7 @@ class Aquire:
         simulated_diagnostic_results = []
         for i, dsp_circuit in enumerate(self.diagnostic_circuits_since_last_update()):
             result = simulate_measurement(self.H, self.config.psi, dsp_circuit)
-            noise_probability = self.config.noise_probability_function(dsp_circuit, *self.config.noise_args,
+            noise_probability = self.config.noise_probability_function(dsp_circuit, *self.config.noise_probability_args,
                                                                        **self.config.noise_kwargs)
 
             if np.random.rand() < noise_probability:
@@ -915,7 +1222,7 @@ class Aquire:
         if self.config.enable_simulated_hardware_noise:
             aquire_str += " \n"
             aquire_str += 'Noise probability function: ' + str(self.config.noise_probability_function.__name__) + '\n'
-            aquire_str += str(self.config.noise_args) + '\n'
+            aquire_str += str(self.config.noise_probability_args) + '\n'
             aquire_str += str(self.config.noise_kwargs) + '\n'
 
             aquire_str += 'Error function: ' + str(self.config.error_function.__name__) + '\n'
