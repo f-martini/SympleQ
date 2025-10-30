@@ -3,7 +3,6 @@ from typing import Union, overload, TYPE_CHECKING
 import numpy as np
 import scipy.sparse as sp
 
-from .constants import DEFAULT_QUDIT_DIMENSION
 from .pauli_object import PauliObject
 from .pauli_string import PauliString
 from .pauli import Pauli
@@ -15,116 +14,6 @@ if TYPE_CHECKING:
 
 
 class PauliSum(PauliObject):
-    '''
-    Constructor for PauliSum class.
-    Represents a sum of Pauli operators acting on multiple qudits.
-    For more details, see the references:
-    `Phys. Rev. A 71, 042315 (2005) <https://doi.org/10.1103/PhysRevA.71.042315>`_
-    and
-    `Phys. Rev. A 70, 052328 (2004) <https://doi.org/10.1103/PhysRevA.70.052328>`_
-
-    Parameters
-    ----------
-    tableau : np.ndarray
-        Symplectic tableau representation of the object. A 2-D array with shape (n_paulis, 2 * n_qudits).
-    dimensions : list[int] | np.ndarray | int, optional
-        The dimensions of each qudit. If an integer is provided,
-        all qudits are assumed to have the same dimension (default is 2).
-    weights: list[int | float | complex] | np.ndarray | None = None
-        The weights for each PauliString.
-    phases: int | list[int] | np.ndarray | None = None
-        The phases of the PauliStrings in the range [0, lcm(dimensions) - 1].
-
-    Attributes
-    ----------
-    weights: list[int | float | complex] | np.ndarray | None = None
-        The weights for each PauliString.
-    phases: int | list[int] | np.ndarray | None = None
-        The phases of the PauliStrings in the range [0, lcm(dimensions) - 1].
-    dimensions : list[int] | np.ndarray | int, optional
-        The dimensions of each qudit. If an integer is provided,
-        all qudits are assumed to have the same dimension.
-        If no value is provided, the default is `DEFAULT_QUDIT_DIMENSION`.
-    lcm : int
-        Least common multiplier of all qudit dimensions.
-
-    Raises
-    ------
-    ValueError
-        If the length of pauli_list and weights do not match.
-    '''
-    def __init__(self, tableau: np.ndarray, dimensions: int | list[int] | np.ndarray | None = None,
-                 weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
-                 phases: int | list[int] | np.ndarray | None = None):
-
-        n_qudits = tableau.shape[1] // 2
-
-        if dimensions is None:
-            dimensions = np.ones(n_qudits) * DEFAULT_QUDIT_DIMENSION
-        else:  # Catches int but also list and arrays of length 1
-            dimensions = np.asarray(dimensions, dtype=int)
-            if dimensions.ndim == 0:
-                dimensions = np.full(n_qudits, dimensions.item(), dtype=int)
-
-        self._dimensions = dimensions
-
-        self._lcm = int(np.lcm.reduce(self.dimensions()))
-
-        n_pauli_strings = tableau.shape[0]
-
-        if weights is None:
-            weights = np.ones(n_pauli_strings, dtype=complex)
-        else:  # Catches scalars but also list and arrays of length 1
-            weights = np.asarray(weights, dtype=complex)
-            if weights.ndim == 0:
-                weights = np.full(n_pauli_strings, weights.item(), dtype=complex)
-
-        self._weights = weights
-
-        if phases is None:
-            phases = np.zeros(n_pauli_strings, dtype=int)
-        else:  # Catches scalars but also list and arrays of length 1
-            phases = np.asarray(phases, dtype=int)
-            if phases.ndim == 0:
-                phases = np.full(n_pauli_strings, phases.item(), dtype=int)
-
-        self._phases = phases % (2 * self.lcm())
-        self._tableau = tableau % np.tile(self._dimensions, 2)
-
-    def _sanity_check(self):
-        """
-        Validates the consistency of the PauliSum's internal representation.
-
-        Raises
-        ------
-        ValueError
-            If the lengths of `tableau`, and `dimensions` are not consistent
-            or if any exponent is not valid for its corresponding dimension.
-        """
-        if len(self.weights()) != self.n_paulis():
-            # FIXME: Improve error message
-            raise ValueError("The weights and tableau have inconsistent shapes.")
-
-        if len(self.phases()) != self.n_paulis():
-            # FIXME: Improve error message
-            raise ValueError("The phases and tableau have inconsistent shapes.")
-
-        if len(self.tableau()[0]) != 2 * self.n_qudits():
-            raise ValueError(f"Tableau ({len(self.tableau())}) should be twice as long as"
-                             f"dimensions ({len(self.dimensions())}).")
-
-        if np.any(self.dimensions() < DEFAULT_QUDIT_DIMENSION):
-            bad_dims = self.dimensions()[self.dimensions() < DEFAULT_QUDIT_DIMENSION]
-            raise ValueError(f"Dimensions {bad_dims} are less than {DEFAULT_QUDIT_DIMENSION}")
-
-        if np.any((self.tableau() >= self.lcm())):
-            bad_indices = np.where((self.tableau() >= self.lcm()))[0]
-            raise ValueError(
-                f"Lcm too small for exponents at indices {bad_indices}:"
-                f"tableau={self.tableau()[bad_indices]}, "
-                f"lcm={self.lcm()}"
-            )
-
     @classmethod
     def from_tableau(cls, tableau: np.ndarray, dimensions: int | list[int] | np.ndarray | None = None,
                      weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
@@ -282,51 +171,6 @@ class PauliSum(PauliObject):
 
         return cls.from_pauli_strings(strings, weights=weights, phases=[0] * n_paulis).to_standard_form()
 
-    def tableau(self) -> np.ndarray:
-        """
-        Returns the tableau representation of the PauliSum.
-
-
-        Returns
-        -------
-        np.ndarray
-            A 2D-array representing the tableau of the PauliSum.
-        """
-        return self._tableau
-
-    def dimensions(self) -> np.ndarray:
-        """
-        Returns the dimensions of the Pauli-like object.
-
-        Returns
-        -------
-        np.ndarray
-            A 1D numpy array of length n_qudits().
-        """
-        return self._dimensions
-
-    def lcm(self) -> int:
-        """
-        Returns the least common multiplier of the dimensions of the Pauli-like object.
-
-        Returns
-        -------
-        int
-            The Pauli-like object dimensions least common multiplier as integer.
-        """
-        return self._lcm
-
-    def n_qudits(self) -> int:
-        """
-        Returns the number of qudits represented by the Pauli-like object.
-
-        Returns
-        -------
-        int
-            The number of qudits.
-        """
-        return len(self._dimensions)
-
     def phases(self) -> np.ndarray:
         """
         Returns the phases associated with the Pauli-like object.
@@ -369,28 +213,6 @@ class PauliSum(PauliObject):
                 f"New phases ({len(new_weights)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
 
         self._weights = new_weights
-
-    def n_paulis(self) -> int:
-        """
-        Get the number of Pauli operators in the PauliSum.
-
-        Returns
-        -------
-        int
-            The number of Pauli operators.
-        """
-        return len(self._tableau)
-
-    def shape(self) -> tuple[int, int]:
-        """
-        Get the shape of the PauliSum.
-
-        Returns
-        -------
-        tuple[int, int]
-            The number of Pauli operators and the number of qudits.
-        """
-        return self.n_paulis(), self.n_qudits()
 
     def phase_to_weight(self):
         """
@@ -631,15 +453,6 @@ class PauliSum(PauliObject):
         """
 
         # FIXME: avoid copying and use tableaus
-        # ps1 = self.copy()
-        # if isinstance(A, Pauli):
-        #     ps2 = PauliString.from_pauli(A)
-        # elif isinstance(A, PauliString):
-        #     ps2 = PauliSum.from_pauli_strings(A)
-        # elif isinstance(A, PauliSum):
-        #     ps2 = A
-        # else:
-        #     raise ValueError(f"Cannot add Pauli with type {type(A)}")
         # TODO: why is this not good enough?
         return self + A
 
@@ -757,16 +570,6 @@ class PauliSum(PauliObject):
 
         new_dimensions = np.concatenate((self.dimensions(), A.dimensions()))
         new_lcm = np.lcm.reduce(new_dimensions)
-        # new_tableau = np.empty(self.n_paulis() * A.n_paulis(), dtype=int)
-        # new_weights = []
-        # new_phases = []
-        # for i in range(self.n_paulis()):
-        #     for j in range(A.n_paulis()):
-        #         new_tableau[i * A.n_paulis() + j] = self.tableau()[i] @ A.tableau()[j]
-        #         new_weights.append(self.weights()[i] * A.weights()[j])
-        #         new_phases.append(((self.phases()[i] + A.phases()[j]) % (2 * new_lcm)))
-
-        # new_tableau = new_tableau.reshape(self.n_paulis(), -1)
 
         n1, n2 = self.n_qudits(), A.n_qudits()
         p1, p2 = self.n_paulis(), A.n_paulis()

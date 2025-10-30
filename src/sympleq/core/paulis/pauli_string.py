@@ -16,68 +16,6 @@ if TYPE_CHECKING:
 
 @functools.total_ordering
 class PauliString(PauliObject):
-    '''
-    A PauliString is the tensor product of Pauli operators acting on different qudits.
-    This class supports qudits of arbitrary dimensions and provides methods for construction,
-    manipulation, and algebraic operations on Pauli strings.
-    For more details, see the references:
-    `Phys. Rev. A 71, 042315 (2005) <https://doi.org/10.1103/PhysRevA.71.042315>`_
-    and
-    `Phys. Rev. A 70, 052328 (2004) <https://doi.org/10.1103/PhysRevA.70.052328>`_
-
-    Parameters
-    ----------
-    x_exp : list[int] | np.ndarray | str | int
-        The exponents of the X-type Pauli operators for each qudit, or a string representation.
-    z_exp : list[int] | np.ndarray | int
-        The exponents of the Z-type Pauli operators for each qudit.
-    dimensions : list[int] | np.ndarray | int, optional
-        The dimensions of each qudit. If an integer is provided,
-        all qudits are assumed to have the same dimension.
-        If no value is provided, the default is `DEFAULT_QUDIT_DIMENSION`.
-    sanity_check : bool = True
-        Whether to run sanity checks for the input, the default is True.
-
-    Attributes
-    ----------
-    x_exp : np.ndarray
-        Array of X exponents for each qudit.
-    z_exp : np.ndarray
-        Array of Z exponents for each qudit.
-    dimensions : np.ndarray
-        Array of dimensions for each qudit.
-    lcm : int
-        Least common multiplier of all qudit dimensions.
-
-    Notes
-    -----
-    - The class assumes that the Pauli operator exponents are always reduced modulo their respective qudit dimensions.
-    - The string representation for initialization should follow the format: 'x0z0 x1z1 ...', where xi and zi are
-      integers within [0, d-1] for each qudit of dimension d.
-    '''
-
-    def __init__(self, tableau: np.ndarray, dimensions: int | list[int] | np.ndarray | None = None,
-                 weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
-                 phases: int | list[int] | np.ndarray | None = None):
-
-        if tableau.ndim == 1:
-            tableau = tableau.reshape(1, -1)
-
-        n_qudits = tableau.shape[1] // 2
-
-        if dimensions is None:
-            dimensions = np.ones(n_qudits, dtype=int) * DEFAULT_QUDIT_DIMENSION
-        else:  # Catches int but also list and arrays of length 1
-            dimensions = np.asarray(dimensions, dtype=int)
-            if dimensions.ndim == 0:
-                dimensions = np.full(n_qudits, dimensions.item(), dtype=int)
-
-        self._dimensions = np.asarray(dimensions, dtype=int)
-        # FIXME: should we do modulo lcm?
-        # TODO: should we silently take the modulo for the tableau or rise an error?
-        self._tableau = tableau % np.tile(self._dimensions, 2)
-        self._lcm = np.lcm.reduce(self._dimensions)
-
     @classmethod
     def from_exponents(cls, x_exp: list[int] | np.ndarray | str | int, z_exp: list[int] | np.ndarray | int,
                        dimensions: list[int] | np.ndarray | int | None = None) -> PauliString:
@@ -637,67 +575,6 @@ class PauliString(PauliObject):
 
         self._tableau[0][:self.n_qudits()] = z_exp
 
-    def tableau(self) -> np.ndarray:
-        """
-        Returns the tableau representation of the Pauli string.
-        The tableau representation is a vector of length 2 * n_qudits,
-        where the first n_qudits entries correspond to the X exponents and the
-        last n_qudits entries correspond to the Z exponents of the Pauli string.
-        It is essential for efficient algebraic operations on Pauli strings, see
-        `Phys. Rev. A 70, 052328 (2004) <https://doi.org/10.1103/PhysRevA.70.052328>`_.
-
-        Returns
-        -------
-        np.ndarray
-            A 1D numpy array of length 2 * n_qudits representing the tableau
-            form of the Pauli string.
-        """
-        return self._tableau
-
-    def dimensions(self) -> np.ndarray:
-        """
-        Returns the dimensions of the PauliString.
-
-        Returns
-        -------
-        np.ndarray
-            A 1D numpy array of length n_qudits().
-        """
-        return self._dimensions
-
-    def lcm(self) -> int:
-        """
-        Returns the least common multiplier of the dimensions of the PauliString.
-
-        Returns
-        -------
-        int
-            The PauliString dimensions least common multiplier as integer.
-        """
-        return self._lcm
-
-    def n_qudits(self) -> int:
-        """
-        Returns the number of qudits represented by the Pauli operator (always 1).
-
-        Returns
-        -------
-        int
-            The number of qudits.
-        """
-        return len(self.dimensions())
-
-    def n_paulis(self) -> int:
-        """
-        Returns the number of Pauli strings represented by the Pauli operator (always 1).
-
-        Returns
-        -------
-        int
-            The number of Pauli strings.
-        """
-        return 1
-
     def phases(self) -> np.ndarray:
         """
         Returns the phases associated with the Pauli object.
@@ -708,7 +585,7 @@ class PauliString(PauliObject):
         np.ndarray
             The phases as a 1d-vector.
         """
-        return np.asarray(0, dtype=int)
+        return np.asarray([0], dtype=int)
 
     def weights(self) -> np.ndarray:
         """
@@ -720,7 +597,7 @@ class PauliString(PauliObject):
         np.ndarray
             The weights as a 1d-vector.
         """
-        return np.asarray(1, dtype=complex)
+        return np.asarray([1], dtype=complex)
 
     def to_pauli_sum(self) -> PauliSum:
         return PauliSum(self.tableau(), self.dimensions(), self.weights(), self.phases())
@@ -909,33 +786,6 @@ class PauliString(PauliObject):
         phase = 2 * np.dot(a[n:], b[:n])
 
         return int(phase % (2 * self.lcm()))
-
-    def _sanity_check(self):
-        """
-        Validates the consistency of the PauliString's internal representation.
-
-        Raises
-        ------
-        ValueError
-            If the lengths of `tableau`, and `dimensions` are not consistent
-            or if any exponent is not valid for its corresponding dimension.
-        """
-
-        if self.tableau().shape != (1, 2 * self.n_qudits()):
-            raise ValueError(f"Tableau should have shape (1, {2 * self.n_qudits()}) (got {self.tableau().shape}).")
-
-        if np.any(self.dimensions() < DEFAULT_QUDIT_DIMENSION):
-            bad_dims = self.dimensions()[self.dimensions() < DEFAULT_QUDIT_DIMENSION]
-            raise ValueError(f"Dimensions {bad_dims} are less than {DEFAULT_QUDIT_DIMENSION}")
-
-        d = np.tile(self.dimensions(), 2)
-        if np.any((self.tableau() >= d)):
-            bad_indices = np.where((self.tableau() >= d))[0]
-            raise ValueError(
-                f"Dimensions too small for exponents at indices {bad_indices}:"
-                f"tableau={self.tableau()[bad_indices]}, "
-                f"dimensions={self.dimensions()[bad_indices]}"
-            )
 
     # TODO: not sure if here it is best to return a new object or not
     def _delete_qudits(self, mask: np.ndarray, return_new: bool = True) -> PauliString:

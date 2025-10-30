@@ -11,46 +11,6 @@ from .constants import DEFAULT_QUDIT_DIMENSION
 
 
 class Pauli(PauliObject):
-    """
-    Constructor for Pauli class. This represent a single Pauli operator acting on a quDit in symplectic form.
-    For more details, see the references:
-    `Phys. Rev. A 71, 042315 (2005) <https://doi.org/10.1103/PhysRevA.71.042315>`_
-    and
-    `Phys. Rev. A 70, 052328 (2004) <https://doi.org/10.1103/PhysRevA.70.052328>`_
-
-    Parameters
-    ----------
-    tableau : np.ndarray
-        Symplectic tableau representation of the object. A 1-D array of length 2 (x_exp, z_exp).
-    dimensions : int | list[int] | np.ndarray | None, optional
-        Qudit dimension(s).
-        - If int, a single qudit dimension is assumed or broadcast where appropriate.
-        - If list/np.ndarray, must match the number of qudits implied by `tableau`.
-        - If None, all dimensions are defaulted to DEFAULT_QUDIT_DIMENSION.
-    _weights : list | np.ndarray | None, optional
-        For a Pauli, this is currently unused, but it is kept to conmform to the PauliObject interface.
-    _phases : list[int] | np.ndarray | None, optional
-        For a Pauli, this is currently unused, but it is kept to conmform to the PauliObject interface.
-    """
-
-    def __init__(self, tableau: np.ndarray, dimensions: int | list[int] | np.ndarray | None = None,
-                 weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
-                 phases: int | list[int] | np.ndarray | None = None):
-
-        if dimensions is None:
-            dimensions = np.ones(1, dtype=int) * DEFAULT_QUDIT_DIMENSION
-        else:  # Catches int but also list and arrays of length 1
-            dimensions = np.asarray(dimensions, dtype=int)
-            if dimensions.ndim == 0:
-                dimensions = np.full(1, dimensions.item(), dtype=int)
-
-        self._dimensions = np.asarray(dimensions, dtype=int)
-
-        # TODO: should we silently take the modulo for the tableau or rise an error?
-        if tableau.ndim == 1:
-            tableau = tableau.reshape(1, -1)
-        self._tableau = tableau % self.lcm()
-
     @classmethod
     def from_tableau(cls, tableau: np.ndarray, dimension: int = DEFAULT_QUDIT_DIMENSION) -> Pauli:
         """
@@ -215,66 +175,6 @@ class Pauli(PauliObject):
         """
         return cls.from_exponents(0, 0, dimension)
 
-    def tableau(self) -> np.ndarray:
-        """
-        Returns the tableau representation of the Pauli.
-        The tableau representation is a vector of length 2,
-        where the first entry correspond to the X exponent and the
-        second entry correspond to the Z exponent of the Pauli.
-
-        Returns
-        -------
-        np.ndarray
-            A 1D numpy array of length 2 representing the tableau
-            form of the Pauli.
-        """
-        return self._tableau
-
-    def dimensions(self) -> np.ndarray:
-        """
-        Returns the dimensions of the Pauli.
-
-        Returns
-        -------
-        np.ndarray
-            A 1D numpy array of length 1.
-        """
-        return self._dimensions
-
-    def lcm(self) -> int:
-        """
-        Returns the least common multiplier of the dimensions of the Pauli,
-        i.e. just the dimensions of the Pauli.
-
-        Returns
-        -------
-        int
-            The Pauli least common multiplier as integer.
-        """
-        return self.dimensions()[0]
-
-    def n_qudits(self) -> int:
-        """
-        Returns the number of qudits represented by the Pauli operator (always 1).
-
-        Returns
-        -------
-        int
-            The number of qudits.
-        """
-        return 1
-
-    def n_paulis(self) -> int:
-        """
-        Returns the number of Pauli strings represented by the Pauli operator (always 1).
-
-        Returns
-        -------
-        int
-            The number of Pauli strings.
-        """
-        return 1
-
     def phases(self) -> np.ndarray:
         """
         Returns the phases associated with the Pauli object.
@@ -285,7 +185,7 @@ class Pauli(PauliObject):
         np.ndarray
             The phases as a 1d-vector.
         """
-        return np.asarray(0, dtype=int)
+        return np.asarray([0], dtype=int)
 
     def weights(self) -> np.ndarray:
         """
@@ -297,7 +197,7 @@ class Pauli(PauliObject):
         np.ndarray
             The weights as a 1d-vector.
         """
-        return np.asarray(1, dtype=complex)
+        return np.asarray([1], dtype=complex)
 
     def dimension(self) -> int:
         """
@@ -514,22 +414,3 @@ class Pauli(PauliObject):
             Z exponent.
         """
         return self._tableau[0][1]
-
-    def _sanity_check(self):
-        """
-        Validate internal consistency of the Pauli.
-
-        Raises
-        ------
-        ValueError
-            If dimensions length is not 1, dimension is too small, or tableau shape invalid.
-        """
-
-        if self.tableau().shape != (1, 2 * self.n_qudits()):
-            raise ValueError(f"Tableau should have shape (1, {2 * self.n_qudits()}) (got {self.tableau().shape}).")
-
-        if self.n_qudits() != 1:
-            raise ValueError(f"Dimensions must have length 1 (got {self.n_qudits()}).")
-
-        if self.dimension() < DEFAULT_QUDIT_DIMENSION:
-            raise ValueError(f"Dimension is less than {DEFAULT_QUDIT_DIMENSION}")
