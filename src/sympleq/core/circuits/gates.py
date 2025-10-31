@@ -6,6 +6,7 @@ from sympleq.core.circuits.utils import (transvection_matrix, symplectic_form, t
                                          SWAP_func)
 from sympleq.core.finite_field_solvers import get_linear_dependencies
 import scipy.sparse as sp
+from .utils import embed_symplectic
 
 
 class Gate:
@@ -196,18 +197,18 @@ class Gate:
         U[n:, :n] = np.eye(n, dtype=int)
 
         U_C = (C.T @ U @ C) % L
-        U_Cinv = (C_inv.T @ U @ C_inv) % L
+        U_C_inv = (C_inv.T @ U @ C_inv) % L
 
         P_C = (2 * np.triu(U_C) - np.diag(np.diag(U_C))) % L
-        P_Cinv = (2 * np.triu(U_Cinv) - np.diag(np.diag(U_Cinv))) % L
+        P_C_inv = (2 * np.triu(U_C_inv) - np.diag(np.diag(U_C_inv))) % L
 
         h = (self.phase_vector % modulus).astype(int)
 
         term1 = (-h @ C_inv) % modulus
         term2 = (np.diag(U_C) % modulus) @ C_inv % modulus
         term3 = np.diag((C_inv.T @ P_C @ C_inv) % modulus) % modulus
-        term4 = np.diag(U_Cinv) % modulus
-        term5 = np.diag(P_Cinv) % modulus
+        term4 = np.diag(U_C_inv) % modulus
+        term5 = np.diag(P_C_inv) % modulus
 
         h_inv = (term1 + term2 - term3 + term4 - term5) % modulus
 
@@ -238,6 +239,16 @@ class Gate:
             dims = self.dimensions
         raise NotImplementedError("Unitary not implemented for generic Gate. Use specific gate subclasses.")
 
+    def full_symplectic(self, n_qudits):
+        if n_qudits < max(self.qudit_indices):
+            raise ValueError("n_qudits must be greater than or equal to the maximum qudit index.")
+        full_symplectic, _ = embed_symplectic(self.symplectic, self.phase_vector, self.qudit_indices, n_qudits)
+        return full_symplectic
+
+
+def _scalar_dim(dim):
+    return int(np.asarray(dim).reshape(-1)[0])
+
 
 class SUM(Gate):
     def __init__(self, control, target, dimension):
@@ -246,7 +257,7 @@ class SUM(Gate):
             [0, 1, 0, 0],   # image of X1:  X1 -> X1
             [0, 0, 1, 0],   # image of Z0:  Z0 -> Z0
             [0, 0, -1, 1]   # image of Z1:  Z1 -> Z0^-1 Z1
-        ], dtype=int).T
+        ], dtype=int).T % dimension
 
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
@@ -265,10 +276,8 @@ class SUM(Gate):
         return sp.csr_matrix((aa2, (aa3, aa4)))
 
     def copy(self) -> 'Gate':
-        """
-        Returns a copy of the SUM gate.
-        """
-        return SUM(self.qudit_indices[0], self.qudit_indices[1], self.dimensions)
+        d = _scalar_dim(self.dimensions)
+        return SUM(int(self.qudit_indices[0]), int(self.qudit_indices[1]), d)
 
 
 class CZ(Gate):
@@ -283,6 +292,10 @@ class CZ(Gate):
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
 
         super().__init__("CZ", [index1, index2], symplectic, dimensions=dimension, phase_vector=phase_vector)
+
+    def copy(self) -> 'Gate':
+        d = _scalar_dim(self.dimensions)
+        return CZ(int(self.qudit_indices[0]), int(self.qudit_indices[1]), d)
 
 
 class SWAP(Gate):
@@ -314,10 +327,8 @@ class SWAP(Gate):
         return sp.csr_matrix((aa2, (aa3, aa4)))
 
     def copy(self) -> 'Gate':
-        """
-        Returns a copy of the SWAP gate.
-        """
-        return SWAP(self.qudit_indices[0], self.qudit_indices[1], self.dimensions)
+        d = _scalar_dim(self.dimensions)
+        return SWAP(int(self.qudit_indices[0]), int(self.qudit_indices[1]), d)
 
 
 class CNOT(Gate):
@@ -346,24 +357,22 @@ class CNOT(Gate):
         return sp.csr_matrix((aa2, (aa3, aa4)))
 
     def copy(self) -> 'Gate':
-        """
-        Returns a copy of the CNOT gate.
-        """
-        return CNOT(self.qudit_indices[0], self.qudit_indices[1])
+        return CNOT(int(self.qudit_indices[0]), int(self.qudit_indices[1]))
 
 
 class Hadamard(Gate):
     def __init__(self, index: int, dimension: int, inverse: bool = False):
+        self.is_inverse = bool(inverse)
         if inverse:
             symplectic = np.array([
                 [0, 1],    # image of X:  X -> Z
                 [-1, 0]    # image of Z:  Z -> -X
-            ], dtype=int)
+            ], dtype=int) % dimension
         else:
             symplectic = np.array([
                 [0, -1],   # image of X:  X -> -Z
                 [1, 0]     # image of Z:  Z -> X
-            ], dtype=int)
+            ], dtype=int) % dimension
 
         phase_vector = np.array([0, 0], dtype=int)
 
@@ -376,10 +385,8 @@ class Hadamard(Gate):
         return tensor([H_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])
 
     def copy(self) -> 'Gate':
-        """
-        Returns a copy of the Hadamard gate.
-        """
-        return Hadamard(self.qudit_indices[0], self.dimensions[0])
+        d = _scalar_dim(self.dimensions)
+        return Hadamard(int(self.qudit_indices[0]), d, inverse=self.is_inverse)
 
 
 class PHASE(Gate):
@@ -402,13 +409,12 @@ class PHASE(Gate):
         return tensor([S_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])
 
     def copy(self) -> 'Gate':
-        """
-        Returns a copy of the PHASE gate.
-        """
-        return PHASE(self.qudit_indices[0], self.dimensions[0])
+        d = _scalar_dim(self.dimensions)
+        return PHASE(int(self.qudit_indices[0]), d)
 
 
 class PauliGate(Gate):
+    # TODO: add copy
     def __init__(self, pauli: PauliString):
         n = pauli.n_qudits()
         lcm = int(pauli.lcm)

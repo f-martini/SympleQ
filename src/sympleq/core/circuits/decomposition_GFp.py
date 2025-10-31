@@ -1,7 +1,4 @@
 import numpy as np
-from collections import deque
-from sympleq.core.circuits import Circuit, Gate, Hadamard, PHASE, SUM, SWAP, CZ
-from sympleq.core.paulis import PauliSum, PauliString
 
 
 def mod_p(A, p: int) -> np.ndarray:
@@ -88,7 +85,7 @@ def gate_H(n: int, i: int, p: int) -> np.ndarray:
 def gate_S(n: int, i: int, coeff: int, p: int) -> np.ndarray:
     """Phase gate adding coeff * X_i into Z_i."""
     F = identity(2 * n)
-    F[i, n + i] = (F[i, n + i] + coeff) % p
+    F[i, n + i] = (F[i, n + i] + coeff) % p  #
     return F
 
 
@@ -198,22 +195,26 @@ def ensure_invertible_A(F: np.ndarray, p: int, max_depth: int | None = None) -> 
             candidates.append(("SUM", i, j, 1))
             candidates.append(("SUM", j, i, 1))
 
-    queue: deque[tuple[np.ndarray, list[tuple]]] = deque()
+    queue: list[tuple[np.ndarray, list[tuple]]] = [(F, [])]
     visited = {tuple(F.flatten())}
-    queue.append((F, []))
 
     while queue:
-        current_F, ops = queue.popleft()
+        current_F, ops = queue.pop(0)  # pop from front – slower than deque, but simple to read
+
         if len(ops) >= max_depth:
             continue
+
         for gate in candidates:
             new_ops = ops + [gate]
             new_F = _apply_gate_tuple(current_F, gate, p)
             key = tuple(new_F.flatten())
+
             if key in visited:
                 continue
+
             if is_invertible_mod(new_F[:n, :n], p):
                 return new_ops, new_F
+
             visited.add(key)
             queue.append((new_F, new_ops))
 
@@ -401,146 +402,11 @@ def decompose_symplectic_gfp(F: np.ndarray, p: int) -> list[tuple]:
 
     return gates
 
-def decompose_symplectic_to_circuit(F: np.ndarray, p: int) -> "Circuit":
-    tuple_gates = decompose_symplectic_gfp(F, p)
-    gate_objects: list[Gate] = []
-
-    def instantiate(kind: str, indices: list[int], symp_local: np.ndarray) -> Gate:
-        symp_mod = mod_p(symp_local, p).T
-        phase = np.zeros(symp_mod.shape[0], dtype=int)
-        dims_arg: int | list[int]
-        if len(indices) == 1:
-            dims_arg = p
-        else:
-            dims_arg = [p] * len(indices)
-        if kind == "H":
-            gate = Hadamard(indices[0], p)
-        elif kind == "S":
-            gate = PHASE(indices[0], p)
-        elif kind == "SUM":
-            gate = SUM(indices[0], indices[1], p)
-        elif kind == "SWAP":
-            gate = SWAP(indices[0], indices[1], p)
-        elif kind == "CZ":
-            gate = CZ(indices[0], indices[1], p)
-        else:
-            raise ValueError(f"Unsupported gate kind {kind}")
-        Gate.__init__(gate, gate.name, indices, symp_mod, dims_arg, phase)
-        return gate
-
-    for gate in tuple_gates:
-        kind = gate[0]
-        if kind == "H":
-            gate_objects.append(instantiate("H", [gate[1]], gate_H(1, 0, p)))
-        elif kind == "S":
-            coeff = gate[2] if len(gate) > 2 else 1
-            coeff_mod = coeff % p
-            if coeff_mod == 0:
-                continue
-            gate_objects.append(instantiate("S", [gate[1]], gate_S(1, 0, coeff_mod, p)))
-        elif kind == "CZ":
-            coeff = gate[3] if len(gate) > 3 else 1
-            coeff_mod = coeff % p
-            if coeff_mod == 0:
-                continue
-            gate_objects.append(instantiate("CZ", [gate[1], gate[2]], gate_CZ(2, 0, 1, coeff_mod, p)))
-        elif kind == "SUM":
-            coeff = gate[3] if len(gate) > 3 else 1
-            coeff_mod = coeff % p
-            if coeff_mod == 0:
-                continue
-            gate_objects.append(instantiate("SUM", [gate[1], gate[2]], gate_SUM(2, 0, 1, coeff_mod, p)))
-        elif kind == "SWAP":
-            gate_objects.append(instantiate("SWAP", [gate[1], gate[2]], gate_SWAP(2, 0, 1, p)))
-        elif kind == "MUL":
-            scalar = gate[2] if len(gate) > 2 else 1
-            scalar_mod = scalar % p
-            if scalar_mod == 0:
-                raise ValueError("MUL gate scalar must be non-zero modulo p.")
-            if scalar_mod == 1:
-                continue
-            inv_scalar = pow(int(scalar_mod), -1, p)
-            idx = gate[1]
-            symp_H = gate_H(1, 0, p)
-            symp_S = gate_S(1, 0, 1, p)
-            gate_objects.append(instantiate("H", [idx], symp_H))
-            for _ in range(inv_scalar % p):
-                gate_objects.append(instantiate("S", [idx], symp_S))
-            gate_objects.append(instantiate("H", [idx], symp_H))
-            for _ in range(scalar_mod):
-                gate_objects.append(instantiate("S", [idx], symp_S))
-            gate_objects.append(instantiate("H", [idx], symp_H))
-            for _ in range(inv_scalar % p):
-                gate_objects.append(instantiate("S", [idx], symp_S))
-        else:
-            raise ValueError(f"Unknown gate type {gate}")
-
-    n_qudits = F.shape[0] // 2
-    circuit = Circuit([p] * n_qudits, gate_objects)
-    return circuit
-
-def _canonical_pauli_sum(dimensions: list[int] | np.ndarray) -> "PauliSum":
-
-    dims = np.asarray(dimensions, dtype=int)
-    n = len(dims)
-    paulis: list[PauliString] = []
-    zeros = np.zeros(n, dtype=int)
-
-    for i in range(n):
-        x = zeros.copy()
-        x[i] = 1
-        paulis.append(PauliString(x, zeros, dims, sanity_check=False))
-    for i in range(n):
-        z = zeros.copy()
-        z[i] = 1
-        paulis.append(PauliString(zeros, z, dims, sanity_check=False))
-
-    weights = np.ones(2 * n, dtype=float)
-    phases = np.zeros(2 * n, dtype=int)
-    return PauliSum(paulis, weights=weights, phases=phases, dimensions=dims, standardise=False)
-
-
-def decompose_gate_to_circuit(gate: "Gate") -> "Circuit":
-    dims = np.asarray(gate.dimensions, dtype=int)
-    if dims.ndim == 0:
-        dims = np.array([int(dims)], dtype=int)
-    if not np.all(dims == dims[0]):
-        raise ValueError("decompose_gate_to_circuit currently supports uniform qudit dimensions.")
-    p = int(dims[0])
-
-    circuit = decompose_symplectic_to_circuit(gate.symplectic, p)
-    canonical = _canonical_pauli_sum(dims)
-    target_action = gate.act(canonical).standard_form()
-
-    def circuit_action() -> "PauliSum":
-        return circuit.act(canonical).standard_form()
-
-    constructed_action = circuit_action()
-
-    if constructed_action.standard_form().tableau().tolist() != target_action.tableau().tolist():
-        constructed_gate = Gate.solve_from_target(
-            "constructed",
-            canonical.standard_form(),
-            constructed_action,
-            dimensions=dims,
-        )
-        residual = Gate.solve_from_target(
-            "residual",
-            constructed_action,
-            target_action,
-            dimensions=dims,
-        )
-        residual_symplectic = residual.symplectic % p
-        if not np.array_equal(residual_symplectic, np.eye(2 * len(dims), dtype=int)):
-            residual_circuit = decompose_symplectic_to_circuit(residual_symplectic, p)
-            circuit.add_gate(residual_circuit.gates)
-
-    return circuit
-
 
 # =========================
 # Quick smoke test helpers
 # =========================
+
 
 def random_symmetric(n: int, rng: np.random.Generator, p: int) -> np.ndarray:
     M = rng.integers(0, p, size=(n, n), dtype=int)
@@ -595,8 +461,7 @@ def random_symplectic(n: int, p: int, rng=None, steps: int = 5) -> np.ndarray:
     P = np.eye(n, dtype=np.int64)[perm]
     O = np.zeros((n, n), dtype=np.int64)
     F = mm_p(np.block([[P, O], [O, P]]), F, p)
-    # local X↔Z swaps (Hadamard-like): [[0,1],[-1,0]] at sites
-    H = np.array([[0, 1], [-1 % p, 0]], dtype=np.int64)
+
     D = np.eye(2*n, dtype=np.int64)
     for q in range(n):
         if rng.integers(0, 2):
@@ -632,16 +497,6 @@ if __name__ == "__main__":
                 gates_tuple = decompose_symplectic_gfp(F, p)
                 recon = compose_symplectic_from_gates(n, gates_tuple, p)
                 assert np.array_equal(recon, F), "Symplectic reconstruction failed."
-
-                try:
-                    circuit = decompose_symplectic_to_circuit(F, p)
-                except Exception:
-                    circuit = None
-
-                if circuit is not None:
-                    allowed = {"H", "S", "SUM", "SWAP", "CZ"}
-                    circuit_names = [gate.name for gate in circuit.gates]
-                    assert all(name in allowed for name in circuit_names), f"Unexpected gate type in {circuit_names}."
 
                 # Exercise preprocessing when A is singular
                 for idx in range(n):
@@ -679,22 +534,22 @@ if __name__ == "__main__":
                 recon = compose_symplectic_from_gates(n, gates_tuple, p)
                 assert np.array_equal(recon, F_singular), "Singular-A preprocessing failed."
 
-    # Additional tests targeting initially singular A blocks
-    print('Done first two')
+    # # Additional tests targeting initially singular A blocks
+    # print('Done first two')
 
-    # print(gate_CZ(2, 0, 1, 1, 2))
+    # print(gate_S(1, 0, 2, 5))
+    # print((gate_S(1, 0, 1, 5) @ gate_S(1, 0, 1, 5)) % 5)
     for p in (2, 3, 5, 7):
         for n in range(3, 6):
 
             for _ in range(10):
-                print(p, n, _)
-                F = random_symplectic(n, p)
+                F = random_symplectic(n, p, rng=rng)
 
                 gates_tuple = decompose_symplectic_gfp(F, p)
-                recon = compose_symplectic_from_gates(n, gates_tuple, p)
-                circuit = decompose_symplectic_to_circuit(F, p)
-                recon_from_circuit = circuit.composite_gate().symplectic
-                assert np.array_equal(recon, F), "Random preprocessing failed."
-                assert np.array_equal(recon_from_circuit, F), "Random Gate processing failed."
 
-    # print("All GF(p) symplectic decomposition checks passed.")
+                recon = compose_symplectic_from_gates(n, gates_tuple, p)
+
+                assert np.array_equal(recon, F), "Random preprocessing failed."
+                # assert np.array_equal(recon_from_circuit, F), f"Random Gate failed p={p}.\n{recon_from_circuit}\n{F}"
+
+    print("All GF(p) symplectic decomposition checks passed.")

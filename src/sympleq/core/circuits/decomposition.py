@@ -1,8 +1,65 @@
 import numpy as np
-from sympleq.core.circuits import Circuit, Gate, Hadamard, PHASE, SUM, SWAP, CZ
+from sympleq.core.circuits import Circuit, Gate, Hadamard, PHASE, SUM, SWAP
 from sympleq.core.circuits.utils import is_symplectic
-import numpy as np
-from typing import List, Tuple
+from collections import deque
+
+def _compose_1q_on_wire(q: int, p: int, gates: list[Gate]) -> np.ndarray:
+    """
+    Remap a list of *single-qudit* gates that act on wire `q` to a 1-qudit
+    circuit acting on wire 0, then return its 2x2 symplectic over GF(p).
+    """
+    remapped: list[Gate] = []
+    for g in gates:
+        # Rebuild the same gate type but on index 0 and scalar dim p
+        if isinstance(g, Hadamard):
+            inv = getattr(g, "is_inverse", (g.name == "H_inv"))
+            remapped.append(Hadamard(0, int(p), inverse=bool(inv)))
+        elif isinstance(g, PHASE):
+            remapped.append(PHASE(0, int(p)))
+        else:
+            raise ValueError(f"_compose_1q_on_wire only supports single-qudit H/S; got {type(g)}")
+
+    return Circuit([int(p)], remapped).composite_gate().symplectic % int(p)
+
+def _compose_symp_full(n: int, p: int, gates: list[Gate]) -> np.ndarray:
+    return Circuit([p]*n, list(gates)).composite_gate().symplectic % p
+
+# --- generators on 1–2 chosen qudits (indices are 0-based wire ids) ---
+def _gens_1q(q: int, p: int) -> list[list[Gate]]:
+    return [
+        [PHASE(q, p)],
+        [Hadamard(q, p)],
+        [Hadamard(q, p, inverse=True)],
+    ]
+
+def _gens_2q(i: int, j: int, p: int) -> list[list[Gate]]:
+    G = []
+    # single-qudit actions on both wires
+    G += _gens_1q(i, p)
+    G += _gens_1q(j, p)
+    # two-qudit interactions in both directions
+    G += [[SUM(i, j, p)], [SUM(j, i, p)]]
+    # (optional) allow SWAP; harmless and can shorten words
+    G += [[SWAP(i, j, p)]]
+    return G
+
+def _bfs_synth_2q_target(n: int, p: int, target_full: np.ndarray, i: int, j: int, max_depth: int = 7) -> list[Gate]:
+    I = np.eye(2*n, dtype=int) % p
+    if np.array_equal(target_full % p, I): return []
+    gens = _gens_2q(i, j, p)
+    Q = deque([([], I)])
+    seen = {tuple(I.flatten())}
+    while Q:
+        word, M = Q.popleft()
+        if len(word) >= max_depth: continue
+        for g in gens:
+            new_word = word + g
+            M2 = _compose_symp_full(n, p, new_word)
+            k = tuple(M2.flatten())
+            if k in seen: continue
+            if np.array_equal(M2, target_full % p): return new_word
+            seen.add(k); Q.append((new_word, M2))
+    raise RuntimeError("2q BFS failed to synthesize target (depth cap too small?)")
 
 
 def first_diff(A, B, p):
@@ -99,86 +156,6 @@ def blocks(F: np.ndarray, p: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, n
     return A, B, C, D
 
 # --------------------------------------------------------------------
-# 1) Single-qudit SL(2,p) synthesis (PHASE/Hadamard only)
-# --------------------------------------------------------------------
-
-def _sl2_generators(p: int):
-    """Return the generator matrices in SL(2,p) for S(±1) and H,H^{-1}."""
-    S1  = np.array([[1, 1], [0, 1]], dtype=int) % p
-    S_1 = np.array([[1, -1 % p], [0, 1]], dtype=int) % p
-    H   = np.array([[0, -1], [1, 0]], dtype=int) % p
-    Hinv= np.array([[0, 1], [-1, 0]], dtype=int) % p
-    return [
-        ("S+1", S1),
-        ("S-1", S_1),
-        ("H",   H),
-        ("Hinv",Hinv),
-    ]
-
-def _synthesize_local_sl2(target: np.ndarray, p: int) -> List[Tuple[str, int]]:
-    """
-    BFS over SL(2,p) (tiny for small p) to find a short word in {S±1, H, Hinv}
-    that equals `target`. Returns a sequence of ('S+1'/'S-1'/'H'/'Hinv', i)
-    where the int is a placeholder (we map later to a concrete qudit index).
-    """
-    target = mod_p(target, p)
-    gens = _sl2_generators(p)
-
-    # BFS state: 2x2 matrix -> sequence of generator names
-    from collections import deque
-    start = tuple((np.eye(2, dtype=int) % p).flatten())
-    tgt   = tuple(target.flatten())
-    if start == tgt:
-        return []
-
-    Q = deque([(np.eye(2, dtype=int) % p, [])])
-    seen = {start}
-
-    while Q:
-        M, ops = Q.popleft()
-        for name, G in gens:
-            M2 = (G @ M) % p
-            key = tuple(M2.flatten())
-            if key in seen:
-                continue
-            ops2 = ops + [name]
-            if key == tgt:
-                # Return as (name, -1); we insert the actual qudit index later.
-                return [(nm, -1) for nm in ops2]
-            seen.add(key)
-            Q.append((M2, ops2))
-
-    raise RuntimeError("SL(2,p) synthesis failed (unexpected for small p).")
-
-def _local_D(u: int, p: int) -> np.ndarray:
-    """Diagonal scaling in SL(2,p): diag(u, u^{-1})."""
-    inv = pow(int(u % p), -1, p)
-    return np.array([[u % p, 0], [0, inv]], dtype=int) % p
-
-def _emit_local_ops_for_D(index: int, u: int, p: int) -> List:
-    """
-    Return a short sequence of Gate objects on `index` that realizes
-    D(u) = diag(u, u^{-1}) in SL(2,p) using only PHASE and Hadamard.
-    """
-    target2x2 = _local_D(u, p)
-    word = _synthesize_local_sl2(target2x2, p)  # [('S+1',-1), ('H',-1), ...]
-    gates = []
-    for name, _ in word:
-        if name == "S+1":
-            gates.append(PHASE(index, p))
-        elif name == "S-1":
-            # inverse = (p-1) repeats of PHASE
-            for _ in range((p - 1) % p):
-                gates.append(PHASE(index, p))
-        elif name == "H":
-            gates.append(Hadamard(index, p, inverse=False))
-        elif name == "Hinv":
-            gates.append(Hadamard(index, p, inverse=True))
-        else:
-            raise ValueError(f"Unknown local op {name}")
-    return gates
-
-# --------------------------------------------------------------------
 # 2) Preconditioning: ensure A is invertible (returns Circuit and F_new)
 # --------------------------------------------------------------------
 
@@ -255,147 +232,128 @@ def _is_invertible_mod(A: np.ndarray, p: int) -> bool:
 # 3) Symmetric upper & lower block synthesis using gate classes
 # --------------------------------------------------------------------
 
-def synth_upper_from_symmetric_gates(n: int, S: np.ndarray, p: int) -> List:
-    """
-    Build gates for [[I, S],[0, I]] with S symmetric (n x n).
-    Use PHASE for diagonals, CZ for off-diagonals; repeat to implement coeffs.
-    """
-    S = mod_p(S, p)
-    gates: List = []
-    # diagonals
-    for i in range(n):
-        coeff = int(S[i, i] % p)
-        for _ in range(coeff):
-            gates.append(PHASE(i, p))
-    # off-diagonals
-    for i in range(n):
-        for j in range(i + 1, n):
-            coeff = int(S[i, j] % p)
-            for _ in range(coeff):
-                gates.append(CZ(i, j, p))
-    return gates
 
-def synth_lower_from_symmetric_gates(n: int, Csym: np.ndarray, p: int) -> List:
-    """
-    Build gates for [[I,0],[Csym, I]] using H • Upper(-Csym) • H^{-1}.
-    """
-    Csym = mod_p(Csym, p)
-    ops: List = []
-    # H on all
+def _target_upper_pair(n: int, i: int, j: int, s: int, p: int) -> np.ndarray:
+    I = np.eye(n, dtype=int); Z = np.zeros((n,n), dtype=int)
+    S = np.zeros((n,n), dtype=int)
+    s %= p
+    S[i,j] = (S[i,j] + s) % p
+    S[j,i] = (S[j,i] + s) % p
+    return np.block([[I, S],[Z, I]]) % p
+
+_cp_cache = {}
+def _cp_macro(n, p, i, j, s):
+    """Return a short word for [[I, s(E_ij+E_ji)],[0,I]] using H and SUM."""
+    key = (n, p, i, j)
+    if key not in _cp_cache:
+        # two plausible sandwiches
+        cand1 = [Hadamard(j, p), SUM(i, j, p), Hadamard(j, p, inverse=True)]
+        cand2 = [Hadamard(i, p), SUM(i, j, p), Hadamard(i, p, inverse=True)]
+        F1 = _compose_symp_full(n, p, cand1); sgn1 = int(F1[:n, n:][i, j] % p)
+        F2 = _compose_symp_full(n, p, cand2); sgn2 = int(F2[:n, n:][i, j] % p)
+        if sgn1 != 0: _cp_cache[key] = ("j", sgn1)
+        elif sgn2 != 0: _cp_cache[key] = ("i", sgn2)
+        else: raise RuntimeError("Could not calibrate CP from H/SUM for this convention.")
+    which, sgn = _cp_cache[key]
+    t = (s * pow(sgn, -1, p)) % p  # how many SUMs to get s
+    if t == 0: return []
+    if which == "j":
+        return [Hadamard(j, p)] + [SUM(i, j, p)] * t + [Hadamard(j, p, inverse=True)]
+    else:
+        return [Hadamard(i, p)] + [SUM(i, j, p)] * t + [Hadamard(i, p, inverse=True)]
+
+
+def synth_upper_from_symmetric_gates(n: int, S: np.ndarray, p: int) -> list[Gate]:
+    S = (np.asarray(S, dtype=int) % p)
+    ops: list[Gate] = []
+    # diagonals: local PHASE
     for i in range(n):
-        ops.append(Hadamard(i, p, inverse=False))
-    # Upper with -Csym
-    ops += synth_upper_from_symmetric_gates(n, (-Csym) % p, p)
-    # H^{-1} on all
+        for _ in range(int(S[i, i] % p)):
+            ops.append(PHASE(i, p))
+    # off-diagonals: calibrated CP macro
     for i in range(n):
-        ops.append(Hadamard(i, p, inverse=True))
+        for j in range(i+1, n):
+            s = int(S[i, j] % p)
+            if s: ops += _cp_macro(n, p, i, j, s)
     return ops
+
+def synth_lower_from_symmetric_gates(n: int, Csym: np.ndarray, p: int) -> list[Gate]:
+    Csym = (np.asarray(Csym, dtype=int) % p)
+    ops: list[Gate] = [Hadamard(i, p) for i in range(n)]
+    ops += synth_upper_from_symmetric_gates(n, (-Csym) % p, p)
+    ops += [Hadamard(i, p, inverse=True) for i in range(n)]
+    return ops
+
 
 # --------------------------------------------------------------------
 # 4) Linear block synthesis: diag(A, (A^T)^(-1)) with SUM/SWAP + local D(u)
 # --------------------------------------------------------------------
 
-def _sl2_gens_mats(p: int):
-    """Return generator matrices in SL(2,p) consistent with your Gate classes."""
-    S_plus  = np.array([[1, 1], [0, 1]], dtype=int) % p    # PHASE (+1)
-    S_minus = np.array([[1, -1 % p], [0, 1]], dtype=int)   # PHASE inverse
-    H       = np.array([[0, -1 % p], [1, 0]], dtype=int)   # Hadamard (your non-inverse)
-    Hinv    = np.array([[0, 1], [-1 % p, 0]], dtype=int)   # Hadamard inverse
-    return [
-        ("S+1",  S_plus),
-        ("S-1",  S_minus),
-        ("H",    H),
-        ("Hinv", Hinv),
-    ]
-
-def _local_D_matrix(u: int, p: int) -> np.ndarray:
-    """D(u) = diag(u, u^{-1}) in SL(2,p)."""
-    u = int(u % p)
-    if u == 0:
-        raise ValueError("u must be non-zero modulo p")
-    inv = pow(u, -1, p)
-    return np.array([[u, 0], [0, inv]], dtype=int) % p
-
-def _synthesize_D_as_gates(index: int, u: int, p: int) -> list:
-    """
-    Synthesize D(u) on qudit `index` as a list of Gate objects (PHASE/Hadamard),
-    using RIGHT-multiplication word in SL(2,p). For p=2, u==1 always, so returns [].
-    """
+def _emit_local_ops_for_D(index: int, u: int, p: int) -> list[Gate]:
     u %= p
     if u == 1 % p:
         return []
+    target = np.array([[u, 0], [0, pow(int(u), -1, p)]], dtype=int) % p
 
-    target = _local_D_matrix(u, p)
-    gens = _sl2_gens_mats(p)
+    # candidate: S(u) ; H ; S(-u^{-1}) ; H ; S(u)
+    inv_u = pow(int(u), -1, p)
+    cand: list[Gate] = []
+    cand += [PHASE(index, p) for _ in range(int(u % p))]
+    cand += [Hadamard(index, p)]
+    cand += [PHASE(index, p) for _ in range(int((-inv_u) % p))]
+    cand += [Hadamard(index, p)]
+    cand += [PHASE(index, p) for _ in range(int(u % p))]
 
-    # BFS over SL(2,p), ACCUMULATING ON THE RIGHT: M_next = M @ G
+    # verify on a remapped 1-qudit circuit
+    if np.array_equal(_compose_1q_on_wire(index, p, cand), target):
+        return cand
+
+    # fallback BFS: also use the remapped composer inside it
     from collections import deque
-    I = np.eye(2, dtype=int) % p
-    start_key = tuple(I.flatten())
-    tgt_key = tuple(target.flatten())
-
-    if start_key == tgt_key:
-        return []
-
-    Q = deque([(I, [])])
-    seen = {start_key}
+    I2 = np.eye(2, dtype=int) % p
+    gens = [[PHASE(index, p)], [Hadamard(index, p)], [Hadamard(index, p, inverse=True)]]
+    Q = deque([([], I2)])
+    seen = {tuple(I2.flatten())}
+    max_depth = 6
 
     while Q:
-        M, word = Q.popleft()
-        for name, G in gens:
-            M2 = (M @ G) % p  # RIGHT-multiplication
-            key = tuple(M2.flatten())
-            if key in seen:
+        word, M = Q.popleft()
+        if len(word) >= max_depth:
+            continue
+        for g in gens:
+            new_word = word + g
+            M2 = _compose_1q_on_wire(index, p, new_word)
+            k = tuple(M2.flatten())
+            if k in seen:
                 continue
-            word2 = word + [name]
-            if key == tgt_key:
-                # Map word -> gate objects in the SAME order (right-multiplication in time order)
-                return _map_sl2_word_to_gates(index, word2, p)
-            seen.add(key)
-            Q.append((M2, word2))
+            if np.array_equal(M2, target):
+                return new_word
+            seen.add(k)
+            Q.append((new_word, M2))
 
-    # Should never happen for small p
-    raise RuntimeError(f"Could not synthesize D({u}) in SL(2,{p}).")
-
-def _map_sl2_word_to_gates(index: int, word: list[str], p: int) -> list:
-    """
-    Map a right-multiplication SL(2,p) word ['S+1','H',...] to your Gate objects, same order.
-    - 'S+1'  -> PHASE(index, p)
-    - 'S-1'  -> PHASE(index, p) repeated (p-1) times
-    - 'H'    -> Hadamard(index, p, inverse=False)
-    - 'Hinv' -> Hadamard(index, p, inverse=True)
-    """
-    gates = []
-    for name in word:
-        if name == "S+1":
-            gates.append(PHASE(index, p))
-        elif name == "S-1":
-            for _ in range((p - 1) % p):
-                gates.append(PHASE(index, p))
-        elif name == "H":
-            gates.append(Hadamard(index, p, inverse=False))
-        elif name == "Hinv":
-            gates.append(Hadamard(index, p, inverse=True))
-        else:
-            raise ValueError(f"Unknown SL(2,p) generator name: {name}")
-    return gates
+    raise RuntimeError(f"Could not synthesize D({u}) in SL(2,{p}) with current gates.")
 
 
-def _as_scalar_dim(dim) -> int:
-    if isinstance(dim, (int, np.integer)):
-        return int(dim)
-    return int(np.asarray(dim).reshape(-1)[0])
+# put near other helpers
+_sum_dir_cache = {}
+def _sum_is_col_add(n, p, src, dst) -> bool:
+    """Return True iff SUM(src,dst) realizes col[dst] += col[src] in A (right-mult)."""
+    F1 = _compose_symp_full(n, p, [SUM(src, dst, p)])
+    A1 = F1[:n, :n]
+    E  = np.eye(n, dtype=int); E[dst, src] = (E[dst, src] + 1) % p  # col-add on the right
+    return np.array_equal(A1, (np.eye(n, dtype=int) @ E) % p)
+
+def _col_add_ops(n, p, src, dst, reps):
+    key = (n, p, src, dst)
+    if key not in _sum_dir_cache:
+        _sum_dir_cache[key] = _sum_is_col_add(n, p, src, dst)
+    if _sum_dir_cache[key]:
+        return [SUM(dst, src, p) for _ in range(reps)]
+    else:
+        # SUM class wired oppositely; fall back to flipped wiring
+        return [SUM(src, dst, p) for _ in range(reps)]
 
 
-def _emit_local_ops_for_D(index: int, u: int, p: int) -> list:
-    # Realize D(u)=diag(u,u^{-1}) on qudit `index` using PHASE/Hadamard (short BFS or precomputed words).
-    # For p=2, u=1 only, so it’s a no-op. For odd p, keep the BFS version you already have.
-    # Here’s the minimal stub that does nothing for u==1:
-    u %= p
-    if u == 1 % p:
-        return []
-    # If you already implemented the BFS helper, call it here:
-    return _synthesize_D_as_gates(index, u, p)  # <-- use your existing SL(2,p) local synthesizer
 
 def synth_linear_A_to_gates(n: int, A: np.ndarray, p: int) -> list:
     """
@@ -453,55 +411,9 @@ def synth_linear_A_to_gates(n: int, A: np.ndarray, p: int) -> list:
                 At[i, :] = (At[i, :] - factor * At[c, :]) % p
                 # Emit column-add on A (right): SUM(c -> i) reps times
                 for _ in range(reps):
-                    ops.append(SUM(i, c, p))
+                    ops += _col_add_ops(n, p, c, i, reps)   # col[i] += reps * col[c]
 
-    # No inversion of ops: emitted ops already satisfy  I * (∏ ops) has A in the X-block.
     return ops
-
-
-def _invert_gate_list(ops: list, p: int) -> list:
-    """
-    Invert a list of Gate objects under left-multiplication.
-    - SWAP, CZ are self-inverse.
-    - SUM^{-1} = SUM^{p-1} (repeat SUM p-1 times).
-    - PHASE^{-1} = PHASE^{p-1} (repeat PHASE p-1 times).
-    - Hadamard inverse toggles the 'inverse' flag.
-    Fallback: use gate.inv() (returns a generic Gate; fine for composing symplectics).
-    """
-    inv_ops: list = []
-
-    for g in reversed(ops):
-        # Normalize a scalar dimension for constructors
-        d = _as_scalar_dim(getattr(g, "dimensions", p))
-
-        if isinstance(g, SWAP) or isinstance(g, CZ):
-            inv_ops.append(g)  # self-inverse
-
-        elif isinstance(g, SUM):
-            i, j = g.qudit_indices
-            # inverse is coefficient -1 -> repeat SUM (p-1) times
-            for _ in range((p - 1) % p):
-                inv_ops.append(SUM(i, j, d))
-
-        elif isinstance(g, PHASE):
-            i = g.qudit_indices[0]
-            for _ in range((p - 1) % p):
-                inv_ops.append(PHASE(i, d))
-
-        elif isinstance(g, Hadamard):
-            i = g.qudit_indices[0]
-            # Your Hadamard class encodes inverse in the constructor flag and name:
-            # name == "H"  -> inverse=False
-            # name == "H_inv" -> inverse=True
-            is_inv = getattr(g, "name", "H") != "H"
-            inv_ops.append(Hadamard(i, d, inverse=not is_inv))
-
-        else:
-            # Safe fallback if a new gate type appears; keeps symplectic correct.
-            inv_ops.append(g.inv())
-
-    return inv_ops
-
 
 # --------------------------------------------------------------------
 # 5) Compose a Circuit to a full-system symplectic (for verification)
@@ -551,7 +463,6 @@ def decompose_symplectic_to_circuit(F: np.ndarray, p: int) -> Circuit:
     ops_M = synth_linear_A_to_gates(n, A, p)                # diag(A, (A^T)^(-1))
     ops_L = synth_lower_from_symmetric_gates(n, Cp, p)      # [[I,0],[C',I]]
 
-
     # --- Verify R ---
     print("[dbg] checking R synthesis...")
     FR = symp_of_gates(n, p, ops_R)
@@ -572,16 +483,23 @@ def decompose_symplectic_to_circuit(F: np.ndarray, p: int) -> Circuit:
 
     # 4) Assemble as: C_pre^{-1}, R, M, L
     C = Circuit([p]*n, [])
-    C.add_gate(ops_L)              # last in math order
+    C.add_gate(ops_R)              # last in math order
     C.add_gate(ops_M)
-    C.add_gate(ops_R)
+    C.add_gate(ops_L)
     C.add_gate(C_pre.inv().gates)  # first in math order
-    print("[dbg] verifying final right-product order: C_pre^{-1} · R · M · L")
+    print("[dbg] verifying final right-product order: C_pre^{-1} · L · M · R")
 
     F_pre_inv = symp_of_gates(n, p, C_pre.inv().gates)
-    first_diff(F_pre_inv, np.linalg.inv(C_pre.full_symplectic()) % p, p)  # sanity (mod p inverse)
+    def symp_inv(F, p):
+        n = F.shape[0] // 2
+        J = np.block([[np.zeros((n,n), int), np.eye(n, dtype=int)],
+                    [(-np.eye(n,  dtype=int)) % p, np.zeros((n,n), int)]]) % p
+        return (-J @ F.T @ J) % p
 
-    FRML = mod_p(F_pre_inv @ FR @ FM @ FL, p)
+    first_diff(F_pre_inv, symp_inv(C_pre.full_symplectic(), p), p)
+
+
+    FRML = mod_p(F_pre_inv @ FL @ FM @ FR, p)
     print("[dbg] comparing FRML to target F...")
     first_diff(FRML, F, p)
 
@@ -590,7 +508,7 @@ def decompose_symplectic_to_circuit(F: np.ndarray, p: int) -> Circuit:
     FR = symp_of_gates(n, p, ops_R)
     FM = symp_of_gates(n, p, ops_M)
     FL = symp_of_gates(n, p, ops_L)
-    FRML = (F_pre_inv @ FR @ FM @ FL) % p
+    FRML = (F_pre_inv @ FL @ FM @ FR) % p
 
     # Compare to what the *single* Circuit C reports:
     F_rec = C.composite_gate().symplectic % p
@@ -605,14 +523,15 @@ def decompose_symplectic_to_circuit(F: np.ndarray, p: int) -> Circuit:
     def summarize(label, gates):
         print(f"{label} (len={len(gates)}):")
         for k, g in enumerate(gates):
-            print(f"  {k:3d}: {g.name:6s} idx={list(g.qudit_indices)} dim={int(np.asarray(g.dimensions).reshape(-1)[0])}")
+            print(
+                f"  {k:3d}: {g.name:6s} idx={list(g.qudit_indices)} dim={int(np.asarray(g.dimensions).reshape(-1)[0])}")
 
     print()
     summarize("C_pre_inv", C_pre.inv().gates)
     summarize("ops_R",     ops_R)
     summarize("ops_M",     ops_M)
     summarize("ops_L",     ops_L)
-    summarize("C.gates",   C.gates)        
+    summarize("C.gates",   C.gates)
 
     A_rec, B_rec, C_rec, D_rec = blocks(F_rec, p)
     A_tgt, B_tgt, C_tgt, D_tgt = blocks(F, p)
@@ -660,7 +579,6 @@ def decompose_symplectic_to_circuit(F: np.ndarray, p: int) -> Circuit:
 
         raise AssertionError(f"Internal check failed: reconstructed F != input F.\nF_rec:\n{F_rec}\nF:\n{F % p}")
 
-
     return C
 
 
@@ -705,7 +623,6 @@ def random_symplectic(n: int, p: int, rng=None, steps: int = 5) -> np.ndarray:
     O = np.zeros((n, n), dtype=np.int64)
     F = mm_p(np.block([[P, O], [O, P]]), F, p)
     # local X↔Z swaps (Hadamard-like): [[0,1],[-1,0]] at sites
-    H = np.array([[0, 1], [-1 % p, 0]], dtype=np.int64)
     D = np.eye(2*n, dtype=np.int64)
     for q in range(n):
         if rng.integers(0, 2):
@@ -730,76 +647,10 @@ def random_symplectic(n: int, p: int, rng=None, steps: int = 5) -> np.ndarray:
 
 if __name__ == "__main__":
     rng = np.random.default_rng(2025)
-    # for p in (2, 3, 5, 7):
-    #     for n in range(1, 5):
-    #         for _ in range(20):
-    #             A = random_invertible(n, rng, p)
-    #             B = random_symmetric(n, rng, p)
-    #             C = random_symmetric(n, rng, p)
-    #             F = build_F_from_LMR(n, A, B, C, p)
 
-    #             gates_tuple = decompose_symplectic_gfp(F, p)
-    #             recon = compose_symplectic_from_gates(n, gates_tuple, p)
-    #             assert np.array_equal(recon, F), "Symplectic reconstruction failed."
-
-    #             try:
-    #                 circuit = decompose_symplectic_to_circuit(F, p)
-    #             except Exception:
-    #                 circuit = None
-
-    #             if circuit is not None:
-    #                 allowed = {"H", "S", "SUM", "SWAP", "CZ"}
-    #                 circuit_names = [gate.name for gate in circuit.gates]
-    #                 assert all(name in allowed for name in circuit_names), f"Unexpected gate type in {circuit_names}."
-
-    #             # Exercise preprocessing when A is singular
-    #             for idx in range(n):
-    #                 F_singular = mm_p(gate_H(n, idx, p), F, p)
-    #                 if is_invertible_mod(F_singular[:n, :n], p):
-    #                     continue
-    #                 gates_tuple_sing = decompose_symplectic_gfp(F_singular, p)
-    #                 recon_sing = compose_symplectic_from_gates(n, gates_tuple_sing, p)
-    #                 assert np.array_equal(recon_sing, F_singular), "Preprocessing reconstruction failed."
-    #                 break
-
-    # # Additional tests targeting initially singular A blocks
-    # for p in (2, 3, 5, 7):
-    #     for n in range(2, 5):
-    #         candidates = [("H", i) for i in range(n)]
-    #         candidates.extend(("SWAP", i, j) for i in range(n) for j in range(i + 1, n))
-    #         for _ in range(30):
-    #             A = random_invertible(n, rng, p)
-    #             B = random_symmetric(n, rng, p)
-    #             C = random_symmetric(n, rng, p)
-    #             F = build_F_from_LMR(n, A, B, C, p)
-
-    #             F_singular = F.copy()
-    #             made_singular = False
-    #             for _ in range(3 * n):
-    #                 gate = candidates[rng.integers(len(candidates))]
-    #                 F_singular = _apply_gate_tuple(F_singular, gate, p)
-    #                 if not is_invertible_mod(F_singular[:n, :n], p):
-    #                     made_singular = True
-    #                     break
-    #             if not made_singular:
-    #                 continue
-
-    #             gates_tuple = decompose_symplectic_gfp(F_singular, p)
-    #             recon = compose_symplectic_from_gates(n, gates_tuple, p)
-    #             assert np.array_equal(recon, F_singular), "Singular-A preprocessing failed."
-
-    # # Additional tests targeting initially singular A blocks
-    # print('Done first two')
-
-    # print(gate_CZ(2, 0, 1, 1, 2))
-    # for p in (2, 3, 5, 7):
-    #     for n in range(3, 6):
-
-    #         for _ in range(10):
-
-    p = 3
+    p = 2
     n = 3
-    F = random_symplectic(n, p, rng=rng)
+    F = random_symplectic(n, p)  #, rng=rng
 
     circuit = decompose_symplectic_to_circuit(F, p)
     print(f'tuple: len({len(circuit)})')

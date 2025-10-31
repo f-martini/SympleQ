@@ -20,7 +20,6 @@ class Circuit:
         gate = 'CNOT'
         indexes = (1, 3)
 
-
         Parameters:
             dimensions (list[int] | np.ndarray): A list or array of integers representing the dimensions of the qudits.
             gates (list): A list of Gate objects representing the gates in the circuit.
@@ -256,3 +255,10 @@ class Circuit:
         for g in self.gates:
             m = g.unitary(dims=self.dimensions) @ m
         return m
+
+    def inv(self):
+        C_inv = Circuit(self.dimensions, [g.inv() for g in self.gates])
+        return C_inv
+    
+    def full_symplectic(self):
+        return self.composite_gate().full_symplectic(self.n_qudits())
