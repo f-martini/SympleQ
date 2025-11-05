@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Union, overload, TYPE_CHECKING
+from typing import overload, TYPE_CHECKING, Union
 import numpy as np
 import scipy.sparse as sp
 
@@ -7,16 +7,16 @@ from .pauli_object import PauliObject
 from .pauli_string import PauliString
 from .pauli import Pauli
 
+ScalarType = Union[float, complex, int]
+
 if TYPE_CHECKING:
-    PauliType = Union[Pauli, PauliString, 'PauliSum']
-    ScalarType = Union[float, complex, int]
-    PauliOrScalarType = Union[PauliType, ScalarType]
+    PauliOrScalarType = Union[PauliObject, ScalarType]
 
 
 class PauliSum(PauliObject):
     @classmethod
     def from_tableau(cls, tableau: np.ndarray, dimensions: int | list[int] | np.ndarray | None = None,
-                     weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
+                     weights: ScalarType | list[ScalarType] | np.ndarray | None = None,
                      phases: int | list[int] | np.ndarray | None = None
                      ) -> PauliSum:
         """
@@ -159,7 +159,7 @@ class PauliSum(PauliObject):
             np.random.seed(seed)
         weights = 2 * (np.random.rand(n_paulis) - 0.5) if rand_weights else np.ones(n_paulis)
         string_seeds = np.random.randint(1000000, size=1000)
-        # ensure no duplicate strings
+        # Ensure no duplicate strings
         strings = []
         for i in range(n_paulis):
             ps = PauliString.from_random(dimensions, seed=string_seeds[i])
@@ -213,33 +213,6 @@ class PauliSum(PauliObject):
                 f"New phases ({len(new_weights)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
 
         self._weights = new_weights
-
-    def phase_to_weight(self):
-        """
-        Include the phases into the weights of the PauliSum.
-        This method modifies the weights of the PauliSum by multiplying them with the phases,
-        and reset the phases to all zeros.
-        """
-        new_weights = np.zeros(self.n_paulis(), dtype=np.complex128)
-        for i in range(self.n_paulis()):
-            phase = self.phases()[i]
-            omega = np.exp(2 * np.pi * 1j * phase / (2 * self.lcm()))
-            new_weights[i] = self.weights()[i] * omega
-        self._phases = np.zeros(self.n_paulis(), dtype=int)
-        self._weights = new_weights
-
-    def to_standard_form(self) -> PauliSum:
-        """
-        Get the PauliSum in standard form.
-
-        Returns
-        -------
-        PauliSum
-            The PauliSum in standard form.
-        """
-        ps_out = self.copy()
-        ps_out.standardise()
-        return ps_out
 
     @overload
     def __getitem__(self,
@@ -371,14 +344,13 @@ class PauliSum(PauliObject):
             # TODO: if the previous line works, just remove this commented line and the function overrides
             # self._setitem_tuple(key, value)
 
-    def __add__(self,
-                A: PauliType) -> PauliSum:
+    def __add__(self, A: PauliObject) -> PauliSum:
         """
         Implements the addition of PauliSum objects.
 
         Parameters
         ----------
-        A : PauliType
+        A : PauliObject
             The Pauli operator to add.
 
         Returns
@@ -420,14 +392,13 @@ class PauliSum(PauliObject):
         new_phases = np.concatenate([self.phases(), A_sum.phases()])
         return PauliSum(new_tableau, self.dimensions(), new_weights, new_phases)
 
-    def __radd__(self,
-                 A: PauliType) -> 'PauliSum':
+    def __radd__(self, A: PauliObject) -> 'PauliSum':
         """
         Implements the addition of PauliSum objects.
 
         Parameters
         ----------
-        A : PauliType
+        A : PauliObject
             The Pauli operator to add.
 
         Returns
@@ -463,7 +434,7 @@ class PauliSum(PauliObject):
 
         Parameters
         ----------
-        A : PauliType
+        A : PauliObject
             The Pauli operator to subtract.
 
         Returns
@@ -493,14 +464,13 @@ class PauliSum(PauliObject):
         new_phases = np.concatenate([self.phases(), A.phases()])
         return PauliSum(new_tableau, self.dimensions(), new_weights, new_phases)
 
-    def __rsub__(self,
-                 A: PauliType) -> 'PauliSum':
+    def __rsub__(self, A: PauliObject) -> 'PauliSum':
         """
         Implements the subtraction of PauliSum objects.
 
         Parameters
         ----------
-        A : PauliType
+        A : PauliObject
             The Pauli operator to subtract.
 
         Returns
@@ -535,17 +505,141 @@ class PauliSum(PauliObject):
             raise Exception(f"Cannot add Pauli with type {type(A)}")
         return ps1 - ps2
 
-    def __matmul__(self,
-                   A: PauliType) -> PauliSum:
+    def __mul__(self, A: PauliOrScalarType) -> PauliSum:
         """
-        Implements the tensor product between a PauliSum and a PauliType objects.
+        Multiply a Pauli object and a PauliObject (or scalar) objects element-wise.
+        It corresponds to operator multiplication (`*`).
+        It adds the tableaus of the two PauliSums modulo their dimensions.
+
+        Parameters
+        ----------
+        A : PauliObject Pauli | PauliString | Pauli object | float | int
+            The PauliObject or scalar instance to be multiplied with `self`.
+
+        Returns
+        -------
+        Pauli object
+            A new Pauli object instance representing the product of `self` and `A`.
+
+        Raises
+        ------
+        ValueError
+            If `A` is not an instance of a Pauli, Pauli object, PauliString, or scalar.
+
+        Examples
+        --------
+        >>> ps1 = Pauli object.from_pauli_strings("x1z0 x0z1", [3, 2])
+        >>> ps2 = Pauli object.from_pauli_strings("x2z1 x0z0", [3, 2])
+        >>> ps3 = ps1 * ps2
+        Pauli object(...)
+        """
+
+        if isinstance(A, ScalarType):
+            return PauliSum(self.tableau(), self.dimensions(), self.weights() * A, self.phases())
+
+        if isinstance(A, PauliString):
+            return self * PauliSum.from_pauli_strings(A)
+
+        if not isinstance(A, PauliSum):
+            raise ValueError("Multiplication only supported with Pauli, PauliSum, PauliString, or scalar")
+
+        # TODO: check if this check is necessary
+        if not np.array_equal(self.dimensions(), A.dimensions()):
+            raise ValueError(f"The dimensions of the PauliSums do not match ({self.dimensions()}, {A.dimensions()}).")
+
+        w1 = self.weights()[:, None]
+        w2 = A.weights()[None, :]
+        new_weights = (w1 * w2).reshape(-1)
+
+        p1 = self.phases()[:, None]
+        p2 = A.phases()[None, :]
+
+        # Extract z- and x-parts from tableau
+        n1, n2 = self.n_qudits(), A.n_qudits()
+        a_z = self.tableau()[:, n1:]
+        b_x = A.tableau()[:, :n2]
+
+        # Compute acquired phases via symplectic form
+        factors = (self.lcm() // self.dimensions())
+        acquired_phases = 2 * factors * a_z  @ b_x.T
+
+        # Combine with existing phases and flatten
+        new_phases = (p1 + p2 + acquired_phases) % (2 * self.lcm())
+        new_phases = new_phases.reshape(-1)
+
+        # Multiplication between PauliString corresponds to summing the tableaus
+        new_tableau = np.asarray([ps1 + ps2 for ps1 in self.tableau() for ps2 in A.tableau()], dtype=int)
+
+        return PauliSum(new_tableau, self.dimensions(), new_weights, new_phases)
+
+    def __rmul__(self, A: PauliOrScalarType) -> 'PauliSum':
+        """
+        Multiply a PauliSum and a PauliObject (or scalar) objects element-wise.
+        It corresponds to operator multiplication (`*`).
+        It adds the tableaus of the two PauliSums modulo their dimensions.
+
+        Parameters
+        ----------
+        A : PauliObject Pauli | PauliString | PauliSum | float | int
+            The PauliObject or scalar instance to be multiplied with `self`.
+
+        Returns
+        -------
+        PauliSum
+            A new PauliSum instance representing the product of `self` and `A`.
+
+        Raises
+        ------
+        ValueError
+            If `A` is not an instance of PauliString or a scalar.
+
+        Examples
+        --------
+        >>> ps1 = Pauli object.from_pauli_strings("x1z0 x0z1", [3, 2])
+        >>> ps2 = Pauli object.from_pauli_strings("x2z1 x0z0", [3, 2])
+        >>> ps3 = ps1 * ps2
+        Pauli object(...)
+        """
+        if isinstance(A, (PauliObject, float, int, complex)):
+            return self * A
+
+        raise ValueError(f"Cannot multiply PauliString with type {type(A)}")
+
+    def __truediv__(self, A: ScalarType) -> PauliSum:
+        """
+        Divide a Pauli object by a scalar. It corresponds to operator division (`/`).
+
+        Parameters
+        ----------
+        A : float | int
+            The scalar instance to be divided with `self`.
+
+        Returns
+        -------
+        Pauli object
+            A new Pauli object instance representing the quotient of `self` and `A`.
+
+        Raises
+        ------
+        ValueError
+            If `A` is not a scalar.
+        """
+        if not isinstance(A, ScalarType):
+            raise ValueError("Division only supported with scalar")
+
+        return self * (1 / A)
+
+    def __matmul__(self,
+                   A: PauliObject) -> PauliSum:
+        """
+        Implements the tensor product between a PauliSum and a PauliObject objects.
         It corresponds to operator tensor product (`@`).
         The resulting PauliSum has the exponents of both strings concatenated.
 
         Parameters
         ----------
-        A : PauliType Pauli | PauliString | PauliSum
-            The PauliType instance to be tensored with `self`.
+        A : PauliObject Pauli | PauliString | PauliSum
+            The PauliObject instance to be tensored with `self`.
 
         Returns
         -------
@@ -601,212 +695,6 @@ class PauliSum(PauliObject):
 
         return PauliSum(new_tableau, new_dimensions, new_weights, new_phases)
 
-    def __mul__(self,
-                A: PauliOrScalarType) -> PauliSum:
-        """
-        Multiply a PauliSum and a PauliType (or scalar) objects element-wise.
-        It corresponds to operator multiplication (`*`).
-        It adds the tableaus of the two PauliSums modulo their dimensions.
-
-        Parameters
-        ----------
-        A : PauliType Pauli | PauliString | PauliSum | float | int
-            The PauliType or scalar instance to be multiplied with `self`.
-
-        Returns
-        -------
-        PauliSum
-            A new PauliSum instance representing the product of `self` and `A`.
-
-        Raises
-        ------
-        ValueError
-            If `A` is not an instance of a Pauli, PauliSum, PauliString, or scalar.
-
-        Examples
-        --------
-        >>> ps1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
-        >>> ps2 = PauliSum.from_pauli_strings("x2z1 x0z0", [3, 2])
-        >>> ps3 = ps1 * ps2
-        PauliSum(...)
-        """
-        if isinstance(A, (int, float)):
-            return PauliSum(self.tableau(), self.dimensions(), self.weights() * A, self.phases())
-
-        if isinstance(A, PauliString):
-            return self * PauliSum.from_pauli_strings(A)
-
-        if not isinstance(A, PauliSum):
-            raise ValueError("Multiplication only supported with Pauli, PauliSum, PauliString, or scalar")
-
-        # TODO: check if this check is necessary
-        if not np.array_equal(self.dimensions(), A.dimensions()):
-            raise ValueError(f"The dimensions of the PauliSums do not match ({self.dimensions()}, {A.dimensions()}).")
-
-        w1 = self.weights()[:, None]
-        w2 = A.weights()[None, :]
-        new_weights = (w1 * w2).reshape(-1)
-
-        p1 = self.phases()[:, None]
-        p2 = A.phases()[None, :]
-
-        # Extract z- and x-parts from tableau
-        n1, n2 = self.n_qudits(), A.n_qudits()
-        a_z = self.tableau()[:, n1:]
-        b_x = A.tableau()[:, :n2]
-
-        # Compute acquired phases via symplectic form
-        factors = (self.lcm() // self.dimensions())
-        acquired_phases = 2 * factors * a_z  @ b_x.T
-
-        # Combine with existing phases and flatten
-        new_phases = (p1 + p2 + acquired_phases) % (2 * self.lcm())
-        new_phases = new_phases.reshape(-1)
-
-        # Multiplication between PauliString corresponds to summing the tableaus
-        new_tableau = np.asarray([ps1 + ps2 for ps1 in self.tableau() for ps2 in A.tableau()], dtype=int)
-
-        return PauliSum(new_tableau, self.dimensions(), new_weights, new_phases)
-
-    def __rmul__(self,
-                 A: PauliOrScalarType) -> 'PauliSum':
-        """
-        Multiply a PauliSum and a PauliType (or scalar) objects element-wise.
-        It corresponds to operator multiplication (`*`).
-        It adds the tableaus of the two PauliSums modulo their dimensions.
-
-        Parameters
-        ----------
-        A : PauliType Pauli | PauliString | PauliSum | float | int
-            The PauliType or scalar instance to be multiplied with `self`.
-
-        Returns
-        -------
-        PauliSum
-            A new PauliSum instance representing the product of `self` and `A`.
-
-        Raises
-        ------
-        ValueError
-            If `A` is not an instance of PauliString or a scalar.
-
-        Examples
-        --------
-        >>> ps1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
-        >>> ps2 = PauliSum.from_pauli_strings("x2z1 x0z0", [3, 2])
-        >>> ps3 = ps1 * ps2
-        PauliSum(...)
-        """
-        if isinstance(A, (Pauli, PauliString, PauliSum, float, int, complex)):
-            return self * A
-        else:
-            raise ValueError(f"Cannot multiply PauliString with type {type(A)}")
-
-    def __truediv__(self,
-                    A: PauliType) -> 'PauliSum':
-        """
-        Divide a PauliSum by a scalar. It corresponds to operator division (`/`).
-
-        Parameters
-        ----------
-        A : float | int
-            The scalar instance to be divided with `self`.
-
-        Returns
-        -------
-        PauliSum
-            A new PauliSum instance representing the quotient of `self` and `A`.
-
-        Raises
-        ------
-        ValueError
-            If `A` is not a scalar.
-        """
-        if not isinstance(A, (int, float)):
-            raise ValueError("Division only supported with scalar")
-        return self * (1 / A)
-
-    def __eq__(self,
-               other_pauli: 'PauliSum') -> bool:
-        """
-        Determine if two PauliSum objects are equal.
-
-        Parameters
-        ----------
-        other_pauli : PauliSum
-            The PauliSum instance to compare against.
-
-        Returns
-        -------
-        bool
-            True if both PauliSum instances have identical PauliStrings, weights, phases, and dimensions;
-            False otherwise.
-        """
-        if not isinstance(other_pauli, PauliSum):
-            return False
-
-        if not np.array_equal(self.tableau(), other_pauli.tableau()):
-            return False
-
-        if not np.array_equal(self.weights(), other_pauli.weights()):
-            return False
-
-        if not np.array_equal(self.phases(), other_pauli.phases()):
-            return False
-
-        if not np.array_equal(self.dimensions(), other_pauli.dimensions()):
-            return False
-
-        return True
-
-    def __ne__(self,
-               other_pauli: 'PauliSum') -> bool:
-        """
-        Determine if two PauliSum objects are different.
-
-        Parameters
-        ----------
-        other_pauli : PauliSum
-            The PauliSum instance to compare against.
-
-        Returns
-        -------
-        bool
-            True if the PauliSum instances do not have identical PauliStrings, weights, phases, and dimensions;
-            False otherwise.
-        """
-        return not self == other_pauli
-
-    def __hash__(self) -> int:
-        """
-        Return the hash value of the PauliSum object. That is a unique identifier.
-
-        Returns
-        -------
-        int
-            The hash value of the PauliSum instance.
-        """
-        return hash(
-            (tuple(self.tableau()),
-             tuple(self.weights()),
-             tuple(self.phases()),
-             tuple(self.dimensions()))
-        )
-
-    def __dict__(self) -> dict:
-        """`
-        Returns a dictionary representation of the object's attributes.
-
-        Returns
-        -------
-        dict
-            A dictionary containing the values of `x_exp`, `z_exp`, `weights`, `phases` and `dimensions`.
-        """
-        return {'tableau': self.tableau(),
-                'dimensions': self.dimensions,
-                'weights': self.weights,
-                'phases': self.phases}
-
     @property
     def x_exp(self) -> np.ndarray:
         """
@@ -822,21 +710,6 @@ class PauliSum(PauliObject):
         Array of Z exponents for each qudit.
         """
         return self._tableau[:, self.n_qudits():]
-
-    def standardise(self):
-        """
-        Standardises the PauliSum object by combining equivalent Paulis and
-        adding phase factors to the weights then resetting the phases.
-        """
-        self.phase_to_weight()
-        T = self.tableau()
-        W = self.weights()
-
-        # FIXME: Lexicographic sort, I'm not sure why this works, but it does.
-        order = np.lexsort(T.T)
-
-        self._tableau = T[order]
-        self._weights = W[order]
 
     def combine_equivalent_paulis(self):
         """
@@ -1033,19 +906,6 @@ class PauliSum(PauliObject):
 
         self._dimensions = self._dimensions[mask]
         self._lcm = int(np.lcm.reduce(self._dimensions))
-
-    def copy(self) -> 'PauliSum':
-        """
-        Creates a copy of the PauliSum.
-
-        Returns
-        -------
-        PauliSum
-            A copy of the PauliSum.
-        PauliSum
-            A copy of the PauliSum.
-        """
-        return PauliSum(self.tableau().copy(), self.dimensions().copy(), self.weights().copy(), self.phases().copy())
 
     def symplectic_product_matrix(self) -> np.ndarray:
         """

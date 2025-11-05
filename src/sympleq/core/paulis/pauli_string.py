@@ -170,8 +170,6 @@ class PauliString(PauliObject):
             np.random.seed(seed)
 
         tableau = np.concatenate([np.random.randint(dimensions, dtype=int), np.random.randint(dimensions, dtype=int)])
-
-        # TODO: do we need to run sanity checks here?
         return cls(tableau, dimensions)
 
     def __repr__(self) -> str:
@@ -316,212 +314,7 @@ class PauliString(PauliObject):
                             f" {self.dimensions()} and {A.dimensions()} must be equal")
 
         tableau = np.mod(self.tableau() + A.tableau(), np.tile(self.dimensions(), 2))
-        return PauliString(tableau, self.dimensions())
-
-    def __pow__(self, A: int) -> PauliString:
-        """
-        Raises the PauliString to the power of an integer exponent.
-
-        Parameters
-        ----------
-        A : int
-            The integer exponent to which the PauliString is to be raised.
-
-        Returns
-        -------
-        PauliString
-            A new PauliString instance representing the result of the exponentiation.
-
-        Examples
-        --------
-        >>> ps = PauliString(x_exp, z_exp, dimensions)
-        >>> ps_squared = ps ** 2
-        """
-
-        tableau = np.mod(self.tableau() * A, np.tile(self.dimensions(), 2))
-        return PauliString(tableau, self.dimensions())
-
-    def __eq__(self, other_pauli: PauliString) -> bool:
-        """
-        Determine if two PauliString objects are equal.
-
-        Parameters
-        ----------
-        other_pauli : PauliString
-            The PauliString instance to compare against.
-
-        Returns
-        -------
-        bool
-            True if both PauliString instances have identical x_exp, z_exp, and dimensions;
-            False otherwise.
-        """
-        if not isinstance(other_pauli, PauliString):
-            return False
-
-        return np.array_equal(self.tableau(), other_pauli.tableau()) and \
-            np.array_equal(self.dimensions(), other_pauli.dimensions())
-
-    def __ne__(self,
-               other_pauli: PauliString
-               ) -> bool:
-        """
-        Check if this PauliString is not equal to another PauliString.
-
-        Parameters
-        ----------
-        other_pauli : PauliString
-            The PauliString instance to compare against.
-
-        Returns
-        -------
-        bool
-            True if the two PauliString instances are not equal, False otherwise.
-        """
-        return not self.__eq__(other_pauli)
-
-    def __gt__(self,
-               other_pauli: PauliString
-               ) -> bool:
-        """
-        Compare this PauliString with another PauliString for the greater-than relationship.
-        This method overrides the `>` operator to compare two PauliString objects by converting
-        them to their integer representations (with bits reversed) and checking if this instance
-        is greater than the other.
-
-        Parameters
-        ----------
-        other_pauli : PauliString
-            The other PauliString instance to compare against.
-
-        Returns
-        -------
-        bool
-            True if this PauliString is greater than `other_pauli`, False otherwise.
-
-        Examples
-        --------
-        >>> ps1 = PauliString.from_string("x1z0 x0z1", [2, 2])
-        >>> ps2 = PauliString.from_string("x0z1 x1z0", [2, 2])
-        >>> ps1 > ps2
-        True
-        """
-
-        # FIXME: can we compare PauliStrings with different n_qudits/dimensions?
-        if self.n_qudits() != other_pauli.n_qudits():
-            raise Exception("Cannot compare PauliStrings with different number of qudits.")
-
-        # Flatten tableaus to 1D-vectors
-        self_tableau = self.tableau().ravel()
-        other_tableau = other_pauli.tableau().ravel()
-
-        for i in range(len(self_tableau)):
-            if self_tableau[i] == other_tableau[i]:
-                continue
-            # FIXME: is this really the intended behaviour?
-            if self_tableau[i] < other_tableau[i]:
-                return True
-            return False
-
-        # they are equal
-        return False
-
-    def __lt__(self,
-               other_pauli: PauliString
-               ) -> bool:
-        """
-        Compare this PauliString with another PauliString for the greater-than relationship.
-        This method overrides the `<` operator to compare two PauliString objects by converting
-        them to their integer representations (with bits reversed) and checking if this instance
-        is smaller than the other.
-
-        Parameters
-        ----------
-        other_pauli : PauliString
-            The other PauliString instance to compare against.
-
-        Returns
-        -------
-        bool
-            True if this PauliString is smaller than `other_pauli`, False otherwise.
-
-        Examples
-        --------
-        >>> ps1 = PauliString.from_string("x1z0 x0z1", [2, 2])
-        >>> ps2 = PauliString.from_string("x0z1 x1z0", [2, 2])
-        >>> ps1 > ps2
-        False
-        """
-        return not self.__gt__(other_pauli) and not self.__eq__(other_pauli)
-
-    def _to_int(self, reverse=False):
-        """
-        Convert the Pauli string exponents to an integer representation.
-
-        Parameters
-        ----------
-        reverse : bool, optional
-            If True, the order of X and Z exponents is swapped and the resulting
-            base and dimensions arrays are reversed before conversion. Default is False.
-
-        Returns
-        -------
-        int
-            The integer representation of the Pauli string.
-
-        Notes
-        -----
-        - The conversion uses the `bases_to_int` function to map the base array. Look there for an example.
-        - IMPORTANT: if too many qudits are provided, the output could be exceedingly large.
-        """
-
-        n = self.n_qudits()
-        if n > 15:
-            raise ValueError(f"Cannot convert PauliString with more than {self.n_qudits()} qudits to int, "
-                             "as it may exceed the maximum integer size. Current max set to 15 qudits.")
-        dims_double = np.tile(self.dimensions(), 2)
-        base = np.empty(2 * self.n_qudits(), dtype=int)
-
-        if not reverse:
-            base[:n] = self.x_exp
-            base[n:] = self.z_exp
-            return bases_to_int(base, dims_double)
-
-        base[:n] = self.z_exp
-        base[n:] = self.x_exp
-        return bases_to_int(base[::-1], dims_double[::-1])
-
-    def __hash__(self) -> int:
-        """
-        Return the hash value of the PauliString object.
-        That is a unique identifier, similar to the characterizing int.
-
-        Returns
-        -------
-        int
-            The hash value of the PauliString instance.
-        """
-        if self.n_qudits() > 15:
-            raise ValueError(f"Cannot convert PauliString with more than {self.n_qudits()} qudits to hash, "
-                             "as it may exceed the maximum integer size. Current max set to 15 qudits.")
-        return hash(
-            (tuple(self.x_exp),
-             tuple(self.z_exp),
-             tuple(self.dimensions()))
-        )
-
-    def __dict__(self) -> dict:
-        """
-        Returns a dictionary representation of the object's attributes.
-
-        Returns
-        -------
-        dict
-            A dictionary containing the values of `x_exp`, `z_exp`, and `dimensions`.
-        """
-        return {'x_exp': self.x_exp,
-                'z_exp': self.z_exp,
-                'dimensions': self.dimensions}
+        return PauliString(tableau, self.dimensions().copy())
 
     @property
     def x_exp(self) -> np.ndarray:
@@ -531,24 +324,6 @@ class PauliString(PauliObject):
         """
         return self._tableau[0][:self.n_qudits()]
 
-    @x_exp.setter
-    def x_exp(self, x_exp: list[int] | np.ndarray | int):
-        """
-        Set the exponents of the X-type Pauli operators for each qudit.
-
-        Parameters
-        ----------
-        x_exp : list[int] | np.ndarray
-            The exponents of the X-type Pauli operators for each qudit.
-        """
-
-        if isinstance(x_exp, list):
-            x_exp = np.array(x_exp)
-        elif isinstance(x_exp, int):
-            x_exp = np.array([x_exp])
-
-        self._tableau[0][:self.n_qudits()] = x_exp
-
     @property
     def z_exp(self) -> np.ndarray:
         """
@@ -556,24 +331,6 @@ class PauliString(PauliObject):
         Array of Z exponents for each qudit.
         """
         return self._tableau[0][self.n_qudits():]
-
-    @z_exp.setter
-    def z_exp(self, z_exp: list[int] | np.ndarray | int):
-        """
-        Set the exponents of the Z-type Pauli operators for each qudit.
-
-        Parameters
-        ----------
-        z_exp : list[int] | np.ndarray
-            The exponents of the Z-type Pauli operators for each qudit.
-        """
-
-        if isinstance(z_exp, list):
-            z_exp = np.array(z_exp)
-        elif isinstance(z_exp, int):
-            z_exp = np.array([z_exp])
-
-        self._tableau[0][:self.n_qudits()] = z_exp
 
     def phases(self) -> np.ndarray:
         """
@@ -893,11 +650,12 @@ class PauliString(PauliObject):
         ValueError
             If the key and value types do not match the expected combinations.
         """
+        # FIXME: merge this with PauliSum __setitem__ into PauliObject
         # TODO: is it necessary to distinguish the two cases in the if... elif... loop?
 
         if isinstance(key, int) and isinstance(value, Pauli):
-            self.x_exp[key] = value.x_exp
-            self.z_exp[key] = value.z_exp
+            self._tableau[key] = value.x_exp
+            self._tableau[key + self.n_qudits()] = value.z_exp
             self._dimensions[key] = value.dimensions()[0]
             self._lcm = np.lcm.reduce(self.dimensions())
 
@@ -915,15 +673,16 @@ class PauliString(PauliObject):
             if len(key) != value.n_qudits():
                 raise ValueError(f"Cannot set item with key {key} and value {value}:\
                                  mismatching dimensions.")
-            self.x_exp[key] = value.x_exp
-            self.z_exp[key] = value.z_exp
+            self._tableau[key] = value.x_exp
+            # FIXME: does this work?
+            self._tableau[key + self.n_qudits()] = value.z_exp
             self._dimensions[key] = value.dimensions()
             self._lcm = np.lcm.reduce(self.dimensions())
 
         else:
             raise ValueError(f"Cannot set item with key {key} and value {value}.")
 
-    def get_subspace(self, qudit_indices: list[int] | int) -> PauliString:
+    def get_subspace(self, qudit_indices: int | list[int] | np.ndarray) -> PauliString:
         """
         Extracts a subspace of the PauliString corresponding to the specified qudit indices.
 
@@ -944,25 +703,9 @@ class PauliString(PauliObject):
         """
 
         dimensions = self.dimensions()[qudit_indices]
-        x_exp = self.x_exp[qudit_indices]
-        z_exp = self.z_exp[qudit_indices]
-
-        tableau = np.empty(2 * len(dimensions), dtype=int)
-        tableau[:len(dimensions)] = x_exp
-        tableau[len(dimensions):] = z_exp
+        tableau = self._tableau[0][qudit_indices]
 
         return PauliString(tableau, dimensions)
-
-    def copy(self) -> PauliString:
-        """
-        Create a deep copy of the current PauliString instance.
-
-        Returns
-        -------
-        PauliString
-            A new instance of PauliString with copied `tableau`, and `dimensions` attributes.
-        """
-        return PauliString(self.tableau().copy(), self.dimensions().copy())
 
     def commute(self, other_pauli: PauliString) -> bool:
         """
@@ -985,19 +728,6 @@ class PauliString(PauliObject):
         """
         return self.symplectic_product(other_pauli) == 0
 
-    def hermitian(self) -> PauliString:
-        """
-        Computes the hermitian conjugate of the Pauli string.
-
-        Returns
-        -------
-        PauliString
-            The hermitian conjugate of the Pauli string.
-        """
-
-        tableau = (-self.tableau()) % np.tile(self.dimensions(), 2)
-        return PauliString(tableau, dimensions=self.dimensions())
-
     def is_identity(self) -> bool:
         """
         Check if the PauliString represents the identity operator.
@@ -1008,3 +738,40 @@ class PauliString(PauliObject):
             True if the PauliString is the identity operator, False otherwise.
         """
         return bool(np.all(self.tableau() == 0))
+
+    def _to_int(self, reverse=False):
+        """
+        Convert the Pauli string exponents to an integer representation.
+
+        Parameters
+        ----------
+        reverse : bool, optional
+            If True, the order of X and Z exponents is swapped and the resulting
+            base and dimensions arrays are reversed before conversion. Default is False.
+
+        Returns
+        -------
+        int
+            The integer representation of the Pauli string.
+
+        Notes
+        -----
+        - The conversion uses the `bases_to_int` function to map the base array. Look there for an example.
+        - IMPORTANT: if too many qudits are provided, the output could be exceedingly large.
+        """
+
+        n = self.n_qudits()
+        if n > 15:
+            raise ValueError(f"Cannot convert PauliString with more than {self.n_qudits()} qudits to int, "
+                             "as it may exceed the maximum integer size. Current max set to 15 qudits.")
+        dims_double = np.tile(self.dimensions(), 2)
+        base = np.empty(2 * self.n_qudits(), dtype=int)
+
+        if not reverse:
+            base[:n] = self.x_exp
+            base[n:] = self.z_exp
+            return bases_to_int(base, dims_double)
+
+        base[:n] = self.z_exp
+        base[n:] = self.x_exp
+        return bases_to_int(base[::-1], dims_double[::-1])

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import numpy as np
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .pauli_sum import PauliSum
@@ -232,17 +232,6 @@ class Pauli(PauliObject):
         """
         return PauliString(self.tableau(), self.dimensions(), self.weights(), self.phases())
 
-    def copy(self) -> Pauli:
-        """
-        Return a copy of this Pauli.
-
-        Returns
-        -------
-        Pauli
-            New Pauli instance with the same tableau and dimensions.
-        """
-        return Pauli(self.tableau(), self.dimensions())
-
     def __mul__(self, A: str | Pauli) -> Pauli:
         """
         Multiply this Pauli by another Pauli or parseable string.
@@ -276,31 +265,6 @@ class Pauli(PauliObject):
 
         return Pauli(new_tableau, dimensions=self.dimensions())
 
-    def __pow__(self, power: int) -> Pauli:
-        """
-        Raise this Pauli to an integer power.
-
-        Parameters
-        ----------
-        power : int
-            Integer exponent.
-
-        Returns
-        -------
-        Pauli
-            Resulting Pauli after exponentiation.
-
-        Raises
-        ------
-        TypeError
-            If power is not an integer.
-        """
-        if not isinstance(power, int):
-            raise TypeError("Power must be an integer.")
-
-        new_tableau = (self.tableau() * power) % self.lcm()
-        return Pauli(new_tableau, dimensions=self.dimensions())
-
     def __str__(self) -> str:
         """
         String representation in the form 'x{X}z{Z}'.
@@ -311,56 +275,6 @@ class Pauli(PauliObject):
             Human-readable short string for the Pauli.
         """
         return f'x{self.x_exp}z{self.z_exp}'
-
-    def __eq__(self, other_pauli: Any) -> bool:
-        """
-        Check equality with another Pauli.
-
-        Parameters
-        ----------
-        other_pauli : Any
-            Object to compare.
-
-        Returns
-        -------
-        bool
-            True if other is a Pauli with identical tableau and dimensions.
-        """
-
-        # FIXME: should we allow comparison between any PauliObject as long as the dimensions match?
-        # We could simply remove this check and it would all flow automatically.
-        if not isinstance(other_pauli, Pauli):
-            return False
-
-        return np.array_equal(self.tableau(), other_pauli.tableau()) and \
-            np.array_equal(self.dimensions(), other_pauli.dimensions())
-
-    def __ne__(self, other_pauli: Any) -> bool:
-        """
-        Negation of equality check.
-
-        Parameters
-        ----------
-        other_pauli : Any
-            Object to compare.
-
-        Returns
-        -------
-        bool
-            True if objects are not equal.
-        """
-        return not self.__eq__(other_pauli)
-
-    def __dict__(self) -> dict:
-        """
-        Dictionary representation.
-
-        Returns
-        -------
-        dict
-            Mapping with keys 'x_exp', 'z_exp', 'dimension'.
-        """
-        return {'x_exp': self.x_exp, 'z_exp': self.z_exp, 'dimension': self.lcm()}
 
     def __gt__(self, other_pauli: Pauli) -> bool:
         """
@@ -378,6 +292,7 @@ class Pauli(PauliObject):
         """
         d = self.lcm()
         # TODO: Ask @charlie why we are including "d-*_exp" in the comparison
+        # FIXME: can we just inherit from PauliObject here?
         x_measure = min(self.x_exp % d, (d - self.x_exp) % d)
         x_measure_new = min(other_pauli.x_exp % d, (d - other_pauli.x_exp) % d)
         z_measure = min(self.z_exp % d, (d - self.z_exp) % d)

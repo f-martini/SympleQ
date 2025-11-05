@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from typing import TypeVar, Self
+from typing import TypeVar, Self, Union
 
 from .constants import DEFAULT_QUDIT_DIMENSION
 
 P = TypeVar("P", bound="PauliObject")
+
+ScalarType = Union[float, complex, int]
+PauliOrScalarType = Union['PauliObject', ScalarType]
 
 
 class PauliObject(ABC):
@@ -30,7 +33,7 @@ class PauliObject(ABC):
             - If list/np.ndarray, must match the number of qudits implied by `tableau`.
             - If None, all dimensions are defaulted to DEFAULT_QUDIT_DIMENSION.
         weights : list | np.ndarray | None, optional
-            Coefficients associated with each PauliString (for PauliSum).
+            Coefficients associated with each PauliString (for Pauli object).
             If None, it defaults to 1.
             For PauliString and Pauli, it is just a 1-D array of length 1.
         phases : list[int] | np.ndarray | None, optional
@@ -44,11 +47,11 @@ class PauliObject(ABC):
             The weights for each PauliString.
         phases: int | list[int] | np.ndarray | None = None
             The phases of the PauliStrings in the range [0, lcm(dimensions) - 1].
-        dimensions : list[int] | np.ndarray | int, optional
+        dimensions: list[int] | np.ndarray | int, optional
             The dimensions of each qudit. If an integer is provided,
             all qudits are assumed to have the same dimension.
             If no value is provided, the default is `DEFAULT_QUDIT_DIMENSION`.
-        lcm : int
+        lcm: int
             Least common multiplier of all qudit dimensions.
         """
 
@@ -238,6 +241,7 @@ class PauliObject(ABC):
 
     H = hermitian_conjugate
 
+    # FIXME: Is this only for Pauli object?
     def is_hermitian(self) -> bool:
         """
         Checks if the PauliObject is Hermitian
@@ -247,11 +251,12 @@ class PauliObject(ABC):
         bool
             True if the PauliObject is Hermitian, False otherwise
         """
-        return self == self.H()
+        # FIXME: this is wonrg. maybe phase_to_weight standard_form would solve it for Pauli object
+        return self.to_standard_form() == self.H().to_standard_form()
 
     def _sanity_check(self):
         """
-        Validates the consistency of the PauliSum's internal representation.
+        Validates the consistency of the Pauli object's internal representation.
 
         Raises
         ------
@@ -289,3 +294,231 @@ class PauliObject(ABC):
                 f"Exponents at indices {bad_indices} are negative:"
                 f"tableau={self.tableau()[bad_indices]}"
             )
+
+    def __eq__(self, other_pauli: Self) -> bool:
+        """
+        Determine if two Pauli object objects are equal.
+
+        Parameters
+        ----------
+        other_pauli : Pauli object
+            The Pauli object instance to compare against.
+
+        Returns
+        -------
+        bool
+            True if both Pauli object instances have identical PauliStrings, weights, phases, and dimensions;
+            False otherwise.
+        """
+        if not isinstance(other_pauli, self.__class__):
+            return False
+
+        if not np.array_equal(self.tableau(), other_pauli.tableau()):
+            return False
+
+        if not np.array_equal(self.weights(), other_pauli.weights()):
+            return False
+
+        if not np.array_equal(self.phases(), other_pauli.phases()):
+            return False
+
+        if not np.array_equal(self.dimensions(), other_pauli.dimensions()):
+            return False
+
+        return True
+
+    def __ne__(self, other_pauli: Self) -> bool:
+        """
+        Determine if two Pauli object objects are different.
+
+        Parameters
+        ----------
+        other_pauli : Pauli object
+            The Pauli object instance to compare against.
+
+        Returns
+        -------
+        bool
+            True if the Pauli object instances do not have identical PauliStrings, weights, phases, and dimensions;
+            False otherwise.
+        """
+        return not self == other_pauli
+
+    def __gt__(self, other_pauli: Self) -> bool:
+        """
+        Compare this PauliString with another PauliString for the greater-than relationship.
+        This method overrides the `>` operator to compare two PauliString objects by converting
+        them to their integer representations (with bits reversed) and checking if this instance
+        is greater than the other.
+
+        Parameters
+        ----------
+        other_pauli : PauliString
+            The other PauliString instance to compare against.
+
+        Returns
+        -------
+        bool
+            True if this PauliString is greater than `other_pauli`, False otherwise.
+
+        Examples
+        --------
+        >>> ps1 = PauliString.from_string("x1z0 x0z1", [2, 2])
+        >>> ps2 = PauliString.from_string("x0z1 x1z0", [2, 2])
+        >>> ps1 > ps2
+        True
+        """
+
+        # FIXME: can we compare PauliStrings with different n_qudits/dimensions?
+        if self.n_qudits() != other_pauli.n_qudits():
+            raise Exception("Cannot compare PauliStrings with different number of qudits.")
+
+        # Flatten tableaus to 1D-vectors
+        self_tableau = self.tableau().ravel()
+        other_tableau = other_pauli.tableau().ravel()
+
+        for i in range(len(self_tableau)):
+            if self_tableau[i] == other_tableau[i]:
+                continue
+            # FIXME: is this really the intended behaviour?
+            if self_tableau[i] < other_tableau[i]:
+                return True
+            return False
+
+        # they are equal
+        return False
+
+    def __lt__(self, other_pauli: Self) -> bool:
+        """
+        Compare this PauliString with another PauliString for the greater-than relationship.
+        This method overrides the `<` operator to compare two PauliString objects by converting
+        them to their integer representations (with bits reversed) and checking if this instance
+        is smaller than the other.
+
+        Parameters
+        ----------
+        other_pauli : PauliString
+            The other PauliString instance to compare against.
+
+        Returns
+        -------
+        bool
+            True if this PauliString is smaller than `other_pauli`, False otherwise.
+
+        Examples
+        --------
+        >>> ps1 = PauliString.from_string("x1z0 x0z1", [2, 2])
+        >>> ps2 = PauliString.from_string("x0z1 x1z0", [2, 2])
+        >>> ps1 > ps2
+        False
+        """
+        return not self.__gt__(other_pauli) and not self.__eq__(other_pauli)
+
+    def __pow__(self, A: int) -> Self:
+        """
+        Raises the Pauli object to the power of an integer exponent.
+
+        Parameters
+        ----------
+        A : int
+            The integer exponent to which the Pauli object is to be raised.
+
+        Returns
+        -------
+        Pauli object
+            A new Pauli object instance representing the result of the exponentiation.
+
+        Examples
+        --------
+        >>> ps = PauliString(x_exp, z_exp, dimensions)
+        >>> ps_squared = ps ** 2
+        """
+
+        tableau = np.mod(self.tableau() * A, np.tile(self.dimensions(), 2))
+        return self.__class__(tableau, self.dimensions().copy(), self.weights().copy(), self.phases().copy())
+
+    def __hash__(self) -> int:
+        """
+        Return the hash value of the Pauli object object. That is a unique identifier.
+
+        Returns
+        -------
+        int
+            The hash value of the Pauli object instance.
+        """
+        return hash(
+            (tuple(self.tableau()),
+             tuple(self.weights()),
+             tuple(self.phases()),
+             tuple(self.dimensions()))
+        )
+
+    def __dict__(self) -> dict:
+        """
+        Returns a dictionary representation of the object's attributes.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the values of `x_exp`, `z_exp`, `weights`, `phases` and `dimensions`.
+        """
+        return {'tableau': self.tableau(),
+                'dimensions': self.dimensions(),
+                'weights': self.weights(),
+                'phases': self.phases()}
+
+    def copy(self) -> Self:
+        """
+        Creates a copy of the Pauli object.
+
+        Returns
+        -------
+        Pauli object
+            A copy of the Pauli object.
+        Pauli object
+            A copy of the Pauli object.
+        """
+        return self.__class__(self.tableau().copy(), self.dimensions().copy(),
+                              self.weights().copy(), self.phases().copy())
+
+    def phase_to_weight(self):
+        """
+        Include the phases into the weights of the Pauli object.
+        This method modifies the weights of the Pauli object by multiplying them with the phases,
+        and reset the phases to all zeros.
+        """
+        new_weights = np.zeros(self.n_paulis(), dtype=np.complex128)
+        for i in range(self.n_paulis()):
+            phase = self.phases()[i]
+            omega = np.exp(2 * np.pi * 1j * phase / (2 * self.lcm()))
+            new_weights[i] = self.weights()[i] * omega
+        self._phases = np.zeros(self.n_paulis(), dtype=int)
+        self._weights = new_weights
+
+    def to_standard_form(self) -> Self:
+        """
+        Get the Pauli object in standard form.
+
+        Returns
+        -------
+        Pauli object
+            The Pauli object in standard form.
+        """
+        ps_out = self.copy()
+        ps_out.standardise()  # CHECK: american or british spelling?
+        return ps_out
+
+    def standardise(self):
+        """
+        Standardises the Pauli object object by combining equivalent Paulis and
+        adding phase factors to the weights then resetting the phases.
+        """
+        self.phase_to_weight()
+        T = self.tableau()
+        W = self.weights()
+
+        # FIXME: Lexicographic sort, I'm not sure why this works, but it does.
+        order = np.lexsort(T.T)
+
+        self._tableau = T[order]
+        self._weights = W[order]
