@@ -210,6 +210,41 @@ class PauliObject(ABC):
         """
         pass
 
+    def is_close(self, other_pauli: Self, threshold: int = 10) -> bool:
+        """
+        Determine if two Pauli object objects are (almost) equal.
+
+        Parameters
+        ----------
+        other_pauli : Pauli object
+            The Pauli object instance to compare against.
+
+        threshold: int
+
+
+        Returns
+        -------
+        bool
+            True if both Pauli object instances have identical PauliStrings, weights, phases, and dimensions;
+            False otherwise.
+        """
+        if not isinstance(other_pauli, self.__class__):
+            return False
+
+        if not np.array_equal(self.tableau(), other_pauli.tableau()):
+            return False
+
+        if not np.all(np.isclose(self.weights(), other_pauli.weights(), 10**(-threshold))):
+            return False
+
+        if not np.array_equal(self.phases(), other_pauli.phases()):
+            return False
+
+        if not np.array_equal(self.dimensions(), other_pauli.dimensions()):
+            return False
+
+        return True
+
     def hermitian_conjugate(self) -> Self:
         # FIXME: add reference
         """
@@ -252,7 +287,8 @@ class PauliObject(ABC):
             True if the PauliObject is Hermitian, False otherwise
         """
         # FIXME: this is wonrg. maybe phase_to_weight standard_form would solve it for Pauli object
-        return self.to_standard_form() == self.H().to_standard_form()
+        # NOTE: rounding errors could make this fail.
+        return self.to_standard_form().is_close(self.H().to_standard_form())
 
     def _sanity_check(self):
         """
