@@ -2,11 +2,11 @@ import numpy as np
 import galois
 from sympleq.core.circuits.utils import symplectic_form
 from sympleq.core.paulis import PauliSum, PauliString
-from sympleq.core.circuits.gates import PauliGate
-from sympleq.core.finite_field_solvers import gf_solve
+from sympleq.core.circuits.gates import PauliGate, Gate
+from sympleq.core.finite_field_solvers import solve_linear_system_over_gf
 
 
-def pauli_phase_correction(H, delta_phi_2p, p, dimensions=None):
+def pauli_phase_correction(H: np.ndarray, delta_phi_2p: np.ndarray, p: int, dimensions: list[int] | None = None):
     """
     Given tableau H (k x 2n, rows [x|z]) and a target Δφ (mod 2L),
     attempt to construct a Clifford whose action adjusts the phases by Δφ.
@@ -45,7 +45,7 @@ def pauli_phase_correction(H, delta_phi_2p, p, dimensions=None):
     A = (GF(H) @ GF(Omega)).view(np.ndarray).astype(int)
 
     try:
-        P = gf_solve(A, rhs % p, GF)  # (2n,1)
+        P = solve_linear_system_over_gf(A, rhs % p, GF)  # (2n,1)
     except ValueError:
         return None
 

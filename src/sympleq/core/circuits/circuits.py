@@ -24,10 +24,6 @@ class Circuit:
             dimensions (list[int] | np.ndarray): A list or array of integers representing the dimensions of the qudits.
             gates (list): A list of Gate objects representing the gates in the circuit.
 
-
-        TODO: Remove dimensions as input - this can be obtained from the gates only - make this a method not attribute
-
-        TODO: Perhaps store the composite gate as an attribute - it will allow gate.act to be significantly faster
         """
         if gates is None:
             gates = []
@@ -259,6 +255,11 @@ class Circuit:
     def inv(self):
         C_inv = Circuit(self.dimensions, [g.inv() for g in self.gates])
         return C_inv
-    
+
     def full_symplectic(self):
         return self.composite_gate().full_symplectic(self.n_qudits())
+
+    def cleanup(self):
+        # TODO If two gates are the inverse of each other and next to each other, remove them both. This happens
+        # in a few algorithms
+        raise NotImplementedError

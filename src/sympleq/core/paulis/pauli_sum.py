@@ -1010,6 +1010,7 @@ class PauliSum:
         adding phase factors to the weights then resetting the phases.
         """
         self.phase_to_weight()
+        self.remove_trivial_paulis()
 
         # Zip together, sort by PauliString's ordering, then unzip
         combined = list(zip(self.pauli_strings, self.weights))
@@ -1062,7 +1063,7 @@ class PauliSum:
         # If entire Pauli string is x0z0, remove it
         to_delete = []
         for i in range(self.n_paulis()):
-            if np.all(self.tableau()[i, :] == 0):
+            if np.all(self.tableau()[i, :] == 0) or np.abs(self.weights[i]) <= 1e-12:
                 to_delete.append(i)
         self._delete_paulis(to_delete)
 

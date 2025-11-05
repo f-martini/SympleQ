@@ -1,6 +1,8 @@
 import numpy as np
 from sympleq.core.circuits import Circuit
-from sympleq.core.circuits.gates import Hadamard, PHASE, SUM, SWAP, Gate
+from sympleq.core.circuits.utils import symplectic_form, is_symplectic
+from sympleq.core.circuits.gates import Hadamard, PHASE, SUM, SWAP, Gate, PauliGate
+from sympleq.core.paulis import PauliString
 from collections import deque
 
 # ---------- GF(p) helpers - should remove most and put in better place ----------
@@ -53,17 +55,6 @@ def inv_gfp(A: np.ndarray, p: int) -> np.ndarray:
     return aug[:, n:] % p
 
 
-def is_symplectic_gfp(F: np.ndarray, p: int) -> bool:
-    F = mod_p(F, p)
-    n2 = F.shape[0]
-    if n2 % 2 or F.shape[0] != F.shape[1]:
-        return False
-    n = n2 // 2
-    Id = identity(n) % p
-    J = np.block([[zeros((n, n)), Id], [(-Id) % p, zeros((n, n))]]) % p
-    return np.array_equal(mod_p(F.T @ J @ F, p), J)
-
-
 def blocks(F: np.ndarray, p: int):
     F = mod_p(F, p)
     n = F.shape[0] // 2
@@ -86,7 +77,7 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
     Returns the Circuit (does NOT modify F).
     """
     F = mod_p(F, p)
-    assert is_symplectic_gfp(F, p), "F must be symplectic over GF(p)."
+    assert is_symplectic(F, p), "F must be symplectic over GF(p)."
     n = F.shape[0] // 2
 
     A, _, _, _ = blocks(F, p)
@@ -97,7 +88,7 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
         max_depth = max(1, 3 * n)
 
     # Candidate generators (Gate objects). Include PHASE^{-1} via repeating PHASE (p-1) times.
-    candidates: list[object] = []
+    candidates: list[Gate] = []
     for i in range(n):
         candidates.append(Hadamard(i, p))
         candidates.append(PHASE(i, p))
@@ -109,7 +100,7 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
             candidates.append(SUM(i, j, p))
             candidates.append(SUM(j, i, p))
 
-    def apply_left_once(F_mat: np.ndarray, g) -> np.ndarray:
+    def apply_left_once(F_mat: np.ndarray, g: Gate) -> np.ndarray:
         if isinstance(g, tuple) and g[0] == "PHASE_INV":
             i = g[1]
             for _ in range((p - 1) % p):
@@ -456,7 +447,7 @@ def decompose_symplectic_to_circuit(F: np.ndarray, p: int, *, check: bool = True
     Circuit  (gates ordered so that Circuit.composite_gate().symplectic == F mod p)
     """
     F = np.asarray(F, dtype=int) % p
-    assert is_symplectic_gfp(F, p), "F must be symplectic over GF(p)."
+    assert is_symplectic(F, p), "F must be symplectic over GF(p)."
     n = F.shape[0] // 2
 
     # 1) Preconditioner
@@ -501,3 +492,173 @@ def decompose_symplectic_to_circuit(F: np.ndarray, p: int, *, check: bool = True
             )
 
     return C_tot
+
+
+def solve_g_for_phase_delta(delta_h: np.ndarray, p: int) -> np.ndarray | None:
+    """
+    Solve 2 Ω g = delta_h (mod p) for prime p (odd only).
+    Returns g or None if unsolvable (e.g., p=2 and delta_h not in image).
+    """
+    delta_h = np.asarray(delta_h, dtype=int) % p
+    n2 = delta_h.size
+    n = n2 // 2
+    Ω = symplectic_form(n, p)
+    # For odd p, 2 is invertible; for p=2 there is no solution unless delta_h ≡ 0
+    if p % 2 == 0:
+        return delta_h if np.all(delta_h % 2 == 0) else None  # informational, not actually g
+    inv2 = pow(2, -1, p)
+    # Ω is invertible over GF(p); Ω^{-1} = -Ω (since Ω^2 = -I) for odd p
+    # You can compute g = (1/2) * Ω^{-1} delta_h; using generic inverse for safety:
+    Ω_inv = inv_gfp(Ω, p)
+    g = (inv2 * (Ω_inv @ delta_h)) % p
+    return g
+
+
+def pauli_gate_for_phase_fix(h_raw: np.ndarray,
+                             h_target: np.ndarray,
+                             dimensions: list[int] | np.ndarray) -> Gate | None:
+    """
+    Build a PauliGate that corrects (part of) delta_h = h_target - h_raw by Pauli conjugation.
+    Uses per-wire dims via PauliString with your global 2*lcm phase ring.
+    Returns None if there is no nontrivial solvable component (common for p=2).
+    """
+    dims = list(map(int, dimensions))
+    n = len(dims)
+    lcm = int(np.lcm.reduce(dims))
+    # We’ll fix each prime-power component via CRT in practice; for now, do per-prime p where possible.
+    # The simplest usable path in your pipeline (since you decompose per single p) is:
+    p = dims[0]  # your code currently uses uniform p per run
+    delta_h = (np.asarray(h_target, dtype=int) - np.asarray(h_raw, dtype=int)) % (2 * lcm)
+
+    if p % 2 == 0:
+        # Pauli conjugation cannot move phases mod 2; skip if nothing to do
+        if np.all(delta_h % 2 == 0):
+            return None
+        # If you want: raise or log that a Clifford tweak (not Pauli) is needed
+        return None
+
+    # Reduce the desired shift into GF(p) and solve for g
+    g = solve_g_for_phase_delta(delta_h % p, p)
+    if g is None:
+        return None
+
+    x = (g[:n] % p).tolist()
+    z = (g[n:] % p).tolist()
+    pauli = PauliString(x_exp=x, z_exp=z, dimensions=dims)
+    return PauliGate(pauli)
+
+
+def pauli_correction_gate(F: np.ndarray,
+                          h_body: np.ndarray,
+                          h_target: np.ndarray,
+                          dimensions: list[int]) -> "PauliGate":
+    """
+    Build a PauliGate that fixes the phase vector under right-multiplication:
+        h_out = h_body + F^T * (2 Ω v)  (mod 2*lcm)
+    Choose v in (Z_p)^{2n} so that h_out == h_target.
+
+    For odd p: exact correction.
+    For p=2: corrects the even part (the best Pauli can do).
+    """
+    import numpy as np
+
+    dims = list(map(int, dimensions))
+    assert len(set(dims)) == 1, ("Mixed dimension qudits not supported. As there are no entangling mixed qudit gates,"
+                                 " split the system into qudits of equal dimension and run separately.")
+    p = dims[0]
+
+    n2 = F.shape[0]
+    assert n2 % 2 == 0
+    n = n2 // 2
+
+    # modulus for the phase vector
+    lcm = int(np.lcm.reduce(dims))
+    MOD = 2 * lcm
+
+    Δ = (h_target.astype(int) - h_body.astype(int)) % MOD  # even if realizable by Pauli
+    if p % 2 == 1:
+        # Must be even component-wise; then we can halve in Z and reduce mod p
+        if np.any(Δ % 2 != 0):
+            raise AssertionError("For odd p, Δ must be even for Pauli correction.")
+        Δ_half = ((Δ // 2) % p).astype(int)  # well-defined because Δ is even
+
+        # Ω over GF(p): [[0, I], [-I, 0]] (note -I ≡ p-1 mod p)
+        Id = np.eye(n, dtype=int)
+        Z = np.zeros((n, n), dtype=int)
+        Om = np.block([[Z, Id], [(-Id) % p, Z]]) % p
+
+        # Solve (F^T Ω) v = Δ_half  over GF(p)
+        M = (F.T % p) @ Om % p
+        v = (inv_gfp(M, p) @ Δ_half.reshape(-1, 1)) % p
+        v = v.flatten()
+
+        x = v[:n]
+        z = v[n:]
+        pauli = PauliString(x, z, dimensions=dims)
+        return PauliGate(pauli)
+
+    else:
+        # p == 2: Ω has -I == +I; only even Δ are reachable (gives Δ/2 in {0,1})
+        if np.any(Δ % 2 != 0):
+            # Can't fix odd residuals with a Pauli; return identity Pauli (no-op)
+            x = np.zeros(n, dtype=int)
+            z = np.zeros(n, dtype=int)
+            return PauliGate(PauliString(x, z, dimensions=dims))
+
+        Δ_half = ((Δ // 2) % 2).astype(int)
+
+        # Ω over GF(2): [[0, I], [ I, 0]]
+        Id = np.eye(n, dtype=int)
+        Z = np.zeros((n, n), dtype=int)
+        Om2 = np.block([[Z, Id], [Id, Z]]) % 2
+
+        M = (F.T % 2) @ Om2 % 2
+        v = (inv_gfp(M, 2) @ Δ_half.reshape(-1, 1)) % 2
+        v = v.flatten()
+
+        x = v[:n]
+        z = v[n:]
+        pauli = PauliString(x, z, dimensions=dims)
+        return PauliGate(pauli)
+
+
+def gate_to_circuit(big_gate: "Gate") -> "Circuit":
+    """
+    Decompose a single Gate (F, h) into a Circuit of Clifford generators
+    (Hadamard/PHASE/SUM/SWAP/…) followed by a final PauliGate that fixes the
+    phase vector under the right-multiplication convention p' = p @ F^T.
+
+    For odd p, the resulting circuit reproduces both F and h exactly.
+    For p=2, the Pauli correction matches the even part of h; this is the
+    known limitation of pure Pauli phase correction in qubit systems.
+    """
+    # Pull target data
+    F_target = big_gate.symplectic
+    h_target = big_gate.phase_vector
+    dims = list(map(int, big_gate.dimensions))
+    assert len(set(dims)) == 1, "gate_to_circuit assumes a uniform local dimension."
+    p = dims[0]
+
+    n2 = F_target.shape[0]
+    assert n2 % 2 == 0
+
+    # 1) Build the Clifford "body" that realizes F_target (no Pauli yet)
+    decomposition_no_corr = decompose_symplectic_to_circuit(F_target % p, p)
+
+    # 2) Compute the *current* (F_body, h_body) after the body only
+    body_gate = decomposition_no_corr.composite_gate()
+    F_body = body_gate.symplectic % p
+    h_body = body_gate.phase_vector  # lives mod 2*lcm(dims)
+
+    # Sanity: symplectic must already match
+    if not np.array_equal(F_body % p, F_target % p):
+        raise AssertionError("Body symplectic mismatch—decomposition error.")
+
+    # 3) Append a Pauli correction so that h_body + F_body^T h_Pauli = h_target  (mod 2ℓ)
+    P_corr = pauli_correction_gate(F_body, h_body, h_target, dims)
+
+    # 4) Return full circuit: body then Pauli correction (right-multiplication order)
+    # C = Circuit(dims, [])
+    # C.add_gate(decomposition_no_corr.gates)
+    decomposition_no_corr.add_gate(P_corr)
+    return decomposition_no_corr

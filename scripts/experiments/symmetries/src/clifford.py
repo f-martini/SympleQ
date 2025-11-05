@@ -32,10 +32,10 @@ def clifford_symmetry(pauli_sum: PauliSum,
         C = Circuit(pauli_sum.dimensions, [T_gate.inv(), S_gate, T_gate])
         F = C.composite_gate()
 
-        assert np.all(F.symplectic == g.symplectic), f'Local symplectic failed\n{F.symplectic}\n{g.symplectic}'
-        assert np.all(F.phase_vector == g.phase_vector), f'Local phase vector failed\n{F.phase_vector}\n{g.phase_vector}'
+        assert np.all(F.symplectic == g.symplectic), f'symplectic failed\n{F.symplectic}\n{g.symplectic}'
+        assert np.all(F.phase_vector == g.phase_vector), f'phase vector failed\n{F.phase_vector}\n{g.phase_vector}'
 
-        assert np.array_equal(fs, (ts @ ss @ tis) % 2), f'Local symplectic failed\n{fs}\n{ts @ ss @ ts.T}'
+        assert np.array_equal(fs, (ts @ ss @ tis) % 2), f'symplectic failed\n{fs}\n{ts @ ss @ ts.T}'
         assert lhs == rhs, f'Localisation failed\n{lhs.__str__()}\n{rhs.__str__()}'
     print('Found symmetry')
     return g, S_gate, T_gate
