@@ -1,6 +1,7 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod
 import numpy as np
-from typing import TypeVar, Self, Union, TYPE_CHECKING
+from typing import TypeVar, Self, Union
 
 from .constants import DEFAULT_QUDIT_DIMENSION
 
@@ -8,9 +9,6 @@ P = TypeVar("P", bound="PauliObject")
 
 ScalarType = Union[float, complex, int]
 PauliOrScalarType = Union['PauliObject', ScalarType]
-
-if TYPE_CHECKING:
-    from .pauli_sum import PauliSum
 
 
 class PauliObject(ABC):
@@ -406,8 +404,8 @@ class PauliObject(ABC):
         True
         """
 
-        if isinstance(self, PauliSum):
-            raise Exception("Two PauliSums cannot be ordered.")
+        if self.n_paulis() > 1:
+            raise Exception("A Pauli object with more than a PauliString cannot be ordered.")
 
         if np.array_equal(self.dimensions(), other_pauli.dimensions()):
             raise Exception("Cannot compare PauliStrings with different dimensions.")
@@ -472,8 +470,8 @@ class PauliObject(ABC):
         >>> ps_squared = ps ** 2
         """
 
-        if isinstance(self, PauliSum):
-            raise Exception("Exponentiation is not defined for PauliSum objects.")
+        if self.n_paulis():
+            raise Exception("A Pauli object with more than a PauliString cannot be exponentiated.")
 
         tableau = np.mod(self.tableau() * A, np.tile(self.dimensions(), 2))
         return self.__class__(tableau, self.dimensions().copy(), self.weights().copy(), self.phases().copy())

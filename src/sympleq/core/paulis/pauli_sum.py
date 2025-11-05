@@ -381,6 +381,8 @@ class PauliSum(PauliObject):
             A = PauliSum(A.tableau(), A.dimensions())
         elif isinstance(A, PauliString):
             A = PauliSum(A.tableau(), A.dimensions())
+        elif isinstance(A, PauliSum):
+            pass
         else:
             raise ValueError(f"Cannot add Pauli with type {type(A)}")
 
@@ -461,6 +463,8 @@ class PauliSum(PauliObject):
             A = PauliSum(A.tableau(), A.dimensions())
         elif isinstance(A, PauliString):
             A = PauliSum(A.tableau(), A.dimensions())
+        elif isinstance(A, PauliSum):
+            pass
         else:
             raise ValueError(f"Cannot add Pauli with type {type(A)}")
 
