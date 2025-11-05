@@ -26,7 +26,7 @@ def is_symplectic(F, p: int) -> bool:
     return np.array_equal(lhs, Omega)
 
 
-def symplectic_product(u: np.ndarray, v: np.ndarray, p: int = 2) -> int:
+def symplectic_product_arrays(u: np.ndarray, v: np.ndarray, p: int = 2) -> int:
     """
     Compute the symplectic inner product of two binary vectors.
 
@@ -40,15 +40,15 @@ def symplectic_product(u: np.ndarray, v: np.ndarray, p: int = 2) -> int:
     return (np.sum(u[:n] * v[n:] - u[n:] * v[:n])) % p
 
 
-def symplectic_product_matrix(pauli_sum: np.ndarray) -> np.ndarray:
-    m = len(pauli_sum)
-    spm = np.zeros((m, m), dtype=int)
+# def symplectic_product_matrix(pauli_sum: np.ndarray) -> np.ndarray:
+#     m = len(pauli_sum)
+#     spm = np.zeros((m, m), dtype=int)
 
-    for i in range(m):
-        for j in range(m):
-            spm[i, j] = symplectic_product(pauli_sum[i], pauli_sum[j])
+#     for i in range(m):
+#         for j in range(m):
+#             spm[i, j] = symplectic_product_arrays(pauli_sum[i], pauli_sum[j])
 
-    return spm
+#     return spm
 
 
 def symplectic_form(n: int, p: int = 2) -> np.ndarray:
@@ -90,7 +90,7 @@ def transvection_matrix(h: np.ndarray, p=2, multiplier=1):
 
 
 def transvection(h, x, p=2):
-    return (x + symplectic_product(x, h.T, p) * h) % p
+    return (x + symplectic_product_arrays(x, h.T, p) * h) % p
 
 
 def embed_symplectic(symplectic_local, phase_vector_local, qudit_indices, n_qudits):

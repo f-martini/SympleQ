@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from typing import TypeVar, Self, Union
+from typing import TypeVar, Self, Union, TYPE_CHECKING
 
 from .constants import DEFAULT_QUDIT_DIMENSION
 
@@ -8,6 +8,9 @@ P = TypeVar("P", bound="PauliObject")
 
 ScalarType = Union[float, complex, int]
 PauliOrScalarType = Union['PauliObject', ScalarType]
+
+if TYPE_CHECKING:
+    from .pauli_sum import PauliSum
 
 
 class PauliObject(ABC):
@@ -276,7 +279,6 @@ class PauliObject(ABC):
 
     H = hermitian_conjugate
 
-    # FIXME: Is this only for Pauli object?
     def is_hermitian(self) -> bool:
         """
         Checks if the PauliObject is Hermitian
@@ -286,8 +288,7 @@ class PauliObject(ABC):
         bool
             True if the PauliObject is Hermitian, False otherwise
         """
-        # FIXME: this is wonrg. maybe phase_to_weight standard_form would solve it for Pauli object
-        # NOTE: rounding errors could make this fail.
+        # NOTE: rounding errors could make this fail, hence we call the is_close function.
         return self.to_standard_form().is_close(self.H().to_standard_form())
 
     def _sanity_check(self):
@@ -405,9 +406,11 @@ class PauliObject(ABC):
         True
         """
 
-        # FIXME: can we compare PauliStrings with different n_qudits/dimensions?
-        if self.n_qudits() != other_pauli.n_qudits():
-            raise Exception("Cannot compare PauliStrings with different number of qudits.")
+        if isinstance(self, PauliSum):
+            raise Exception("Two PauliSums cannot be ordered.")
+
+        if np.array_equal(self.dimensions(), other_pauli.dimensions()):
+            raise Exception("Cannot compare PauliStrings with different dimensions.")
 
         # Flatten tableaus to 1D-vectors
         self_tableau = self.tableau().ravel()
@@ -416,12 +419,11 @@ class PauliObject(ABC):
         for i in range(len(self_tableau)):
             if self_tableau[i] == other_tableau[i]:
                 continue
-            # FIXME: is this really the intended behaviour?
             if self_tableau[i] < other_tableau[i]:
                 return True
             return False
 
-        # they are equal
+        # They are equal
         return False
 
     def __lt__(self, other_pauli: Self) -> bool:
@@ -470,12 +472,15 @@ class PauliObject(ABC):
         >>> ps_squared = ps ** 2
         """
 
+        if isinstance(self, PauliSum):
+            raise Exception("Exponentiation is not defined for PauliSum objects.")
+
         tableau = np.mod(self.tableau() * A, np.tile(self.dimensions(), 2))
         return self.__class__(tableau, self.dimensions().copy(), self.weights().copy(), self.phases().copy())
 
     def __hash__(self) -> int:
         """
-        Return the hash value of the Pauli object object. That is a unique identifier.
+        Return the hash value of the Pauli object. That is a unique identifier.
 
         Returns
         -------
@@ -496,7 +501,7 @@ class PauliObject(ABC):
         Returns
         -------
         dict
-            A dictionary containing the values of `x_exp`, `z_exp`, `weights`, `phases` and `dimensions`.
+            A dictionary containing the values of `tableau`, `weights`, `phases`, and `dimensions`.
         """
         return {'tableau': self.tableau(),
                 'dimensions': self.dimensions(),
@@ -541,7 +546,7 @@ class PauliObject(ABC):
             The Pauli object in standard form.
         """
         ps_out = self.copy()
-        ps_out.standardise()  # CHECK: american or british spelling?
+        ps_out.standardise()
         return ps_out
 
     def standardise(self):
@@ -553,8 +558,9 @@ class PauliObject(ABC):
         T = self.tableau()
         W = self.weights()
 
-        # FIXME: Lexicographic sort, I'm not sure why this works, but it does.
         order = np.lexsort(T.T)
 
         self._tableau = T[order]
         self._weights = W[order]
+
+    standardize = standardise

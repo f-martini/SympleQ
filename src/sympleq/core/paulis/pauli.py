@@ -1,5 +1,6 @@
 from __future__ import annotations
 import numpy as np
+import scipy.sparse as sp
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -210,7 +211,7 @@ class Pauli(PauliObject):
         """
         return self._dimensions[0]
 
-    def to_pauli_sum(self) -> PauliSum:
+    def as_pauli_sum(self) -> PauliSum:
         """
         Converts the Pauli to a PauliSum.
 
@@ -221,7 +222,7 @@ class Pauli(PauliObject):
         """
         return PauliSum(self.tableau(), self.dimensions(), self.weights(), self.phases())
 
-    def to_pauli_string(self) -> PauliString:
+    def as_pauli_string(self) -> PauliString:
         """
         Converts the Pauli to a PauliString.
 
@@ -231,6 +232,17 @@ class Pauli(PauliObject):
             A PauliString instance representing the given Pauli operator.
         """
         return PauliString(self.tableau(), self.dimensions(), self.weights(), self.phases())
+
+    def to_hilbert_space(self) -> sp.csr_matrix:
+        """
+        Get the matrix form of the Pauli as a sparse matrix.
+
+        Returns
+        -------
+        scipy.sparse.csr_matrix
+            Matrix representation of input Pauli.
+        """
+        return self.as_pauli_sum().to_hilbert_space()
 
     def __mul__(self, A: str | Pauli) -> Pauli:
         """
@@ -275,36 +287,6 @@ class Pauli(PauliObject):
             Human-readable short string for the Pauli.
         """
         return f'x{self.x_exp}z{self.z_exp}'
-
-    def __gt__(self, other_pauli: Pauli) -> bool:
-        """
-        Order comparison based on minimal exponent magnitudes.
-
-        Parameters
-        ----------
-        other_pauli : Pauli
-            Other Pauli to compare.
-
-        Returns
-        -------
-        bool
-            True if self is considered greater than other based on heuristic metric.
-        """
-        d = self.lcm()
-        # TODO: Ask @charlie why we are including "d-*_exp" in the comparison
-        # FIXME: can we just inherit from PauliObject here?
-        x_measure = min(self.x_exp % d, (d - self.x_exp) % d)
-        x_measure_new = min(other_pauli.x_exp % d, (d - other_pauli.x_exp) % d)
-        z_measure = min(self.z_exp % d, (d - self.z_exp) % d)
-        z_measure_new = min(other_pauli.z_exp % d, (d - other_pauli.z_exp) % d)
-
-        if x_measure > x_measure_new:
-            return True
-        if x_measure == x_measure_new:
-            if z_measure > z_measure_new:
-                return True
-
-        return False
 
     @property
     def x_exp(self) -> int:

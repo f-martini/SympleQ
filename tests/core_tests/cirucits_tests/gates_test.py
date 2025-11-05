@@ -409,13 +409,13 @@ class TestGates():
             for j in range(d):
                 pauli_string = 'x' + str(i) + 'z' + str(j)
                 ps = PauliSum.from_string(pauli_string, d, weights=[1], phases=[0])
-                ps_m = ps.matrix_form()
+                ps_m = ps.to_hilbert_space()
 
                 ps_res = G.act(ps)
                 phase_table_symplectic[i, j] = ps_res.phases()[0] % (2 * d)
                 # FIXME: create new PSum or open API to change phases
                 ps_res.set_phases([0])
-                ps_res_m = ps_res.matrix_form().toarray()
+                ps_res_m = ps_res.to_hilbert_space().toarray()
 
                 ps_m_res = (G.unitary() @ ps_m @ G.unitary().conj().T).toarray()
 
@@ -423,7 +423,7 @@ class TestGates():
                 factors = np.around(ps_m_res[mask] / ps_res_m[mask], 14)
                 factor = factors[0]
                 phase_table_unitary[i, j] = np.around(d * np.angle(factor) / (np.pi), 6) % (2 * d)
-        
+
         return phase_table_unitary, phase_table_symplectic
 
     def phase_table_entangling(self, G: Gate) -> tuple[np.ndarray, np.ndarray]:
@@ -437,12 +437,12 @@ class TestGates():
                     for j2 in range(d):
                         pauli_string = 'x' + str(i1) + 'z' + str(j1) + ' ' + 'x' + str(i2) + 'z' + str(j2)
                         ps = PauliSum.from_string([pauli_string], dimensions=[d, d])
-                        ps_m = ps.matrix_form()
+                        ps_m = ps.to_hilbert_space()
 
                         ps_res = G.act(ps)
                         phase_table_symplectic[i1 * d + i2, j1 * d + j2] = ps_res.phases()[0] % (2 * d)
                         ps_res.set_phases([0])
-                        ps_res_m = ps_res.matrix_form().toarray()
+                        ps_res_m = ps_res.to_hilbert_space().toarray()
                         ps_m_res = (U @ ps_m @ U.conj().T).toarray()
                         mask = (ps_res_m != 0)
                         factors = np.around(ps_m_res[mask] / ps_res_m[mask], 14)

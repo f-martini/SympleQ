@@ -234,7 +234,6 @@ class PauliSum(PauliObject):
                     tuple[list[int], np.ndarray]) -> PauliSum:
         ...
 
-    # FIXME: add typing
     def __getitem__(self, key) -> Pauli | PauliString | PauliSum:
         """
         Retrieve a Pauli,  PauliString, or (smaller) PauliSum from the PauliSum.
@@ -379,17 +378,15 @@ class PauliSum(PauliObject):
             raise ValueError(f"The dimensions of the PauliSums do not match ({self.dimensions()}, {A.dimensions()}).")
 
         if isinstance(A, Pauli):
-            A_sum = PauliSum(A.tableau(), A.dimensions())
+            A = PauliSum(A.tableau(), A.dimensions())
         elif isinstance(A, PauliString):
-            A_sum = PauliSum(A.tableau(), A.dimensions())
-        elif isinstance(A, PauliSum):
-            A_sum = A
+            A = PauliSum(A.tableau(), A.dimensions())
         else:
             raise ValueError(f"Cannot add Pauli with type {type(A)}")
 
-        new_tableau = np.vstack([self.tableau(), A_sum.tableau()])
-        new_weights = np.concatenate([self.weights(), A_sum.weights()])
-        new_phases = np.concatenate([self.phases(), A_sum.phases()])
+        new_tableau = np.vstack([self.tableau(), A.tableau()])
+        new_weights = np.concatenate([self.weights(), A.weights()])
+        new_phases = np.concatenate([self.phases(), A.phases()])
         return PauliSum(new_tableau, self.dimensions(), new_weights, new_phases)
 
     def __radd__(self, A: PauliObject) -> 'PauliSum':
@@ -423,8 +420,6 @@ class PauliSum(PauliObject):
         - Dimensions must agree!
         """
 
-        # FIXME: avoid copying and use tableaus
-        # TODO: why is this not good enough?
         return self + A
 
     def __sub__(self,
@@ -458,13 +453,23 @@ class PauliSum(PauliObject):
         -----
         - Dimensions must agree!
         """
-        # FIXME: why is this treated differently from __add__?
+
+        if not np.array_equal(self.dimensions(), A.dimensions()):
+            raise ValueError(f"The dimensions of the PauliSums do not match ({self.dimensions()}, {A.dimensions()}).")
+
+        if isinstance(A, Pauli):
+            A = PauliSum(A.tableau(), A.dimensions())
+        elif isinstance(A, PauliString):
+            A = PauliSum(A.tableau(), A.dimensions())
+        else:
+            raise ValueError(f"Cannot add Pauli with type {type(A)}")
+
         new_tableau = np.vstack([self.tableau(), A.tableau()])
         new_weights = np.concatenate([self.weights(), -np.array(A.weights())])
         new_phases = np.concatenate([self.phases(), A.phases()])
         return PauliSum(new_tableau, self.dimensions(), new_weights, new_phases)
 
-    def __rsub__(self, A: PauliObject) -> 'PauliSum':
+    def __rsub__(self, A: PauliSum) -> PauliSum:
         """
         Implements the subtraction of PauliSum objects.
 
@@ -494,16 +499,8 @@ class PauliSum(PauliObject):
         -----
         - Dimensions must agree!
         """
-        ps1 = self.copy()
-        if isinstance(A, Pauli):
-            ps2 = PauliSum.from_pauli_strings(PauliString.from_pauli(A))
-        elif isinstance(A, PauliString):
-            ps2 = PauliSum.from_pauli_strings(A)
-        elif isinstance(A, PauliSum):
-            ps2 = A
-        else:
-            raise Exception(f"Cannot add Pauli with type {type(A)}")
-        return ps1 - ps2
+
+        return self - A
 
     def __mul__(self, A: PauliOrScalarType) -> PauliSum:
         """
@@ -600,10 +597,7 @@ class PauliSum(PauliObject):
         >>> ps3 = ps1 * ps2
         Pauli object(...)
         """
-        if isinstance(A, (PauliObject, float, int, complex)):
-            return self * A
-
-        raise ValueError(f"Cannot multiply PauliString with type {type(A)}")
+        return self * A
 
     def __truediv__(self, A: ScalarType) -> PauliSum:
         """
@@ -847,8 +841,8 @@ class PauliSum(PauliObject):
         PauliString
             The selected PauliString.
         """
-        # FIXME: We pass a view to the tableau row and the dimensions,
-        # meaning that they could be modified from the PauliString.
+        # NOTE: We pass a view to the tableau row and the dimensions,
+        #       meaning that they could be modified from the PauliString.
         return PauliString(self.tableau()[index], self.dimensions())
 
     def select_pauli(self, index: tuple[int, int]) -> Pauli:
@@ -865,8 +859,8 @@ class PauliSum(PauliObject):
         Pauli
             The selected Pauli.
         """
-        # FIXME: We pass a view to the tableau row and the dimensions,
-        # meaning that they could be modified from the PauliString.
+        # NOTE: We pass a view to the tableau row and the dimensions,
+        #       meaning that they could be modified from the PauliString.
         return Pauli(self.tableau()[index], self.dimensions())
 
     def _delete_paulis(self, pauli_indices: int | list[int] | np.ndarray):
@@ -1048,8 +1042,7 @@ class PauliSum(PauliObject):
         return PauliSum(tableau=sub_tableau, dimensions=sub_dims,
                         weights=sub_weights, phases=sub_phases)
 
-    # FIXME: do we really need this return type?
-    def matrix_form(self, pauli_string_index: int | None = None) -> sp.csr_matrix:
+    def to_hilbert_space(self, pauli_string_index: int | None = None) -> sp.csr_matrix:
         """
         Get the matrix form of the PauliSum as a sparse matrix. This is inclusive of the weights.
 
@@ -1066,7 +1059,7 @@ class PauliSum(PauliObject):
         """
         if pauli_string_index is not None:
             ps = PauliSum(self.tableau()[pauli_string_index], self.dimensions(), self.weights(), self.phases())
-            return ps.matrix_form()
+            return ps.to_hilbert_space()
 
         list_of_pauli_matrices = []
         for i in range(self.n_paulis()):

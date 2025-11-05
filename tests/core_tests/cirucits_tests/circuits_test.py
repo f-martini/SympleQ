@@ -180,14 +180,14 @@ class TestCircuits():
             C = Circuit.from_random(n_qudits, depth=np.random.randint(1, 6), dimensions=dimensions)
             U = C.unitary()
 
-            ps_m = P.matrix_form()
+            ps_m = P.to_hilbert_space()
             ps_res = C.act(P)
-            ps_res_m = ps_res.matrix_form()
+            ps_res_m = ps_res.to_hilbert_space()
             phase_symplectic = ps_res.phases()[0]
 
             # FIXME: maybe create a new PauliSum, or add API to assign phases
             ps_res.set_phases([0])
-            ps_res_m = ps_res.matrix_form().toarray()
+            ps_res_m = ps_res.to_hilbert_space().toarray()
             ps_m_res = (U @ ps_m @ U.conj().T).toarray()
             mask = (ps_res_m != 0)
             factors = np.unique(np.around(ps_m_res[mask] / ps_res_m[mask], 10))

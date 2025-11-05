@@ -489,8 +489,8 @@ class TestPaulis:
             coefficients = []
             selected_pauli_strings = []
             tolerance = 10**(-12)
-            for i, ps in enumerate(all_pauli_strings):
-                ps_mat = PauliSum.from_pauli_strings(ps).matrix_form()
+            for ps in all_pauli_strings:
+                ps_mat = PauliSum.from_pauli_strings(ps).to_hilbert_space()
                 ps_mat_ct = ps_mat.conjugate().transpose()
                 c_i = np.trace(ps_mat_ct @ H_e) / D
                 if abs(c_i) < tolerance:
@@ -500,7 +500,7 @@ class TestPaulis:
                 selected_pauli_strings.append(ps)
 
             pauli_sum = PauliSum.from_pauli_strings(selected_pauli_strings, weights=coefficients)
-            assert np.max(np.abs((pauli_sum.matrix_form().toarray() - H_e))) < tolerance
+            assert np.max(np.abs((pauli_sum.to_hilbert_space().toarray() - H_e))) < tolerance
             assert pauli_sum.is_hermitian() == np.array_equal(H_e, H_e.conjugate().transpose())
 
     def test_qubit_XZ_phase_is_minus_one(self):

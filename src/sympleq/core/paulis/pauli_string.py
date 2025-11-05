@@ -3,10 +3,10 @@ from typing import overload, TYPE_CHECKING
 import numpy as np
 import functools
 import re
+import scipy.sparse as sp
 
 from .pauli_object import PauliObject
 from .pauli import Pauli
-
 from .constants import DEFAULT_QUDIT_DIMENSION
 from .bases_manipulation import bases_to_int
 
@@ -311,7 +311,7 @@ class PauliString(PauliObject):
 
         if not np.array_equal(self.dimensions(), A.dimensions()):
             raise Exception("To multiply two PauliStrings, their dimensions"
-                            f" {self.dimensions()} and {A.dimensions()} must be equal")
+                            f" {self.dimensions()} and {A.dimensions()} must be equal.")
 
         tableau = np.mod(self.tableau() + A.tableau(), np.tile(self.dimensions(), 2))
         return PauliString(tableau, self.dimensions().copy())
@@ -356,7 +356,7 @@ class PauliString(PauliObject):
         """
         return np.asarray([1], dtype=complex)
 
-    def to_pauli_sum(self) -> PauliSum:
+    def as_pauli_sum(self) -> PauliSum:
         return PauliSum(self.tableau(), self.dimensions(), self.weights(), self.phases())
 
     def n_identities(self) -> int:
@@ -406,8 +406,7 @@ class PauliString(PauliObject):
         """
         if not np.array_equal(self.dimensions(), A.dimensions()):
             raise ValueError(
-                f"Incompatible PauliStrings: must have the same number of qudits "
-                f"(currently {self.n_qudits()} and {A.n_qudits()}) and identical dimensions "
+                f"Incompatible PauliStrings: must identical dimensions "
                 f"(currently {self.dimensions()} and {A.dimensions()})."
             )
 
@@ -532,7 +531,10 @@ class PauliString(PauliObject):
             The acquired phase, as an integer modulo ``2 * self.lcm``.
         """
 
-        # FIXME: should check dimensions
+        if not np.array_equal(self.dimensions(), other_pauli.dimensions()):
+            raise Exception("To acquire phase from another PauliString, their dimensions"
+                            f" {self.dimensions()} and {other_pauli.dimensions()} must be equal")
+
         n = self.n_qudits()
         a = self.tableau()[0]
         b = other_pauli.tableau()[0]
@@ -674,7 +676,6 @@ class PauliString(PauliObject):
                 raise ValueError(f"Cannot set item with key {key} and value {value}:\
                                  mismatching dimensions.")
             self._tableau[key] = value.x_exp
-            # FIXME: does this work?
             self._tableau[key + self.n_qudits()] = value.z_exp
             self._dimensions[key] = value.dimensions()
             self._lcm = np.lcm.reduce(self.dimensions())
@@ -738,6 +739,17 @@ class PauliString(PauliObject):
             True if the PauliString is the identity operator, False otherwise.
         """
         return bool(np.all(self.tableau() == 0))
+
+    def to_hilbert_space(self) -> sp.csr_matrix:
+        """
+        Get the matrix form of the PauliString as a sparse matrix.
+
+        Returns
+        -------
+        scipy.sparse.csr_matrix
+            Matrix representation of input Pauli.
+        """
+        return self.as_pauli_sum().to_hilbert_space()
 
     def _to_int(self, reverse=False):
         """
