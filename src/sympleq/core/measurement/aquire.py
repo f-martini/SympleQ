@@ -14,6 +14,7 @@ from sympleq.core.measurement.aquire_utils import (calculate_mean_estimate, calc
                                                    true_statistical_variance)
 from sympleq.core.circuits import Circuit
 from sympleq.utils import int_to_bases
+from sympleq.core.paulis.utils import make_hermitian, XZ_to_Y
 from typing import Callable
 import pickle
 import matplotlib.pyplot as plt
@@ -233,7 +234,7 @@ class AquireConfig:
                      'p_entangling': 0.03, 'p_local': 0.001, 'p_measurement': 0.001},
                  error_function: Callable = standard_error_function,
                  error_function_args: tuple = (),
-                 error_function_kwargs: dict = {'dimensions': None}):
+                 error_function_kwargs: dict = {}):
         self.Hamiltonian = Hamiltonian
         self.psi = np.array(psi) if psi is not None else None
 
@@ -264,10 +265,9 @@ class AquireConfig:
         self.noise_probability_args = noise_probability_args
         self.noise_kwargs = noise_probability_function_kwargs
         self.error_function = error_function
-        self.error_args = error_function_args
-        self.error_kwargs = error_function_kwargs
+        self.error_function_args = error_function_args
+        self.error_function_kwargs = error_function_kwargs
 
-    def __post_init__(self):
         if self.psi is not None:
             self.psi = np.array(self.psi)
 
@@ -281,7 +281,7 @@ class AquireConfig:
                                                                         k=3)
 
         if self.error_function is standard_error_function:
-            self.error_args = (self.Hamiltonian.dimensions,)
+            self.error_function_args = (self.Hamiltonian.dimensions,)
 
         self.validate_parameters()
 
@@ -369,7 +369,8 @@ class AquireConfig:
                                  f"Wrong values where found for circuit: \n {test_circuit}.")
 
             test_result = [np.random.randint(dim) for dim in self.Hamiltonian.dimensions]
-            error_test_result = self.error_function(test_result, *self.error_args, **self.error_kwargs)
+            error_test_result = self.error_function(test_result, *self.error_function_args,
+                                                    **self.error_function_kwargs)
             for i0, j in enumerate(error_test_result):
                 if j > self.Hamiltonian.dimensions[i0] or j < 0:
                     raise ValueError(f"Error function gives erroneous values. It must be between 0 and qudit dimension."
@@ -391,14 +392,15 @@ class AquireConfig:
         super().__setattr__(name, value)
 
         # only recalculate if a dependent parameter changed
-        if self.auto_update_settings:
-            if name == "commutation_mode" or name == "H":
-                self.update_all()
-        else:
-            if name == "commutation_mode":
-                warnings.warn("Changing commutation mode may cause commutation graph and clique covering to "
-                              "be deprecated. Run update_all() to update them.", UserWarning)
-                pass
+        if hasattr(self, 'auto_update_settings'):
+            if self.auto_update_settings:
+                if name == "commutation_mode" or name == "H":
+                    self.update_all()
+            else:
+                if name == "commutation_mode":
+                    warnings.warn("Changing commutation mode may cause commutation graph and clique covering to "
+                                  "be deprecated. Run update_all() to update them.", UserWarning)
+                    pass
 
     def set_params(self, **kwargs):
         for key, value in kwargs.items():
@@ -406,14 +408,15 @@ class AquireConfig:
                 raise AttributeError(f"Unknown parameter '{key}'")
             setattr(self, key, value)
 
-            if self.auto_update_settings:
-                if key == "commutation_mode" or key == "H":
-                    self.update_all()
-            else:
-                if key == "commutation_mode":
-                    warnings.warn("Changing commutation mode may cause commutation graph and clique covering to "
-                                  "be deprecated. Run update_all() to update them.", UserWarning)
-                    pass
+            if hasattr(self, 'auto_update_settings'):
+                if self.auto_update_settings:
+                    if key == "commutation_mode" or key == "H":
+                        self.update_all()
+                else:
+                    if key == "commutation_mode":
+                        warnings.warn("Changing commutation mode may cause commutation graph and clique covering to "
+                                      "be deprecated. Run update_all() to update them.", UserWarning)
+                        pass
 
     def __str__(self):
         config_string = ''
@@ -454,8 +457,8 @@ class AquireConfig:
         config_string += str(self.noise_kwargs) + '\n'
 
         config_string += 'Error function: ' + str(self.error_function.__name__) + '\n'
-        config_string += str(self.error_args) + '\n'
-        config_string += str(self.error_kwargs) + '\n'
+        config_string += str(self.error_function_args) + '\n'
+        config_string += str(self.error_function_kwargs) + '\n'
 
         return config_string
 
@@ -480,6 +483,7 @@ class Aquire:
     # TODO: add rollback method to go back to previous update
     # TODO: make working save and load methods
     # TODO: make summary method (also for config class) that only shows the most important information
+    # TODO: Progressbar for simulate observable
     def __init__(self,
                  H: PauliSum,
                  psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,
@@ -536,14 +540,37 @@ class Aquire:
         """
         # TODO: implement all the steps needed to prepare the Hamiltonian
         P, pauli_block_sizes = sort_hamiltonian(H)
-        P = weight_to_phase(P)
         if P.n_paulis() < H.n_paulis():
             for i in range(H.n_paulis()):
                 if H.weights[i] != 0 and H[i, :].is_identity():
                     warnings.warn("Identity term with weight" + str(H.weights[i].real) + "ignored.", UserWarning)
 
         if not P.is_hermitian():
-            raise Exception("Hamiltonian is not Hermitian.")
+            warnings.warn("Hamiltonian is not Hermitian. Most likely due to not accounting for "
+                          "the phases necessary to turn XZ into Y.", UserWarning)
+            answer = input("Do you want to apply the phase correction via the XZ_to_Y method? (y/n)")
+            if answer.lower() in ['y', 'yes', 'ye', '1']:
+                P = XZ_to_Y(P)
+                if not P.is_hermitian():
+                    warnings.warn(
+                        "Hamiltonian is still not Hermitian after XZ_to_Y method, most likely pointing at larger "
+                        "structural issues with the Hamiltonian.", UserWarning)
+                    answer2 = input(
+                        "Do you want to apply the make_hermitian method (likely significantly altering the "
+                        "Hamiltonian)? (y/n)")
+                    if answer2.lower() in ['y', 'yes', 'ye', '1']:
+                        P = make_hermitian(P)
+                        if not P.is_hermitian():
+                            raise Exception("Hamiltonian is still not Hermitian after make_hermitian method, pointing "
+                                            "to a bug in the make_hermitian method.")
+                    else:
+                        raise Exception('Hamiltonian not Hermitian')
+            elif answer.lower() in ['n', 'no', 'ne', '0']:
+                return
+            else:
+                raise Exception("Invalid input")
+
+        P = weight_to_phase(P)
 
         # supposed to be permanent
         self._H = P
@@ -600,9 +627,9 @@ class Aquire:
     def pauli_block_sizes(self):
         return self._pauli_block_sizes
 
-    ###################################################################
-    # Attribute-like Methods ##########################################
-    ###################################################################
+    ###################################################################################################################
+    # Attribute-like Methods ##########################################################################################
+    ###################################################################################################################
 
     def total_shots(self):
         """
@@ -765,9 +792,9 @@ class Aquire:
         else:
             return graphs
 
-    ###################################################################
-    # Main experiment methods #########################################
-    ###################################################################
+    ###################################################################################################################
+    # Main experiment methods #########################################################################################
+    ###################################################################################################################
 
     def allocate_measurements(self, shots):
         """
@@ -861,9 +888,10 @@ class Aquire:
         self.true_statistical_variance_value : list
             Extended with the true statistical variance of the current data if true_values_flag is True.
         """
-        if self.total_shots() == self.update_steps[-1]:
-            warnings.warn("No new data to update covariance graph.", UserWarning)
-            return
+        if len(self.update_steps) > 0:
+            if self.total_shots() == self.update_steps[-1]:
+                warnings.warn("No new data to update covariance graph.", UserWarning)
+                return
         self.update_steps.append(self.total_shots())
         N, N_max = self.set_mcmc_parameters(self.total_shots())
         A = bayes_covariance_graph(self.data,
@@ -1006,7 +1034,8 @@ class Aquire:
                 noise_probability = self.config.noise_probability_function(C, *self.config.noise_probability_args,
                                                                            **self.config.noise_kwargs)
                 if np.random.rand() < noise_probability:
-                    result = self.config.error_function(result, *self.config.error_args, **self.config.error_kwargs)
+                    result = self.config.error_function(
+                        result, *self.config.error_function_args, **self.config.error_function_kwargs)
             simulated_measurement_results.append(result)
 
         self.data = update_data(self.cliques_since_last_update(),
@@ -1052,8 +1081,8 @@ class Aquire:
                                                                        **self.config.noise_kwargs)
 
             if np.random.rand() < noise_probability:
-                result = self.config.error_function(result, *self.config.error_args,
-                                                    **self.config.error_kwargs)
+                result = self.config.error_function(result, *self.config.error_function_args,
+                                                    **self.config.error_function_kwargs)
 
             simulated_diagnostic_results.append(result)
         self.diagnostic_results += simulated_diagnostic_results
@@ -1226,8 +1255,8 @@ class Aquire:
             aquire_str += str(self.config.noise_kwargs) + '\n'
 
             aquire_str += 'Error function: ' + str(self.config.error_function.__name__) + '\n'
-            aquire_str += str(self.config.error_args) + '\n'
-            aquire_str += str(self.config.error_kwargs) + '\n'
+            aquire_str += str(self.config.error_function_args) + '\n'
+            aquire_str += str(self.config.error_function_kwargs) + '\n'
 
         aquire_str += " \n"
         aquire_str += "Results:\n"
@@ -1264,6 +1293,11 @@ class Aquire:
     def check_results(self):
         if self.statistical_variance[-1] < 0:
             warnings.warn("Negative statistical variance estimate.", UserWarning)
+
+    # plot
+
+    def plot(self, filename: str | None = None):
+        plot_aquire(self, filename)
 
 
 def simulate_measurement(PauliSum: PauliSum, psi: list[float | complex] | list[float] | list[complex] | np.ndarray,
