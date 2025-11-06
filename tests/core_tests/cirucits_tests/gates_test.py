@@ -1,4 +1,4 @@
-from sympleq.core.circuits import SUM, SWAP, Hadamard, PHASE, Gate, Circuit
+from sympleq.core.circuits import SUM, SWAP, Hadamard, PHASE, Gate, Circuit, CNOT, PauliGate
 from sympleq.core.circuits.utils import is_symplectic
 from sympleq.core.circuits.target import find_map_to_target_pauli_sum, map_pauli_sum_to_target_tableau
 from sympleq.core.paulis import PauliSum, PauliString
@@ -21,7 +21,7 @@ class TestGates():
 
     def random_pauli_sum(self, dim, n_paulis=10):
         # Generates a random PauliSum with n_paulis random PauliStrings of dimension dim
-        #
+        # TODO: remove this and use from_random, make sure that the same PauliStrings are not generated in from_random
         ps_list = []
         element_list = [(0, 0, 0, 0)]  # to keep track of already generated PauliStrings. Avoids identity and duplicates
         for _ in range(n_paulis):
@@ -339,7 +339,7 @@ class TestGates():
         input_ps.remove_trivial_paulis()
         input_ps.combine_equivalent_paulis()
         print(input_ps)
-        circuit = Circuit.from_random(n_qudits, 100, dimensions)
+        circuit = Circuit.from_random(100, dimensions)
         target_ps = circuit.act(input_ps)
         target_ps.phases = np.zeros(n_qudits)
 
@@ -395,7 +395,8 @@ class TestGates():
                 g = Gate.from_random(n_qudits, dimension, seed=1)
                 gt = g.inv()
                 rps = PauliSum.from_random(n_paulis, n_qudits, [dimension] * n_qudits, False, seed=1)  #
-                assert rps == gt.act(g.act(rps)), f'Inversion Error run {i}:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
+                assert rps == gt.act(
+                    g.act(rps)), f'Inversion Error run {i}:\n' + rps.__str__() + '\n' + g.act(gt.act(rps)).__str__()
 
     def phase_table_local(self, G):
         d = G.dimensions[0]
@@ -445,7 +446,7 @@ class TestGates():
                         ps_m_res = U @ ps_m @ U.conj().T
 
                         mask = (ps_res_m.toarray() != 0)
-                        factors = np.around(ps_m_res.toarray()[mask]/ps_res_m.toarray()[mask],14)
+                        factors = np.around(ps_m_res.toarray()[mask] / ps_res_m.toarray()[mask], 14)
                         factor = factors[0]
                         phase_table_unitary[i1 * d + i2, j1 * d + j2] = (d * np.angle(factor) / (np.pi)) % (2 * d)
 
@@ -474,6 +475,87 @@ class TestGates():
             diff_m = np.around(phase_table_unitary - phase_table_symplectic, 10)
             assert not np.any(diff_m), 'Symplectic phase table does not match unitary phase table for SUM[1,0] gate'
 
+    def test_CNOT_unitary(self):
+        n_tests = 100
+        n_qudits = 2
+        n_paulis = 2
 
+        for _ in range(n_tests):
+            ps = PauliSum.from_random(n_paulis, n_qudits, [2] * n_qudits, False, seed=1)
+            ps_m = ps.matrix_form()
 
+            G = CNOT(0, 1)
+            ps_res = G.act(ps)
+            ps_res_m = ps_res.matrix_form()
 
+            U_G = G.unitary()
+            ps_m_res = U_G @ ps_m @ U_G.conj().T
+
+            diff_m = np.around(ps_res_m.toarray() - ps_m_res.toarray(), 10)
+            assert not np.any(diff_m), 'Symplectic phase table does not match unitary phase table for CNOT gate'
+
+    def test_two_qudit_unitary(self):
+        n_tests = 10
+        n_qudits = 4
+        n_paulis = 2
+        dims = [2, 3, 5, 7]
+        gates = [SUM, SWAP]  #
+        for gate in gates:
+            for d in dims:
+                for _ in range(n_tests):
+                    dimensions = [d] * n_qudits
+                    ps = PauliSum.from_random(n_paulis, n_qudits, dimensions, False, seed=1)
+                    i, j = random.sample(range(n_qudits), 2)
+                    ps_m = ps.matrix_form()
+
+                    G = gate(i, j, d)
+                    ps_res = G.act(ps)
+                    ps_res_m = ps_res.matrix_form()
+
+                    U_G = G.unitary(dimensions)
+                    ps_m_res = U_G @ ps_m @ U_G.conj().T
+
+                    diff_m = np.around(ps_res_m.toarray() - ps_m_res.toarray(), 10)
+                    assert not np.any(diff_m), 'failed for ' + gate.__name__ + ' dimension ' + str(d)
+
+    def test_one_qudit_unitary(self):
+        n_tests = 100
+        n_qudits = 1
+        n_paulis = 2
+        dims = [2, 3, 5, 7, 11]
+        gates = [Hadamard, PHASE]
+        for gate in gates:
+            for d in dims:
+                for _ in range(n_tests):
+                    ps = PauliSum.from_random(n_paulis, n_qudits, [d] * n_qudits, False, seed=1)
+                    ps_m = ps.matrix_form()
+
+                    G = gate(0, d)
+                    ps_res = G.act(ps)
+                    ps_res_m = ps_res.matrix_form()
+
+                    U_G = G.unitary()
+                    ps_m_res = U_G @ ps_m @ U_G.conj().T
+
+                    diff_m = np.around(ps_res_m.toarray() - ps_m_res.toarray(), 10)
+                    assert not np.any(diff_m), 'failed for ' + gate.__name__ + ' dimension ' + str(d)
+
+    def test_pauli_gate_unitary(self):
+        n_tests = 100
+        n_qudits = 1
+        n_paulis = 2
+        dims = [2, 3, 5, 7, 11]
+        for d in dims:
+            for _ in range(n_tests):
+                ps = PauliSum.from_random(n_paulis, n_qudits, [d] * n_qudits, False, seed=1)
+                ps_m = ps.matrix_form()
+
+                G = PauliGate(PauliString.from_random([d]))
+                ps_res = G.act(ps)
+                ps_res_m = ps_res.matrix_form()
+
+                U_G = G.unitary()
+                ps_m_res = U_G @ ps_m @ U_G.conj().T
+
+                diff_m = np.around(ps_res_m - ps_m_res, 10)
+                assert not np.any(diff_m), 'failed for PauliGate dimension ' + str(d)

@@ -3,7 +3,7 @@ from sympleq.core.paulis import PauliString, PauliSum, Pauli
 from typing import overload
 from sympleq.core.circuits.target import find_map_to_target_pauli_sum, get_phase_vector
 from sympleq.core.circuits.utils import (transvection_matrix, symplectic_form, tensor, I_mat, H_mat, S_mat, CX_func,
-                                         SWAP_func)
+                                         SWAP_func, pauli_unitary_from_tableau)
 from sympleq.core.finite_field_solvers import get_linear_dependencies
 import scipy.sparse as sp
 from .utils import embed_symplectic
@@ -308,7 +308,7 @@ class CZ(Gate):
             [1, 0, 0, 0],  # image of X0:  X0 -> X0
             [0, 1, 0, 0],  # image of X1:  X1 -> X1
             [0, 1, 1, 0],  # image of Z0:  Z0 -> Z0
-            [1, 0, 0, 1]  # image of Z1:  Z1 -> Z1
+            [1, 0, 0, 1]   # image of Z1:  Z1 -> Z1
         ], dtype=int).T
 
         phase_vector = np.array([0, 0, 0, 0], dtype=int)
@@ -334,19 +334,28 @@ class SWAP(Gate):
         super().__init__("SWAP", [index1, index2], symplectic, dimensions=dimension, phase_vector=phase_vector)
 
     def unitary(self, dims=None):
-        # SWAP on two qudits of equal dimension: |i, j> -> |j, i>.
-        # Basis ordering |i>⊗|j> with linear index idx(i, j) = i * d + j.
+        """
+        SWAP on two qudits at positions self.qudit_indices = [a0, a1]
+        for an arbitrary mixed-radix register with local dims.
+        Builds permutation matrix P with P_{f(i), i} = 1 where f applies the swap.
+        """
         if dims is None:
             dims = self.dimensions
-        aa = self.qudit_indices
+        dims = np.asarray(dims, dtype=int)
+
+        a0, a1 = map(int, self.qudit_indices)  # expect 0-based positions
         q = len(dims)
-        D = np.prod(dims)
-        a0 = q - 1 - aa[0]
-        a1 = q - 1 - aa[1]
-        aa2 = np.array([1 for i in range(D)])
-        aa3 = np.array([i for i in range(D)])
-        aa4 = np.array([SWAP_func(i, a0, a1, dims) for i in range(D)])
-        return sp.csr_matrix((aa2, (aa3, aa4)))
+        if not (0 <= a0 < q and 0 <= a1 < q and a0 != a1):
+            raise ValueError("Invalid qudit indices to swap.")
+
+        D = int(np.prod(dims))
+
+        # Columns are original indices 0..D-1; rows are mapped indices f(i)
+        cols = np.arange(D, dtype=int)
+        rows = np.fromiter((SWAP_func(i, a0, a1, dims) for i in cols), count=D, dtype=int)
+
+        data = np.ones(D, dtype=int)
+        return sp.csr_matrix((data, (rows, cols)), shape=(D, D))
 
     def copy(self) -> 'Gate':
         d = _scalar_dim(self.dimensions)
@@ -437,8 +446,17 @@ class PHASE(Gate):
 
 class PauliGate(Gate):
     def __init__(self, pauli: PauliString):
+        self.pauli_string = pauli
         n = pauli.n_qudits()
         lcm = int(pauli.lcm)
         symplectic = np.eye(2 * n, dtype=int)
         phase_vector = (2 * symplectic_form(n, lcm) @ np.concatenate([pauli.x_exp, pauli.z_exp])) % (2 * lcm)
         super().__init__("Pauli", list(range(n)), symplectic, dimensions=pauli.dimensions, phase_vector=phase_vector)
+
+    def copy(self) -> 'Gate':
+        return PauliGate(self.pauli_string)
+
+    def unitary(self, dims=None):
+        if dims is None:
+            dims = self.dimensions
+        return pauli_unitary_from_tableau(dims[0], self.pauli_string.x_exp, self.pauli_string.z_exp)

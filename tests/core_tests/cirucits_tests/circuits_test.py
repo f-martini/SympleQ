@@ -1,6 +1,6 @@
 # from sympleq.core.paulis import random_pauli_string
 from sympleq.core.circuits.known_circuits import to_x, to_ix
-from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
+from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE, PauliGate
 from sympleq.core.circuits.utils import embed_symplectic
 from sympleq.core.paulis import PauliSum, PauliString
 import numpy as np
@@ -13,7 +13,7 @@ class TestCircuits():
         target_x = 0
         list_of_failures = []
         for _ in range(n_tests):
-            ps = PauliString.from_random(4, [3, 3, 3, 3])
+            ps = PauliString.from_random([3, 3, 3, 3])
             if ps.n_identities() == 4:
                 continue
             c = to_x(ps, 0)
@@ -27,7 +27,7 @@ class TestCircuits():
         target_x = 0
         list_of_failures = []
         for _ in range(n_tests):
-            ps = PauliString.from_random(4, [2, 2, 2, 2])
+            ps = PauliString.from_random([2, 2, 2, 2])
             if ps.n_identities() == 4:
                 continue
             c = to_ix(ps, 0)
@@ -163,7 +163,7 @@ class TestCircuits():
         for _ in range(1000):
             n_qudits = np.random.randint(2, 10)
             dimensions = np.random.randint(2, 5, size=n_qudits)
-            C = Circuit.from_random(n_qudits=n_qudits, depth=10, dimensions=dimensions)
+            C = Circuit.from_random(n_gates=10, dimensions=dimensions)
             ps = PauliSum.from_random(10, n_qudits, dimensions)
             out = C.act(ps)
             assert np.all(out.dimensions == dimensions)
@@ -189,7 +189,7 @@ class TestCircuits():
         n_qudits = 3
         for _ in range(N):
             P = PauliSum.from_random(n_paulis, n_qudits, dimensions, rand_weights=False)
-            C = Circuit.from_random(n_qudits, depth=np.random.randint(1, 6), dimensions=dimensions)
+            C = Circuit.from_random(n_gates=np.random.randint(1, 6), dimensions=dimensions)
             U = C.unitary()
 
             ps_m = P.matrix_form()
@@ -370,6 +370,46 @@ class TestCircuits():
 
         assert np.allclose(phi, expected)
 
+    def test_circuit_unitary(self):
+        n_tests = 100
+        n_paulis = 10
+        n_qudits = 3
+        c_depth = 1
+        dims = [2, 3, 5]
+        gate_list = [Hadamard, SWAP, SUM, PHASE]
+        for dim in dims:
+            dimensions = [dim] * n_qudits
+            for _ in range(n_tests):
+                ps = PauliSum.from_random(n_paulis, n_qudits, dimensions, False)
+                c = Circuit.from_random(c_depth, dimensions, gate_list=gate_list)
+                U_c = c.unitary()
+                P_from_conjugation = U_c @ ps.matrix_form() @ U_c.conj().T
+                P_from_act = c.act(ps).matrix_form()
+                diff_m = np.around(P_from_conjugation.toarray() - P_from_act.toarray(), 10)
+                assert not np.any(diff_m), f'failed for dim {_, dim, c.__str__()}'
+
+    def test_single_gate_circuit_unitary(self):
+        gate_list = [Hadamard, SWAP, SUM, PHASE, PauliGate]
+        n_qudits = 5
+        dims = [2, 3]   # much bigger and the Hilbert space gets too large
+        indices = [0, 3]
+        for gate in gate_list:
+            for dim in dims:
+                dimensions = [dim] * n_qudits
+                if gate in [SUM, SWAP]:
+                    c = Circuit(dimensions, [gate(indices[0], indices[1], dim)])
+                    g = gate(indices[0], indices[1], dim)
+                elif gate == PauliGate:
+                    g = gate(PauliString.from_random(dimensions))
+                    c = Circuit(dimensions, [g])
+                else:
+                    c = Circuit(dimensions, [gate(indices[0], dim)])
+                    g = gate(indices[0], dim)
+
+                U_c = c.unitary().toarray()
+                U_g = g.unitary(dims=dimensions).toarray()
+                assert np.allclose(U_c, U_g)
+
 
 if __name__ == '__main__':
-    TestCircuits().test_random_circuit()
+    TestCircuits().test_circuit_unitary()

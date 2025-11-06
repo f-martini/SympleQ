@@ -1,8 +1,6 @@
 import numpy as np
 from sympleq.core.paulis import PauliSum
 import galois
-from sympleq.core.finite_field_solvers import solve_modular_linear_system
-from collections import defaultdict
 
 
 def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
@@ -211,4 +209,3 @@ def get_linearly_independent_rows(A: np.ndarray, d: int) -> list[int]:
         if nz_indices.size > 0:
             pivots.append(nz_indices[0])
     return pivots
-

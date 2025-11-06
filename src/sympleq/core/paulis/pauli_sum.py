@@ -166,11 +166,11 @@ class PauliSum:
         # ensure no duplicate strings
         strings = []
         for i in range(n_paulis):
-            ps = PauliString.from_random(n_qudits, dimensions, seed=string_seeds[i])
+            ps = PauliString.from_random(dimensions, seed=string_seeds[i])
             j = 0
             while ps in strings:
                 j += 1
-                ps = PauliString.from_random(n_qudits, dimensions, seed=string_seeds[j])
+                ps = PauliString.from_random(dimensions, seed=string_seeds[j])
             strings.append(ps)
 
         return cls(strings, weights=weights, phases=[0] * n_paulis, dimensions=dimensions, standardise=True)

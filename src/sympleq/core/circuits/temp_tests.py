@@ -101,7 +101,7 @@ def test_preconditioner_after_random_conjugation(n=4, p=3, depth=10, seed=1):
     rng = np.random.default_rng(seed)
     F = random_symplectic(n, p, rng)
     # random circuit (uses only valid gates for dimension p)
-    C = Circuit.from_random(n_qudits=n, depth=depth, dimensions=[p] * n)
+    C = Circuit.from_random(n_qudits=n, n_gates=depth, dimensions=[p] * n)
     F_conj = (C.full_symplectic() @ F) % p
     assert is_symplectic(F_conj, p), "Conjugated F must remain symplectic"
     C_pre = ensure_invertible_A_circuit(F_conj, p)
