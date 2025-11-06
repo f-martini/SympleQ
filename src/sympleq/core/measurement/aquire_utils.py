@@ -60,7 +60,7 @@ def true_mean(H: PauliSum, psi):
 def true_covariance_graph(H: PauliSum, psi):
     weights = H.weights
     p = H.n_paulis()
-    mm = [H.matrix_form(i) for i in range(p)]
+    mm = [np.exp(2 * np.pi * 1j * H.phases[i] / (2 * H.lcm)) * H.matrix_form(i) for i in range(p)]
     psi_dag = psi.conj().T
     cc1 = [psi_dag @ mm[i] @ psi for i in range(p)]
     cc2 = [psi_dag @ mm[i].conj().T @ psi for i in range(p)]
