@@ -157,6 +157,7 @@ class PauliSum:
             A PauliSum object.
         """
         # TODO: Eliminate n_qudits and set dimensions directly from len(dimensions)
+        # TODO: Ensure no duplicate strings
         if seed is not None:
             np.random.seed(seed)
         weights = 2 * (np.random.rand(n_paulis) - 0.5) if rand_weights else np.ones(n_paulis)
@@ -958,7 +959,7 @@ class PauliSum:
         """
         Combines equivalent Pauli operators in the sum by summing their coefficients and deleting duplicates.
         """
-        self.standardise()  # makes sure all phases are 0
+        # self.standardise()  # makes sure all phases are 0
         # combine equivalent Paulis
         to_delete = []
         for i in reversed(range(self.n_paulis())):
@@ -1311,6 +1312,7 @@ class PauliSum:
         scipy.sparse.csr_matrix
             Matrix representation of input Pauli.
         """
+        # TODO: If pauli_string_index is selected it maybe should account for the weights and phases
         if pauli_string_index is not None:
             ps = self.select_pauli_string(pauli_string_index)
             return PauliSum(ps).matrix_form()
@@ -1416,22 +1418,37 @@ class PauliSum:
 
     H = hermitian_conjugate
 
-    def is_hermitian(self):
-        P = self.copy()
-        P.combine_equivalent_paulis()
-        P.phase_to_weight()
-        # First Try: Just Primitive Check
-        for i in range(P.n_paulis()):
-            pauli_string = P[i]
-            hermitian_pauli_string = pauli_string.hermitian_conjugate()
-            hermitian_pauli_string.phase_to_weight()
-            for j in range(P.n_paulis()):
-                if P[j, :] == hermitian_pauli_string[0, :]:
-                    if np.abs(hermitian_pauli_string.weights[0] - P.weights[j]) > 1e-10:
-                        return False
-                    else:
-                        break
-
+    def is_hermitian(self, mode='symplectic'):
+        if mode == 'symplectic':
+            P = self.copy()
+            P.combine_equivalent_paulis()
+            P.phase_to_weight()
+            # First Try: Just Primitive Check
+            for i in range(P.n_paulis()):
+                pauli_string = P[i]
+                hermitian_pauli_string = pauli_string.hermitian_conjugate()
+                hermitian_pauli_string.phase_to_weight()
+                hermitian_counterpart_found = False
+                for j in range(P.n_paulis()):
+                    if P[j, :] == hermitian_pauli_string[0, :]:
+                        hermitian_counterpart_found = True
+                        if np.abs(hermitian_pauli_string.weights[0] - P.weights[j]) > 1e-10:
+                            return False
+                        else:
+                            break
+                if not hermitian_counterpart_found:
+                    return False
+        elif mode == "scipy":
+            return scipy.linalg.ishermitian(np.around(self.matrix_form().toarray(), 6))
+        elif mode == "unitary":
+            P = self.matrix_form().toarray()
+            P_H = P.conj().T
+            if not np.allclose(P, P_H):
+                return False
+            else:
+                return True
+        else:
+            raise ValueError("Mode must be either symplectic, scipy or unitary")
         return True
 
     # TODO: Move this to a better location and amend where it is used in the Pauli reduction code
