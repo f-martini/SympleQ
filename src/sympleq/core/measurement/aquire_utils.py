@@ -76,3 +76,225 @@ def true_covariance_graph(H: PauliSum, psi):
 def true_statistical_variance(H, psi, S, weights):
     sigma = np.sum(scale_variances(true_covariance_graph(H, psi), S).adj).real
     return sigma
+
+
+def config_params():
+    param_info = {
+        "Hamiltonian": {
+            "type": "PauliSum",
+            "optional": False,
+            "default": None,
+            "description": "Hamiltonian/Observable to be simulated.",
+            "accepted": "Any hermitian PauliSum.",
+            "example": "PauliSum(['x1z1 x1z0 x0z0', 'x0z0 x1z0 x1z0', 'x0z1 x0z0 x0z1'], dimensions=[2, 2, 2])",
+        },
+        "psi": {
+            "type": "np.ndarray | None",
+            "optional": True,
+            "default": None,
+            "description": ("State vector to simulate the average of the observable. If None, comparison of "
+                            "experimentally estimated values to true values is not possible."),
+            "accepted": "list[float | complex] | list[float] | list[complex] | np.ndarray | None",
+            "example": "np.ones(np.prod(Hamiltonian.dimensions)) / np.sqrt(np.prod(Hamiltonian.dimensions))",
+        },
+        "commutation_mode": {
+            "type": "str",
+            "optional": False,
+            "default": "general",
+            "description": ("Wether to use a general commutation graph or a bitwise commutation graph. 'bitwise', "
+                            "'local' or 'quditwise' all indicate a bitwise commutation graph."),
+            "accepted": "general | bitwise | local | quditwise"
+        },
+        "allocation_mode": {
+            "type": "str",
+            "optional": False,
+            "default": "set",
+            "description": ("Wether to allocate measurement shots to the clique with the highest (potential) decrease "
+                            "in error (set) or wether to build a random probability distribution proportional to the "
+                            "error decrease for each clique and distribute shots randomly according to that (random)"),
+            "accepted": "random | set"
+        },
+        "diagnostic_mode": {
+            "type": "str",
+            "optional": False,
+            "default": "Zero",
+            "description": ("Wether to use the zero state for hardware error diagnostics or a random (computational) "
+                            "stabilizer state of the circuit"),
+            "accepted": "Zero | Random | informed"
+        },
+        "calculate_true_values": {
+            "type": "bool",
+            "optional": False,
+            "default": True,
+            "description": ("Wether to calculate the true mean and true statistical variance of the observable.")
+        },
+        "enable_diagnostics": {
+            "type": "bool",
+            "optional": False,
+            "default": False,
+            "description": ("Wether to enable hardware error diagnostics.")
+        },
+        "auto_update_covariance_graph": {
+            "type": "bool",
+            "optional": False,
+            "default": True,
+            "description": ("Wether to automatically update the covariance graph after simulating or inputting "
+                            "measurement results.")
+        },
+        "enable_simulated_hardware_noise": {
+            "type": "bool",
+            "optional": False,
+            "default": False,
+            "description": ("Wether to enable simulated hardware noise (if measurements are simulated classically).")
+        },
+        "save_covariance_graph_checkpoints": {
+            "type": "bool",
+            "optional": False,
+            "default": False,
+            "description": ("Wether to save the covariance graph whenever it is updated.")
+        },
+        "verbose": {
+            "type": "bool",
+            "optional": False,
+            "default": False,
+            "description": ("Wether to print verbose output whenever settings are updated.")
+        },
+        "auto_update_settings": {
+            "type": "bool",
+            "optional": False,
+            "default": True,
+            "description": ("Wether to automatically update dependent settings after manual change of settings.")
+        },
+        "enable_debug_checks": {
+            "type": "bool",
+            "optional": False,
+            "default": False,
+            "description": ("Wether to checks that might slow down simulation but make sure that all values are "
+                            "correct.")
+        },
+        "mcmc_number_of_chains": {
+            "type": "int",
+            "optional": False,
+            "default": 8,
+            "description": ("Number of MCMC chains to use for covariance calculation.")
+        },
+        "mcmc_initial_samples_per_chain": {
+            "type": "int | Callable",
+            "optional": False,
+            "default": "function mcmc_number_initial_samples",
+            "description": ("Number of initial samples to use for each MCMC chain. Can be integer if the same number "
+                            "should be used for all shots, but normally for high shot numbers an increased precision "
+                            "in the covariance estimate is desired. In that case this can be a function that takes the "
+                            "current measurement shot number as well as other arguments as input to calculate the "
+                            "number of initial mcmc samples. The function should return an integer. Additional "
+                            "arguments can be parsed via mcmc_initial_samples_per_chain_kwargs."),
+            "accepted": "int | Callable"
+        },
+        "mcmc_max_samples_per_chain": {
+            "type": "int | Callable",
+            "optional": False,
+            "default": "function mcmc_number_max_samples",
+            "description": ("Maximum number of samples to use for each MCMC chain. MCMC calculation will increase "
+                            "number of samples either until convergence (according to geweke and rubin criterion) or "
+                            "until the max number of samples is reached. Can be integer if the same number "
+                            "should be used for all shots, but normally for high shot numbers an increased precision "
+                            "in the covariance estimate is desired. In that case this can be a function that takes the "
+                            "current measurement shot number as well as other arguments as input to calculate the "
+                            "number of mcmc samples. The function should return an integer. Additional arguments can "
+                            "be parsed via mcmc_max_samples_per_chain_kwargs."),
+            "accepted": "int | Callable"
+        },
+        "noise_probability_function": {
+            "type": "Callable",
+            "optional": False,
+            "default": "function standard_noise_probability_function",
+            "description": ("Function that takes a circuit and additional noise arguments as input and returns the "
+                            "noise probability of the circuit. Used to classically simulate noise during measurement. "
+                            "Additional arguments can be parsed via noise_probability_args and "
+                            "noise_probability_function_kwargs."),
+            "accepted": "Callable"
+        },
+        "error_function": {
+            "type": "Callable",
+            "optional": False,
+            "default": "function standard_error_function",
+            "description": ("Function that takes a measurement result and additional error arguments as input and "
+                            "returns a noisy measurement result. Used to classically simulate noise during measurement."
+                            " Additional arguments can be parsed via error_function_args and error_function_kwargs."),
+            "accepted": "Callable"
+        },
+        "commutation_graph": {
+            "type": "graph",
+            "description": ("Graph encoding the commutation relation between the paulistrings in the PauliSum. Here 1 "
+                            "indicates commutation and 0 indicates non-commutation. Will be calculated based on the "
+                            "input PauliSum and commutation_mode. Dependent setting that will automatically be updated "
+                            "if either Hamiltonian or commutation_mode are changed and auto_update_settings is True."),
+        },
+        "clique_covering": {
+            "type": "list[list[int]]",
+            "description": ("Clique covering of the commutation graph. Will be calculated based on the input PauliSum "
+                            "and commutation mode. Consists of a list of lists of integers. The integers refer to the "
+                            "index of the paulistrings in the maximally connected clique")
+        },
+        "validate_parameters": {
+            "type": "method",
+            "input": None,
+            "description": ("Checks that all parameters fulfill some loose validity criteria. Example: Normalization "
+                            "of the state vector psi")
+        },
+        "update_all": {
+            "type": "method",
+            "input": None,
+            "description": ("Updates all dependent parameters. Example: Commutation graph and clique covering.")
+        },
+        "from_json": {
+            "type": "class method",
+            "input": None,
+            "description": ("Loads config from a json file.")
+        },
+        "to_json": {
+            "type": "method",
+            "input": None,
+            "description": ("Saves config to a json file.")
+        },
+        "set_params": {
+            "type": "method",
+            "input": "kwargs",
+            "description": ("Set multiple parameters at once."),
+            "example": "AquireConfig.set_params(**{'commutation_mode': 'quditwise', 'auto_update_settings': False})"
+        }
+    }
+    return param_info
+
+
+def aquire_params():
+    param_info = {
+        "config": {
+            "type": "AquireConfig",
+            "optional": True,
+            "default": None,
+            "description": "Configuration class for Aquire. Used to set various parameters that influence the experiment. For more information call AquireConfig.info()."
+        },
+        "cliques": {
+            "type": "list[list[int]]",
+            "description": "List of cliques selected for measurement. Each clique is a list of indices, representing the paulistrings in the given observable."
+        },
+        "circuits": {
+            "type": "list[Circuit]",
+            "description": "List of circuits to measure the selected cliques. Each circuit is a Circuit object."
+        },
+        "circuit_dictionary": {
+            "type": "dict",
+            "description": "Dictionary mapping cliques to sub-PauliSums, circuits and a dictionary that explains, which of the paulistrings in the sub-PauliSum are the product of two paulistrings in the original observable."
+        },
+        "measurement_results": {
+            "type": "list",
+            "description": "List of (measured or simulated) measurement results for the selected cliques. Each measurement result is a list of integers representing the outcome for the respective qudit after applying the corresponding circuit in circuits"
+        },
+        "scaling_matrix": {
+            "type": "numpy.ndarray",
+            "description": "Numpy array that keeps track of the number of times each paulistring has been measured. Off-diagonal elements count how often two different paulistrings have been measured together. Used for allocation of new cliques."
+        }
+
+    }
+    return param_info
