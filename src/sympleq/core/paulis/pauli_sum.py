@@ -155,6 +155,7 @@ class PauliSum(PauliObject):
             A PauliSum object.
         """
         # TODO: Eliminate n_qudits and set dimensions directly from len(dimensions)
+        # TODO: Ensure no duplicate strings
         if seed is not None:
             np.random.seed(seed)
         weights = 2 * (np.random.rand(n_paulis) - 0.5) if rand_weights else np.ones(n_paulis)
@@ -713,7 +714,7 @@ class PauliSum(PauliObject):
         """
         Combines equivalent Pauli operators in the sum by summing their coefficients and deleting duplicates.
         """
-        self.standardise()  # makes sure all phases are 0
+        # self.standardise()  # makes sure all phases are 0
         # combine equivalent Paulis
         to_delete = []
         for i in reversed(range(self.n_paulis())):
@@ -1061,6 +1062,7 @@ class PauliSum(PauliObject):
         scipy.sparse.csr_matrix
             Matrix representation of input Pauli.
         """
+        # TODO: If pauli_string_index is selected it maybe should account for the weights and phases
         if pauli_string_index is not None:
             ps = PauliSum(self.tableau()[pauli_string_index], self.dimensions(), self.weights(), self.phases())
             return ps.to_hilbert_space()
