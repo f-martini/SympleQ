@@ -1,319 +1,313 @@
 from __future__ import annotations
 import numpy as np
-from typing import Any
+import scipy.sparse as sp
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .pauli_sum import PauliSum
+    from .pauli_string import PauliString
+
+from .pauli_object import PauliObject
+from .constants import DEFAULT_QUDIT_DIMENSION
 
 
-class Pauli:
-    """
-    Constructor for Pauli class. This represent a single Pauli operator acting on a quDit in symplectic form.
-    For more details, see the references:
-    `Phys. Rev. A 71, 042315 (2005) <https://doi.org/10.1103/PhysRevA.71.042315>`_
-    and
-    `Phys. Rev. A 70, 052328 (2004) <https://doi.org/10.1103/PhysRevA.70.052328>`_
+class Pauli(PauliObject):
+    @classmethod
+    def from_tableau(cls, tableau: np.ndarray, dimension: int = DEFAULT_QUDIT_DIMENSION) -> Pauli:
+        """
+        Create a Pauli from its tableau.
 
-    Parameters
-    ----------
-    x_exp : int or str
-        Exponent of X part of Pauli in symplectic form. If str, this describes x and z parts in form
-        'xrzs', where r and s are integers representing the exponents of x and z respectively.
-    z_exp : int
-        Exponent of Z part of Pauli in symplectic form. If None, this is set to 0.
-    dimension : int
-        The dimension of the qudit. Default is 2.
-    """
+        Parameters
+        ----------
+        tableau : inp.ndarray
+            The tableau of the Pauli, a 1D array of length 2.
+        dimension : int, optional
+            Qudit dimension used to reduce exponents modulo `dimension`.
 
-    def __init__(self,
-                 x_exp: int | None = None,
-                 z_exp: int | None = None,
-                 dimension: int = 2):
-        self.x_exp = get_sanitized_x_exp(x_exp)
-        self.z_exp = get_sanitized_z_exp(z_exp)
-        self.dimension = get_sanitized_dimension(dimension, self.x_exp, self.z_exp)
+        Returns
+        -------
+        Pauli
+            Pauli instance with tableau reduced modulo `dimension`.
+        """
+        P = cls(tableau, dimensions=dimension)
+        P._sanity_check()
+
+        return P
 
     @classmethod
-    def from_string(cls, pauli_str: str, dimension: int = 2) -> Pauli:
+    def from_exponents(cls, x_exp: int | None = None, z_exp: int | None = None,
+                       dimension: int = DEFAULT_QUDIT_DIMENSION) -> Pauli:
+        """
+        Create a Pauli from integer X and Z exponents.
+
+        Parameters
+        ----------
+        x_exp : int | None
+            Exponent for the X part. If None, treated as 0.
+        z_exp : int | None
+            Exponent for the Z part. If None, treated as 0.
+        dimension : int, optional
+            Qudit dimension used to reduce exponents modulo `dimension`.
+
+        Returns
+        -------
+        Pauli
+            Pauli instance with exponents reduced modulo `dimension`.
+        """
+
+        if x_exp is None:
+            x_exp = 0
+        if z_exp is None:
+            z_exp = 0
+
+        tableau = np.asarray([x_exp, z_exp], dtype=int) % dimension
+        P = cls(tableau, dimensions=dimension)
+        P._sanity_check()
+
+        return P
+
+    @classmethod
+    def from_string(cls, pauli_str: str, dimension: int = DEFAULT_QUDIT_DIMENSION) -> Pauli:
         """
         Create a Pauli object from a string representation.
 
-        Args:
-            pauli_str (str): String representation of the Pauli operator,
-                expected to contain the x and z exponents at specific positions, e.g. "x1z0".
-            dimension (int, optional): The dimension of the Pauli operator.
-                Defaults to 2.
+        Parameters
+        ----------
+        pauli_str : str
+            String of the form 'x{int}z{int}', e.g. 'x1z0'. Only single-digit
+            exponents are currently supported by this parser.
+        dimension : int, optional
+            Qudit dimension to interpret the exponents modulo. Defaults to
+            DEFAULT_QUDIT_DIMENSION.
 
-        Returns:
-            Pauli: An instance of the Pauli class constructed from the given string.
+        Returns
+        -------
+        Pauli
+            Instance constructed from the parsed exponents.
 
-        Raises:
-            ValueError: If the input string does not have the expected format or cannot be parsed.
+        Raises
+        ------
+        ValueError
+            If the string cannot be parsed into two integer exponents.
         """
-        return cls(x_exp=int(pauli_str[1]), z_exp=int(pauli_str[3]), dimension=dimension)
+        tableau = np.empty(2, dtype=int)
+        try:
+            tableau[0] = int(pauli_str[1])
+            tableau[1] = int(pauli_str[3])
+        except Exception as e:
+            raise ValueError(f"Could not format tableau from input string: {e}.")
+
+        P = cls(tableau, dimensions=dimension)
+        P._sanity_check()
+
+        return P
+
+    @classmethod
+    def Xnd(cls, x_exp: int, dimension: int) -> Pauli:
+        """
+        Create a Pauli X operator with given X exponent.
+
+        Parameters
+        ----------
+        x_exp : int
+            Exponent for the X part.
+        dimension : int
+            Qudit dimension.
+
+        Returns
+        -------
+        Pauli
+            Pauli instance corresponding to X^x_exp.
+        """
+        return cls.from_exponents(x_exp, 0, dimension)
+
+    @classmethod
+    def Ynd(cls, y_exp: int, dimension: int) -> Pauli:
+        """
+        Create a Pauli Y-like operator with equal X and Z exponents.
+
+        Parameters
+        ----------
+        y_exp : int
+            Exponent for both X and Z parts.
+        dimension : int
+            Qudit dimension.
+
+        Returns
+        -------
+        Pauli
+            Pauli instance with X and Z exponents equal to `y_exp`.
+        """
+        return cls.from_exponents(y_exp, y_exp, dimension)
+
+    @classmethod
+    def Znd(cls, z_exp: int, dimension: int) -> Pauli:
+        """
+        Create a Pauli Z operator with given Z exponent.
+
+        Parameters
+        ----------
+        z_exp : int
+            Exponent for the Z part.
+        dimension : int
+            Qudit dimension.
+
+        Returns
+        -------
+        Pauli
+            Pauli instance corresponding to Z^z_exp.
+        """
+        return cls.from_exponents(0, z_exp, dimension)
+
+    @classmethod
+    def Idnd(cls, dimension: int) -> Pauli:
+        """
+        Create the identity Pauli (zero exponents) for given dimension.
+
+        Parameters
+        ----------
+        dimension : int
+            Qudit dimension.
+
+        Returns
+        -------
+        Pauli
+            Identity Pauli (x_exp=0, z_exp=0).
+        """
+        return cls.from_exponents(0, 0, dimension)
+
+    def phases(self) -> np.ndarray:
+        """
+        Returns the phases associated with the Pauli object.
+        For a Pauli operator, this is just the trivial phase.
+
+        Returns
+        -------
+        np.ndarray
+            The phases as a 1d-vector.
+        """
+        return np.asarray([0], dtype=int)
+
+    def weights(self) -> np.ndarray:
+        """
+        Returns the weights associated with the Pauli object.
+        For a Pauli operator, this is just 1.
+
+        Returns
+        -------
+        np.ndarray
+            The weights as a 1d-vector.
+        """
+        return np.asarray([1], dtype=complex)
+
+    def dimension(self) -> int:
+        """
+        Returns the dimension of the Pauli as an int.
+
+        Returns
+        -------
+        int
+            The Pauli dimension
+        """
+        return self._dimensions[0]
+
+    def as_pauli_sum(self) -> PauliSum:
+        """
+        Converts the Pauli to a PauliSum.
+
+        Returns
+        -------
+        PauliSum
+            A PauliSum instance representing the given Pauli operator.
+        """
+        return PauliSum(self.tableau(), self.dimensions(), self.weights(), self.phases())
+
+    def as_pauli_string(self) -> PauliString:
+        """
+        Converts the Pauli to a PauliString.
+
+        Returns
+        -------
+        PauliString
+            A PauliString instance representing the given Pauli operator.
+        """
+        return PauliString(self.tableau(), self.dimensions(), self.weights(), self.phases())
+
+    def to_hilbert_space(self) -> sp.csr_matrix:
+        """
+        Get the matrix form of the Pauli as a sparse matrix.
+
+        Returns
+        -------
+        scipy.sparse.csr_matrix
+            Matrix representation of input Pauli.
+        """
+        return self.as_pauli_sum().to_hilbert_space()
 
     def __mul__(self, A: str | Pauli) -> Pauli:
         """
-        Multiplies the current Pauli operator with another Pauli operator or a string representation.
+        Multiply this Pauli by another Pauli or parseable string.
 
-        Args:
-            A (str | Pauli): The Pauli operator or its string representation to multiply with.
+        Parameters
+        ----------
+        A : str | Pauli
+            Other Pauli or string representation (e.g. 'x1z0').
 
-        Returns:
-            Pauli: The resulting Pauli operator after multiplication.
+        Returns
+        -------
+        Pauli
+            Product Pauli with exponents added modulo the dimension.
 
-        Raises:
-        Exception: If the multiplication cannot be performed (e.g., incompatible dimensions).
+        Raises
+        ------
+        Exception
+            If operand type is unsupported or dimensions mismatch.
         """
         if isinstance(A, str):
             return self * Pauli.from_string(A)
-        elif isinstance(A, Pauli):
-            if A.dimension != self.dimension:
-                raise Exception("To multiply two Paulis, their dimensions"
-                                f" {A.dimension} and {self.dimension} must be equal")
 
-            return Pauli(x_exp=(self.x_exp + A.x_exp) % self.dimension,
-                         z_exp=(self.z_exp + A.z_exp) % self.dimension,
-                         dimension=self.dimension)
-        else:
+        if not isinstance(A, Pauli):
             raise Exception(f"Cannot multiply Pauli with type {type(A)}")
 
-    def __pow__(self, power: int) -> Pauli:
-        """
-        Raises the Pauli operator to a given power.
+        if not np.array_equal(self.dimensions(), A.dimensions()):
+            raise Exception("To multiply two Paulis, their dimensions"
+                            f" {A.dimensions()} and {self.dimensions()} must be equal")
 
-        Args:
-            power (int): The power to raise the Pauli operator to.
+        new_tableau = (self.tableau() + A.tableau()) % self.lcm()
 
-        Returns:
-            Pauli: The resulting Pauli operator after exponentiation.
-
-        Raises:
-            TypeError: If the power is not an integer.
-            ValueError: If the power is negative.
-        """
-        if not isinstance(power, int):
-            raise TypeError("Power must be an integer.")
-        if power < 0:
-            raise ValueError("Power must be non-negative.")
-
-        return Pauli(x_exp=(self.x_exp * power) % self.dimension,
-                     z_exp=(self.z_exp * power) % self.dimension,
-                     dimension=self.dimension)
+        return Pauli(new_tableau, dimensions=self.dimensions())
 
     def __str__(self) -> str:
         """
-        Returns a string representation of the Pauli operator in the form 'x{self.x_exp}z{self.z_exp}'.
+        String representation in the form 'x{X}z{Z}'.
+
+        Returns
+        -------
+        str
+            Human-readable short string for the Pauli.
         """
         return f'x{self.x_exp}z{self.z_exp}'
 
-    def __eq__(self, other_pauli: Any) -> bool:
+    @property
+    def x_exp(self) -> int:
         """
-        Checks if two Pauli operators are equal.
+        X exponent of the Pauli.
 
-        Args:
-            other_pauli (Any): The other Pauli operator to compare with.
-
-        Returns:
-            bool: True if the Pauli operators are equal, False otherwise.
+        Returns
+        -------
+        int
+            X exponent.
         """
-        if not isinstance(other_pauli, Pauli):
-            return False
-        return self.x_exp == other_pauli.x_exp and \
-            self.z_exp == other_pauli.z_exp and \
-            self.dimension == other_pauli.dimension
+        return self._tableau[0][0]
 
-    def __ne__(self, other_pauli: Any) -> bool:
+    @property
+    def z_exp(self) -> int:
         """
-        Checks if two Pauli operators are not equal.
+        Z exponent of the Pauli.
 
-        Args:
-            other_pauli (Any): The other Pauli operator to compare with.
-
-        Returns:
-            bool: True if the Pauli operators are not equal, False otherwise.
+        Returns
+        -------
+        int
+            Z exponent.
         """
-        return not self.__eq__(other_pauli)
-
-    def __dict__(self) -> dict:
-        """
-        Returns a dictionary representation of the Pauli operator,
-        in the form {'x_exp': ..., 'z_exp': ..., 'dimension': ...}.
-        """
-        return {'x_exp': self.x_exp, 'z_exp': self.z_exp, 'dimension': self.dimension}
-
-    def __gt__(self, other_pauli: Pauli) -> bool:
-        """
-        Compares two Pauli operators based on their x and z exponents.
-        """
-        d = self.dimension
-        # TODO: Ask @charlie why we are including "d-*_exp" in the comparison
-        x_measure = min(self.x_exp % d, (d - self.x_exp) % d)
-        x_measure_new = min(other_pauli.x_exp % d, (d - other_pauli.x_exp) % d)
-        z_measure = min(self.z_exp % d, (d - self.z_exp) % d)
-        z_measure_new = min(other_pauli.z_exp % d, (d - other_pauli.z_exp) % d)
-
-        if x_measure > x_measure_new:
-            return True
-        elif x_measure == x_measure_new:
-            if z_measure > z_measure_new:
-                return True
-            elif z_measure == z_measure_new:
-                return False
-
-        return False
-
-    def copy(self) -> Pauli:
-        """
-        Creates a copy of the current Pauli operator.
-        """
-        return Pauli(x_exp=self.x_exp, z_exp=self.z_exp, dimension=self.dimension)
-
-
-class Xnd(Pauli):
-    """
-    Represents a Pauli operator with only the X part defined.
-    """
-    def __init__(self, x_exp: int, dimension: int):
-        super().__init__(x_exp, 0, dimension)
-
-
-class Ynd(Pauli):
-    """
-    Represents a Pauli operator with only the Y part defined. In the context of qudits,
-    this is represented as a Pauli operator with the same X and Z powers.
-    """
-    def __init__(self, y_exp: int, dimension: int):
-        super().__init__(y_exp, y_exp, dimension)
-
-
-class Znd(Pauli):
-    """
-    Represents a Pauli operator with only the Z part defined.
-    """
-    def __init__(self, z_exp: int, dimension: int):
-        super().__init__(0, z_exp, dimension)
-
-
-class Id(Pauli):
-    """
-    Represents the identity operator in the context of Pauli operators.
-    """
-    def __init__(self, dimension: int):
-        super().__init__(0, 0, dimension)
-
-
-def get_sanitized_x_exp(x_exp: int | np.integer | None) -> int:
-    """
-    Checks whether the input `x_exp` is valid.
-
-    Parameters
-    ----------
-    x_exp : int, np.integer, or None
-        The exponent value to be sanitized. Can be a Python integer, a NumPy integer, or None.
-
-    Returns
-    -------
-    int
-        The sanitized integer exponent. Returns 0 if `x_exp` is None.
-
-    Raises
-    ------
-    TypeError
-        If `x_exp` is not an integer.
-
-    Examples
-    --------
-    >>> get_sanitized_x_exp(2)
-    2
-    >>> get_sanitized_x_exp(None)
-    0
-    >>> get_sanitized_x_exp(np.int32(5))
-    5
-    >>> get_sanitized_x_exp("a")
-    Traceback (most recent call last):
-        ...
-    TypeError: x_exp must be an integer type.
-    """
-    if x_exp is None:
-        return 0
-
-    if not isinstance(x_exp, (int, np.integer)):
-        raise TypeError("x_exp must be an integer type.")
-    return int(x_exp)
-
-
-def get_sanitized_z_exp(z_exp: int | np.integer | None) -> int:
-    """
-    Checks whether the input `z_exp` is valid.
-
-    Parameters
-    ----------
-    z_exp : int, np.integer, or None
-        The exponent value to be sanitized. Can be a Python integer, a NumPy integer, or None.
-
-    Returns
-    -------
-    int
-        The sanitized integer exponent. Returns 0 if `z_exp` is None.
-
-    Raises
-    ------
-    TypeError
-        If `z_exp` is not an integer.
-
-    Examples
-    --------
-    >>> get_sanitized_z_exp(2)
-    2
-    >>> get_sanitized_z_exp(None)
-    0
-    >>> get_sanitized_z_exp(np.int32(5))
-    5
-    >>> get_sanitized_z_exp("a")
-    Traceback (most recent call last):
-        ...
-    TypeError: z_exp must be an integer type.
-    """
-    if z_exp is None:
-        return 0
-
-    if not isinstance(z_exp, (int, np.integer)):
-        raise TypeError("z_exp must be an integer type.")
-    return int(z_exp)
-
-
-def get_sanitized_dimension(dimension: int | np.integer,
-                            x_exp: int,
-                            z_exp: int) -> int:
-    """
-    Validates the input dimension for Pauli operator exponents.
-    Checks that the provided dimension is an integer type and that it is large enough
-    to accommodate the given x and z exponents. Raises exceptions if the
-    inputs are invalid.
-
-    Parameters
-    ----------
-    dimension : int or numpy.integer
-        The dimension to be validated.
-    x_exp : int
-        The exponent for the X Pauli operator.
-    z_exp : int
-        The exponent for the Z Pauli operator.
-
-    Returns
-    -------
-    int
-        The sanitized dimension as a Python integer.
-
-    Raises
-    ------
-    TypeError
-        If `dimension` is not an integer type.
-    ValueError
-        If `dimension` is too small for the provided exponents.
-    """
-    if not isinstance(dimension, (int, np.integer)):
-        raise TypeError("dimension must be an integer type.")
-
-    if dimension - 1 < x_exp or dimension - 1 < z_exp:
-        raise ValueError(f"Dimension {dimension} is too small for exponents {x_exp} and {z_exp}")
-
-    return int(dimension)
+        return self._tableau[0][1]

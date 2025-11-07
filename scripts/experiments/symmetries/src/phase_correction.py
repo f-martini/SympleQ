@@ -33,7 +33,7 @@ def pauli_phase_correction(H, delta_phi_2p, p):
         raise ValueError("Internal GF(p) verification failed.")
 
     P = P.reshape(-1)
-    pauli = PauliString(P[:n_qudits].reshape(-1), P[n_qudits:].reshape(-1), dimensions=[p] * n_qudits)
+    pauli = PauliString.from_exponents(P[:n_qudits].reshape(-1), P[n_qudits:].reshape(-1), dimensions=[p] * n_qudits)
 
     return PauliGate(pauli)
 

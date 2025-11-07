@@ -53,14 +53,14 @@ def calculate_systematic_variance_estimate(data: np.ndarray, weights: np.ndarray
 
 
 def true_mean(H: PauliSum, psi):
-    mu = np.real(np.transpose(np.conjugate(psi)) @ H.matrix_form() @ psi)
+    mu = np.real(np.transpose(np.conjugate(psi)) @ H.to_hilbert_space() @ psi)
     return mu
 
 
 def true_covariance_graph(H: PauliSum, psi):
     weights = H.weights
     p = H.n_paulis()
-    mm = [np.exp(2 * np.pi * 1j * H.phases[i] / (2 * H.lcm)) * H.matrix_form(i) for i in range(p)]
+    mm = [np.exp(2 * np.pi * 1j * H.phases[i] / (2 * H.lcm)) * H.to_hilbert_space(i) for i in range(p)]
     psi_dag = psi.conj().T
     cc1 = [psi_dag @ mm[i] @ psi for i in range(p)]
     cc2 = [psi_dag @ mm[i].conj().T @ psi for i in range(p)]

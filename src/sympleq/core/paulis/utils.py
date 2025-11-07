@@ -1,8 +1,6 @@
 from typing import Any
 import numpy as np
 import re
-from .pauli import Pauli
-from .pauli_string import PauliString
 from .pauli_sum import PauliSum
 import networkx as nx
 from itertools import product
@@ -46,7 +44,7 @@ def ground_state_TMP(P: PauliSum,
       using :func:`numpy.linalg.eigh` for improved numerical stability.
     """
     # Convert PauliSum to matrix form
-    m = P.matrix_form()
+    m = P.to_hilbert_space()
     m = m.toarray()
     # Get eigenvalues and eigenvectors
     val, vec = np.linalg.eig(m)
@@ -81,62 +79,6 @@ def ground_state_TMP(P: PauliSum,
         "The ground state does not yield a real value <gs | H |gs> = {}".format(exp_en)
     # Return
     return en, gs_out
-
-
-def to_pauli_sum(P: Pauli | PauliString
-                 ) -> PauliSum:
-    """
-    Convert a Pauli or PauliString to a PauliSum.
-
-    Parameters
-    ----------
-    P : Pauli | PauliString
-        The Pauli or PauliString to convert.
-
-    Returns
-    -------
-    PauliSum
-        The resulting PauliSum.
-    """
-    if isinstance(P, Pauli):
-        x = P.x_exp
-        z = P.z_exp
-        dims = P.dimension
-        ps = PauliString([x], [z], dimensions=[dims])
-        return PauliSum([ps])
-    elif isinstance(P, PauliString):
-        return PauliSum([P])
-
-
-def to_pauli_string(pauli: Pauli
-                    ) -> PauliString:
-    raise NotImplementedError
-
-
-def symplectic_product(PauliString_1: PauliString,
-                       PauliString_2: PauliString
-                       ) -> bool:
-    """
-    Qudit-wise symplectic product of two Pauli strings.
-
-    Parameters
-    ----------
-    PauliString_1 : Pauli | PauliString
-        The first PauliString for computing the inner product.
-    PauliString_2 : Pauli | PauliString
-        The second PauliString for computing the inner product.
-
-    Returns
-    -------
-    int
-        The symplectic product of the two PauliStrings objects.
-    """
-    if any(PauliString_1.dimensions - PauliString_2.dimensions):
-        raise Exception("Symplectic inner product only works if Paulis have same dimensions")
-    sp = 0
-    for i in range(PauliString_1.n_qudits()):
-        sp += (PauliString_1.x_exp[i] * PauliString_2.z_exp[i] - PauliString_1.z_exp[i] * PauliString_2.x_exp[i])
-    return sp % PauliString_1.lcm
 
 
 def string_to_symplectic(string: str
