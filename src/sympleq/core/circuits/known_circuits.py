@@ -32,7 +32,7 @@ def add_phase(xz_pauli_sum: PauliSum, qudit_index: int, qudit_index_2: int, phas
         ``'SDSD'`` keeps the same phase for all but X and Y Paulis on qudit index 2.
     """
 
-    if xz_pauli_sum.dimensions()[qudit_index] != 2 or xz_pauli_sum.dimensions()[qudit_index] != 2:
+    if xz_pauli_sum.dimensions[qudit_index] != 2 or xz_pauli_sum.dimensions[qudit_index] != 2:
         raise ValueError("Pauli dimensions must be equal to 2")
 
     if phase_key == 'SSSS':
@@ -259,7 +259,7 @@ def ensure_zx_components(pauli_sum: PauliSum, pauli_index_x: int,
         raise ValueError(("ensure_zx_components requires anti-commutation"
                           " between pauli_index_x and pauli_index_z beyond target_qubit"))
 
-    C = Circuit(dimensions=pauli_sum.dimensions())
+    C = Circuit(dimensions=pauli_sum.dimensions)
     px = _handle_xz_case(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit)
     if px is not None:
         pass
@@ -303,24 +303,24 @@ def to_ix(pauli_string: PauliString, target_index: int, ignore: int | list[int] 
     for q in range(n_q):
         if q != target_index and q not in ignore:
             if pauli_string[q].x_exp == 0 and pauli_string[q].z_exp != 0:
-                circuit.add_gate(H(q, pauli_string.dimensions()[q]))
+                circuit.add_gate(H(q, pauli_string.dimensions[q]))
                 pauli_string = circuit.act(p_string_in)
             if pauli_string[q].x_exp != 0:
                 if pauli_string[q].z_exp != 0:
                     # use the x to cancel the z of q with S gates
                     n_s = solve_modular_linear_additive(pauli_string[q].x_exp, pauli_string[q].z_exp,
-                                                        pauli_string.dimensions()[q])
+                                                        pauli_string.dimensions[q])
                     for i in range(n_s):
-                        circuit.add_gate(S(q, pauli_string.dimensions()[q]))
+                        circuit.add_gate(S(q, pauli_string.dimensions[q]))
                     pauli_string = circuit.act(p_string_in)
 
                 # use cnot to cancel the x of q with the x of target. n_cnot = n where x_q + x+_target) % d = 0
                 n_cnot = solve_modular_linear_additive(pauli_string[q].x_exp, pauli_string[target_index].x_exp,
-                                                       pauli_string.dimensions()[target_index])
+                                                       pauli_string.dimensions[target_index])
                 if n_cnot is None:
                     raise Exception("Weird")
                 for i in range(n_cnot):
-                    circuit.add_gate(CX(target_index, q, pauli_string.dimensions()[target_index]))
+                    circuit.add_gate(CX(target_index, q, pauli_string.dimensions[target_index]))
                 pauli_string = circuit.act(p_string_in)
 
     else:
@@ -345,7 +345,7 @@ def _validate_inputs(pauli_string, target_index, ignore):
 
 
 def _single_qudit_x(pauli_string, target_index, circuit):
-    dim_target = pauli_string.dimensions()[target_index]
+    dim_target = pauli_string.dimensions[target_index]
     x_exp = pauli_string[target_index].x_exp
     z_exp = pauli_string[target_index].z_exp
     if x_exp != 0 and z_exp == 0:
@@ -363,7 +363,7 @@ def _single_qudit_x(pauli_string, target_index, circuit):
 
 def _multi_qudit_x(pauli_string, target_index, ignore, circuit):
     n_q = pauli_string.n_qudits()
-    dim_target = pauli_string.dimensions()[target_index]
+    dim_target = pauli_string.dimensions[target_index]
     for q in range(n_q - 1, -1, -1):
         if q != target_index and q not in ignore:
             x_exp = pauli_string[q].x_exp
@@ -382,7 +382,7 @@ def to_x(pauli_string: PauliString, target_index: int, ignore: int | list[int] |
     """Finds a circuit to turn a PauliString to ****X*** where the X is at target_index"""
 
     ignore, target_index = _validate_inputs(pauli_string, target_index, ignore)
-    circuit = Circuit(dimensions=pauli_string.dimensions())
+    circuit = Circuit(dimensions=pauli_string.dimensions)
     result = _single_qudit_x(pauli_string, target_index, circuit)
     if result is not None:
         return result

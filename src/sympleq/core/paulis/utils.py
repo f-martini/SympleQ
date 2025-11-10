@@ -455,7 +455,7 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
             hermitian_pauli_string = pauli_string.hermitian_conjugate()
             hermitian_found = False
             for j in range(H.n_paulis()):
-                if H[j, :] == hermitian_pauli_string[0, :]:
+                if H[j] == hermitian_pauli_string:
                     hermitian_found = True
                     if i == j:
                         if not pauli_string.is_hermitian():
@@ -469,9 +469,9 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
                         if abs(np.conj(H.weights[i]) * np.exp(2 * np.pi * 1j * hermitian_pauli_string.phases[0] / (2 * H.lcm)) -
                                 H.weights[j] * np.exp(2 * np.pi * 1j * H.phases[j] / (2 * H.lcm))) > 10**-10:
                             # Step 1: Weight
-                            H.weights[j] = np.conj(H.weights[i])
+                            H._weights[j] = np.conj(H.weights[i])
                             # Step 2: Phase
-                            H.phases[j] = hermitian_pauli_string.phases[0]
+                            H._phases[j] = hermitian_pauli_string.phases[0]
                             break
                         else:
                             break
@@ -486,8 +486,8 @@ def XZ_to_Y(PauliSum: PauliSum):
         two_ind = [i for i in range(PauliSum.n_qudits()) if PauliSum.dimensions[i] == 2]
         for i in range(PauliSum.n_paulis()):
             for j in two_ind:
-                if PauliSum[i].x_exp[0,j] != 0 and PauliSum[i].z_exp[0,j] != 0:
-                    P.phases[i] += int(PauliSum.lcm / 2)
+                if PauliSum[i].x_exp[j] != 0 and PauliSum[i].z_exp[j] != 0:
+                    P._phases[i] += int(PauliSum.lcm / 2)
         return P
     else:
         return PauliSum
@@ -500,7 +500,7 @@ def isclose(PauliSum1: PauliSum, PauliSum2: PauliSum, tol=10**-10) -> bool:
     phases2 = PauliSum2.phases
     coef1 = weights1 * np.exp(2 * np.pi * 1j * phases1 / (2 * PauliSum1.lcm))
     coef2 = weights2 * np.exp(2 * np.pi * 1j * phases2 / (2 * PauliSum2.lcm))
-    t1 = np.all(PauliSum1.tableau() == PauliSum2.tableau())
+    t1 = np.all(PauliSum1.tableau == PauliSum2.tableau)
     t2 = np.isclose(coef1, coef2, atol=tol)
     t3 = np.all(PauliSum1.dimensions == PauliSum2.dimensions)
     return bool(t1 and t2 and t3)

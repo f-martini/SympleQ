@@ -73,7 +73,7 @@ def true_covariance_graph(H: PauliSum, psi):
     return graph(cm)
 
 
-def true_statistical_variance(H, psi, S, weights):
+def true_statistical_variance(H, psi, S):
     sigma = np.sum(scale_variances(true_covariance_graph(H, psi), S).adj).real
     return sigma
 

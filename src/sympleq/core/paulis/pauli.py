@@ -176,6 +176,7 @@ class Pauli(PauliObject):
         """
         return cls.from_exponents(0, 0, dimension)
 
+    @property
     def phases(self) -> np.ndarray:
         """
         Returns the phases associated with the Pauli object.
@@ -188,6 +189,7 @@ class Pauli(PauliObject):
         """
         return np.asarray([0], dtype=int)
 
+    @property
     def weights(self) -> np.ndarray:
         """
         Returns the weights associated with the Pauli object.
@@ -200,6 +202,7 @@ class Pauli(PauliObject):
         """
         return np.asarray([1], dtype=complex)
 
+    @property
     def dimension(self) -> int:
         """
         Returns the dimension of the Pauli as an int.
@@ -220,7 +223,7 @@ class Pauli(PauliObject):
         PauliSum
             A PauliSum instance representing the given Pauli operator.
         """
-        return PauliSum(self.tableau(), self.dimensions(), self.weights(), self.phases())
+        return PauliSum(self.tableau, self.dimensions, self.weights, self.phases)
 
     def as_pauli_string(self) -> PauliString:
         """
@@ -231,7 +234,7 @@ class Pauli(PauliObject):
         PauliString
             A PauliString instance representing the given Pauli operator.
         """
-        return PauliString(self.tableau(), self.dimensions(), self.weights(), self.phases())
+        return PauliString(self.tableau, self.dimensions, self.weights, self.phases)
 
     def to_hilbert_space(self) -> sp.csr_matrix:
         """
@@ -269,13 +272,13 @@ class Pauli(PauliObject):
         if not isinstance(A, Pauli):
             raise Exception(f"Cannot multiply Pauli with type {type(A)}")
 
-        if not np.array_equal(self.dimensions(), A.dimensions()):
+        if not np.array_equal(self.dimensions, A.dimensions):
             raise Exception("To multiply two Paulis, their dimensions"
-                            f" {A.dimensions()} and {self.dimensions()} must be equal")
+                            f" {A.dimensions} and {self.dimensions} must be equal")
 
-        new_tableau = (self.tableau() + A.tableau()) % self.lcm()
+        new_tableau = (self.tableau + A.tableau) % self.lcm
 
-        return Pauli(new_tableau, dimensions=self.dimensions())
+        return Pauli(new_tableau, dimensions=self.dimensions)
 
     def __str__(self) -> str:
         """

@@ -76,7 +76,7 @@ class PauliString(PauliObject):
             A PauliString instance representing the given Pauli operator.
         """
 
-        P = cls(pauli.tableau(), pauli.dimensions())
+        P = cls(pauli.tableau, pauli.dimensions)
         P._sanity_check()
 
         return P
@@ -183,7 +183,7 @@ class PauliString(PauliObject):
             A string in the format "Pauli(x_exp=..., z_exp=..., dimensions=...)".
         """
 
-        return f"PauliString(x_exp={self.x_exp}, z_exp={self.z_exp}, dimensions={self.dimensions()})"
+        return f"PauliString(x_exp={self.x_exp}, z_exp={self.z_exp}, dimensions={self.dimensions})"
 
     def __str__(self) -> str:
         """
@@ -238,8 +238,8 @@ class PauliString(PauliObject):
         tableau[new_n_qudits + self.n_qudits():] = A.z_exp
 
         dimensions = np.empty(new_n_qudits, dtype=int)
-        dimensions[:self.n_qudits()] = self.dimensions()
-        dimensions[self.n_qudits():] = A.dimensions()
+        dimensions[:self.n_qudits()] = self.dimensions
+        dimensions[self.n_qudits():] = A.dimensions
         return PauliString(tableau, dimensions)
 
     def __rmatmul__(self, A: Pauli) -> PauliString:
@@ -274,8 +274,8 @@ class PauliString(PauliObject):
         tableau[new_n_qudits + self.n_qudits():] = A.z_exp
 
         dimensions = np.empty(new_n_qudits, dtype=int)
-        dimensions[:self.n_qudits()] = self.dimensions()
-        dimensions[self.n_qudits():] = A.dimensions()
+        dimensions[:self.n_qudits()] = self.dimensions
+        dimensions[self.n_qudits():] = A.dimensions
         return PauliString(tableau, dimensions)
 
     def __mul__(self, A: PauliString) -> PauliString:
@@ -309,12 +309,12 @@ class PauliString(PauliObject):
         if not isinstance(A, PauliString):
             raise ValueError(f"Cannot multiply PauliString with type {type(A)}")
 
-        if not np.array_equal(self.dimensions(), A.dimensions()):
+        if not np.array_equal(self.dimensions, A.dimensions):
             raise Exception("To multiply two PauliStrings, their dimensions"
-                            f" {self.dimensions()} and {A.dimensions()} must be equal.")
+                            f" {self.dimensions} and {A.dimensions} must be equal.")
 
-        tableau = np.mod(self.tableau() + A.tableau(), np.tile(self.dimensions(), 2))
-        return PauliString(tableau, self.dimensions().copy())
+        tableau = np.mod(self.tableau + A.tableau, np.tile(self.dimensions, 2))
+        return PauliString(tableau, self.dimensions.copy())
 
     @property
     def x_exp(self) -> np.ndarray:
@@ -332,6 +332,7 @@ class PauliString(PauliObject):
         """
         return self._tableau[0][self.n_qudits():]
 
+    @property
     def phases(self) -> np.ndarray:
         """
         Returns the phases associated with the Pauli object.
@@ -344,6 +345,7 @@ class PauliString(PauliObject):
         """
         return np.asarray([0], dtype=int)
 
+    @property
     def weights(self) -> np.ndarray:
         """
         Returns the weights associated with the Pauli object.
@@ -357,7 +359,7 @@ class PauliString(PauliObject):
         return np.asarray([1], dtype=complex)
 
     def as_pauli_sum(self) -> PauliSum:
-        return PauliSum(self.tableau(), self.dimensions(), self.weights(), self.phases())
+        return PauliSum(self.tableau, self.dimensions, self.weights, self.phases)
 
     def n_identities(self) -> int:
         """
@@ -386,7 +388,7 @@ class PauliString(PauliObject):
         """
 
         tableau = np.asarray([self.x_exp[index], self.z_exp[index]], dtype=int)
-        return Pauli(tableau, int(self.dimensions()[index]))
+        return Pauli(tableau, int(self.dimensions[index]))
 
     def get_paulis(self) -> list[Pauli]:
         """
@@ -404,13 +406,13 @@ class PauliString(PauliObject):
         Per-qudit symplectic residues r_j = x_j z'_j - z_j x'_j  (mod d_j).
         Returns a length-n int array with entry-wise mod d_j.
         """
-        if not np.array_equal(self.dimensions(), A.dimensions()):
+        if not np.array_equal(self.dimensions, A.dimensions):
             raise ValueError(
                 f"Incompatible PauliStrings: must identical dimensions "
-                f"(currently {self.dimensions()} and {A.dimensions()})."
+                f"(currently {self.dimensions} and {A.dimensions})."
             )
 
-        dims = self.dimensions()
+        dims = self.dimensions
 
         # Per-site residue, reduced mod the local dimension
         residues = (self.x_exp * A.z_exp - self.z_exp * A.x_exp) % dims
@@ -444,8 +446,8 @@ class PauliString(PauliObject):
         if not as_scalar:
             return residues
 
-        L = self.lcm()
-        dims = self.dimensions()
+        L = self.lcm
+        dims = self.dimensions
         weights = (L // dims).astype(int)
         r = int(np.sum((weights * residues) % L) % L)    # this is the number for acquired phase
         return r
@@ -465,16 +467,16 @@ class PauliString(PauliObject):
         np.ndarray
             The quditwise product as a NumPy array.
         """
-        if self.n_qudits() != A.n_qudits() or not np.array_equal(self.dimensions(), A.dimensions()):
+        if self.n_qudits() != A.n_qudits() or not np.array_equal(self.dimensions, A.dimensions):
             raise ValueError(
                 (
                     f"Incompatible PauliStrings: must have the same number of qudits "
                     f"(currently {self.n_qudits()} and {A.n_qudits()}) and dimensions "
-                    f"(currently {self.dimensions()} and {A.dimensions()})."
+                    f"(currently {self.dimensions} and {A.dimensions})."
                 )
             )
         if any(
-            np.sum(self.x_exp[i] * A.z_exp[i] - self.z_exp[i] * A.x_exp[i]) % self.dimensions()[i]
+            np.sum(self.x_exp[i] * A.z_exp[i] - self.z_exp[i] * A.x_exp[i]) % self.dimensions[i]
             for i in range(self.n_qudits())
         ):
             return 1
@@ -504,9 +506,9 @@ class PauliString(PauliObject):
         ValueError
             If either `new_x` or `new_z` is greater than the dimension of the specified qudit.
         """
-        if new_x > self.dimensions()[qudit_index] or new_z > self.dimensions()[qudit_index]:
+        if new_x > self.dimensions[qudit_index] or new_z > self.dimensions[qudit_index]:
             raise ValueError(f"Exponents ({new_x, new_z}) cannot be larger than qudit dimension"
-                             f" ({self.dimensions()[qudit_index]})")
+                             f" ({self.dimensions[qudit_index]})")
         self._tableau[0][qudit_index] = new_x
         self._tableau[0][self.n_qudits() + qudit_index] = new_z
         return self
@@ -531,20 +533,20 @@ class PauliString(PauliObject):
             The acquired phase, as an integer modulo ``2 * self.lcm``.
         """
 
-        if not np.array_equal(self.dimensions(), other_pauli.dimensions()):
+        if not np.array_equal(self.dimensions, other_pauli.dimensions):
             raise Exception("To acquire phase from another PauliString, their dimensions"
-                            f" {self.dimensions()} and {other_pauli.dimensions()} must be equal")
+                            f" {self.dimensions} and {other_pauli.dimensions} must be equal")
 
         n = self.n_qudits()
-        a = self.tableau()[0]
-        b = other_pauli.tableau()[0]
+        a = self.tableau[0]
+        b = other_pauli.tableau[0]
 
         # U is zeros with identity in lower-left n x n block
         # This is equivalent to sum over j of 2 * x'_j * z_j
         # U @ b selects b[:n] (x part) and puts it in lower half
         phase = 2 * np.dot(a[n:], b[:n])
 
-        return int(phase % (2 * self.lcm()))
+        return int(phase % (2 * self.lcm))
 
     # TODO: not sure if here it is best to return a new object or not
     def _delete_qudits(self, mask: np.ndarray, return_new: bool = True) -> PauliString:
@@ -570,7 +572,7 @@ class PauliString(PauliObject):
             A new PauliString instance with the specified qudits removed if
             `return_new` is True, otherwise returns self after modification.
         """
-        dimensions = self.dimensions()[mask]
+        dimensions = self.dimensions[mask]
         new_tableau = np.empty(2 * self.n_qudits(), dtype=int)
         new_tableau[:self.n_qudits()] = self.x_exp[mask]
         new_tableau[self.n_qudits():] = self.z_exp[mask]
@@ -630,7 +632,7 @@ class PauliString(PauliObject):
         if isinstance(key, np.ndarray):
             tableau_mask = np.concatenate([key, key + self.n_qudits()])
             return PauliString(
-                self.tableau()[tableau_mask], self.dimensions()[key])
+                self.tableau[tableau_mask], self.dimensions[key])
 
         raise ValueError(f"Cannot get item with key {key}. Key must be aof type int, slice, np.ndarray, or list[int].")
 
@@ -658,8 +660,8 @@ class PauliString(PauliObject):
         if isinstance(key, int) and isinstance(value, Pauli):
             self._tableau[key] = value.x_exp
             self._tableau[key + self.n_qudits()] = value.z_exp
-            self._dimensions[key] = value.dimensions()[0]
-            self._lcm = np.lcm.reduce(self.dimensions())
+            self._dimensions[key] = value.dimensions[0]
+            self._lcm = np.lcm.reduce(self.dimensions)
 
         elif isinstance(value, PauliString):
             if isinstance(key, slice):
@@ -677,8 +679,8 @@ class PauliString(PauliObject):
                                  mismatching dimensions.")
             self._tableau[key] = value.x_exp
             self._tableau[key + self.n_qudits()] = value.z_exp
-            self._dimensions[key] = value.dimensions()
-            self._lcm = np.lcm.reduce(self.dimensions())
+            self._dimensions[key] = value.dimensions
+            self._lcm = np.lcm.reduce(self.dimensions)
 
         else:
             raise ValueError(f"Cannot set item with key {key} and value {value}.")
@@ -703,7 +705,7 @@ class PauliString(PauliObject):
         >>> sub_ps = ps.get_subspace([0, 2])
         """
 
-        dimensions = self.dimensions()[qudit_indices]
+        dimensions = self.dimensions[qudit_indices]
         tableau = self._tableau[0][qudit_indices]
 
         return PauliString(tableau, dimensions)
@@ -738,7 +740,7 @@ class PauliString(PauliObject):
         bool
             True if the PauliString is the identity operator, False otherwise.
         """
-        return bool(np.all(self.tableau() == 0))
+        return bool(np.all(self.tableau == 0))
 
     def to_hilbert_space(self) -> sp.csr_matrix:
         """
@@ -776,7 +778,7 @@ class PauliString(PauliObject):
         if n > 15:
             raise ValueError(f"Cannot convert PauliString with more than {self.n_qudits()} qudits to int, "
                              "as it may exceed the maximum integer size. Current max set to 15 qudits.")
-        dims_double = np.tile(self.dimensions(), 2)
+        dims_double = np.tile(self.dimensions, 2)
         base = np.empty(2 * self.n_qudits(), dtype=int)
 
         if not reverse:

@@ -117,7 +117,7 @@ def Hamiltonian_Mean(P: PauliSum, psi: np.ndarray) -> float:
     """
     p = P.n_paulis()
     psi_dag = psi.conj().T
-    return sum(P.weights()[i] * psi_dag @ P.to_hilbert_space(i) @ psi for i in range(p))
+    return sum(P.weights[i] * psi_dag @ P.to_hilbert_space(i) @ psi for i in range(p))
 
 
 def covariance_matrix(P: PauliSum, psi: np.ndarray) -> np.ndarray:
@@ -134,7 +134,7 @@ def covariance_matrix(P: PauliSum, psi: np.ndarray) -> np.ndarray:
                     Pauli operators.
     """
     p = P.n_paulis()
-    cc = P.weights()
+    cc = P.weights
     mm = [P.to_hilbert_space(i) for i in range(p)]
     psi_dag = psi.conj().T
     cc1 = [psi_dag @ mm[i] @ psi for i in range(p)]

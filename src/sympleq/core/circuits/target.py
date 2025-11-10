@@ -24,7 +24,7 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
         qudit_indices (list[int]): The indices of the qudits acted upon by the gate.
         gate_dimension (int): The dimension of the gate.
         """
-    if np.all(input_pauli.dimensions() != target_pauli.dimensions()):
+    if np.all(input_pauli.dimensions != target_pauli.dimensions):
         raise ValueError("PauliSum and gate must have the same dimension.")
 
     n_qudits = input_pauli.n_qudits()
@@ -33,16 +33,16 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
 
     # get list of qudits where input and target differ
     qudit_indices = list(range(n_qudits))
-    gate_dimension = input_pauli.dimensions()[qudit_indices[0]]
+    gate_dimension = input_pauli.dimensions[qudit_indices[0]]
 
-    if not np.all(input_pauli.dimensions()[qudit_indices] == gate_dimension):
+    if not np.all(input_pauli.dimensions[qudit_indices] == gate_dimension):
         raise ValueError("PauliSum must have the same dimension for all qudits acted upon by the gate.")
 
     if np.all(input_pauli.symplectic_product_matrix() != target_pauli.symplectic_product_matrix()):
         raise ValueError("Input and target PauliSum must be symplectically equivalent.")
 
-    input_symplectic = input_pauli.tableau()  # [:, qudit_indices]
-    target_symplectic = target_pauli.tableau()  # [:, qudit_indices]
+    input_symplectic = input_pauli.tableau  # [:, qudit_indices]
+    target_symplectic = target_pauli.tableau  # [:, qudit_indices]
 
     F = map_pauli_sum_to_target_tableau(input_symplectic, target_symplectic)
 
@@ -63,7 +63,7 @@ def find_allowed_target(pauli_sum, target_pauli_list):
     string_indices = [target_pauli_list[i][1] for i in range(len(target_pauli_list))]
     qudit_indices = [target_pauli_list[i][2] for i in range(len(target_pauli_list))]
 
-    dims = pauli_sum.dimensions()
+    dims = pauli_sum.dimensions
     combined_indices = list(zip(string_indices, qudit_indices))
     index_dict = defaultdict(list)
 

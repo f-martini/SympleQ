@@ -353,26 +353,26 @@ class Aquire:
 
         # Config for the experiment
         if config is None:
-            self.config = AquireConfig(self.H, psi=np.array(psi) if psi is not None else None)
+            self.config = AquireConfig(self._H, psi=np.array(psi) if psi is not None else None)
         else:
             self.config = config
-            self.config.Hamiltonian = self.H
+            self.config.Hamiltonian = self._H
 
         # supposed to change during experiment
         self.cliques = []
         self.circuits = []
-        _, self.circuit_dictionary = construct_circuit_list(self.H, self.config.clique_covering, {})
+        _, self.circuit_dictionary = construct_circuit_list(self._H, self.config.clique_covering, {})
         self.measurement_results = []
-        self.scaling_matrix = np.eye(self.H.n_paulis(), dtype=int)
-        self.data = np.zeros((self.H.n_paulis(), self.H.n_paulis(), int(self.H.lcm)))
+        self.scaling_matrix = np.eye(self._H.n_paulis(), dtype=int)
+        self.data = np.zeros((self._H.n_paulis(), self._H.n_paulis(), int(self._H.lcm)))
         self.covariance_graph = graph(
-            np.diag([np.conj(self.H.weights[_]) * self.H.weights[_] for _ in range(self.H.n_paulis())]))
+            np.diag([np.conj(self._H.weights[_]) * self._H.weights[_] for _ in range(self._H.n_paulis())]))
         self.update_steps = []
         self.diagnostic_circuits = []
         self.diagnostic_state_preparation_circuits = []
         self.diagnostic_states = []
         self.diagnostic_results = []
-        self.diagnostic_data = np.zeros((self.H.n_paulis(), 2))
+        self.diagnostic_data = np.zeros((self._H.n_paulis(), 2))
 
         # checkpoints (some of the above data collected at specific points)
         self.covariance_graph_checkpoints = []
@@ -385,7 +385,7 @@ class Aquire:
         # Comparison values: not used in the algorithm
         # initially set to None, can be set later if desired and H not too large
         if self.config.calculate_true_values and self.config.psi is not None:
-            self.true_mean_value = true_mean(self.H, self.config.psi)
+            self.true_mean_value = true_mean(self._H, self.config.psi)
             self.true_statistical_variance_value = []
         elif self.config.calculate_true_values and self.config.psi is None:
             warnings.warn("Warning: true values not available without state psi, calculate_true_values set to False.",
@@ -690,7 +690,7 @@ class Aquire:
             self.check_results()
         if self.config.calculate_true_values:
             self.true_statistical_variance_value.append(true_statistical_variance(
-                self.H, self.config.psi, self.scaling_matrix, self.H.weights))
+                self.H, self.config.psi, self.scaling_matrix))
 
     def input_measurement_data(self, measurement_results: list):
         """

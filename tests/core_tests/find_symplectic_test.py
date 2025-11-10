@@ -192,15 +192,15 @@ class TestSymplecticSolver:
             # define input hamiltonian
             pl_sum = random_hamiltonian.random_pauli_hamiltonian(m, dimensions)
 
-            basis_indices, _ = get_linear_dependencies(pl_sum.tableau(), pl_sum.lcm())
+            basis_indices, _ = get_linear_dependencies(pl_sum.tableau, pl_sum.lcm)
             pl_sum = pl_sum[basis_indices]
 
             # scramble input hamiltonian to get target
             C = Circuit.from_random(len(dimensions), 10 * n**2, dimensions=dimensions)
             target_pl_sum = C.act(pl_sum)
             # target hamiltonian
-            sym_sum = pl_sum.tableau()
-            target_sym_sum = target_pl_sum.tableau()
+            sym_sum = pl_sum.tableau
+            target_sym_sum = target_pl_sum.tableau
 
             check_pl_sum = pl_sum.copy()
             check_pl_sum.combine_equivalent_paulis()
@@ -211,7 +211,7 @@ class TestSymplecticSolver:
             F = map_pauli_sum_to_target_tableau(sym_sum, target_sym_sum)
 
             # Verify the mapping
-            mapped_sym_sum = (sym_sum @ F) % pl_sum.lcm()
+            mapped_sym_sum = (sym_sum @ F) % pl_sum.lcm
             assert np.array_equal(mapped_sym_sum, target_sym_sum), (
                 "Mapping failed. The mapped Pauli sum is:\n"
                 f"{mapped_sym_sum}\n"

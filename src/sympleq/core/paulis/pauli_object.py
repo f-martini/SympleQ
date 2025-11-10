@@ -70,7 +70,7 @@ class PauliObject(ABC):
                 dimensions = np.full(n_qudits, dimensions.item(), dtype=int)
 
         self._dimensions = dimensions
-        self._lcm = int(np.lcm.reduce(self.dimensions()))
+        self._lcm = int(np.lcm.reduce(self.dimensions))
 
         self._tableau = tableau % np.tile(self._dimensions, 2)
 
@@ -88,8 +88,9 @@ class PauliObject(ABC):
             phases = np.asarray(phases, dtype=int)
             if phases.ndim == 0:
                 phases = np.full(n_pauli_strings, phases.item(), dtype=int)
-        self._phases = phases % (2 * self.lcm())
+        self._phases = phases % (2 * self.lcm)
 
+    @property
     def tableau(self) -> np.ndarray:
         """
         Returns the tableau representation of the Pauli object.
@@ -106,6 +107,7 @@ class PauliObject(ABC):
         """
         return self._tableau
 
+    @property
     def dimensions(self) -> np.ndarray:
         """
         Returns the dimensions of the Pauli object.
@@ -117,6 +119,7 @@ class PauliObject(ABC):
         """
         return self._dimensions
 
+    @property
     def lcm(self) -> int:
         """
         Returns the least common multiplier of the dimensions of the Pauli object.
@@ -137,7 +140,7 @@ class PauliObject(ABC):
         int
             The number of qudits.
         """
-        return len(self.dimensions())
+        return len(self.dimensions)
 
     def n_paulis(self) -> int:
         """
@@ -148,7 +151,7 @@ class PauliObject(ABC):
         int
             The number of Pauli strings.
         """
-        return len(self.tableau())
+        return len(self.tableau)
 
     def shape(self) -> tuple[int, int]:
         """
@@ -161,12 +164,13 @@ class PauliObject(ABC):
         """
         return self.n_paulis(), self.n_qudits()
 
+    @property
     @abstractmethod
     def phases(self) -> np.ndarray:
         # FIXME: improve docstring
         """
         Returns the phases associated with the Pauli object.
-        These phases represent the numerator, the denominator is 2 * self.lcm()
+        These phases represent the numerator, the denominator is 2 * self.lcm
 
         Returns
         -------
@@ -187,6 +191,7 @@ class PauliObject(ABC):
         """
         pass
 
+    @property
     @abstractmethod
     def weights(self) -> np.ndarray:
         """
@@ -232,16 +237,16 @@ class PauliObject(ABC):
         if not isinstance(other_pauli, self.__class__):
             return False
 
-        if not np.array_equal(self.tableau(), other_pauli.tableau()):
+        if not np.array_equal(self.tableau, other_pauli.tableau):
             return False
 
-        if not np.all(np.isclose(self.weights(), other_pauli.weights(), 10**(-threshold))):
+        if not np.all(np.isclose(self.weights, other_pauli.weights, 10**(-threshold))):
             return False
 
-        if not np.array_equal(self.phases(), other_pauli.phases()):
+        if not np.array_equal(self.phases, other_pauli.phases):
             return False
 
-        if not np.array_equal(self.dimensions(), other_pauli.dimensions()):
+        if not np.array_equal(self.dimensions, other_pauli.dimensions):
             return False
 
         return True
@@ -256,23 +261,23 @@ class PauliObject(ABC):
         PauliObject
             The PauliObject Hermitian conjugate
         """
-        conjugate_weights = np.conj(self.weights())
-        conjugate_tableau = (-self.tableau()) % np.tile(self.dimensions(), 2)
+        conjugate_weights = np.conj(self.weights)
+        conjugate_tableau = (-self.tableau) % np.tile(self.dimensions, 2)
 
         acquired_phases = []
         for i in range(self.n_paulis()):
             hermitian_conjugate_phase = 0
             for j in range(self.n_qudits()):
-                r = self.tableau()[i, j]
-                s = self.tableau()[i, j + self.n_qudits()]
-                hermitian_conjugate_phase += ((r * s) % self.dimensions()[j]) * self.lcm() / self.dimensions()[j]
+                r = self.tableau[i, j]
+                s = self.tableau[i, j + self.n_qudits()]
+                hermitian_conjugate_phase += ((r * s) % self.dimensions[j]) * self.lcm / self.dimensions[j]
             acquired_phases.append(2 * hermitian_conjugate_phase)
         acquired_phases = np.asarray(acquired_phases, dtype=int)
 
-        conjugate_initial_phases = (-self.phases()) % (2 * self.lcm())
-        conjugate_phases = (conjugate_initial_phases + acquired_phases) % (2 * self.lcm())
+        conjugate_initial_phases = (-self.phases) % (2 * self.lcm)
+        conjugate_phases = (conjugate_initial_phases + acquired_phases) % (2 * self.lcm)
 
-        return self.__class__(tableau=conjugate_tableau, dimensions=self.dimensions(),
+        return self.__class__(tableau=conjugate_tableau, dimensions=self.dimensions,
                               weights=conjugate_weights, phases=conjugate_phases)
 
     H = hermitian_conjugate
@@ -299,35 +304,35 @@ class PauliObject(ABC):
             If the lengths of `tableau`, and `dimensions` are not consistent
             or if any exponent is not valid for its corresponding dimension.
         """
-        if len(self.weights()) != self.n_paulis():
+        if len(self.weights) != self.n_paulis():
             # FIXME: Improve error message
             raise ValueError("The weights and tableau have inconsistent shapes.")
 
-        if len(self.phases()) != self.n_paulis():
+        if len(self.phases) != self.n_paulis():
             # FIXME: Improve error message
             raise ValueError("The phases and tableau have inconsistent shapes.")
 
-        if len(self.tableau()[0]) != 2 * self.n_qudits():
-            raise ValueError(f"Tableau ({len(self.tableau())}) should be twice as long as"
-                             f"dimensions ({len(self.dimensions())}).")
+        if len(self.tableau[0]) != 2 * self.n_qudits():
+            raise ValueError(f"Tableau ({len(self.tableau)}) should be twice as long as"
+                             f"dimensions ({len(self.dimensions)}).")
 
-        if np.any(self.dimensions() < DEFAULT_QUDIT_DIMENSION):
-            bad_dims = self.dimensions()[self.dimensions() < DEFAULT_QUDIT_DIMENSION]
+        if np.any(self.dimensions < DEFAULT_QUDIT_DIMENSION):
+            bad_dims = self.dimensions[self.dimensions < DEFAULT_QUDIT_DIMENSION]
             raise ValueError(f"Dimensions {bad_dims} are less than {DEFAULT_QUDIT_DIMENSION}")
 
-        d = np.tile(self.dimensions(), 2)
-        if np.any((self.tableau() >= d)):
-            bad_indices = np.where((self.tableau() >= d))[0]
+        d = np.tile(self.dimensions, 2)
+        if np.any((self.tableau >= d)):
+            bad_indices = np.where((self.tableau >= d))[0]
             raise ValueError(
                 f"Exponents at indices {bad_indices} are too large:"
-                f"tableau={self.tableau()[bad_indices]}"
+                f"tableau={self.tableau[bad_indices]}"
             )
 
-        if np.any((self.tableau() < 0)):
-            bad_indices = np.where((self.tableau() < 0))[0]
+        if np.any((self.tableau < 0)):
+            bad_indices = np.where((self.tableau < 0))[0]
             raise ValueError(
                 f"Exponents at indices {bad_indices} are negative:"
-                f"tableau={self.tableau()[bad_indices]}"
+                f"tableau={self.tableau[bad_indices]}"
             )
 
     def __eq__(self, other_pauli: Self) -> bool:
@@ -348,21 +353,21 @@ class PauliObject(ABC):
         if not isinstance(other_pauli, self.__class__):
             return False
 
-        if not np.array_equal(self.tableau(), other_pauli.tableau()):
+        if not np.array_equal(self.tableau, other_pauli.tableau):
             return False
 
-        if not np.array_equal(self.weights(), other_pauli.weights()):
+        if not np.array_equal(self.weights, other_pauli.weights):
             return False
 
-        if not np.array_equal(self.phases(), other_pauli.phases()):
+        if not np.array_equal(self.phases, other_pauli.phases):
             return False
 
-        if not np.array_equal(self.dimensions(), other_pauli.dimensions()):
+        if not np.array_equal(self.dimensions, other_pauli.dimensions):
             return False
 
         return True
 
-    def __ne__(self, other_pauli: Self) -> bool:
+    def __ne__(self, other_pauli: PauliObject) -> bool:
         """
         Determine if two Pauli object objects are different.
 
@@ -379,7 +384,7 @@ class PauliObject(ABC):
         """
         return not self == other_pauli
 
-    def __gt__(self, other_pauli: Self) -> bool:
+    def __gt__(self, other_pauli: PauliObject) -> bool:
         """
         Compare this PauliString with another PauliString for the greater-than relationship.
         This method overrides the `>` operator to compare two PauliString objects by converting
@@ -407,12 +412,12 @@ class PauliObject(ABC):
         if self.n_paulis() > 1:
             raise Exception("A Pauli object with more than a PauliString cannot be ordered.")
 
-        if np.array_equal(self.dimensions(), other_pauli.dimensions()):
+        if np.array_equal(self.dimensions, other_pauli.dimensions):
             raise Exception("Cannot compare PauliStrings with different dimensions.")
 
         # Flatten tableaus to 1D-vectors
-        self_tableau = self.tableau().ravel()
-        other_tableau = other_pauli.tableau().ravel()
+        self_tableau = self.tableau.ravel()
+        other_tableau = other_pauli.tableau.ravel()
 
         for i in range(len(self_tableau)):
             if self_tableau[i] == other_tableau[i]:
@@ -473,8 +478,8 @@ class PauliObject(ABC):
         if self.n_paulis():
             raise Exception("A Pauli object with more than a PauliString cannot be exponentiated.")
 
-        tableau = np.mod(self.tableau() * A, np.tile(self.dimensions(), 2))
-        return self.__class__(tableau, self.dimensions().copy(), self.weights().copy(), self.phases().copy())
+        tableau = np.mod(self.tableau * A, np.tile(self.dimensions, 2))
+        return self.__class__(tableau, self.dimensions.copy(), self.weights.copy(), self.phases.copy())
 
     def __hash__(self) -> int:
         """
@@ -486,10 +491,10 @@ class PauliObject(ABC):
             The hash value of the Pauli object instance.
         """
         return hash(
-            (tuple(self.tableau()),
-             tuple(self.weights()),
-             tuple(self.phases()),
-             tuple(self.dimensions()))
+            (tuple(self.tableau),
+             tuple(self.weights),
+             tuple(self.phases),
+             tuple(self.dimensions))
         )
 
     def __dict__(self) -> dict:
@@ -501,10 +506,10 @@ class PauliObject(ABC):
         dict
             A dictionary containing the values of `tableau`, `weights`, `phases`, and `dimensions`.
         """
-        return {'tableau': self.tableau(),
-                'dimensions': self.dimensions(),
-                'weights': self.weights(),
-                'phases': self.phases()}
+        return {'tableau': self.tableau,
+                'dimensions': self.dimensions,
+                'weights': self.weights,
+                'phases': self.phases}
 
     def copy(self) -> Self:
         """
@@ -517,8 +522,8 @@ class PauliObject(ABC):
         Pauli object
             A copy of the Pauli object.
         """
-        return self.__class__(self.tableau().copy(), self.dimensions().copy(),
-                              self.weights().copy(), self.phases().copy())
+        return self.__class__(self.tableau.copy(), self.dimensions.copy(),
+                              self.weights.copy(), self.phases.copy())
 
     def phase_to_weight(self):
         """
@@ -528,9 +533,9 @@ class PauliObject(ABC):
         """
         new_weights = np.zeros(self.n_paulis(), dtype=np.complex128)
         for i in range(self.n_paulis()):
-            phase = self.phases()[i]
-            omega = np.exp(2 * np.pi * 1j * phase / (2 * self.lcm()))
-            new_weights[i] = self.weights()[i] * omega
+            phase = self.phases[i]
+            omega = np.exp(2 * np.pi * 1j * phase / (2 * self.lcm))
+            new_weights[i] = self.weights[i] * omega
         self._phases = np.zeros(self.n_paulis(), dtype=int)
         self._weights = new_weights
 
@@ -553,8 +558,8 @@ class PauliObject(ABC):
         adding phase factors to the weights then resetting the phases.
         """
         self.phase_to_weight()
-        T = self.tableau()
-        W = self.weights()
+        T = self.tableau
+        W = self.weights
 
         order = np.lexsort(T.T)
 
@@ -562,3 +567,15 @@ class PauliObject(ABC):
         self._weights = W[order]
 
     standardize = standardise
+
+    @abstractmethod
+    def to_hilbert_space(self, pauli_string_index: int | None = None) -> np.ndarray:
+        """
+        Get the matrix form of the PauliObject as a sparse matrix.
+
+        Returns
+        -------
+        scipy.sparse.csr_matrix
+            Matrix representation of input PauliObject.
+        """
+        pass

@@ -192,8 +192,8 @@ def pauli_reduce(hamiltonian: PauliSum) -> tuple[PauliSum, list[PauliSum], Circu
         if not any(h_red.x_exp[:, i]):  # z only
             list_of_z_symmetries.append((i, np.where(h_red.z_exp[:, i] != 0)[0]))
             z_symmetric_qudits.add(i)
-            list_of_phases += np.arange(h_red.dimensions()[i]).tolist()
-            n_sectors *= h_red.dimensions()[i]
+            list_of_phases += np.arange(h_red.dimensions[i]).tolist()
+            n_sectors *= h_red.dimensions[i]
 
     _ = len(list_of_z_symmetries)
     all_phases = [list(bits) for bits in itertools.product(list_of_phases)]
@@ -207,8 +207,8 @@ def pauli_reduce(hamiltonian: PauliSum) -> tuple[PauliSum, list[PauliSum], Circu
         for i, z_symmetry in enumerate(list_of_z_symmetries):
 
             phase_factor[list_of_z_symmetries[i][1]] += all_phases[sector]
-        conditioned_hamiltonian.set_phases((conditioned_hamiltonian.phases() +
-                                           phase_factor) % conditioned_hamiltonian.lcm())
+        conditioned_hamiltonian.set_phases((conditioned_hamiltonian.phases +
+                                           phase_factor) % conditioned_hamiltonian.lcm)
         # TODO: evaluate if it is correct to set _delete_qudits as internal methods
 
         conditioned_hamiltonian._delete_qudits(list(z_symmetric_qudits))

@@ -640,7 +640,7 @@ if __name__ == "__main__":
     sym = SWAP(0, 1, 2)
     H = random_gate_symmetric_hamiltonian(sym, 2, 4, scrambled=True)
 
-    independent, dependencies = get_linear_dependencies(H.tableau(), H.dimensions)
+    independent, dependencies = get_linear_dependencies(H.tableau, H.dimensions)
 
     S = H.symplectic_product_matrix()
     coeffs = H.weights

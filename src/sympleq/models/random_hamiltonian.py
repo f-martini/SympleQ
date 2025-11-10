@@ -227,7 +227,7 @@ def random_gate_symmetric_hamiltonian(G: 'Gate',
     P_sym = P + P_prime
     P_sym.phase_to_weight()
     P_sym.combine_equivalent_paulis()
-    P_sym.set_weights(np.around(P_sym.weights(), decimals=10))
+    P_sym.set_weights(np.around(P_sym.weights, decimals=10))
     P_sym.remove_zero_weight_paulis()
     if scrambled is True:
         g = Gate.from_random(n_qudits, 2)

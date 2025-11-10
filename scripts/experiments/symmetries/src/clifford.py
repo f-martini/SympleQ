@@ -13,9 +13,9 @@ def clifford_symmetry(pauli_sum: PauliSum,
                       phase_correction: bool = True
                       ) -> Gate:
 
-    d = pauli_sum.dimensions()
-    lcm = pauli_sum.lcm()
-    independent_paulis, dependencies = get_linear_dependencies(pauli_sum.tableau(), d)
+    d = pauli_sum.dimensions
+    lcm = pauli_sum.lcm
+    independent_paulis, dependencies = get_linear_dependencies(pauli_sum.tableau, d)
 
     S = pauli_sum.symplectic_product_matrix()
     perms = find_k_automorphisms_symplectic(independent_paulis, dependencies,
@@ -40,10 +40,10 @@ def clifford_symmetry(pauli_sum: PauliSum,
     # phase correction - add Pauli to make circuit, collapse to single Gate
     if phase_correction:
         output_phase = G.act(pauli_sum).phases
-        delta_phi = output_phase - pauli_sum.phases()
+        delta_phi = output_phase - pauli_sum.phases
         if np.any(delta_phi):
             print(delta_phi % (2 * lcm))
-            G_p = pauli_phase_correction(pauli_sum.tableau(), delta_phi % (2 * lcm), 2)
+            G_p = pauli_phase_correction(pauli_sum.tableau, delta_phi % (2 * lcm), 2)
             # make circuit of original gate and phase correction and compose into gate
             C = Circuit(G.dimensions, [G, G_p])
             G = C.composite_gate()
@@ -52,6 +52,6 @@ def clifford_symmetry(pauli_sum: PauliSum,
         if phase_correction:
             assert G.act(pauli_sum).to_standard_form() == pauli_sum.to_standard_form()
         else:
-            assert np.array_equal(G.act(pauli_sum).to_standard_form().tableau(), pauli_sum.to_standard_form().tableau())
+            assert np.array_equal(G.act(pauli_sum).to_standard_form().tableau, pauli_sum.to_standard_form().tableau)
 
     return G

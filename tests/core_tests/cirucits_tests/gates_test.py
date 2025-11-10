@@ -360,18 +360,18 @@ class TestGates():
                 if np.all(input_ps.symplectic_product_matrix() == target_ps.symplectic_product_matrix()):
                     print(i)
                     print('input')
-                    print(input_ps.tableau())
+                    print(input_ps.tableau)
                     print('target')
-                    print(target_ps.tableau())
+                    print(target_ps.tableau)
                     gate = Gate.solve_from_target('ArbGate', input_ps, target_ps, dimensions)
                     output_ps = gate.act(input_ps)
-                    output_ps.phases = input_ps.phases  # So far it does not solve for phases as well
+                    output_ps.set_phases(input_ps.phases)  # So far it does not solve for phases as well
                     print('output')
-                    print(output_ps.tableau())
+                    print(output_ps.tableau)
                     print('gate')
                     print(gate.symplectic)
                     print('check')
-                    print(input_ps.tableau() @ gate.symplectic % 2)
+                    print(input_ps.tableau @ gate.symplectic % 2)
 
                     assert output_ps == target_ps, (
                         f'Error test {i} \n In: \n' +
@@ -412,7 +412,7 @@ class TestGates():
                 ps_m = ps.to_hilbert_space()
 
                 ps_res = G.act(ps)
-                phase_table_symplectic[i, j] = ps_res.phases()[0] % (2 * d)
+                phase_table_symplectic[i, j] = ps_res.phases[0] % (2 * d)
                 # FIXME: create new PSum or open API to change phases
                 ps_res.set_phases([0])
                 ps_res_m = ps_res.to_hilbert_space().toarray()
@@ -440,7 +440,7 @@ class TestGates():
                         ps_m = ps.to_hilbert_space()
 
                         ps_res = G.act(ps)
-                        phase_table_symplectic[i1 * d + i2, j1 * d + j2] = ps_res.phases()[0] % (2 * d)
+                        phase_table_symplectic[i1 * d + i2, j1 * d + j2] = ps_res.phases[0] % (2 * d)
                         ps_res.set_phases([0])
                         ps_res_m = ps_res.to_hilbert_space().toarray()
                         ps_m_res = (U @ ps_m @ U.conj().T).toarray()

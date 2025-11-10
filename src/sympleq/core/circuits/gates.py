@@ -59,7 +59,7 @@ class Gate:
         Create a gate that maps input_pauli_sum to target_pauli_sum.
         """
 
-        independent_set, dependent_set = get_linear_dependencies(input_pauli_sum.tableau(), dimensions)
+        independent_set, dependent_set = get_linear_dependencies(input_pauli_sum.tableau, dimensions)
 
         if len(dependent_set) != 0:
             raise NotImplementedError("Input PauliSum is not linearly independent. Will be implemented dreckly.")
@@ -112,17 +112,17 @@ class Gate:
         See Eq.[7] in PHYSICAL REVIEW A 71, 042315 (2005)
 
         """
-        if not np.array_equal(self.dimensions, pauli.dimensions()[self.qudit_indices]):
+        if not np.array_equal(self.dimensions, pauli.dimensions[self.qudit_indices]):
             raise ValueError("Gate and Pauli object have different dimensions.")
 
-        T = pauli.tableau()
+        T = pauli.tableau
 
         # Precompute tableau mask. This will be applied to the PauliSum tableau to get
         # the subset of affected columns.
         tableau_mask = np.concatenate([self.qudit_indices, self.qudit_indices + pauli.n_qudits()])
 
         T_affected = T[:, tableau_mask]
-        relevant_dimensions = np.tile(pauli.dimensions()[self.qudit_indices], 2)
+        relevant_dimensions = np.tile(pauli.dimensions[self.qudit_indices], 2)
         updated_tableau = np.mod(T_affected @ self.symplectic.T, relevant_dimensions)
         new_tableau = T.copy()
         new_tableau[:, tableau_mask] = updated_tableau
@@ -132,13 +132,13 @@ class Gate:
         quadratic_terms = np.sum(T_affected * (T_affected @ self.p_part), axis=1)
 
         # FIXME: this is a but of a hack
-        dimensional_factor = pauli.lcm() // np.lcm.reduce(pauli.dimensions()[self.qudit_indices])
+        dimensional_factor = pauli.lcm // np.lcm.reduce(pauli.dimensions[self.qudit_indices])
         acquired_phases = (linear_terms + quadratic_terms) * dimensional_factor
 
-        new_phases = (pauli.phases() + acquired_phases) % (2 * pauli.lcm())
+        new_phases = (pauli.phases + acquired_phases) % (2 * pauli.lcm)
 
-        return pauli.__class__(tableau=new_tableau, dimensions=pauli.dimensions(),
-                               weights=pauli.weights(), phases=new_phases)
+        return pauli.__class__(tableau=new_tableau, dimensions=pauli.dimensions,
+                               weights=pauli.weights, phases=new_phases)
 
     def copy(self) -> 'Gate':
         """
