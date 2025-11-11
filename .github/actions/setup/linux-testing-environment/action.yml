@@ -154,15 +154,13 @@ runs:
       id: python-deps
       shell: bash
       run: |
-        # Upgrade pip and build tools
         echo "Upgrading pip and build tools..."
         python -m pip install --upgrade pip build setuptools wheel
 
-        # Install project if requested (using pyproject.toml)
         if [ "${{ inputs.install-project }}" = "true" ]; then
           if [ -f "${{ inputs.setup-path }}/pyproject.toml" ]; then
             echo "Installing project from pyproject.toml at ${{ inputs.setup-path }}..."
-            python -m pip install ${{ inputs.setup-path }}
+            python -m pip install ${{ inputs.setup-path }} --config-settings=cmake.args="-S;src;--preset;linux-x86_64-Release"
           elif [ -f "${{ inputs.setup-path }}/setup.py" ]; then
             echo "Installing project from setup.py at ${{ inputs.setup-path }}..."
             python -m pip install ${{ inputs.setup-path }}
@@ -188,71 +186,6 @@ runs:
         # Set outputs
         PYTHON_PATH=$(which python)
         CACHE_DIR=$(python -m pip cache dir 2>/dev/null || echo "")
-
-        echo "python-path=$PYTHON_PATH" >> $GITHUB_OUTPUT
-        echo "cache-dir=$CACHE_DIR" >> $GITHUB_OUTPUT
-
-        echo "Python setup complete!"
-        echo "Python version: $(python --version)"
-        echo "Python path: $PYTHON_PATH"
-        echo "Pip version: $(pip --version)"
-
-    - name: Build CMake project
-      if: inputs.enable-cmake-build == 'true'
-      id: cmake-build
-      shell: bash
-      run: |
-        echo "=== CMake Build Setup ==="
-
-        # Set environment variables for CUDA and vcpkg
-        if [ "${{ inputs.enable-cuda }}" = "true" ] && [ -n "${{ steps.cuda-setup.outputs.cuda-path }}" ]; then
-          export CUDA_ROOT="${{ steps.cuda-setup.outputs.cuda-path }}"
-          export CUDA_HOME="${{ steps.cuda-setup.outputs.cuda-path }}"
-          export PATH="${{ steps.cuda-setup.outputs.cuda-path }}/bin:$PATH"
-          echo "CUDA_ROOT: $CUDA_ROOT"
-        fi
-
-        if [ "${{ inputs.enable-vcpkg }}" = "true" ] && [ -n "${{ steps.vcpkg-setup.outputs.vcpkg-root }}" ]; then
-          export VCPKG_ROOT="${{ steps.vcpkg-setup.outputs.vcpkg-root }}"
-          export CMAKE_TOOLCHAIN_FILE="${{ steps.vcpkg-setup.outputs.cmake-toolchain }}"
-          echo "VCPKG_ROOT: $VCPKG_ROOT"
-          echo "CMAKE_TOOLCHAIN_FILE: $CMAKE_TOOLCHAIN_FILE"
-        fi
-
-        # Create build directory
-        BUILD_DIR="build_${{ inputs.build-type }}"
-        mkdir -p "$BUILD_DIR"
-        cd "$BUILD_DIR"
-
-        echo "=== CMake Configuration ==="
-
-        # Configure CMake with preset if available
-        if [ -f "../CMakePresets.json" ] && [ -n "${{ inputs.cmake-preset }}" ]; then
-          echo "Using CMake preset: ${{ inputs.cmake-preset }}"
-          cmake --preset "${{ inputs.cmake-preset }}" ..
-        else
-          echo "Using standard CMake configuration"
-          CMAKE_ARGS="-DCMAKE_BUILD_TYPE=${{ inputs.build-type }}"
-          
-          if [ -n "${CMAKE_TOOLCHAIN_FILE:-}" ]; then
-            CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE"
-          fi
-          
-          if [ -n "${CUDA_ROOT:-}" ]; then
-            CMAKE_ARGS="$CMAKE_ARGS -DCUDA_TOOLKIT_ROOT_DIR=$CUDA_ROOT"
-          fi
-          
-          echo "CMake arguments: $CMAKE_ARGS"
-          cmake $CMAKE_ARGS ..
-        fi
-
-        echo "=== CMake Build ==="
-        cmake --build . --config ${{ inputs.build-type }} -j$(nproc)
-
-        # Set output
-        BUILD_PATH="$(pwd)"
-        echo "build-path=$BUILD_PATH" >> $GITHUB_OUTPUT
-        echo "CMake build completed successfully in: $BUILD_PATH"
 
     - name: Display environment info
       shell: bash
