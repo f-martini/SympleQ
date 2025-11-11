@@ -154,12 +154,11 @@ class PauliString(PauliObject):
         ----------
         n_qudits : int
             The number of qudits in the Pauli string.
-        dimensions : list[int] or np.ndarray
+        dimensions : int | list[int] | np.ndarray
             The dimensions of each qudit. Should be a list or array of integers specifying the dimension for each qudit.
+            The size of dimensions determines the number of qudits.
         seed : int or None, optional
             Seed for the random number generator to ensure reproducibility. Default is None.
-        sanity_check : bool = True
-            Whether to run sanity checks for the input, the default is True.
 
         Returns
         -------
@@ -168,6 +167,9 @@ class PauliString(PauliObject):
         """
         if seed is not None:
             np.random.seed(seed)
+
+        if isinstance(dimensions, int):
+            dimensions = [dimensions]
 
         tableau = np.concatenate([np.random.randint(dimensions, dtype=int), np.random.randint(dimensions, dtype=int)])
         return cls(tableau, dimensions)

@@ -224,9 +224,8 @@ class PauliObject(ABC):
         ----------
         other_pauli : Pauli object
             The Pauli object instance to compare against.
-
-        threshold: int
-
+        threshold: int, optional
+            The number of matching digits after the comma to consider two arrays as equal.
 
         Returns
         -------
@@ -471,11 +470,11 @@ class PauliObject(ABC):
 
         Examples
         --------
-        >>> ps = PauliString(x_exp, z_exp, dimensions)
+        >>> ps = PauliString.from_exponents(x_exp, z_exp, dimensions)
         >>> ps_squared = ps ** 2
         """
 
-        if self.n_paulis():
+        if self.n_paulis() > 1:
             raise Exception("A Pauli object with more than a PauliString cannot be exponentiated.")
 
         tableau = np.mod(self.tableau * A, np.tile(self.dimensions, 2))
