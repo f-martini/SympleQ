@@ -5,7 +5,7 @@ on:
     branches: [main, dev]
 
 env:
-  SETUP_PY: ./scripts/configs
+  SETUP_PY: ./
   BENCHMARK_OUTPUT: benchmark.json
   PROFILING_OUTPUT: profile.out
   SIMULATION_SCRIPT: ./scripts/tools/python/profiling_script.py
@@ -53,13 +53,13 @@ jobs:
 
       - name: Run benchmarks
         run: |
-          pytest --benchmark-only --benchmark-save=benchmark.json
+          pytest --benchmark-only --benchmark-save=${{ env.BENCHMARK_OUTPUT }}
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
-          path: benchmark.json
+          path: ${{ env.BENCHMARK_OUTPUT }}
 
   profiling:
     name: "Profiling: Simulation Experiment"
