@@ -63,22 +63,6 @@ inputs:
     required: false
     default: "/tmp/vcpkg"
     type: string
-  # CMake build inputs
-  enable-cmake-build:
-    description: "Whether to build the CMake project"
-    required: false
-    default: "true"
-    type: string
-  cmake-preset:
-    description: "CMake preset to use for building"
-    required: false
-    default: "linux-x86_64-Release"
-    type: string
-  build-type:
-    description: "CMake build type"
-    required: false
-    default: "Release"
-    type: string
   # Cleanup inputs
   enable-cleanup:
     description: "Whether to free up disk space"
@@ -150,6 +134,20 @@ runs:
         platform: linux
         install-path: ${{ inputs.vcpkg-install-path }}
 
+    - name: Install vcpkg dependencies
+      if: inputs.enable-vcpkg == 'true'
+      shell: bash
+      run: |
+        if [ -f "src/vcpkg.json" ]; then
+          echo "=== Installing vcpkg dependencies from src/vcpkg.json ==="
+          cd src
+          ${{ steps.vcpkg-setup.outputs.vcpkg-root }}/vcpkg install --recurse
+          cd ..
+          echo "vcpkg dependencies installed successfully"
+        else
+          echo "Warning: src/vcpkg.json not found, skipping vcpkg dependencies installation"
+        fi
+
     - name: Install Python dependencies and project
       id: python-deps
       shell: bash
@@ -161,11 +159,8 @@ runs:
           if [ -f "${{ inputs.setup-path }}/pyproject.toml" ]; then
             echo "Installing project from pyproject.toml at ${{ inputs.setup-path }}..."
             python -m pip install ${{ inputs.setup-path }} --config-settings=cmake.args="-S;src;--preset;linux-x86_64-Release"
-          elif [ -f "${{ inputs.setup-path }}/setup.py" ]; then
-            echo "Installing project from setup.py at ${{ inputs.setup-path }}..."
-            python -m pip install ${{ inputs.setup-path }}
           else
-            echo "Warning: No pyproject.toml or setup.py found at ${{ inputs.setup-path }}"
+            echo "Warning: No pyproject.toml found at ${{ inputs.setup-path }}"
           fi
         fi
 
