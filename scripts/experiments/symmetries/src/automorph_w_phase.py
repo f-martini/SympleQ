@@ -766,7 +766,7 @@ def find_k_automorphisms_symplectic(
     safety_net_max_N: int = 48,
 ) -> List[Dict[str, object]]:
     # 0) Extract from H
-    A_raw = np.asarray(H.tableau(), dtype=int)          # <-- canonical: (N, 2n) (rows=terms, cols=qudits)
+    A_raw = np.asarray(H.tableau, dtype=int)          # <-- canonical: (N, 2n) (rows=terms, cols=qudits)
     S = np.asarray(H.symplectic_product_matrix(), dtype=int)  # (N, N)
     coeffs_raw = None if getattr(H, "weights", None) is None else np.asarray(H.weights)
     phases_raw = None if getattr(H, "phases", None) is None else np.asarray(H.phases, dtype=int)
@@ -862,7 +862,7 @@ if __name__ == "__main__":
     n_paulis_pre_sym = 6
     H = random_gate_symmetric_hamiltonian(sym, n_qudits, n_paulis_pre_sym, scrambled=True)
 
-    independent, dependencies = get_linear_dependencies(H.tableau(), H.dimensions)
+    independent, dependencies = get_linear_dependencies(H.tableau, H.dimensions)
 
     S = H.symplectic_product_matrix()
     coeffs = H.weights
@@ -872,7 +872,7 @@ if __name__ == "__main__":
     print('independent = ', independent)
     print('dependencies = ', dependencies)
 
-    print('tableau = ', H.tableau())
+    print('tableau = ', H.tableau)
     print('S = ', S)
     print('coeffs = ', coeffs)
 

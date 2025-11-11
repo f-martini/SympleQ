@@ -32,11 +32,8 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
         raise ValueError("PauliSum and target must have the same number of qudits.")
 
     # get list of qudits where input and target differ
-    qudit_indices = []
-    for i in range(n_qudits):
-        # if input_pauli[:, i] != target_pauli[:, i]:
-        qudit_indices.append(i)
-    gate_dimension = input_pauli.dimensions[qudit_indices][0]
+    qudit_indices = list(range(n_qudits))
+    gate_dimension = input_pauli.dimensions[qudit_indices[0]]
 
     if not np.all(input_pauli.dimensions[qudit_indices] == gate_dimension):
         raise ValueError("PauliSum must have the same dimension for all qudits acted upon by the gate.")
@@ -44,8 +41,8 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
     if np.all(input_pauli.symplectic_product_matrix() != target_pauli.symplectic_product_matrix()):
         raise ValueError("Input and target PauliSum must be symplectically equivalent.")
 
-    input_symplectic = input_pauli.tableau()  # [:, qudit_indices]
-    target_symplectic = target_pauli.tableau()  # [:, qudit_indices]
+    input_symplectic = input_pauli.tableau  # [:, qudit_indices]
+    target_symplectic = target_pauli.tableau  # [:, qudit_indices]
 
     F = map_pauli_sum_to_target_tableau(input_symplectic, target_symplectic)
 
@@ -181,7 +178,7 @@ def matrix_to_pauli_sum(matrix, weights, phases, dimensions):
         for j in range(n_qudits):
             x_exp[j] = int_to_pauli(matrix[i, j])[0]
             z_exp[j] = int_to_pauli(matrix[i, j])[1]
-        ps = PauliString(x_exp, z_exp, dimensions)
+        ps = PauliString.from_exponents(x_exp, z_exp, dimensions)
         pauli_strings.append(ps)
 
-    return PauliSum(pauli_strings, weights, phases, dimensions, standardise=False)
+    return PauliSum.from_pauli_strings(pauli_strings, weights, phases)

@@ -6,7 +6,7 @@ So far it only works for GF(2), as in the original paper. It could be extended t
 
 import numpy as np
 from sympleq.core.finite_field_solvers import solve_gf2
-from sympleq.core.circuits.utils import transvection_matrix, symplectic_product, symplectic_product_matrix
+from sympleq.core.circuits.utils import transvection_matrix, symplectic_product_arrays, symplectic_product_matrix
 
 
 def find_symplectic_solution(u: np.ndarray, v: np.ndarray) -> np.ndarray:
@@ -27,9 +27,9 @@ def find_symplectic_solution(u: np.ndarray, v: np.ndarray) -> np.ndarray:
         raise ValueError("Cannot find solution with zero vector input")
 
     # Check if u and v are symplectically independent
-    symplectic_product_uv = symplectic_product(u, v)
+    symplectic_product_arrays_uv = symplectic_product_arrays(u, v)
 
-    if symplectic_product_uv == 1:
+    if symplectic_product_arrays_uv == 1:
         # u and v are symplectically independent - use direct construction
         return direct_construction(u, v)
     else:
@@ -60,7 +60,7 @@ def direct_construction(u: np.ndarray, v: np.ndarray) -> np.ndarray:
 
     # First, try the simplest approach: w = u + v
     w_candidate = (u + v) % 2
-    if (symplectic_product(u, w_candidate) == 1 and symplectic_product(v, w_candidate) == 1):
+    if (symplectic_product_arrays(u, w_candidate) == 1 and symplectic_product_arrays(v, w_candidate) == 1):
         return w_candidate
 
     # If that doesn't work, try other simple combinations
@@ -69,7 +69,7 @@ def direct_construction(u: np.ndarray, v: np.ndarray) -> np.ndarray:
             if a == 0 and b == 0:
                 continue
             w_candidate = (a * u + b * v) % 2
-            if (symplectic_product(u, w_candidate) == 1 and symplectic_product(v, w_candidate) == 1):
+            if (symplectic_product_arrays(u, w_candidate) == 1 and symplectic_product_arrays(v, w_candidate) == 1):
                 return w_candidate
 
     # If simple combinations don't work, we need to add an orthogonal component
@@ -83,7 +83,7 @@ def direct_construction(u: np.ndarray, v: np.ndarray) -> np.ndarray:
         w_candidate = w_base.copy()
         w_candidate[i] = (w_candidate[i] + 1) % 2
 
-        if (symplectic_product(u, w_candidate) == 1 and symplectic_product(v, w_candidate) == 1):
+        if (symplectic_product_arrays(u, w_candidate) == 1 and symplectic_product_arrays(v, w_candidate) == 1):
             return w_candidate
 
     # Fallback to the general linear solver if geometric construction fails
@@ -184,7 +184,7 @@ def solve_extended_system(u: np.ndarray, v: np.ndarray, t_vectors: list) -> np.n
         row_idx = 2 + i
         A[row_idx, :n] = t[n:]  # X part of t_i multiplies Z part of w
         A[row_idx, n:] = t[:n]  # Z part of t_i multiplies X part of w
-        b[row_idx] = symplectic_product(t, v)
+        b[row_idx] = symplectic_product_arrays(t, v)
 
     return solve_gf2(A, b)
 
@@ -193,7 +193,8 @@ def check_mappable_via_clifford(pauli_sum_tableau: np.ndarray,
                                 target_pauli_sum_tableau: np.ndarray
                                 ) -> bool:
     sym_check = np.all(
-        symplectic_product_matrix(pauli_sum_tableau) == symplectic_product_matrix(target_pauli_sum_tableau)
+        symplectic_product_matrix(
+            pauli_sum_tableau) == symplectic_product_matrix(target_pauli_sum_tableau)
     )
     if sym_check:
         return True
@@ -203,7 +204,7 @@ def check_mappable_via_clifford(pauli_sum_tableau: np.ndarray,
 
 def map_single_pauli_string_to_target(pauli_string_tableau: np.ndarray, target_pauli_string_tableau: np.ndarray,
                                       constraint_paulis: list | None = None):
-    sp = symplectic_product(pauli_string_tableau, target_pauli_string_tableau)
+    sp = symplectic_product_arrays(pauli_string_tableau, target_pauli_string_tableau)
     if sp == 1:
         h = pauli_string_tableau + target_pauli_string_tableau
 

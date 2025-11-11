@@ -31,10 +31,8 @@ def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
             f"x{item.count('X')}z{item.count('Z')}" for item in pauli_list[1:])
         pauli_strings.append(pauli_str.strip())
 
-    return PauliSum(pauli_strings,
-                    weights=coefficients,
-                    dimensions=dims if isinstance(dims, list) else [dims],
-                    standardise=False)
+    return PauliSum.from_string(pauli_strings, dimensions=dims if isinstance(dims, list) else [dims],
+                                weights=coefficients)
 
 
 def bases_to_int(base, dimensions) -> int:
@@ -119,7 +117,7 @@ def Hamiltonian_Mean(P: PauliSum, psi: np.ndarray) -> float:
     """
     p = P.n_paulis()
     psi_dag = psi.conj().T
-    return sum(P.weights[i] * psi_dag @ P.matrix_form(i) @ psi for i in range(p))
+    return sum(P.weights[i] * psi_dag @ P.to_hilbert_space(i) @ psi for i in range(p))
 
 
 def covariance_matrix(P: PauliSum, psi: np.ndarray) -> np.ndarray:
@@ -137,7 +135,7 @@ def covariance_matrix(P: PauliSum, psi: np.ndarray) -> np.ndarray:
     """
     p = P.n_paulis()
     cc = P.weights
-    mm = [P.matrix_form(i) for i in range(p)]
+    mm = [P.to_hilbert_space(i) for i in range(p)]
     psi_dag = psi.conj().T
     cc1 = [psi_dag @ mm[i] @ psi for i in range(p)]
     cc2 = [psi_dag @ mm[i].conj().T @ psi for i in range(p)]
@@ -260,10 +258,10 @@ def get_linear_dependencies(vectors: np.ndarray,
             mode = "per-row"
         else:
             raise AssertionError(
-                f"Length of p must be either rows={m}, cols={n}, or cols/2={n//2} (for qudits). Got {lp}"
+                f"Length of p must be either rows={m}, cols={n}, or cols/2={n // 2} (for qudits). Got {lp}"
             )
     else:
-        raise TypeError("p must be int or list/np.ndarray of ints")
+        raise TypeError(f"p must be int or list/np.ndarray of ints (got {type(p)}).")
 
     pivot_indices: list[int] = []
     dependencies: dict[int, list[tuple[int, int]]] = {}

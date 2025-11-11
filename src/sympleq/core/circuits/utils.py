@@ -26,7 +26,7 @@ def is_symplectic(F, p: int) -> bool:
     return np.array_equal(lhs, Omega)
 
 
-def symplectic_product(u: np.ndarray, v: np.ndarray, p: int = 2) -> int:
+def symplectic_product_arrays(u: np.ndarray, v: np.ndarray, p: int = 2) -> int:
     """
     Compute the symplectic inner product of two binary vectors.
 
@@ -46,7 +46,7 @@ def symplectic_product_matrix(pauli_sum: np.ndarray) -> np.ndarray:
 
     for i in range(m):
         for j in range(m):
-            spm[i, j] = symplectic_product(pauli_sum[i], pauli_sum[j])
+            spm[i, j] = symplectic_product_arrays(pauli_sum[i], pauli_sum[j])
 
     return spm
 
@@ -90,7 +90,7 @@ def transvection_matrix(h: np.ndarray, p=2, multiplier=1):
 
 
 def transvection(h, x, p=2):
-    return (x + symplectic_product(x, h.T, p) * h) % p
+    return (x + symplectic_product_arrays(x, h.T, p) * h) % p
 
 
 def embed_symplectic(symplectic_local, phase_vector_local, qudit_indices, n_qudits):
@@ -192,32 +192,33 @@ def embed_unitary(U_local: np.ndarray,
     return P.conj().T @ U_kron @ P
 
 
-def tensor(mm):
+def tensor(mm: list[sp.csr_matrix]) -> sp.csr_matrix:
     # Inputs:
     #     mm - (list{scipy.sparse.csr_matrix}) - matrices to tensor
     # Outputs:
     #     (scipy.sparse.csr_matrix) - tensor product of matrices
     if len(mm) == 0:
         return sp.csr_matrix([])
-    elif len(mm) == 1:
+
+    if len(mm) == 1:
         return mm[0]
-    else:
-        return sp.kron(mm[0], tensor(mm[1:]), format="csr")
+
+    return sp.csr_matrix(sp.kron(mm[0], tensor(mm[1:]), format="csr"))
 
 
-def I_mat(d):
-    #
+def I_mat(d: int) -> sp.csr_matrix:
     return sp.csr_matrix(np.diag([1] * d))
 
 
-def H_mat(d):
+def H_mat(d: int) -> sp.csr_matrix:
     omega = np.exp(2 * np.pi * 1j / d)
     return sp.csr_matrix(1 / np.sqrt(d) * np.array([[omega ** (i0 * i1) for i0 in range(d)] for i1 in range(d)]))
 
 
-def S_mat(d):
+def S_mat(d: int) -> sp.csr_matrix:
     if d == 2:
         return sp.csr_matrix(np.diag([1, 1j]))
+
     omega = np.exp(2 * np.pi * 1j / d)
     return sp.csr_matrix(np.diag([omega ** (i * (i - 1) / 2) for i in range(d)]))
 
@@ -226,9 +227,3 @@ def CX_func(i, a0, a1, dims):
     aa = int_to_bases(i, dims)
     aa[a1] = (aa[a1] + aa[a0]) % dims[a1]
     return bases_to_int(aa, dims)
-
-
-def SWAP_func(i, a0, a1, dims):
-    aa = int_to_bases(i, dims)
-    aa[a0], aa[a1] = aa[a1], aa[a0]
-    return sum([aa[i] * int(np.prod(dims[:i])) for i in range(len(aa))])
