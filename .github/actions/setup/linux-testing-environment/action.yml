@@ -79,6 +79,17 @@ inputs:
     required: false
     default: "Release"
     type: string
+  # Cleanup inputs
+  enable-cleanup:
+    description: "Whether to free up disk space"
+    required: false
+    default: "true"
+    type: string
+  cleanup-aggressive:
+    description: "Perform aggressive cleanup"
+    required: false
+    default: "false"
+    type: string
 
 outputs:
   python-path:
@@ -108,6 +119,13 @@ runs:
       uses: actions/checkout@v4
       with:
         submodules: recursive
+
+    - name: Free up disk space
+      if: inputs.enable-cleanup == 'true'
+      uses: ./.github/actions/cleanup/free-disk-space
+      with:
+        platform: linux
+        aggressive: ${{ inputs.cleanup-aggressive }}
 
     - name: Set up Python environment
       id: python-setup
