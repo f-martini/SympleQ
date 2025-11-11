@@ -4,8 +4,7 @@ on: pull_request
 
 env:
   PRJ_NAME: sympleq
-  CONFIG_DIR: ./scripts/configs
-  SETUP_PY: ./scripts/configs
+  SETUP_PY: ./
   SRC_DIR: ./src/sympleq
   TEST_DIR: ./tests
   PYTEST_INI: ./scripts/configs/pytest.ini
