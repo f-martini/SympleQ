@@ -119,10 +119,9 @@ runs:
     - name: Setup CUDA
       if: inputs.enable-cuda == 'true'
       id: cuda-setup
-      uses: ./.github/actions/setup/cuda
+      uses: Jimver/cuda-toolkit@v0.2.11
       with:
-        cuda-version: ${{ inputs.cuda-version }}
-        platform: linux
+        cuda: ${{ inputs.cuda-version }}
 
     - name: Setup vcpkg
       if: inputs.enable-vcpkg == 'true'
