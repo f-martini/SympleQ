@@ -18,6 +18,9 @@ jobs:
     outputs:
       runner: ${{ steps.set-matrix.outputs.runner }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Determine Runner
         id: set-matrix
         uses: ./.github/actions/utils/determine-runner
