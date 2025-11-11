@@ -32,6 +32,11 @@ jobs:
     runs-on: ${{ needs.set-runner.outputs.runner }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
       - name: Setup Linux testing environment
         uses: ./.github/actions/setup/linux-testing-environment
         with:
@@ -39,6 +44,7 @@ jobs:
           setup-path: ${{ env.SETUP_PY }}
           dev-requirements: ${{ env.DEV_REQUIREMENTS }}
           extra-packages: "pytest"
+          checkout: "false"
 
       - name: Run benchmarks
         run: |
@@ -56,12 +62,18 @@ jobs:
     runs-on: ${{ needs.set-runner.outputs.runner }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
       - name: Setup Linux testing environment
         uses: ./.github/actions/setup/linux-testing-environment
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           setup-path: ${{ env.SETUP_PY }}
           dev-requirements: ${{ env.DEV_REQUIREMENTS }}
+          checkout: "false"
 
       - name: Run profiling with cProfile
         run: |
