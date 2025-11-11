@@ -45,7 +45,7 @@ inputs:
   cuda-version:
     description: "CUDA version to install"
     required: false
-    default: "12.6.0"
+    default: '12.6.0'
     type: string
   # vcpkg inputs
   enable-vcpkg:
