@@ -41,16 +41,9 @@ jobs:
     steps:
       - name: Determine Runner
         id: set-matrix
-        run: |
-          BRANCH="${{ github.head_ref }}"
-          if [[ "$BRANCH" =~ test-workflow ]]; then
-          echo "runner=self-hosted" >> $GITHUB_ENV
-          echo "runner=self-hosted" >> $GITHUB_OUTPUT
-          else
-          echo "runner=ubuntu-latest" >> $GITHUB_ENV
-          echo "runner=ubuntu-latest" >> $GITHUB_OUTPUT
-          fi
-          echo "Using runner: $GITHUB_ENV"
+        uses: ./.github/actions/utils/determine-runner
+        with:
+          branch-pattern: "test-workflow"
 
   build:
     needs: set-runner

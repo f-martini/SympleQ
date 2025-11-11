@@ -50,6 +50,46 @@ Sets up vcpkg package manager.
 - `vcpkg-root`: Path to vcpkg root
 - `cmake-toolchain`: Path to CMake toolchain file
 
+#### `setup/linux-testing-environment`
+Sets up complete Linux environment with Python, CUDA, vcpkg, and CMake for testing and development.
+
+**Inputs:**
+- `python-version` (optional): Python version (default: '3.11')
+- `cache-pip` (optional): Enable pip caching (default: 'true')
+- `setup-path` (optional): Path to pyproject.toml/setup.py (default: './')
+- `dev-requirements` (optional): Dev requirements file path (default: './scripts/configs/dev_requirements.txt')
+- `install-project` (optional): Install project itself (default: 'true')
+- `extra-packages` (optional): Additional packages to install
+- `checkout` (optional): Checkout repository (default: 'true')
+- `enable-cuda` (optional): Install CUDA toolkit (default: 'true')
+- `cuda-version` (optional): CUDA version (default: '12.6')
+- `enable-vcpkg` (optional): Setup vcpkg (default: 'true')
+- `vcpkg-commit` (optional): vcpkg commit ID (default: '15fd3bbcf7cc66249ba11f87a6215ee6f291bb26')
+- `vcpkg-install-path` (optional): vcpkg installation path (default: '/tmp/vcpkg')
+- `enable-cmake-build` (optional): Build CMake project (default: 'true')
+- `cmake-preset` (optional): CMake preset (default: 'linux-x86_64-Release')
+- `build-type` (optional): CMake build type (default: 'Release')
+
+**Outputs:**
+- `python-path`: Path to Python executable
+- `pip-cache-dir`: Pip cache directory
+- `cuda-path`: Path to CUDA installation
+- `vcpkg-root`: Path to vcpkg root
+- `cmake-toolchain`: Path to CMake toolchain file
+- `build-path`: Path to CMake build directory
+
+**Usage:**
+```yaml
+- name: Setup Linux testing environment
+  uses: ./.github/actions/setup/linux-testing-environment
+  with:
+    python-version: '3.11'
+    extra-packages: 'pytest flake8 pytest-cov'
+    enable-cuda: 'true'
+    enable-vcpkg: 'true'
+    enable-cmake-build: 'true'
+```
+
 ### Build Actions
 
 #### `build/wheel`
@@ -89,6 +129,30 @@ Frees up disk space on GitHub runners.
 **Inputs:**
 - `platform` (required): Target platform (linux or windows)
 - `aggressive` (optional): Perform aggressive cleanup (default: 'false')
+
+### Utility Actions
+
+#### `utils/determine-runner`
+Determines whether to use self-hosted or GitHub-hosted runner based on branch pattern.
+
+**Inputs:**
+- `branch` (optional): Branch name to check (auto-detects if not provided)
+- `branch-pattern` (optional): Regex pattern for self-hosted runner (default: 'test-workflow')
+- `self-hosted-runner` (optional): Self-hosted runner name (default: 'self-hosted')
+- `github-runner` (optional): GitHub-hosted runner name (default: 'ubuntu-latest')
+
+**Outputs:**
+- `runner`: The runner to use for jobs
+- `is-self-hosted`: Boolean indicating if self-hosted runner should be used
+
+**Usage:**
+```yaml
+- name: Determine Runner
+  id: set-runner
+  uses: ./.github/actions/utils/determine-runner
+  with:
+    branch-pattern: 'test-workflow'
+```
 
 ## Example Workflow
 
@@ -175,5 +239,7 @@ The original workflow steps have been replaced with calls to these actions:
 | cibuildwheel build | `build/wheel` |
 | Upload artifacts | `build/upload-artifacts` |
 | PyPI publishing | `build/publish` |
+| Determine Runner (inline script) | `utils/determine-runner` |
+| Complete Linux testing environment (Python + CUDA + vcpkg + CMake) | `setup/linux-testing-environment` |
 
 The workflow is now much cleaner and easier to maintain!

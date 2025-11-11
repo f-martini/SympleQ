@@ -20,36 +20,22 @@ jobs:
     steps:
       - name: Determine Runner
         id: set-matrix
-        run: |
-          BRANCH="${{ github.head_ref }}"
-          if [[ "$BRANCH" =~ test-workflow ]]; then
-          echo "runner=self-hosted" >> $GITHUB_ENV
-          echo "runner=self-hosted" >> $GITHUB_OUTPUT
-          else
-          echo "runner=ubuntu-latest" >> $GITHUB_ENV
-          echo "runner=ubuntu-latest" >> $GITHUB_OUTPUT
-          fi
-          echo "Using runner: $GITHUB_ENV"
+        uses: ./.github/actions/utils/determine-runner
+        with:
+          branch-pattern: "test-workflow"
 
   benchmark:
     needs: set-runner
     runs-on: ${{ needs.set-runner.outputs.runner }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Set up environment
-        uses: actions/setup-python@v4
+      - name: Setup Linux testing environment
+        uses: ./.github/actions/setup/linux-testing-environment
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install ${{ env.SETUP_PY }}
-          python -m pip install -r ${{ env.DEV_REQUIREMENTS }}
+          setup-path: ${{ env.SETUP_PY }}
+          dev-requirements: ${{ env.DEV_REQUIREMENTS }}
+          extra-packages: "pytest"
 
       - name: Run benchmarks
         run: |
@@ -67,20 +53,12 @@ jobs:
     runs-on: ${{ needs.set-runner.outputs.runner }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Set up environment
-        uses: actions/setup-python@v4
+      - name: Setup Linux testing environment
+        uses: ./.github/actions/setup/linux-testing-environment
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install ${{ env.SETUP_PY }}
-          python -m pip install -r ${{ env.DEV_REQUIREMENTS }}
+          setup-path: ${{ env.SETUP_PY }}
+          dev-requirements: ${{ env.DEV_REQUIREMENTS }}
 
       - name: Run profiling with cProfile
         run: |
