@@ -1,10 +1,18 @@
 import numpy as np
 import random
 import itertools
-from sympleq.core.paulis import PauliSum, PauliString
+from sympleq.core.paulis import PauliSum
 from sympleq.core.measurement.covariance_graph import graph
 from sympleq.core.circuits import Circuit
 from sympleq.core.circuits.gates import Hadamard as H, SUM as CX, PHASE as S
+
+
+def mcmc_number_initial_samples(shots: int, n_0: int = 500, scaling_factor: float = 1 / 10000):
+    return int(shots * scaling_factor) + n_0
+
+
+def mcmc_number_max_samples(shots: int, n_0: int = 2001, scaling_factor: float = 1 / 10000):
+    return 4 * int(shots * scaling_factor) + n_0
 
 
 def sort_hamiltonian(P: PauliSum):
@@ -19,7 +27,6 @@ def sort_hamiltonian(P: PauliSum):
     Returns:
         tuple: Sorted Pauli operators, coefficients, and the size of Pauli blocks.
     """
-    cc = P.weights
     pauli_count = P.n_paulis()
     indices = list(range(pauli_count))
 
@@ -31,7 +38,7 @@ def sort_hamiltonian(P: PauliSum):
         i = indices.pop(0)
         P0 = P[i, :]
         P0_str = str(P0)
-        P0_conjugate = P0.hermitian()
+        P0_conjugate = P0.hermitian_conjugate()
         P0_conj_str = str(P0_conjugate)
 
         if P0_str == P0_conj_str:
@@ -64,88 +71,10 @@ def sort_hamiltonian(P: PauliSum):
         pauli_block_sizes.append(2)
 
     # Extract and reorder Pauli strings and coefficients
-    pauli_strings = [str(ps) for ps in P.pauli_strings]
-    dims = P.dimensions
-    phases = P.phases
+    P1 = P.copy()
+    P1.reorder(sorted_indices)
 
-    sorted_strings = [PauliString.from_string(pauli_strings[i], dims) for i in sorted_indices]
-    sorted_phases = np.array([phases[i] for i in sorted_indices])
-    sorted_coeffs = np.array([cc[i] for i in sorted_indices])
-
-    sorted_paulis = PauliSum(sorted_strings, sorted_coeffs, phases=sorted_phases, dimensions=dims, standardise=False)
-
-    return sorted_paulis, np.array(pauli_block_sizes)
-
-
-'''
-def levi_civita(i, j, k):
-    if (i == j) or (j == k) or (i == k):
-        return 0
-    elif (i, j, k) in [(0, 1, 2), (1, 2, 0), (2, 0, 1)]:
-        return 1
-    else:
-        return -1
-
-def quditwise_inner_product(P0: PauliString, P1: PauliString):
-    P0_paulis = [int(2 * P0.x_exp[i] + P0.z_exp[i]) for i in range(P0.n_qudits())]
-    P1_paulis = [int(2 * P1.x_exp[i] + P1.z_exp[i]) for i in range(P1.n_qudits())]
-    result = np.zeros(P0.n_qudits(), dtype=np.complex128)
-    for i in range(P0.n_qudits()):
-        if P0_paulis[i] == P1_paulis[i]:
-            result[i] = 1
-        else:
-            if P0_paulis[i] == 0:
-                result[i] = 1
-            elif P1_paulis[i] == 0:
-                result[i] = 1
-            else:
-                result[i] = np.sum([1j * levi_civita(P0_paulis[i] - 1, P1_paulis[i] - 1, k) for k in range(3)])
-
-    phase = np.prod(result).real
-    if phase == 1:
-        return 0
-    elif phase == -1:
-        return 1
-    else:
-        return 0
-
-
-def get_phase_matrix(P: PauliSum, CG: graph):
-    p = P.n_paulis()
-    q = P.n_qudits()
-    d = int(P.lcm)
-    k_phases = np.zeros((p, p))
-    dims = P.dimensions
-    for i in range(p):
-        for j in range(p):
-            if CG.adj[i, j]:
-                Pi = P[i, :]
-                Pj = P[j, :]
-                if d == 2:
-                    k_phases[i, j] = quditwise_inner_product(Pi, Pj)
-                else:
-                    pauli_phases = []
-                    for k in range(q):
-                        if dims[k] == 2:
-                            Pi_ind = int(2 * Pi.x_exp[k] + Pi.z_exp[k])
-                            Pj_ind = int(2 * Pj.x_exp[k] + Pj.z_exp[k])
-                            phase = 0
-                            if Pi_ind == 0:
-                                phase = 0
-                            elif Pj_ind == 0:
-                                phase = 0
-                            else:
-                                phase = np.sum([0.5 * levi_civita(Pi_ind - 1, Pj_ind - 1, _) for _ in range(3)])
-
-                            phase = phase * int(d / dims[k])
-                            pauli_phases.append(phase)
-                        else:
-                            pauli_phases.append(((Pi.z_exp[k] * (Pi.x_exp[k] - Pj.x_exp[k])) %
-                                                dims[k]) * int(d / dims[k]))
-                    k_phases[i, j] = np.sum(pauli_phases) % d
-
-    return k_phases
-'''
+    return P1, np.array(pauli_block_sizes)
 
 
 def choose_measurement(S, V, aaa, allocation_mode):
@@ -191,24 +120,24 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}):
             for j1, a1 in enumerate(aa):
                 if j0 != j1:
                     # isolate a pair of paulis in the clique
-                    P_a0 = P1[j0]
+                    P_a0 = P1[[j0]]
                     P_a0c = P_a0.H()
-                    P_a1 = P1[j1]
+                    P_a1 = P1[[j1]]
                     # compute their product pauli
                     P2 = P_a0c * P_a1
                     P2.weights[0] = 1
                     # check if the product is in the original pauli list
-                    if P2[0, :] not in P1.pauli_strings:
+                    P1_pauli_string_list = [str(P1[k]) for k in range(P1.n_paulis())]
+                    if str(P2[0]) not in P1_pauli_string_list:
                         k_dict[str(P1.n_paulis())] = [(a0, a1, P2.phases[0])]
                         # add the product but make sure to account for possibly different phases
                         P2.phases[0] = 0
                         P1 = P1 + P2
                     else:
-                        P1_s = [str(ps) for ps in P1.pauli_strings]
-                        k_dict[str(P1_s.index(str(P2[0, :])))].append((a0, a1, P2.phases[0]))
+                        k_dict[str(P1_pauli_string_list.index(str(P2[0])))].append((a0, a1, P2.phases[0]))
 
         C = diagonalize(P1)
-        P1.phases = np.zeros(P1.n_paulis())
+        P1.set_phases(np.zeros(P1.n_paulis()))
         P1 = C.act(P1)
         D[str(aa)] = (P1, C, k_dict)
     return C, D
@@ -395,7 +324,7 @@ def construct_diagnostic_states(diagnostic_circuits: list[Circuit], mode='Zero')
         raise Exception('Diagnostic state mode not recognized')
 
 
-def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.001, p_mes=0.001):
+def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.001, p_measurement=0.001):
     n_local = 0
     n_entangling = 0
     for g in circuit.gates:
@@ -403,12 +332,12 @@ def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.00
             n_entangling += 1
         else:
             n_local += 1
-    noise_prob = 1 - ((1 - p_mes) * (1 - p_entangling)**n_entangling * (1 - p_local)**n_local)
+    noise_prob = 1 - ((1 - p_measurement) * (1 - p_entangling)**n_entangling * (1 - p_local)**n_local)
     return noise_prob
 
 
-def standard_error_function(result, dims):
-    return np.array([np.random.randint(dims[j]) for j in range(len(dims))])
+def standard_error_function(result, dimensions):
+    return np.array([np.random.randint(dimensions[j]) for j in range(len(dimensions))])
 
 
 def extract_phase(weight, dimension):
@@ -417,7 +346,7 @@ def extract_phase(weight, dimension):
     return phase, remainder
 
 
-def weight_to_phase(H):
+def weight_to_phase(H: PauliSum) -> PauliSum:
     if 2 not in H.dimensions:
         for i in range(H.n_paulis()):
             weight_phase, weight_remainder = extract_phase(H.weights[i], H.lcm)

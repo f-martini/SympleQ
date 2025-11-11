@@ -4,7 +4,7 @@
 #     since we are dealing with covariance matrices with both vertex and edge weights,
 #     this is a suitable format to capture that complexity
 
-# Written by Andrew Jena, adapted for Quaos by Rick Simon
+# Written by Andrew Jena, adapted for SympleQ by Rick Simon
 
 import numpy as np
 import itertools
