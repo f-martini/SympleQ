@@ -1,0 +1,71 @@
+name: "Setup CUDA Toolkit"
+description: "Setup CUDA toolkit for different platforms"
+inputs:
+  cuda-version:
+    description: "CUDA version to install"
+    required: true
+  platform:
+    description: "Target platform (linux or windows)"
+    required: true
+  method:
+    description: "Installation method (network, local)"
+    required: false
+    default: "network"
+
+outputs:
+  cuda-path:
+    description: "Path to CUDA installation"
+    value: ${{ steps.setup-cuda.outputs.cuda-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup CUDA (Windows)
+      if: inputs.platform == 'windows'
+      uses: Jimver/cuda-toolkit@v0.2.24
+      id: cuda-toolkit-windows
+      with:
+        cuda: "${{ inputs.cuda-version }}.0"
+        method: ${{ inputs.method }}
+
+    - name: Setup CUDA (Linux)
+      if: inputs.platform == 'linux'
+      id: cuda-toolkit-linux
+      shell: bash
+      run: |
+        echo "🔧 Installing CUDA ${{ inputs.cuda-version }} for Linux..."
+
+        # Download and install CUDA
+        CUDA_VERSION="${{ inputs.cuda-version }}"
+        CUDA_URL="https://developer.download.nvidia.com/compute/cuda/${CUDA_VERSION}.0/local_installers/cuda_${CUDA_VERSION}.0_560.28.03_linux.run"
+
+        curl -fsSL "$CUDA_URL" -o cuda_installer.run
+        sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm
+
+        # Create symlink
+        sudo ln -sf "/usr/local/cuda-${CUDA_VERSION}" /usr/local/cuda
+
+        # Set output
+        echo "cuda-path=/usr/local/cuda" >> $GITHUB_OUTPUT
+
+        # Verify installation
+        /usr/local/cuda/bin/nvcc --version
+
+    - name: Set CUDA path output
+      id: setup-cuda
+      shell: bash
+      run: |
+        if [ "${{ inputs.platform }}" == "windows" ]; then
+          echo "cuda-path=${{ steps.cuda-toolkit-windows.outputs.CUDA_PATH }}" >> $GITHUB_OUTPUT
+        else
+          echo "cuda-path=${{ steps.cuda-toolkit-linux.outputs.cuda-path }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Verify CUDA installation
+      shell: bash
+      run: |
+        if [ "${{ inputs.platform }}" == "windows" ]; then
+          nvcc --version || echo "⚠️ CUDA verification failed on Windows"
+        else
+          /usr/local/cuda/bin/nvcc --version || echo "⚠️ CUDA verification failed on Linux"
+        fi

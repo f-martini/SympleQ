@@ -40,88 +40,59 @@ jobs:
         with:
           submodules: recursive
 
-      # ===== Free up disk space =====
-      - name: Free up disk space (Linux)
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/*
-          docker system prune -af
-          df -h
+      - name: Free up disk space
+        uses: ./.github/actions/cleanup/free-disk-space
+        with:
+          platform: linux
+          aggressive: "true"
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup Python environment
+        id: python-setup
+        uses: ./.github/actions/setup/python-environment
         with:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.arch }}
 
-      - name: Set CIBW_BUILD for Python version
-        shell: bash
-        run: |
-          PYTHON_VERSION="${{ matrix.python }}"
-          CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
-          echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
-
-      - name: Install build dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install cibuildwheel twine
-
-      - name: Build wheels (Linux)
-        env:
-          CIBW_BUILD: ${{ env.CIBW_BUILD_VERSION }}
-          CIBW_ARCHS: ${{ env.CIBW_ARCHS_X64 }}
-          CIBW_SKIP: "pp* *-musllinux*"
-          CIBW_BUILD_VERBOSITY: 1
-
-          CIBW_ENVIRONMENT: >-
-            CMAKE_TOOLCHAIN_FILE=${{ env.CMAKE_TOOLCHAIN_FILE }}
-            CUDA_PATH=/usr/local/cuda
-            VCPKG_ROOT=/tmp/vcpkg
-            PATH=/usr/local/cuda/bin:/opt/rh/gcc-toolset-12/root/usr/bin:$PATH
-            LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-
-          CIBW_BEFORE_ALL_LINUX: >-
-            yum install -y epel-release &&
-            yum remove -y gcc gcc-c++ &&
-            yum install -y make git which gcc-toolset-${{ env.GCC_VERSION }} curl zip unzip tar &&
-            source /opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/enable &&
-            export CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc &&
-            export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++ &&
-            curl -fsSL "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}.0/local_installers/cuda_${{ env.CUDA_VERSION }}.0_560.28.03_linux.run" -o cuda_installer.run &&
-            sh cuda_installer.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm &&
-            ln -sf "/usr/local/cuda-${{ env.CUDA_VERSION }}" /usr/local/cuda &&
-            git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
-            cd /tmp/vcpkg &&
-            git checkout "${{ env.VCPKG_COMMIT_ID }}" &&
-            ./bootstrap-vcpkg.sh
-
-          CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
-          CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.LINUX_PRESET_X64 }}
-
-          CIBW_TEST_COMMAND: 'python -c "from sympleq.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
-
-          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
-            export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-            export LD_LIBRARY_PATH="$(find / -type d -path '*/sympleq.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
-            echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" &&
-            auditwheel repair -w {dest_dir} {wheel}
-
-        run: python -m cibuildwheel --output-dir ./dist
-
-      - name: Upload wheels as artifacts
-        uses: actions/upload-artifact@v4
+      - name: Setup CUDA
+        id: cuda-setup
+        uses: ./.github/actions/setup/cuda
         with:
-          name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
-          path: dist/*.whl
-          retention-days: 30
+          cuda-version: ${{ env.CUDA_VERSION }}
+          platform: linux
 
-      - name: Post cleanup (Linux)
-        run: |
-          rm -rf dist/*
-          docker system prune -af || true
-          rm -rf /tmp/vcpkg || true
-          df -h
+      - name: Setup vcpkg
+        id: vcpkg-setup
+        uses: ./.github/actions/setup/vcpkg
+        with:
+          vcpkg-commit: ${{ env.VCPKG_COMMIT_ID }}
+          platform: linux
+          install-path: /tmp/vcpkg
+
+      - name: Build wheels
+        uses: ./.github/actions/build/wheel
+        with:
+          platform: linux
+          architecture: ${{ env.CIBW_ARCHS_X64 }}
+          python-version: ${{ matrix.python }}
+          cibw-build: ${{ steps.python-setup.outputs.cibw-build }}
+          cuda-path: ${{ steps.cuda-setup.outputs.cuda-path }}
+          vcpkg-root: ${{ steps.vcpkg-setup.outputs.vcpkg-root }}
+          cmake-toolchain: ${{ steps.vcpkg-setup.outputs.cmake-toolchain }}
+          cmake-preset: ${{ env.LINUX_PRESET_X64 }}
+          source-path: ${{ env.NATIVE_SRC_PATH }}
+          gcc-version: ${{ env.GCC_VERSION }}
+          project-name: ${{ env.PROJECT_NAME }}
+
+      - name: Upload artifacts
+        uses: ./.github/actions/build/upload-artifacts
+        with:
+          artifact-name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
+
+      - name: Post cleanup
+        uses: ./.github/actions/cleanup/free-disk-space
+        with:
+          platform: linux
+          aggressive: "true"
 
   build-windows-x64:
     name: Build Windows x64 - ${{ matrix.arch }} - Python ${{ matrix.python }}
@@ -132,142 +103,83 @@ jobs:
         arch: [x64]
         python: ["3.11", "3.12", "3.13"]
 
-    env:
-      CMAKE_CUDA_COMPILER: "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6\\bin\\nvcc.exe"
-      VCPKG_ROOT: "D:\\a\\sympleq\\sympleq\\vcpkg"
-      CMAKE_TOOLCHAIN_FILE: "D:\\a\\sympleq\\sympleq\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
-      CUDA_PATH: "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6"
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Free up disk space (Windows)
-        run: |
-          Get-PSDrive
-          Remove-Item -Path "C:\Program Files\dotnet" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -Path "C:\Program Files (x86)\Android" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -Path "C:\ghc" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -Path "C:\hostedtoolcache\CodeQL" -Recurse -Force -ErrorAction SilentlyContinue
-          Get-PSDrive
-        shell: pwsh
+      - name: Free up disk space
+        uses: ./.github/actions/cleanup/free-disk-space
+        with:
+          platform: windows
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup Python environment
+        id: python-setup
+        uses: ./.github/actions/setup/python-environment
         with:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.arch }}
+          include-cibuildwheel: "false"
 
       - name: Set up MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Set up CUDA Toolkit (Windows)
-        uses: Jimver/cuda-toolkit@v0.2.24
-        id: cuda-toolkit
+      - name: Setup CUDA
+        id: cuda-setup
+        uses: ./.github/actions/setup/cuda
         with:
-          cuda: "${{ env.CUDA_VERSION }}.0"
-          method: "network"
+          cuda-version: ${{ env.CUDA_VERSION }}
+          platform: windows
 
-      - name: Verify CUDA installation
-        run: |
-          nvcc --version
-          echo "CUDA installation path: $env:CUDA_PATH"
-          $newPath = "${{ env.CUDA_VERSION }}\bin;${{ env.CUDA_VERSION }}\libnvvp;$env:PATH"
-          $env:PATH = $newPath
-          Add-Content -Path $env:GITHUB_ENV -Value "PATH=$newPath"
-          Write-Host "Updated PATH: $env:PATH"
-
-      - name: Set up vcpkg
-        uses: lukka/run-vcpkg@v11
+      - name: Setup vcpkg
+        id: vcpkg-setup
+        uses: ./.github/actions/setup/vcpkg
         with:
-          vcpkgDirectory: "${{ github.workspace }}\\vcpkg"
-          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
-          vcpkgJsonGlob: "**\\vcpkg.json"
+          vcpkg-commit: ${{ env.VCPKG_COMMIT_ID }}
+          platform: windows
 
-      - name: Install build dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install cibuildwheel twine
-
-      - name: Install build tools
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install scikit-build-core[pyproject] nanobind cmake ninja delvewheel
-
-      - name: Build wheel
-        run: |
-          python -m build --wheel --outdir dist --config-setting "cmake.args=-G;Ninja;-S;${{ env.NATIVE_SRC_PATH }};--preset;${{ env.WINDOWS_PRESET_X64 }}"
-
-      - name: Repair wheel with delvewheel
-        shell: pwsh
-        run: |
-          $wheels = Get-ChildItem -Path dist -Filter 'sympleq*.whl' -ErrorAction SilentlyContinue
-          if (-not $wheels) {
-            Write-Host "No sympleq wheels found in dist; skipping delvewheel repair"
-          } else {
-            Remove-Item -Path dist\* -Include *.whl -Exclude sympleq*.whl -Force -ErrorAction SilentlyContinue
-            foreach ($w in $wheels) {
-              python -m delvewheel repair --add-path ${{ github.workspace }}/${{ env.NATIVE_SRC_PATH }}/sympleq.libs --wheel-dir dist $w.FullName
-            }
-          }
-
-      - name: Test wheel
-        run: |
-          $wheels = Get-ChildItem -Path dist -Filter 'sympleq*.whl'
-          foreach ($w in $wheels) { pip install $w.FullName }
-          python -c "from sympleq.core.light import Aquire; aquire = Aquire('h', [], {})"
-
-      - name: Upload wheels as artifacts
-        uses: actions/upload-artifact@v4
+      - name: Build wheels
+        uses: ./.github/actions/build/wheel
         with:
-          name: wheels-windows-${{ matrix.arch }}-py${{ matrix.python }}
-          path: dist/*.whl
-          retention-days: 30
+          platform: windows
+          architecture: ${{ env.CIBW_ARCHS_X64_WIN }}
+          python-version: ${{ matrix.python }}
+          cibw-build: ${{ steps.python-setup.outputs.cibw-build }}
+          cuda-path: ${{ steps.cuda-setup.outputs.cuda-path }}
+          vcpkg-root: ${{ steps.vcpkg-setup.outputs.vcpkg-root }}
+          cmake-toolchain: ${{ steps.vcpkg-setup.outputs.cmake-toolchain }}
+          cmake-preset: ${{ env.WINDOWS_PRESET_X64 }}
+          source-path: ${{ env.NATIVE_SRC_PATH }}
+          project-name: ${{ env.PROJECT_NAME }}
+
+      - name: Upload artifacts
+        uses: ./.github/actions/build/upload-artifacts
+        with:
+          artifact-name: wheels-windows-${{ matrix.arch }}-py${{ matrix.python }}
 
   # ===== Collect and publish wheels =====
   publish:
     needs: [build-windows-x64, build-linux-x64]
     runs-on: ubuntu-latest
-    # if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
 
     steps:
-      - name: Download all wheel artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: wheels-*
-          path: artifacts
-          merge-multiple: true
+      - name: Checkout repository (for actions)
+        uses: actions/checkout@v4
 
-      - name: List all wheels
-        run: |
-          echo "All collected wheels:"
-          ls -la artifacts/
-          mkdir -p dist
-          cp artifacts/*.whl dist/ 2>/dev/null || echo "No wheels found"
-          ls -la dist/
-
-      - name: Set up Python for publishing
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install twine
-        run: pip install twine
-
-      - name: Publish to Test PyPI (on main branch push)
+      - name: Publish wheels to Test PyPI (on main branch push)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TEST }}
-        run: |
-          python -m twine upload --repository testpypi dist/sympleq-*.whl --verbose --skip-existing
+        uses: ./.github/actions/build/publish
+        with:
+          project-name: ${{ env.PROJECT_NAME }}
+          test-pypi-token: ${{ secrets.PYPI_TEST }}
+          publish-to-test: "true"
 
-      - name: Publish to PyPI (on release)
+      - name: Publish wheels to PyPI (on release)
         if: github.event_name == 'release'
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          python -m twine upload dist/sympleq-*.whl --verbose
+        uses: ./.github/actions/build/publish
+        with:
+          project-name: ${{ env.PROJECT_NAME }}
+          pypi-token: ${{ secrets.PYPI_TOKEN }}
+          publish-to-pypi: "true"
