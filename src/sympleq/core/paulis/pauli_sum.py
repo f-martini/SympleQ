@@ -67,6 +67,60 @@ class PauliSum(PauliObject):
         return P
 
     @classmethod
+    def from_hilbert_space(cls, matrix: np.ndarray, dimensions: list[int] | np.ndarray, threshold: int = 9) -> PauliSum:
+        """
+        Create a PauliSum instance from its Hilbert space matrix representation.
+
+        Parameters
+        ----------
+        matrix : np.ndarray
+            The Hilbert space matrix to convert into a PauliSum.
+        dimensions : int | list[int] | np.ndarray
+            The dimensions parameter to be passed to the PauliSum constructor.
+        threshold: int, optional
+            The number of matching digits after the comma to consider two arrays as equal.
+
+        Returns
+        -------
+        PauliSum
+            A PauliSum instance representing the given Pauli operator.
+        """
+        def _all_exponent_lists(dimensions):
+            grids = np.meshgrid(*[np.arange(d) for d in dimensions], indexing="ij")
+            combos = np.stack(grids, axis=-1).reshape(-1, len(dimensions))
+            return combos
+
+        D = int(np.prod(dimensions))
+
+        w, h = matrix.shape
+        if D != w or D != h:
+            raise ValueError(
+                f"Hilbert space matrix shape must match the dimensions product (got shape {matrix.shape}\
+                      and dimensions product {D})")
+
+        weights = []
+        selected_pauli_strings = []
+
+        # Iterable: all_pauli_strings = all possible PauliStrings with given dimensions
+        x_exps = _all_exponent_lists(dimensions)
+        z_exps = _all_exponent_lists(dimensions)
+        all_pauli_strings = [PauliString.from_exponents(x_exp, z_exp, dimensions)
+                             for x_exp in x_exps for z_exp in z_exps]
+
+        tolerance = 10**(-threshold)
+        for ps in all_pauli_strings:
+            ps_mat = PauliSum.from_pauli_strings(ps).to_hilbert_space()
+            ps_mat_ct = ps_mat.conjugate().transpose()
+            c_i = np.trace(ps_mat_ct @ matrix) / D
+            if abs(c_i) < tolerance:
+                continue
+
+            weights.append(c_i)
+            selected_pauli_strings.append(ps)
+
+        return PauliSum.from_pauli_strings(selected_pauli_strings, weights)
+
+    @classmethod
     def from_pauli_strings(cls, pauli_string: PauliString | list[PauliString],
                            weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
                            phases: int | list[int] | np.ndarray | None = None,) -> PauliSum:
