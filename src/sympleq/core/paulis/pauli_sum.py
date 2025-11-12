@@ -112,7 +112,7 @@ class PauliSum:
 
     @classmethod
     def from_pauli_strings(cls,
-                           pauli_string: PauliString) -> 'PauliSum':
+                           pauli_string: list[PauliString]) -> 'PauliSum':
         """
         Create a PauliSum instance from a PauliString object.
 
@@ -129,7 +129,7 @@ class PauliSum:
         return cls(pauli_string,
                    weights=[1],
                    phases=[0],
-                   dimensions=pauli_string.dimensions,
+                   dimensions=pauli_string[0].dimensions,
                    standardise=False)
 
     @classmethod

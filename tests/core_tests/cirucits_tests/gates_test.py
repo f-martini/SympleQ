@@ -1,9 +1,10 @@
 from sympleq.core.circuits import SUM, SWAP, Hadamard, PHASE, Gate, Circuit, CNOT, PauliGate
 from sympleq.core.circuits.utils import is_symplectic
-from sympleq.core.circuits.target import find_map_to_target_pauli_sum, map_pauli_sum_to_target_tableau
+# from sympleq.core.circuits.target import find_map_to_target_pauli_sum, map_pauli_sum_to_target_tableau
 from sympleq.core.paulis import PauliSum, PauliString
 import numpy as np
-from sympleq.core.circuits.random_symplectic import symplectic_gf2, symplectic_group_size, symplectic_random_transvection
+from sympleq.core.circuits.random_symplectic import (symplectic_gf2, symplectic_group_size,
+                                                     symplectic_random_transvection)
 import random
 
 
@@ -268,8 +269,12 @@ class TestGates():
                                     for x1p in range(2):
                                         for z1p in range(2):
                                             i += 1
-                                            p1 = PauliSum([f'x{x0}z{z0} x{x1}z{z1}'], dimensions=[2, 2])
-                                            p2 = PauliSum([f'x{x0p}z{z0p} x{x1p}z{z1p}'], dimensions=[2, 2])
+                                            ps1 = PauliString.from_string(f'x{x0}z{z0} x{x1}z{z1}', dimensions=[2, 2])
+                                            ps2 = PauliString.from_string(f'x{x0p}z{z0p} x{x1p}z{z1p}',
+                                                                          dimensions=[2, 2])
+                                            p1 = PauliSum.from_pauli_strings([ps1])
+                                            p2 = PauliSum.from_pauli_strings([ps2])
+                                            print(p1)
                                             err0 = 'In: \n' + p1.__str__() + '\n' + p2.__str__()
                                             err = (
                                                 'Out: \n' +

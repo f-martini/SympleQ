@@ -12,10 +12,6 @@ from sympleq.core.finite_field_solvers import get_linear_dependencies
 Label = int
 DepPairs = Dict[Label, List[Tuple[Label, int]]]
 
-# =============================================================================
-# Utilities
-# =============================================================================
-
 
 def _labels_union(independent: List[int], dependencies: DepPairs) -> List[int]:
     return sorted(set(independent) | set(dependencies.keys()))
@@ -315,6 +311,8 @@ def _full_dfs_complete(
         if not _check_code_automorphism(G, basis_order, labels, pi):
             return None
 
+        # Phase correction part
+
         # ---- 1) find F, h0 from the permutation
         H_basis_src = basis_source_ps
         tgt_idx = pi[basis_indices]
@@ -337,10 +335,10 @@ def _full_dfs_complete(
 
         # Optional qubit lift tweak: if any residual is odd, try canonical h0 from F
         if p == 2 and np.any(delta % 2 != 0):
-            n = nq
+            print('Trying alternate h0 for F to reduce odd residuals')
             F2 = F % 2
-            A, B = F2[:n, :n], F2[:n, n:]
-            C, D = F2[n:, :n], F2[n:, n:]
+            A, B = F2[:nq, :nq], F2[:nq, nq:]
+            C, D = F2[nq:, :nq], F2[nq:, nq:]
             hx0 = np.diag((A @ B.T) % 2) % 2
             hz0 = np.diag((C @ D.T) % 2) % 2
             h0_alt = np.concatenate([hx0, hz0]).astype(int)
@@ -372,6 +370,12 @@ def _full_dfs_complete(
         if not np.all((ref_phases - H_out_cf.phases) % two_lcm == 0):
             return None
         if not np.array_equal(H_out_cf.weights, ref_weights):
+            return None
+        Omega = np.zeros((2 * nq, 2 * nq), dtype=int)
+        Omega[:nq, nq:] = np.eye(nq, dtype=int)
+        Omega[nq:, :nq] = -np.eye(nq, dtype=int)
+        if np.all(((p - 1) * np.diag(F @ Omega @ F.T) + h_tot % 2) != 0):
+            # print('Warning: found F,h that dont satisfy Clifford constraint!')
             return None
 
         return SG
@@ -567,7 +571,6 @@ def solve_phase_vector_h_from_residual(
     L = int(np.lcm.reduce(dims))
     modulus = 2 * L
 
-    # Fast paths when all qudits share the same dimension
     if dims.size and np.all(dims == dims[0]):
         p_uni = int(dims[0])
         if p_uni == 2:
@@ -664,7 +667,7 @@ if __name__ == "__main__":
         sym = SWAP(0, 1, 2)
 
         H = random_gate_symmetric_hamiltonian(sym, 10, 58, scrambled=False)
-        C = Circuit.from_random(H.n_qudits(), 100, H.dimensions).composite_gate()
+        C = Circuit.from_random(100, H.dimensions).composite_gate()
         H = C.act(H)
         H.weight_to_phase()
         scrambled_sym = Circuit(H.dimensions, [C.inv(), sym, C]).composite_gate()

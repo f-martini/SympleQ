@@ -37,7 +37,6 @@ def clifford_symmetry(pauli_sum: PauliSum,
 
         assert np.array_equal(fs, (ts @ ss @ tis) % 2), f'symplectic failed\n{fs}\n{ts @ ss @ ts.T}'
         assert lhs == rhs, f'Localisation failed\n{lhs.__str__()}\n{rhs.__str__()}'
-    print('Found symmetry')
     return g, S_gate, T_gate
 
 
@@ -80,14 +79,13 @@ def clifford_phase_decomposition(F: np.ndarray, h_F: np.ndarray,
       F,h_F : composite Clifford (symplectic F, phase vector h_F) with phases mod 2d
       S,T   : symplectics satisfying F = T^{-1} S T
       d     : qudit dimension
-      l_T   : optional gauge vector (same shape as h_F) giving ℓ_T; default is 0
+      l_T   : optional gauge vector (same shape as h_F) giving l_T; default is 0
 
     Outputs:
       h_S, h_T : phase vectors of S and T (mod 2d)
 
     Conventions:
-      - Pauli exponent rows update as a' = a @ F.T  (your convention).
-      - All internal math is mod 2d (standard for arbitrary d).
+      - Pauli exponent rows update as a' = a @ F.T.
     """
     mod = 2 * d
     n2 = F.shape[0]

@@ -525,3 +525,17 @@ class TestPaulis:
         # Spot-check against pairwise method:
         ps = S.pauli_strings
         assert SPM[1, 3] % L == ps[1].symplectic_product(ps[3], as_scalar=True) % L
+
+    def test_associativity(self):
+        n_test = 10
+        n_qudits = 3
+        dims = [2, 3, 5]
+        for d in dims:
+            for _ in range(n_test):
+                dimensions = [d] * n_qudits
+                P = PauliString.from_random(dimensions=dimensions)
+                Q = PauliString.from_random(dimensions=dimensions)
+                R = PauliString.from_random(dimensions=dimensions)
+
+                assert (P * (Q * R)) == ((P * Q) * R)
+                assert ((P * Q) * R) == (P * (Q * R))
