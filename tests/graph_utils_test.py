@@ -1,5 +1,5 @@
 import random
-from quaos.graph_utils import find_one_permutation, preserves_per_label_multisets, mapping_key
+from sympleq.graph_utils import find_one_permutation, preserves_per_label_multisets, mapping_key
 
 
 class TestGraphUtils:
@@ -53,4 +53,3 @@ class TestGraphUtils:
                 n_permutations_found += 1
             # else: no permutation found is perfectly fine
 
-    

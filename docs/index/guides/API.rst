@@ -4,11 +4,11 @@ API
 
 .. autosummary::
 
-    quaos
+    sympleq
 
 
 .. autosummary::
     :toctree: _autosummary
 
-    quaos.circuits
-    quaos.paulis
+    sympleq.circuits
+    sympleq.paulis

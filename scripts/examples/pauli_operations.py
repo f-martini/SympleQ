@@ -1,4 +1,4 @@
-from quaos.paulis import PauliSum, PauliString, Pauli
+from sympleq.paulis import PauliSum, PauliString, Pauli
 
 
 dimension = 2

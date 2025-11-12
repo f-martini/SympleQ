@@ -1,260 +1,138 @@
-from quaos.core.circuits.target import find_map_to_target_pauli_sum
-from quaos.core.paulis import PauliSum
-from quaos.utils import get_linear_dependencies
 import numpy as np
-from quaos.graph_utils import find_one_permutation, permutation_to_swaps, mapping_key, find_swapped_dependent_elements
-from quaos.core.circuits.gates import Gate
-from quaos.models import Hadamard_Symmetric_PauliSum, SWAP_symmetric_PauliSum
-from permutations import find_first_automorphism
+from sympleq.core.circuits import Gate, Circuit
+from sympleq.core.paulis import PauliSum
+from scripts.experiments.symmetries.src.matroid_w_spm import find_clifford_symmetries
+from scripts.experiments.symmetries.src.block_decomposition import block_decompose, ordered_block_sizes
 
 
-def symmetric_symplectic(pauli_sum: PauliSum, max_cycle=20):
-    if not np.all(pauli_sum.dimensions == pauli_sum.dimensions[0]):
-        raise NotImplementedError('Currently only implemented for qudits of the same dimension')
+def clifford_symmetry(pauli_sum: PauliSum,
+                      check_symmetry: bool = True,
+                      ) -> tuple[Gate, Gate, Gate]:
 
-    d = int(pauli_sum.dimensions[0])
-    cs = pauli_sum.weights
-    independent_paulis, dependencies = get_linear_dependencies(pauli_sum.tableau(), d)
+    G = find_clifford_symmetries(pauli_sum, num_symmetries=1,
+                                 dynamic_refine_every=0)
+    g = G[0]
+    if check_symmetry:
+        lhs = g.act(pauli_sum).standard_form()
+        rhs = pauli_sum.standard_form()
+        assert lhs == rhs, f'Symmetry finder failed\n{lhs.__str__()}\n{rhs.__str__()}'
 
-    graph_dict = make_graph_dictionary(independent_paulis, dependencies, cs)
-    permutations, target = _loop_through_permutations(graph_dict, pauli_sum, find_all=False, max_cycle=max_cycle)
+    S, T = block_decompose(g.symplectic, int(pauli_sum.lcm))
+    h_S, h_T = clifford_phase_decomposition(g.symplectic, g.phase_vector, S, T, int(pauli_sum.lcm))
+    S_gate = Gate('S', g.qudit_indices, S, g.dimensions, h_S)
+    T_gate = Gate('T', g.qudit_indices, T, g.dimensions, h_T)
 
-    H_indep = pauli_sum[independent_paulis]
-    H_t_indep = target[independent_paulis]
+    if check_symmetry:
+        lhs = T_gate.act(S_gate.act(T_gate.inv().act(pauli_sum))).standard_form()
+        rhs = pauli_sum.standard_form()
+        ts = T_gate.symplectic
+        tis = T_gate.inv().symplectic
+        ss = S_gate.symplectic
+        fs = g.symplectic
+        C = Circuit(pauli_sum.dimensions, [T_gate.inv(), S_gate, T_gate])
+        F = C.composite_gate()
 
-    assert np.all(H_indep.symplectic_product_matrix() == H_t_indep.symplectic_product_matrix())
-    F, h, _, _ = find_map_to_target_pauli_sum(H_indep, H_t_indep)
+        assert np.all(F.symplectic == g.symplectic), f'symplectic failed\n{F.symplectic}\n{g.symplectic}'
+        assert np.all(F.phase_vector == g.phase_vector), f'phase vector failed\n{F.phase_vector}\n{g.phase_vector}'
 
-    return Gate('Symmetry', [i for i in range(pauli_sum.n_qudits())], F.T, 2, h)
-
-
-def _loop_through_permutations(graph_dict, pauli_sum, find_all=False, max_cycle=20):
-    permutation = ()
-    permutations_found = set()
-
-    permutations_attempted = set()
-    found = False
-
-    i = 0
-    # all_permutations = brute_force_all_permutations(graph_dict[1], np.ones(len(graph_dict[1]), dtype=int))
-    # print([permutation_to_swaps(perm) for perm in all_permutations])
-    while not found:
-        i += 1
-        print(i)
-        # SHOULD NOT JUST BE graph_dict[1] - this just gets a single weight
-        permutation = find_one_permutation(graph_dict[1], pauli_sum.weights, permutations_attempted,
-                                           max_cycle_size=max_cycle)
-        if permutation is None:
-            raise Exception("No valid permutation found")
-        print('Checking permutation', permutation_to_swaps(permutation))
-
-        pairs = permutation_to_swaps(permutation)
-        swapped_dependents = find_swapped_dependent_elements(pairs, graph_dict[1])
-        H_target = pauli_sum.copy()
-
-        ########################################
-        # THIS BIT IS POSSIBLY BUGGY
-        for p in pairs:
-            H_target.swap_paulis(p[0], p[1])
-        for p in swapped_dependents:
-            if p not in pairs:
-                H_target.swap_paulis(p[0], p[1])
-        ########################################
-
-        if np.array_equal(H_target.symplectic_product_matrix(), pauli_sum.symplectic_product_matrix()):
-            found = True
-            if find_all:
-
-                permutations_attempted.add(mapping_key(permutation,
-                                                       domain=sorted({x for lst in graph_dict[1] for x in lst})))
-                permutations_found.add(permutation_to_swaps(permutation))
-            else:
-                print(permutation_to_swaps(permutation))
-                return permutation_to_swaps(permutation), H_target
-        else:
-            permutations_attempted.add(mapping_key(permutation,
-                                                   domain=sorted({x for lst in graph_dict[1] for x in lst})))
-    return list(permutations_found), H_target
+        assert np.array_equal(fs, (ts @ ss @ tis) % 2), f'symplectic failed\n{fs}\n{ts @ ss @ ts.T}'
+        assert lhs == rhs, f'Localisation failed\n{lhs.__str__()}\n{rhs.__str__()}'
+    print('Found symmetry')
+    return g, S_gate, T_gate
 
 
-def find_swapped_indices(independent_set, dependencies, permutation):
+def multiple_clifford_symmetries(pauli_sum: PauliSum,
+                                 n_symmetries: int = 1,
+                                 check_symmetry: bool = True,
+                                 ) -> tuple[list[Gate], list[Gate], list[Gate]]:
+
+    G = find_clifford_symmetries(pauli_sum, num_symmetries=n_symmetries,
+                                 dynamic_refine_every=0)
+
+    if check_symmetry:
+        for g in G:
+            assert g.act(pauli_sum).standard_form() == pauli_sum.standard_form()
+
+    Ss = []
+    Ts = []
+    for i, g in enumerate(G):
+        S, T = block_decompose(g.symplectic, pauli_sum.lcm)
+        h_S, h_T = clifford_phase_decomposition(g.symplectic, g.phase_vector, S, T, int(pauli_sum.lcm))
+        S_gate = Gate(f'S{i}', g.qudit_indices, S, g.dimensions, h_S)
+        T_gate = Gate(f'T{i}', g.qudit_indices, T, g.dimensions, h_T)
+        Ss.append(S_gate)
+        Ts.append(T_gate)
+
+    return G, Ss, Ts
+
+
+def get_coupled_qudits_by_gate(gate: Gate):
+    symp = gate.symplectic
+    sizes = np.asarray(ordered_block_sizes(symp, int(gate.lcm)), dtype=int) / 2
+    return sizes
+
+
+def clifford_phase_decomposition(F: np.ndarray, h_F: np.ndarray,
+                                 S: np.ndarray, T: np.ndarray, d: int,
+                                 l_T: np.ndarray | None = None):
     """
-    Find both independent and dependent swaps induced by a permutation.
+    Inputs:
+      F,h_F : composite Clifford (symplectic F, phase vector h_F) with phases mod 2d
+      S,T   : symplectics satisfying F = T^{-1} S T
+      d     : qudit dimension
+      l_T   : optional gauge vector (same shape as h_F) giving ℓ_T; default is 0
 
-    Parameters
-    ----------
-    independent_set : list[int]
-        List of indices of independent basis elements.
-    dependencies : dict[int, list[tuple[int, int]]]
-        Dependent index -> list of (independent_index, coeff).
-        (coeff is ignored, only structure matters).
-    permutation : list[int]
-        Permutation of the independent_set. Must be same length.
+    Outputs:
+      h_S, h_T : phase vectors of S and T (mod 2d)
 
-    Returns
-    -------
-    list[tuple[int, int]]
-        List of swaps (independent and dependent).
+    Conventions:
+      - Pauli exponent rows update as a' = a @ F.T  (your convention).
+      - All internal math is mod 2d (standard for arbitrary d).
     """
-    swaps = []
-    visited = set()
+    mod = 2 * d
+    n2 = F.shape[0]
+    Id = np.eye(n2, dtype=int)
 
-    # --- independent swaps ---
-    mapping = dict(zip(independent_set, permutation))
-    for old, new in mapping.items():
-        if old != new:
-            pair = tuple(sorted((old, new)))
-            if pair not in visited:
-                swaps.append(pair)
-                visited.add(pair)
+    def m_wrap(x):           # wrap to [0,mod)
+        return np.mod(x, mod)
 
-    # --- dependent swaps ---
-    # normalize dependency sets after applying permutation
-    dep_to_normalized = {}
-    for dep, terms in dependencies.items():
-        mapped_inds = [mapping[i] for (i, _) in terms]
-        dep_to_normalized[dep] = tuple(sorted(mapped_inds))
+    def m_mul(A, B):         # modular matrix multiply
+        return m_wrap(A @ B)
 
-    # group by normalized representation
-    seen = {}
-    for dep, norm in dep_to_normalized.items():
-        if norm in seen:
-            pair = tuple(sorted((dep, seen[norm])))
-            if pair not in visited:
-                swaps.append(pair)
-                visited.add(pair)
-        else:
-            seen[norm] = dep
+    def U_matrix(n2):       # standard symplectic form [[0,I],[-I,0]]
+        n = n2 // 2
+        I_n = np.eye(n, dtype=int)
+        Z = np.zeros((n, n), dtype=int)
+        return np.block([[Z, I_n], [-I_n, Z]])
 
-    return swaps
+    def V_diag(M):           # vector of diagonal entries
+        return np.diag(M) % mod
 
+    U = U_matrix(n2)
+    U_inv = m_wrap(-U)       # since U^{-1} = -U
 
-def find_symmetry(pauli_sum: PauliSum):
-    if not np.all(pauli_sum.dimensions == pauli_sum.dimensions[0]):
-        raise NotImplementedError('Currently only implemented for qudits of the same dimension')
+    # S_C = C^T U C (independent of row/column convention as long as consistent)
+    S_F = m_mul(F.T, m_mul(U, F))
+    S_S = m_mul(S.T, m_mul(U, S))
+    S_T = m_mul(T.T, m_mul(U, T))
 
-    d = int(pauli_sum.dimensions[0])
-    independent_paulis, dependencies = get_linear_dependencies(pauli_sum.tableau(), d)
-    print(independent_paulis, dependencies)
-    graph_dict = make_graph_dictionary(independent_paulis, dependencies, pauli_sum.weights)
-    n = len(independent_paulis)
-    print(n)
-    vectors = graph_dict[1]
+    # ℓ_F = h_F - V_diag(S_F)
+    l_F = m_wrap(h_F - V_diag(S_F))
 
-    def checker(permutation):
-        #find_swapped_dependent_elements(pairs, graph_dict[1])
-        swaps = find_swapped_indices(independent_paulis, dependencies, permutation)
-        H_target = pauli_sum.copy()
-        print(swaps)
-        for p in swaps:  # THIS ISN'T WORKING
-            H_target.swap_paulis(p[0], p[1])
-        return np.array_equal(H_target.symplectic_product_matrix(), pauli_sum.symplectic_product_matrix())
+    # Gauge choice for T: default ℓ_T = 0  ⇒  h_T = V_diag(S_T)
+    if l_T is None:
+        l_T = np.zeros_like(h_F)
 
-    automorphism = find_first_automorphism(vectors, n, checker)
-    print(automorphism)
+    h_T = m_wrap(l_T + V_diag(S_T))
 
-    if automorphism is None:
-        raise Exception("No valid automorphism found")
+    # Use the symplectic identity to avoid numeric inversion:
+    # T^{-T} = U T U^{-1}
+    T_inv_T = m_mul(U, m_mul(T, U_inv))
 
-    H_t = pauli_sum.copy()
-    H_t = H_t[automorphism]
-    H_i = pauli_sum[independent_paulis]
+    # ℓ_S = T^{-T} [ ℓ_F + (F^T - I) ℓ_T ]
+    l_S = m_mul(T_inv_T, m_wrap(l_F + m_mul(F.T - Id, l_T)))
 
-    print(H_i.symplectic_product_matrix() - H_t.symplectic_product_matrix())
+    # h_S = ℓ_S + V_diag(S_S)
+    h_S = m_wrap(l_S + V_diag(S_S))
 
-    F, h, _, _ = find_map_to_target_pauli_sum(H_i, H_t)
-    G = Gate('Symmetry', [i for i in range(pauli_sum.n_qudits())], F.T, 2, h)
-
-    return G
-
-
-def make_graph_dictionary(independent_paulis, dependencies, weights):
-
-    graph_dict = {}
-
-    for i in independent_paulis:
-        key = weights[i]
-        if key in graph_dict:
-            graph_dict[key].append([i])
-        else:
-            graph_dict[key] = [[i]]
-
-    for i in dependencies.keys():
-        key = weights[i]
-        dependency = dependencies[i]
-        dependence_indices = [x[0] for x in dependency]
-        # dependence_multiplicities = [x[1] for x in dependency]  # this will be needed for qudits! always 1 for now
-        if key in graph_dict:
-            graph_dict[key].append(dependence_indices)
-        else:
-            graph_dict[key] = [dependence_indices]
-
-    return graph_dict
-
-
-def test_hadamard_symmetries():
-    correct = 0
-    n_tests = 10
-    seed = None
-    for i in range(n_tests):
-        print(f'Running Hadamard test {i + 1}/{n_tests}')
-        n_qubits = 5
-        n_sym_q = 2
-        n_paulis = 12
-        H, C = Hadamard_Symmetric_PauliSum(n_paulis, n_qubits, n_sym_q, seed=seed)
-        H.combine_equivalent_paulis()
-        F = symmetric_symplectic(H, max_cycle=4)
-        Fp = F.act(H)
-        Fp.standardise()
-        H.standardise()
-        if np.array_equal(Fp.tableau(), H.tableau()):
-            print('Success!')
-            correct += 1
-
-    print(f'Correct: {correct}/{n_tests}')
-
-
-def test_hadamard_symmetries2():
-    correct = 0
-    n_tests = 10
-    seed = None
-    for i in range(n_tests):
-        print(f'Running Hadamard test {i + 1}/{n_tests}')
-        n_qubits = 4
-        n_sym_q = 2
-        n_paulis = 7
-        H, C = Hadamard_Symmetric_PauliSum(n_paulis, n_qubits, n_sym_q, seed=seed)
-        H.combine_equivalent_paulis()
-        H.remove_trivial_paulis()
-        print(H)
-
-        F = find_symmetry(H)
-        Fp = F.act(H)
-        Fp.standardise()
-        H.standardise()
-        if np.array_equal(Fp.tableau(), H.tableau()):
-            print('Success!')
-            correct += 1
-
-    print(f'Correct: {correct}/{n_tests}')
-
-
-def test_SWAP_symmetries():
-    correct = 0
-    n_tests = 10
-    for i in range(n_tests):
-        print(f'Running SWAP test {i+1}/{n_tests}')
-        n_qubits = 5
-        n_paulis = 12
-        H = SWAP_symmetric_PauliSum(n_paulis, n_qubits)
-        H.combine_equivalent_paulis()
-        F = symmetric_symplectic(H, max_cycle=4)
-        if np.all(F.act(H).tableau() == H.tableau()):
-            correct += 1
-    print(f'Correct: {correct}/{n_tests}')
-
-
-if __name__ == '__main__':
-    # test_hadamard_symmetries()
-    test_hadamard_symmetries2()
-    # test_SWAP_symmetries()
+    return h_S, h_T
