@@ -446,15 +446,6 @@ class TestPaulis:
         assert P1.H() == P2
 
     def test_pauli_sum_is_hermitian(self):
-        def all_exponent_lists(dimensions):
-            """
-            Return a 2D NumPy array of all exponent lists x_exp
-            such that 0 <= x_i < d_i for each dimension d_i.
-            """
-            grids = np.meshgrid(*[np.arange(d) for d in dimensions], indexing="ij")
-            combos = np.stack(grids, axis=-1).reshape(-1, len(dimensions))
-            return combos
-
         for run in range(40):
             # Generate random dimensions array {d_1, d_2, d_3,...} such that \prod_i d_i <= 10
             dimensions = []
@@ -478,28 +469,8 @@ class TestPaulis:
                 H_e = H_e + 0.15 * (np.random.rand(D, D) + 1j * np.random.rand(D, D))
                 assert not np.array_equal(H_e, H_e.conjugate().transpose())
 
-            # Iterable: all_pauli_strings = all possible PauliStrings with given dimensions
-            x_exps = all_exponent_lists(dimensions)
-            z_exps = all_exponent_lists(dimensions)
-            all_pauli_strings = [PauliString.from_exponents(x_exp, z_exp, dimensions)
-                                 for x_exp in x_exps for z_exp in z_exps]
-            assert len(all_pauli_strings) == D**2
-
-            # Decompose H_e into PauliStrings
-            coefficients = []
-            selected_pauli_strings = []
+            pauli_sum = PauliSum.from_hilbert_space(H_e, dimensions)
             tolerance = 10**(-12)
-            for ps in all_pauli_strings:
-                ps_mat = PauliSum.from_pauli_strings(ps).to_hilbert_space()
-                ps_mat_ct = ps_mat.conjugate().transpose()
-                c_i = np.trace(ps_mat_ct @ H_e) / D
-                if abs(c_i) < tolerance:
-                    continue
-
-                coefficients.append(c_i)
-                selected_pauli_strings.append(ps)
-
-            pauli_sum = PauliSum.from_pauli_strings(selected_pauli_strings, weights=coefficients)
             assert np.max(np.abs((pauli_sum.to_hilbert_space().toarray() - H_e))) < tolerance
             assert pauli_sum.is_hermitian() == np.array_equal(H_e, H_e.conjugate().transpose())
 
