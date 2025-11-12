@@ -821,4 +821,3 @@ class PauliString(PauliObject):
         base[:n] = self.z_exp
         base[n:] = self.x_exp
         return bases_to_int(base[::-1], dims_double[::-1])
-
