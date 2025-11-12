@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import overload, TYPE_CHECKING
 import numpy as np
-import functools
 import re
 import scipy.sparse as sp
 
@@ -14,7 +13,6 @@ if TYPE_CHECKING:
     from .pauli_sum import PauliSum
 
 
-@functools.total_ordering
 class PauliString(PauliObject):
     @classmethod
     def from_exponents(cls, x_exp: list[int] | np.ndarray | str | int, z_exp: list[int] | np.ndarray | int,

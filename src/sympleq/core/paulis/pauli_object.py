@@ -1,5 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+import functools
 import numpy as np
 from typing import TypeVar, Self, Union
 
@@ -11,6 +12,7 @@ ScalarType = Union[float, complex, int]
 PauliOrScalarType = Union['PauliObject', ScalarType]
 
 
+@functools.total_ordering
 class PauliObject(ABC):
     def __init__(self, tableau: np.ndarray, dimensions: int | list[int] | np.ndarray | None = None,
                  weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
