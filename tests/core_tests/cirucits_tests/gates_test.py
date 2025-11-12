@@ -310,7 +310,7 @@ class TestGates():
             for d in primes:
                 for i in range(num_tests):
                     if n < 6 and d == 2:
-                        index = random.randint(0, symplectic_group_size(n))
+                        index = random.randint(0, symplectic_group_size(n) - 1)
                         F = symplectic_gf2(index, n)
                     else:
                         F = symplectic_random_transvection(n, dimension=d)

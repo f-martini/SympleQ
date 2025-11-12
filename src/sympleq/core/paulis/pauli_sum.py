@@ -49,12 +49,12 @@ class PauliSum(PauliObject):
     @classmethod
     def from_pauli(cls, pauli: Pauli) -> 'PauliSum':
         """
-        Create a PauliSum instance from a single Pauli object.
+        Create a PauliSum instance from a single Pauli.
 
         Parameters
         ----------
         pauli : Pauli
-            The Pauli object to convert into a PauliSum.
+            The Pauli to convert into a PauliSum.
 
         Returns
         -------
@@ -65,6 +65,60 @@ class PauliSum(PauliObject):
         P._sanity_check()
 
         return P
+
+    @classmethod
+    def from_hilbert_space(cls, matrix: np.ndarray, dimensions: list[int] | np.ndarray, threshold: int = 9) -> PauliSum:
+        """
+        Create a PauliSum instance from its Hilbert space matrix representation.
+
+        Parameters
+        ----------
+        matrix : np.ndarray
+            The Hilbert space matrix to convert into a PauliSum.
+        dimensions : int | list[int] | np.ndarray
+            The dimensions parameter to be passed to the PauliSum constructor.
+        threshold: int, optional
+            The number of matching digits after the comma to consider two arrays as equal.
+
+        Returns
+        -------
+        PauliSum
+            A PauliSum instance representing the given Pauli operator.
+        """
+        def _all_exponent_lists(dimensions):
+            grids = np.meshgrid(*[np.arange(d) for d in dimensions], indexing="ij")
+            combos = np.stack(grids, axis=-1).reshape(-1, len(dimensions))
+            return combos
+
+        D = int(np.prod(dimensions))
+
+        w, h = matrix.shape
+        if D != w or D != h:
+            raise ValueError(
+                f"Hilbert space matrix shape must match the dimensions product (got shape {matrix.shape}\
+                      and dimensions product {D})")
+
+        weights = []
+        selected_pauli_strings = []
+
+        # Iterable: all_pauli_strings = all possible PauliStrings with given dimensions
+        x_exps = _all_exponent_lists(dimensions)
+        z_exps = _all_exponent_lists(dimensions)
+        all_pauli_strings = [PauliString.from_exponents(x_exp, z_exp, dimensions)
+                             for x_exp in x_exps for z_exp in z_exps]
+
+        tolerance = 10**(-threshold)
+        for ps in all_pauli_strings:
+            ps_mat = PauliSum.from_pauli_strings(ps).to_hilbert_space()
+            ps_mat_ct = ps_mat.conjugate().transpose()
+            c_i = np.trace(ps_mat_ct @ matrix) / D
+            if abs(c_i) < tolerance:
+                continue
+
+            weights.append(c_i)
+            selected_pauli_strings.append(ps)
+
+        return PauliSum.from_pauli_strings(selected_pauli_strings, weights)
 
     @classmethod
     def from_pauli_strings(cls, pauli_string: PauliString | list[PauliString],
@@ -140,12 +194,12 @@ class PauliSum(PauliObject):
 
         Parameters
         ----------
-        n_pauli : int
+        n_paulis : int
             The number of Pauli operators to include in the sum.
         n_qudits : int
             The number of qudits in each Pauli operator.
-        dimensions : list[int] | np.ndarray
-            The dimensions of the qudits.
+        dimensions : int | list[int] | np.ndarray
+            The dimensions of the qudits. The size of dimensions determines the number of qudits.
         rand_weights : bool
             Whether to use random weights for the Pauli operators.
 
@@ -161,6 +215,11 @@ class PauliSum(PauliObject):
         weights = 2 * (np.random.rand(n_paulis) - 0.5) if rand_weights else np.ones(n_paulis)
         string_seeds = np.random.randint(1000000, size=1000)
         # Ensure no duplicate strings
+        # FIXME: this check is useful, but it fails if the product is too large and does not fit in int64.
+        # if n_paulis > 2 * int(np.prod(dimensions)):
+        #     raise ValueError(
+        #         f"Too many Paulis {n_paulis} for dimensions {dimensions} to guarantee unicity\
+        #              (max {2 * int(np.prod(dimensions))}).")
         strings = []
         for i in range(n_paulis):
             ps = PauliString.from_random(dimensions, seed=string_seeds[i])
@@ -175,7 +234,7 @@ class PauliSum(PauliObject):
     @property
     def phases(self) -> np.ndarray:
         """
-        Returns the phases associated with the Pauli-like object.
+        Returns the phases associated with the PauliSum.
         These phases represent the numerator, the denominator is 2 * self.lcm
 
         Returns
@@ -198,7 +257,7 @@ class PauliSum(PauliObject):
     @property
     def weights(self) -> np.ndarray:
         """
-        Returns the weights associated with the Pauli-like object.
+        Returns the weights associated with the PauliSum.
 
         Returns
         -------
@@ -511,35 +570,38 @@ class PauliSum(PauliObject):
 
     def __mul__(self, A: PauliOrScalarType) -> PauliSum:
         """
-        Multiply a Pauli object and a PauliObject (or scalar) objects element-wise.
+        Multiply a PauliSum and a PauliObject or scalar objects element-wise.
         It corresponds to operator multiplication (`*`).
         It adds the tableaus of the two PauliSums modulo their dimensions.
 
         Parameters
         ----------
-        A : PauliObject Pauli | PauliString | Pauli object | float | int
+        A : PauliObject | float | int | complex
             The PauliObject or scalar instance to be multiplied with `self`.
 
         Returns
         -------
-        Pauli object
-            A new Pauli object instance representing the product of `self` and `A`.
+        PauliSum
+            A new PauliSum instance representing the product of `self` and `A`.
 
         Raises
         ------
         ValueError
-            If `A` is not an instance of a Pauli, Pauli object, PauliString, or scalar.
+            If `A` is not an instance of a Pauli, PauliSum, PauliString, or scalar.
 
         Examples
         --------
-        >>> ps1 = Pauli object.from_pauli_strings("x1z0 x0z1", [3, 2])
-        >>> ps2 = Pauli object.from_pauli_strings("x2z1 x0z0", [3, 2])
+        >>> ps1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
+        >>> ps2 = PauliSum.from_pauli_strings("x2z1 x0z0", [3, 2])
         >>> ps3 = ps1 * ps2
-        Pauli object(...)
+        PauliSum(...)
         """
 
         if isinstance(A, ScalarType):
             return PauliSum(self.tableau, self.dimensions, self.weights * A, self.phases)
+
+        if isinstance(A, Pauli):
+            return self * PauliSum.from_pauli(A)
 
         if isinstance(A, PauliString):
             return self * PauliSum.from_pauli_strings(A)
@@ -599,16 +661,16 @@ class PauliSum(PauliObject):
 
         Examples
         --------
-        >>> ps1 = Pauli object.from_pauli_strings("x1z0 x0z1", [3, 2])
-        >>> ps2 = Pauli object.from_pauli_strings("x2z1 x0z0", [3, 2])
+        >>> ps1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
+        >>> ps2 = PauliSum.from_pauli_strings("x2z1 x0z0", [3, 2])
         >>> ps3 = ps1 * ps2
-        Pauli object(...)
+        PauliSum(...)
         """
         return self * A
 
     def __truediv__(self, A: ScalarType) -> PauliSum:
         """
-        Divide a Pauli object by a scalar. It corresponds to operator division (`/`).
+        Divide a PauliSum by a scalar. It corresponds to operator division (`/`).
 
         Parameters
         ----------
@@ -617,8 +679,8 @@ class PauliSum(PauliObject):
 
         Returns
         -------
-        Pauli object
-            A new Pauli object instance representing the quotient of `self` and `A`.
+        PauliSum
+            A new PauliSum instance representing the quotient of `self` and `A`.
 
         Raises
         ------
