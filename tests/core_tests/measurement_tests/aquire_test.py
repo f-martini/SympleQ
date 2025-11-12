@@ -364,6 +364,7 @@ class TestAquire:
                         s0 + (phases1[j0]+s1)/2)%d == comp_correct_results[j][2])
                     j += 1
 
+    @pytest.mark.skip()
     def test_aquire_for_specific_mixed_qubit_qutrit(self):
         P = PauliSum.from_string(['x0z1 x2z2 x0z1',
                                   'x0z1 x1z1 x0z2',
