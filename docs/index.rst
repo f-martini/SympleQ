@@ -1,15 +1,24 @@
-Welcome to QuAOS's documentation!
-=================================
+Index
+=====
 
 .. toctree::
     :maxdepth: 2
-    :caption: Contents:
+    :caption: About:
 
-    index/documentation
-    index/development
+    index/about/about
+    index/about/release_notes
 
+.. toctree::
+    :maxdepth: 2
+    :caption: Guides:
 
-Indices and tables
-==================
+    index/guides/quickstart
+    index/guides/API
+    index/guides/examples
 
-* :ref:`genindex`
+.. toctree::
+    :maxdepth: 2
+    :caption: Development:
+
+    index/development/contributing/contributing
+    index/development/resources/resources
