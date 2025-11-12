@@ -273,11 +273,13 @@ def aquire_params():
             "type": "AquireConfig",
             "optional": True,
             "default": None,
-            "description": "Configuration class for Aquire. Used to set various parameters that influence the experiment. For more information call AquireConfig.info()."
+            "description": ("Configuration class for Aquire. Used to set various parameters that influence the "
+                            "experiment. For more information call AquireConfig.info().")
         },
         "cliques": {
             "type": "list[list[int]]",
-            "description": "List of cliques selected for measurement. Each clique is a list of indices, representing the paulistrings in the given observable."
+            "description": ("List of cliques selected for measurement. Each clique is a list of indices, "
+                            "representing the paulistrings in the given observable.")
         },
         "circuits": {
             "type": "list[Circuit]",
@@ -285,15 +287,21 @@ def aquire_params():
         },
         "circuit_dictionary": {
             "type": "dict",
-            "description": "Dictionary mapping cliques to sub-PauliSums, circuits and a dictionary that explains, which of the paulistrings in the sub-PauliSum are the product of two paulistrings in the original observable."
+            "description": ("Dictionary mapping cliques to sub-PauliSums, circuits and a dictionary that explains, "
+                            "which of the paulistrings in the sub-PauliSum are the product of two paulistrings in the "
+                            "original observable.")
         },
         "measurement_results": {
             "type": "list",
-            "description": "List of (measured or simulated) measurement results for the selected cliques. Each measurement result is a list of integers representing the outcome for the respective qudit after applying the corresponding circuit in circuits"
+            "description": ("List of (measured or simulated) measurement results for the selected cliques. Each "
+                            "measurement result is a list of integers representing the outcome for the respective qudit"
+                            " after applying the corresponding circuit in circuits")
         },
         "scaling_matrix": {
             "type": "numpy.ndarray",
-            "description": "Numpy array that keeps track of the number of times each paulistring has been measured. Off-diagonal elements count how often two different paulistrings have been measured together. Used for allocation of new cliques."
+            "description": ("Numpy array that keeps track of the number of times each paulistring has been measured. "
+                            "Off-diagonal elements count how often two different paulistrings have been measured"
+                            " together. Used for allocation of new cliques.")
         }
 
     }

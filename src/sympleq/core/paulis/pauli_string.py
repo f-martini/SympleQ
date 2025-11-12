@@ -359,6 +359,7 @@ class PauliString(PauliObject):
         return np.asarray([1], dtype=complex)
 
     def as_pauli_sum(self) -> PauliSum:
+        # FIXME: Doesn't work
         return PauliSum(self.tableau, self.dimensions, self.weights, self.phases)
 
     def n_identities(self) -> int:
@@ -789,3 +790,4 @@ class PauliString(PauliObject):
         base[:n] = self.z_exp
         base[n:] = self.x_exp
         return bases_to_int(base[::-1], dims_double[::-1])
+
