@@ -3,29 +3,33 @@ from typing import Tuple, List
 
 
 def omega_matrix(n: int, p: int) -> np.ndarray:
-    I = np.eye(n, dtype=np.int64)
-    O = np.zeros((n, n), dtype=np.int64)
-    top = np.concatenate([O, I], axis=1)
-    bot = np.concatenate([modp(-I, p), O], axis=1)
+    Id = np.eye(n, dtype=np.int64)
+    zeros = np.zeros((n, n), dtype=np.int64)
+    top = np.concatenate([zeros, Id], axis=1)
+    bot = np.concatenate([mod_p(-Id, p), zeros], axis=1)
     return np.concatenate([top, bot], axis=0)
+
 
 def is_symplectic(F: np.ndarray, p: int) -> bool:
     n2 = F.shape[0]
     assert n2 % 2 == 0 and F.shape[1] == n2
     Ω = omega_matrix(n2 // 2, p)
-    return np.array_equal(modp(F.T @ Ω @ F, p), Ω % p)
+    return np.array_equal(mod_p(F.T @ Ω @ F, p), Ω % p)
 
-def modp(A: np.ndarray, p: int) -> np.ndarray:
+
+def mod_p(A: np.ndarray, p: int) -> np.ndarray:
     return np.asarray(A % p, dtype=np.int64)
 
+
 def rank_mod(A: np.ndarray, p: int) -> int:
-    R, _ = rref_mod(modp(A, p), p)
+    R, _ = rref_mod(mod_p(A, p), p)
     # Count nonzero rows
     return int(np.sum(np.any(R % p != 0, axis=1)))
 
+
 def nullspace_mod(A: np.ndarray, p: int) -> np.ndarray:
     """Right nullspace basis of A over GF(p); columns form a basis."""
-    A = modp(A, p)
+    A = mod_p(A, p)
     m, n = A.shape
     aug = np.concatenate([A, np.zeros((m, 1), dtype=np.int64)], axis=1)
     R, piv_cols = rref_mod(aug, p)
@@ -48,10 +52,11 @@ def nullspace_mod(A: np.ndarray, p: int) -> np.ndarray:
         basis.append(x.reshape(-1))
     return np.stack(basis, axis=1)
 
+
 def _solve_linear(A: np.ndarray, b: np.ndarray, p: int) -> np.ndarray:
     """Solve A x = b over GF(p); returns one particular solution (free vars = 0)."""
-    A = modp(A, p)
-    b = modp(b.reshape(-1, 1), p)
+    A = mod_p(A, p)
+    b = mod_p(b.reshape(-1, 1), p)
     aug = np.concatenate([A, b], axis=1)
     R, piv_cols = rref_mod(aug, p)
     m, n = A.shape
@@ -70,7 +75,7 @@ def _solve_linear(A: np.ndarray, b: np.ndarray, p: int) -> np.ndarray:
 
 def rref_mod(aug: np.ndarray, p: int) -> Tuple[np.ndarray, List[int]]:
     """RREF over GF(p). Returns (RREF_augmented, pivot_cols)."""
-    A = modp(aug.copy(), p)
+    A = mod_p(aug.copy(), p)
     m, n = A.shape
     r = 0
     c = 0
@@ -87,18 +92,20 @@ def rref_mod(aug: np.ndarray, p: int) -> Tuple[np.ndarray, List[int]]:
         if piv != r:
             A[[r, piv]] = A[[piv, r]]
         inv = inv_mod_scalar(A[r, c], p)
-        A[r, :] = modp(A[r, :] * inv, p)
+        A[r, :] = mod_p(A[r, :] * inv, p)
         for i in range(m):
             if i != r and A[i, c] % p != 0:
                 fac = A[i, c] % p
-                A[i, :] = modp(A[i, :] - fac * A[r, :], p)
+                A[i, :] = mod_p(A[i, :] - fac * A[r, :], p)
         piv_cols.append(c)
         r += 1
         c += 1
     return A, piv_cols
 
+
 def matmul_mod(A: np.ndarray, B: np.ndarray, p: int) -> np.ndarray:
-    return modp(A @ B, p)
+    return mod_p(A @ B, p)
+
 
 def inv_mod_scalar(a: int | np.integer, p: int) -> int:
     return pow(int(a) % p, p - 2, p)
@@ -107,11 +114,10 @@ def inv_mod_scalar(a: int | np.integer, p: int) -> int:
 def inv_mod_mat(A: np.ndarray, p: int) -> np.ndarray:
     """Gauss-Jordan inverse over GF(p). Raises if singular."""
     n = A.shape[0]
-    aug = np.concatenate([modp(A, p), np.eye(n, dtype=np.int64)], axis=1)
+    aug = np.concatenate([mod_p(A, p), np.eye(n, dtype=np.int64)], axis=1)
     R, _ = rref_mod(aug, p)
     left = R[:, :n]
     right = R[:, n:]
     if not np.array_equal(left % p, np.eye(n, dtype=np.int64)):
         raise ValueError("Matrix not invertible mod p")
-    return modp(right, p)
-
+    return mod_p(right, p)

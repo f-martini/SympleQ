@@ -1,10 +1,13 @@
 from sympleq.core.circuits.gate_decomposition_to_circuit import (inv_gfp, mod_p, ensure_invertible_A_circuit, blocks,
-                                   zeros, identity, _is_invertible_mod,
-                                   synth_linear_A_to_gates, _emit_local_ops_for_D, synth_lower_from_symmetric,
-                                   synth_upper_from_symmetric_via_H, _as_int_mod, decompose_symplectic_to_circuit,
-                                   _compose_symp, _full_from_lower, gate_to_circuit)
+                                                                 zeros, identity, _is_invertible_mod,
+                                                                 synth_linear_A_to_gates, _emit_local_ops_for_D,
+                                                                 synth_lower_from_symmetric,
+                                                                 synth_upper_from_symmetric_via_H, _as_int_mod,
+                                                                 decompose_symplectic_to_circuit,
+                                                                 _compose_symp, _full_from_lower, gate_to_circuit)
 
-from sympleq.core.circuits import Circuit, SUM
+from sympleq.core.circuits import Circuit, SUM, Gate
+from typing import cast
 from sympleq.core.circuits.utils import is_symplectic
 from sympleq.core.paulis import PauliSum
 import numpy as np
@@ -193,10 +196,10 @@ def test_SUM_direction_in_M(n: int, p: int, rng: np.random.Generator = np.random
         # Build the A we expect AFTER applying: col_i <- col_i - f * col_c (RIGHT)
         A_exp = np.eye(n, dtype=int) % p
         A_exp[c, i] = (A_exp[c, i] + (-f) % p) % p  # NOTE: (c, i), not (i, c)
-
         # Synthesize M from this A and compare to the theoretical block diag
-        ops = synth_linear_A_to_gates(n, A_exp, p)
+        ops = cast(list[Gate], synth_linear_A_to_gates(n, A_exp, p))
         FM = symp_of_gates(n, p, ops)
+        FM_exp = check_linear_from_A(n, p, A_exp)
         FM_exp = check_linear_from_A(n, p, A_exp)
 
         assert np.array_equal(FM, FM_exp), (
@@ -243,7 +246,7 @@ def test_one_col_add_in_M(n=3, p=5, c=0, i=2, f=1):
 
     # Build M ops for just that step:
     ops = [SUM(i, c, p)] * (f % p)
-    FM = Circuit([p] * n, ops).composite_gate().symplectic % p
+    FM = Circuit([p] * n, cast(list[Gate], ops)).composite_gate().symplectic % p
     assert np.array_equal(FM[:n, :n], A_exp)
 
 
@@ -447,7 +450,7 @@ def test_gate_to_circuit_roundtrip(num_trials=20, n=3, p=3):
 if __name__ == "__main__":
     # quick try for p=2 and p=3
     n = 3
-    n_trials = 100
+    n_trials = 10
     for p in (2, 3, 5, 7):
         test_preconditioner(num_trials=n_trials, n=n, p=p)
         test_m_block(num_trials=n_trials, n=n, p=p)

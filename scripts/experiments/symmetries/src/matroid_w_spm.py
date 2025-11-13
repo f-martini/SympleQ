@@ -335,7 +335,7 @@ def _full_dfs_complete(
 
         # Optional qubit lift tweak: if any residual is odd, try canonical h0 from F
         if p == 2 and np.any(delta % 2 != 0):
-            print('Trying alternate h0 for F to reduce odd residuals')
+            # print('Trying alternate h0 for F to reduce odd residuals')
             F2 = F % 2
             A, B = F2[:nq, :nq], F2[:nq, nq:]
             C, D = F2[nq:, :nq], F2[nq:, nq:]

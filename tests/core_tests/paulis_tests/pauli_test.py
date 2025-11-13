@@ -606,4 +606,3 @@ class TestPaulis:
 
                 assert (P * (Q * R)) == ((P * Q) * R)
                 assert ((P * Q) * R) == (P * (Q * R))
-
