@@ -41,10 +41,10 @@ def find_map_to_target_pauli_sum(input_pauli: PauliSum, target_pauli: PauliSum) 
     if np.all(input_pauli.symplectic_product_matrix() != target_pauli.symplectic_product_matrix()):
         raise ValueError("Input and target PauliSum must be symplectically equivalent.")
 
-    input_symplectic = input_pauli.tableau  # [:, qudit_indices]
-    target_symplectic = target_pauli.tableau  # [:, qudit_indices]
+    input_tableau = input_pauli.tableau  # [:, qudit_indices]
+    target_tableau = target_pauli.tableau  # [:, qudit_indices]
 
-    F = map_pauli_sum_to_target_tableau(input_symplectic, target_symplectic)
+    F = map_pauli_sum_to_target_tableau(input_tableau, target_tableau)
 
     # print('IN FUNCTION')
     # # print(input_symplectic)

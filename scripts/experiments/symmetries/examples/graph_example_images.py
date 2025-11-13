@@ -119,4 +119,3 @@ draw_mapping(perm_map, "Permutation search: completed permutation $\\Pi=(1\\ 3\\
 # (fig1_path, fig2_path, fig3_path, fig4_path)
 
 plt.show()
-

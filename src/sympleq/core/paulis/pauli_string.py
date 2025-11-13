@@ -576,7 +576,7 @@ class PauliString(PauliObject):
         # U is zeros with identity in lower-left n x n block
         # This is equivalent to sum over j of 2 * x'_j * z_j
         # U @ b selects b[:n] (x part) and puts it in lower half
-        phase = 2 * np.dot(a[n:], b[:n])
+        phase = 2 * np.dot(a[n:], b[:n])  # THIS ASSUMES [1 | 1] is XZ, NOT Y
 
         return int(phase % (2 * self.lcm))
 

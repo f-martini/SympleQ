@@ -2,6 +2,7 @@ from __future__ import annotations
 import numpy as np
 import scipy.sparse as sp
 from sympleq.utils import int_to_bases, bases_to_int
+from functools import reduce
 
 
 def is_symplectic(F, p: int) -> bool:
@@ -40,13 +41,13 @@ def symplectic_product_arrays(u: np.ndarray, v: np.ndarray, p: int = 2) -> int:
     return (np.sum(u[:n] * v[n:] - u[n:] * v[:n])) % p
 
 
-def symplectic_product_matrix(pauli_sum: np.ndarray) -> np.ndarray:
-    m = len(pauli_sum)
+def symplectic_product_matrix(pauli_sum_tableau: np.ndarray, p: int = 2) -> np.ndarray:
+    m = len(pauli_sum_tableau)
     spm = np.zeros((m, m), dtype=int)
 
     for i in range(m):
         for j in range(m):
-            spm[i, j] = symplectic_product_arrays(pauli_sum[i], pauli_sum[j])
+            spm[i, j] = symplectic_product_arrays(pauli_sum_tableau[i], pauli_sum_tableau[j], p)
 
     return spm
 
@@ -223,7 +224,116 @@ def S_mat(d: int) -> sp.csr_matrix:
     return sp.csr_matrix(np.diag([omega ** (i * (i - 1) / 2) for i in range(d)]))
 
 
+def _X_power(d: int, a: int) -> sp.csr_matrix:
+    """
+    Sparse X^a on a single qudit (dimension d).
+    Places ones at rows ((j + a) % d) and columns j.
+    """
+    a %= d
+    cols = np.arange(d, dtype=int)
+    rows = (cols + a) % d
+    data = np.ones(d, dtype=complex)
+    return sp.csr_matrix((data, (rows, cols)), shape=(d, d))
+
+
+def _Z_power(d: int, b: int) -> sp.csr_matrix:
+    """
+    Sparse Z^b on a single qudit (dimension d).
+    Diagonal with entries ω^{b*j}, ω = exp(2πi/d).
+    """
+    b %= d
+    j = np.arange(d)
+    omega = np.exp(2j * np.pi / d)
+    diag = omega ** (b * j)
+    return sp.csr_matrix(sp.diags(diag, offsets=0, dtype=complex, format="csr"))
+
+
+def pauli_unitary_qudit(d: int, x: int, z: int, convention: str = "bare") -> sp.csr_matrix:
+    """
+    Sparse unitary for single-qudit Pauli specified by tableau [x | z] over Z_d.
+
+    Conventions:
+      - "bare": U = Z^z X^x
+      - "weyl": U = τ^{x z} Z^z X^x,  τ = exp(iπ(d+1)/d)
+    """
+    Xx = _X_power(d, x)
+    Zz = _Z_power(d, z)
+    U = Zz @ Xx  # Z then X
+
+    if convention.lower() == "weyl":
+        tau = np.exp(1j * np.pi * (d + 1) / d)
+        U = (tau ** (x * z)) * U
+    elif convention.lower() != "bare":
+        raise ValueError("convention must be 'bare' or 'weyl'.")
+
+    return sp.csr_matrix(U)
+
+
+def pauli_unitary_from_tableau(
+    d: int, x: np.ndarray, z: np.ndarray, convention: str = "bare"
+) -> sp.csr_matrix:
+    """
+    Sparse multi-qudit unitary. x, z are length-n integer arrays (mod d),
+    representing a tableau row [x0..x_{n-1} | z0..z_{n-1}] on n qudits.
+
+    Returns a (d^n)×(d^n) CSR sparse matrix:  ⊗_k (Z^{z_k} X^{x_k})
+    with optional Weyl phase τ^{x_k z_k} per local factor.
+    """
+    x = np.asarray(x, dtype=int)
+    z = np.asarray(z, dtype=int)
+    assert x.shape == z.shape and x.ndim == 1, "x and z must be 1D arrays of same length"
+
+    locals_ = [
+        pauli_unitary_qudit(d, int(xk), int(zk), convention=convention)
+        for xk, zk in zip(x, z)
+    ]
+    # Tensor product (left-to-right order matches locals_ order)
+    U = reduce(lambda A, B: sp.kron(A, B, format="csr"), locals_)
+    return sp.csr_matrix(U)
+
+
 def CX_func(i, a0, a1, dims):
     aa = int_to_bases(i, dims)
     aa[a1] = (aa[a1] + aa[a0]) % dims[a1]
     return bases_to_int(aa, dims)
+
+
+def _mixed_radix_strides(dims: np.ndarray) -> np.ndarray:
+    """
+    strides[k] = product of dims[k+1:], with strides[-1] = 1.
+    Convention: linear index i = sum_k digits[k] * strides[k],
+    where digits[k] in [0, dims[k]-1], qudit 0 is most significant.
+    """
+    dims = np.asarray(dims, dtype=int)
+    q = len(dims)
+    strides = np.empty(q, dtype=int)
+    strides[-1] = 1
+    for k in range(q - 2, -1, -1):
+        strides[k] = strides[k + 1] * dims[k + 1]
+    return strides
+
+
+def _int_to_digits(i: int, dims: np.ndarray, strides: np.ndarray) -> np.ndarray:
+    """Decode linear index i to mixed-radix digits using the given strides."""
+    # digits[k] = (i // strides[k]) % dims[k]
+    return (i // strides) % dims
+
+
+def _digits_to_int(digits: np.ndarray, strides: np.ndarray) -> int:
+    """Encode mixed-radix digits to linear index using the given strides."""
+    return int(np.dot(digits, strides))
+
+
+def SWAP_func(i: int, a0: int, a1: int, dims: np.ndarray) -> int:
+    """
+    Map a basis index i -> f(i) by swapping qudit positions a0 <-> a1
+    in a mixed-radix register with local dimensions `dims`.
+    """
+    dims = np.asarray(dims, dtype=int)
+    q = len(dims)
+    if not (0 <= a0 < q and 0 <= a1 < q and a0 != a1):
+        raise ValueError("Invalid swap positions a0, a1.")
+    strides = _mixed_radix_strides(dims)
+    digits = _int_to_digits(i, dims, strides).astype(int)
+    digits[a0], digits[a1] = digits[a1], digits[a0]
+    return _digits_to_int(digits, strides)

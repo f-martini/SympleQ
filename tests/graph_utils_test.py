@@ -52,4 +52,3 @@ class TestGraphUtils:
                     assert mapping_key(found2) not in exclude, "Exclude list not respected."
                 n_permutations_found += 1
             # else: no permutation found is perfectly fine
-

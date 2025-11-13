@@ -588,6 +588,21 @@ class TestPaulis:
         assert np.all((np.diag(SPM) % L) == 0)
 
         # Spot-check against pairwise method:
+
         ps1 = S.select_pauli_string(1)
         ps3 = S.select_pauli_string(3)
         assert SPM[1, 3] % L == ps1.symplectic_product(ps3, as_scalar=True) % L
+
+    def test_associativity(self):
+        n_test = 10
+        n_qudits = 3
+        dims = [2, 3, 5]
+        for d in dims:
+            for _ in range(n_test):
+                dimensions = [d] * n_qudits
+                P = PauliString.from_random(dimensions=dimensions)
+                Q = PauliString.from_random(dimensions=dimensions)
+                R = PauliString.from_random(dimensions=dimensions)
+
+                assert (P * (Q * R)) == ((P * Q) * R)
+                assert ((P * Q) * R) == (P * (Q * R))
