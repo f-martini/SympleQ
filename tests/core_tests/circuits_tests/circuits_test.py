@@ -1,5 +1,6 @@
 from sympleq.core.circuits.known_circuits import to_x, to_ix
-from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE
+from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE, PauliGate
+from sympleq.core.circuits.utils import embed_symplectic
 from sympleq.core.paulis import PauliSum, PauliString
 import numpy as np
 from scipy.sparse import issparse
@@ -51,22 +52,30 @@ class TestCircuits():
 
     def random_pauli_sum(self, dim: int, n_qudits: int, n_paulis: int = 10) -> PauliSum:
         # Generates a random PauliSum with n_paulis random PauliStrings of dimension dim
-        # FIXME: there is no guarantee at the moment that it is always possible to have
-        #        n_paulis distinct PauliStrings for arbitrary dimensions and n_qudits.
-        ps_list = [self.random_pauli_string(dim, n_qudits) for _ in range(n_paulis)]
-        return PauliSum.from_pauli_strings(ps_list).to_standard_form()
+        #
+        ps_list = []
+        element_list = [[0, 0] * n_qudits]  # to keep track of already generated PauliStrings.
+        # Avoids identity and duplicates
+        for _ in range(n_paulis):
+            ps, elements = self.random_pauli_string(dim, n_qudits)
+            element_list.append(elements)
+            while elements in element_list:
+                ps, elements = self.random_pauli_string(dim, n_qudits)
+            ps_list.append(ps)
+        return PauliSum(ps_list, dimensions=[dim] * n_qudits, standardise=True)
 
-    def random_pauli_string(self, dim: int, n_qudits: int) -> PauliString:
-        # Generates a random PauliString of dimension dim, discarding identity.
-        while True:
-            string = ''
-            for _ in range(n_qudits):
-                r = np.random.randint(0, dim)
-                s = np.random.randint(0, dim)
-                string += f'x{r}z{s} '
-            ps = PauliString.from_string(string, dimensions=[dim] * n_qudits)
-            if not ps.is_identity():
-                return ps
+    def random_pauli_string(self, dim, n_qudits):
+        # Generates a random PauliString of dimension dim
+        string = ''
+        elements = []
+        for i in range(n_qudits):
+            r = np.random.randint(0, dim)
+            s = np.random.randint(0, dim)
+            string += f'x{r}z{s} '
+            elements.append(r)
+            elements.append(s)
+        return PauliString.from_string(string, dimensions=[dim] * n_qudits), elements
+
 
     def make_random_circuit(self, n_gates, n_qudits, dimension) -> Circuit:
         dimensions = [dimension] * n_qudits
@@ -154,7 +163,7 @@ class TestCircuits():
         for _ in range(1000):
             n_qudits = np.random.randint(2, 10)
             dimensions = np.random.randint(2, 5, size=n_qudits)
-            C = Circuit.from_random(n_qudits=n_qudits, depth=10, dimensions=dimensions)
+            C = Circuit.from_random(n_gates=10, dimensions=dimensions)
             ps = PauliSum.from_random(10, dimensions)
             out = C.act(ps)
             assert np.all(out.dimensions == dimensions)
@@ -178,7 +187,7 @@ class TestCircuits():
         n_qudits = 3
         for _ in range(N):
             P = PauliSum.from_random(n_paulis, dimensions, rand_weights=False)
-            C = Circuit.from_random(n_qudits, depth=np.random.randint(1, 6), dimensions=dimensions)
+            C = Circuit.from_random(n_gates=np.random.randint(1, 6), dimensions=dimensions)
             U = C.unitary()
 
             ps_m = P.to_hilbert_space()
@@ -304,7 +313,7 @@ class TestCircuits():
         expected = np.zeros(D, dtype=complex)
         expected[self._linear_index(dims, [j, i])] = 1.0
 
-        assert np.allclose(phi, expected)
+        assert np.allclose(phi, expected), f"Expected:\n{expected}\nGot:\n{phi}"
 
     def test_sum_embedding_on_three_qudits(self):
         # Verify SUM on qudits (1,2) inside a 3-qudit system.
@@ -350,6 +359,46 @@ class TestCircuits():
 
         assert np.allclose(phi, expected)
 
+    def test_circuit_unitary(self):
+        n_tests = 100
+        n_paulis = 10
+        n_qudits = 3
+        c_depth = 1
+        dims = [2, 3, 5]
+        gate_list = [Hadamard, SWAP, SUM, PHASE]
+        for dim in dims:
+            dimensions = [dim] * n_qudits
+            for _ in range(n_tests):
+                ps = PauliSum.from_random(n_paulis, n_qudits, dimensions, False)
+                c = Circuit.from_random(c_depth, dimensions, gate_list=gate_list)
+                U_c = c.unitary()
+                P_from_conjugation = U_c @ ps.matrix_form() @ U_c.conj().T
+                P_from_act = c.act(ps).matrix_form()
+                diff_m = np.around(P_from_conjugation.toarray() - P_from_act.toarray(), 10)
+                assert not np.any(diff_m), f'failed for dim {_, dim, c.__str__()}'
+
+    def test_single_gate_circuit_unitary(self):
+        gate_list = [Hadamard, SWAP, SUM, PHASE, PauliGate]
+        n_qudits = 5
+        dims = [2, 3]   # much bigger and the Hilbert space gets too large
+        indices = [0, 3]
+        for gate in gate_list:
+            for dim in dims:
+                dimensions = [dim] * n_qudits
+                if gate in [SUM, SWAP]:
+                    c = Circuit(dimensions, [gate(indices[0], indices[1], dim)])
+                    g = gate(indices[0], indices[1], dim)
+                elif gate == PauliGate:
+                    g = gate(PauliString.from_random(dimensions))
+                    c = Circuit(dimensions, [g])
+                else:
+                    c = Circuit(dimensions, [gate(indices[0], dim)])
+                    g = gate(indices[0], dim)
+
+                U_c = c.unitary().toarray()
+                U_g = g.unitary(dims=dimensions).toarray()
+                assert np.allclose(U_c, U_g)
+
 
 if __name__ == '__main__':
-    TestCircuits().test_random_circuit()
+    TestCircuits().test_circuit_unitary()

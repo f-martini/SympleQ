@@ -1,8 +1,11 @@
 from typing import Generator, overload, TypeVar
 import numpy as np
 from qiskit import QuantumCircuit
+from .gates import Gate, Hadamard as H, PHASE as S, SUM as CX, SWAP, CNOT, PauliGate
+from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from .utils import embed_symplectic
 import scipy.sparse as sp
+from collections import defaultdict
 import random
 
 from .gates import Hadamard as H, SUM, PHASE, Gate, SWAP, CNOT
@@ -46,31 +49,47 @@ class Circuit:
         """
         Creates a random circuit with the given number of qudits and depth.
 
+        NOTE: It may be nice to have depth rather than n_gates, and a filling factor to control the number of gates
+              per layer? Not too important.
+
         Parameters:
             n_qudits (int): The number of qudits in the circuit.
             depth (int): The depth of the circuit.
+            dimensions (list[int] | np.ndarray): A list or array of integers representing the dimensions of the qudits.
+            gate_list (list): A list of Gate objects representing the gates in the circuit.
+            two_qudit_gate_ratio (float): The ratio of two-qudit gates to single-qudit gates.
 
         Returns:
             Circuit: A new Circuit object.
         """
-        # check if all dimensions are the different
-        if len(set(dimensions)) != len(dimensions):
-            g_max = 3  # only single qudit gates if not all dimensions are different (never selects CX)
-        else:
-            g_max = 2  # all gates possible
 
-        gate_list = [H, PHASE, SUM]
+        def index_lists(lst):
+            groups = defaultdict(list)
+            for i, val in enumerate(lst):
+                groups[val].append(i)
+            return list(groups.values())
+        index_sets = index_lists(dimensions)  # list of lists of indexes for each dimension
+        n_dims = len(index_sets)  # number of different dimensions
+        if gate_list is None:
+            gate_list = [S, H, CX]
+        allowed_gates = [H, S, CX, SWAP, CNOT]
+        if not all([gate in allowed_gates for gate in gate_list]):
+            raise ValueError("All gates must be in the list of allowed gates: H, S, CX, SWAP, CNOT")
+
+        single_qudit_gates = [gate for gate in gate_list if gate in [H, S]]
+        two_qudit_gates = [gate for gate in gate_list if gate in [CX, SWAP, CNOT]]
         gg = []
-        for i in range(depth):
-            g_i = np.random.randint(g_max)
-            if g_i == 2:
-                aa = list(random.sample(range(n_qudits), 2))
-                while aa[0] == aa[1] or dimensions[aa[0]] != dimensions[aa[1]]:
-                    aa = list(random.sample(range(n_qudits), 2))
-                gg += [gate_list[g_i](aa[0], aa[1], dimensions[aa[0]])]
+        for _ in range(n_gates):
+            set_idx = np.random.randint(n_dims)
+            dim = dimensions[index_sets[set_idx][0]]
+            if np.random.rand() < two_qudit_gate_ratio and len(index_sets[set_idx]) > 1:
+                indices = random.sample(index_sets[set_idx], 2)
+                gate = random.choice(two_qudit_gates)
+                gg.append(gate(indices[0], indices[1], dim))
             else:
-                aa = list(random.sample(range(n_qudits), 1))
-                gg += [gate_list[g_i](aa[0], dimensions[aa[0]])]
+                index = random.choice(index_sets[set_idx])
+                gate = random.choice(single_qudit_gates)
+                gg.append(gate(index, dim))
 
         return cls(dimensions, gg)
 
@@ -175,8 +194,8 @@ class Circuit:
             yield pauli_sum
 
     def show(self):
-        if np.all(np.array(self.dimensions) != 2):
-            print("Circuit dimensions are all 2, using Qiskit QuantumCircuit, some gates may not be supported")
+        if not np.all(np.array(self.dimensions) == 2):
+            print("Circuit dimensions are not all 2, using Qiskit QuantumCircuit, some gates may not be supported")
         circuit = QuantumCircuit(len(self.dimensions))
         dict = {'X': circuit.x, 'H': circuit.h, 'S': circuit.s, 'SUM': circuit.cx, 'CNOT': circuit.cx,
                 'Hdag': circuit.h}
@@ -249,7 +268,6 @@ class Circuit:
                 total_phase_vector = np.mod(total_phase_vector + self._composite_phase_vector(total_symplectic, F, h,
                                                                                               lcm),
                                             2 * lcm)
-            print(phase_vector, total_phase_vector)
 
             total_symplectic = np.mod(total_symplectic @ F.T, lcm)
 
@@ -259,10 +277,10 @@ class Circuit:
         total_symplectic = total_symplectic.T
         return Gate('CompositeGate', total_indexes, total_symplectic, self.dimensions, total_phase_vector)
 
-    def unitary(self) -> sp.csr_matrix:
-        known_unitaries = (H, PHASE, SUM, SWAP, CNOT)
+    def unitary(self):
+        known_unitaries = (H, S, CX, SWAP, CNOT, PauliGate)
         if not np.all([isinstance(gate, known_unitaries) for gate in self.gates]):
-            print(self.gates)
+            print([(gate.name, isinstance(gate, known_unitaries)) for gate in self.gates])
             raise NotImplementedError("Unitary not implemented for all gates in the circuit.")
 
         q = self.dimensions
@@ -271,3 +289,15 @@ class Circuit:
             m = g.unitary(dims=self.dimensions) @ m
 
         return m
+
+    def inv(self):
+        C_inv = Circuit(self.dimensions, [g.inv() for g in self.gates])
+        return C_inv
+
+    def full_symplectic(self):
+        return self.composite_gate().full_symplectic(self.n_qudits())
+
+    def cleanup(self):
+        # TODO If two gates are the inverse of each other and next to each other, remove them both. This happens
+        # in a few algorithms
+        raise NotImplementedError

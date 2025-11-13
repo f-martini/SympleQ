@@ -190,11 +190,10 @@ def solve_extended_system(u: np.ndarray, v: np.ndarray, t_vectors: list) -> np.n
 
 
 def check_mappable_via_clifford(pauli_sum_tableau: np.ndarray,
-                                target_pauli_sum_tableau: np.ndarray
-                                ) -> bool:
+                                target_pauli_sum_tableau: np.ndarray,
+                                p: int=2) -> bool:
     sym_check = np.all(
-        symplectic_product_matrix(
-            pauli_sum_tableau) == symplectic_product_matrix(target_pauli_sum_tableau)
+        symplectic_product_matrix(pauli_sum_tableau, p) == symplectic_product_matrix(target_pauli_sum_tableau, p)
     )
     if sym_check:
         return True
