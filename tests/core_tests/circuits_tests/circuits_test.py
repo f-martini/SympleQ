@@ -1,6 +1,5 @@
 from sympleq.core.circuits.known_circuits import to_x, to_ix
 from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE, PauliGate
-from sympleq.core.circuits.utils import embed_symplectic
 from sympleq.core.paulis import PauliSum, PauliString
 import numpy as np
 from scipy.sparse import issparse
@@ -62,7 +61,7 @@ class TestCircuits():
             while elements in element_list:
                 ps, elements = self.random_pauli_string(dim, n_qudits)
             ps_list.append(ps)
-        return PauliSum(ps_list, dimensions=[dim] * n_qudits, standardise=True)
+        return PauliSum.from_pauli_strings(ps_list)
 
     def random_pauli_string(self, dim, n_qudits):
         # Generates a random PauliString of dimension dim
@@ -75,7 +74,6 @@ class TestCircuits():
             elements.append(r)
             elements.append(s)
         return PauliString.from_string(string, dimensions=[dim] * n_qudits), elements
-
 
     def make_random_circuit(self, n_gates, n_qudits, dimension) -> Circuit:
         dimensions = [dimension] * n_qudits
@@ -184,7 +182,6 @@ class TestCircuits():
         N = 100
         dimensions = [2, 3, 5]
         n_paulis = 1
-        n_qudits = 3
         for _ in range(N):
             P = PauliSum.from_random(n_paulis, dimensions, rand_weights=False)
             C = Circuit.from_random(n_gates=np.random.randint(1, 6), dimensions=dimensions)
@@ -255,7 +252,7 @@ class TestCircuits():
         P = C.act(P)
         assert P.phases[0] == 6
 
-        # Test 5: Simple qutritt + qubit but action on qubit
+        # Test 5: Simple qutrit + qubit but action on qubit
         P = PauliSum.from_string(['x0z0 x1z0'],
                                  dimensions=[3, 2],
                                  weights=[1], phases=[0])
@@ -365,15 +362,14 @@ class TestCircuits():
         n_qudits = 3
         c_depth = 1
         dims = [2, 3, 5]
-        gate_list = [Hadamard, SWAP, SUM, PHASE]
         for dim in dims:
             dimensions = [dim] * n_qudits
             for _ in range(n_tests):
-                ps = PauliSum.from_random(n_paulis, n_qudits, dimensions, False)
-                c = Circuit.from_random(c_depth, dimensions, gate_list=gate_list)
+                ps = PauliSum.from_random(n_paulis, dimensions, False)
+                c = Circuit.from_random(c_depth, dimensions)
                 U_c = c.unitary()
-                P_from_conjugation = U_c @ ps.matrix_form() @ U_c.conj().T
-                P_from_act = c.act(ps).matrix_form()
+                P_from_conjugation = U_c @ ps.to_hilbert_space() @ U_c.conj().T
+                P_from_act = c.act(ps).to_hilbert_space()
                 diff_m = np.around(P_from_conjugation.toarray() - P_from_act.toarray(), 10)
                 assert not np.any(diff_m), f'failed for dim {_, dim, c.__str__()}'
 

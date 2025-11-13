@@ -254,12 +254,12 @@ def _full_dfs_complete(
     # Prepare references for the leaf checks so they dont have to be computed every time
     pauli_weighted = pauli_sum.copy()
     pauli_weighted.weight_to_phase()
-    pauli_standard = pauli_weighted.standard_form()
+    pauli_standard = pauli_weighted.to_standard_form()
     pauli_standard.weight_to_phase()
-    ref_tableau = pauli_standard.tableau().astype(int, copy=False)
+    ref_tableau = pauli_standard.tableau.astype(int, copy=False)
     ref_phases = np.asarray(pauli_standard.phases, dtype=int)
     ref_weights = np.asarray(pauli_standard.weights)
-    base_tableau = pauli_sum.tableau().astype(int, copy=False)
+    base_tableau = pauli_sum.tableau.astype(int, copy=False)
     base_weights = np.asarray(pauli_sum.weights)
     base_phases = np.asarray(pauli_sum.phases, dtype=int)
     basis_indices = np.asarray(independent_labels, dtype=int)
@@ -318,7 +318,7 @@ def _full_dfs_complete(
         tgt_idx = pi[basis_indices]
         H_basis_tgt = PauliSum.from_tableau(base_tableau[tgt_idx], pauli_sum.dimensions,
                                             weights=base_weights[tgt_idx])
-        H_basis_tgt.phases = np.array(base_phases[tgt_idx], dtype=int, copy=True)
+        H_basis_tgt.set_phases(np.array(base_phases[tgt_idx], dtype=int, copy=True))
         F, h0, _, _ = find_map_to_target_pauli_sum(H_basis_src, H_basis_tgt)
         if F_known_debug is not None and np.array_equal(F.T, F_known_debug):
             print('DEBUG: found known F failure means it cant correct h')
@@ -362,10 +362,10 @@ def _full_dfs_complete(
         h_tot = (h0_mod + h_lin_mod) % two_lcm
         SG = Gate('Symmetry', list(range(nq)), F.T, pauli_sum.dimensions, h_tot)
 
-        H_out_cf = SG.act(pauli_weighted).standard_form()
+        H_out_cf = SG.act(pauli_weighted).to_standard_form()
         H_out_cf.weight_to_phase()
 
-        if not np.array_equal(H_out_cf.tableau(), ref_tableau):
+        if not np.array_equal(H_out_cf.tableau, ref_tableau):
             return None
         if not np.all((ref_phases - H_out_cf.phases) % two_lcm == 0):
             return None
@@ -446,7 +446,7 @@ def find_clifford_symmetries(
     """
     Return up to k automorphisms preserving S and the vector set. See flags above.
     """
-    independent, dependencies = get_linear_dependencies(pauli_sum.tableau(), 2)
+    independent, dependencies = get_linear_dependencies(pauli_sum.tableau, 2)
     S = pauli_sum.symplectic_product_matrix()
     G, basis_order = pauli_sum.matroid()
     coeffs = pauli_sum.weights
@@ -674,7 +674,7 @@ if __name__ == "__main__":
         assert H.standard_form() == scrambled_sym.act(H).standard_form(
         ), f"\n{H.standard_form().__str__()}\n{sym.act(H).standard_form().__str__()}"
 
-        independent, dependencies = get_linear_dependencies(H.tableau(), 2)
+        independent, dependencies = get_linear_dependencies(H.tableau, 2)
         known_F = scrambled_sym.symplectic
         circ = find_clifford_symmetries(H)
 
@@ -685,15 +685,15 @@ if __name__ == "__main__":
             for c in circ:
                 print(np.all(c.symplectic == known_F) and np.all(
                     c.phase_vector == scrambled_sym.phase_vector))
-                H_s = H.standard_form()
-                H_out = c.act(H).standard_form()
+                H_s = H.to_standard_form()
+                H_out = c.act(H).to_standard_form()
                 H_s.weight_to_phase()
                 H_out.weight_to_phase()
-                print(np.all(H_s.tableau() == H_out.tableau()))
+                print(np.all(H_s.tableau == H_out.tableau))
                 print(np.all(H_s.phases == H_out.phases))
                 print(np.all(H_s.weights == H_out.weights))
 
-                if c.act(H).standard_form() != H.standard_form():
+                if c.act(H).to_standard_form() != H.to_standard_form():
                     failed += 1
 
     print('Failed = ', failed)

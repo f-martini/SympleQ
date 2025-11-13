@@ -544,7 +544,7 @@ def pauli_gate_for_phase_fix(h_raw: np.ndarray,
 
     x = (g[:n] % p).tolist()
     z = (g[n:] % p).tolist()
-    pauli = PauliString(x_exp=x, z_exp=z, dimensions=dims)
+    pauli = PauliString.from_exponents(x_exp=x, z_exp=z, dimensions=dims)
     return PauliGate(pauli)
 
 
@@ -594,7 +594,7 @@ def pauli_correction_gate(F: np.ndarray,
 
         x = v[:n]
         z = v[n:]
-        pauli = PauliString(x, z, dimensions=dims)
+        pauli = PauliString.from_exponents(x, z, dimensions=dims)
         return PauliGate(pauli)
 
     else:
@@ -603,7 +603,7 @@ def pauli_correction_gate(F: np.ndarray,
             # Can't fix odd residuals with a Pauli; return identity Pauli (no-op)
             x = np.zeros(n, dtype=int)
             z = np.zeros(n, dtype=int)
-            return PauliGate(PauliString(x, z, dimensions=dims))
+            return PauliGate(PauliString.from_exponents(x, z, dimensions=dims))
 
         Δ_half = ((Δ // 2) % 2).astype(int)
 
@@ -618,7 +618,7 @@ def pauli_correction_gate(F: np.ndarray,
 
         x = v[:n]
         z = v[n:]
-        pauli = PauliString(x, z, dimensions=dims)
+        pauli = PauliString.from_exponents(x, z, dimensions=dims)
         return PauliGate(pauli)
 
 

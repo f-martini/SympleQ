@@ -593,9 +593,6 @@ class TestPaulis:
         ps3 = S.select_pauli_string(3)
         assert SPM[1, 3] % L == ps1.symplectic_product(ps3, as_scalar=True) % L
 
-        ps = S.pauli_strings
-        assert SPM[1, 3] % L == ps[1].symplectic_product(ps[3], as_scalar=True) % L
-
     def test_associativity(self):
         n_test = 10
         n_qudits = 3

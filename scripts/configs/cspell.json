@@ -84,6 +84,7 @@
         "matplotlib",
         "matroid",
         "mcmc",
+        "meshgrid",
         "multiset",
         "multisets",
         "nbconvert",

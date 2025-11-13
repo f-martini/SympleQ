@@ -53,7 +53,7 @@ def pauli_phase_correction(H: np.ndarray, delta_phi_2p: np.ndarray, p: int, dime
         return None
 
     P = np.asarray(P.reshape(-1), dtype=int) % p
-    pauli = PauliString(P[:n], P[n:], dimensions=dims)
+    pauli = PauliString.from_exponents(P[:n], P[n:], dimensions=dims)
     return PauliGate(pauli)
 
 

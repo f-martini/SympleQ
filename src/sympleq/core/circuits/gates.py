@@ -102,7 +102,7 @@ class Gate:
     def act(self, pauli: PauliSum) -> PauliSum:
         ...
 
-    def act(self, pauli: P) -> P:
+    def act(self, pauli):
         """
         Returns the updated tableau and phases acquired by the PauliSum when acted upon by this gate.
 
@@ -377,10 +377,7 @@ class Hadamard(Gate):
     def unitary(self, dims=None) -> sp.csr_matrix:
         if dims is None:
             dims = self.dimensions
-
-        return tensor(
-            [H_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))]
-        )
+        return tensor([H_mat(dims[i]) if i in self.qudit_indices else I_mat(dims[i]) for i in range(len(dims))])
 
     def copy(self) -> 'Gate':
         d = _scalar_dim(self.dimensions)

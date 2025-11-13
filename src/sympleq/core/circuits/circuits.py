@@ -2,14 +2,11 @@ from typing import Generator, overload, TypeVar
 import numpy as np
 from qiskit import QuantumCircuit
 from .gates import Gate, Hadamard as H, PHASE as S, SUM as CX, SWAP, CNOT, PauliGate
-from sympleq.core.paulis import PauliSum, PauliString, Pauli
+from sympleq.core.paulis import PauliSum, PauliString, Pauli, PauliObject
 from .utils import embed_symplectic
 import scipy.sparse as sp
 from collections import defaultdict
 import random
-
-from .gates import Hadamard as H, SUM, PHASE, Gate, SWAP, CNOT
-from sympleq.core.paulis import PauliSum, PauliString, Pauli, PauliObject
 
 
 # We define a type using TypeVar to let the type checker know that
@@ -18,11 +15,12 @@ P = TypeVar("P", bound="PauliObject")
 
 
 class Circuit:
-    def __init__(self, dimensions: list[int] | np.ndarray, gates: list[Gate] | None = None):
+    def __init__(self, dimensions: list[int] | np.ndarray,
+                 gates: list[Gate] | None = None):
         """
         Initialize the Circuit with gates, indexes, and targets.
 
-        If a multi-qubit gate has a target, the targets should be at the ent of the tuple of indexes
+        If a multi-qubit gate has a target, the targets should be at the end of the tuple of indexes
         e.g. a CNOT with control 1, target 3 is
 
         gate = 'CNOT'
@@ -45,7 +43,9 @@ class Circuit:
         self.indexes = [gate.qudit_indices for gate in gates]  # indexes accessible at the Circuit level
 
     @classmethod
-    def from_random(cls, n_qudits: int, depth: int, dimensions: list[int] | np.ndarray) -> 'Circuit':
+    def from_random(cls, n_gates: int,
+                    dimensions: list[int] | np.ndarray,
+                    two_qudit_gate_ratio: float = 0.3) -> 'Circuit':
         """
         Creates a random circuit with the given number of qudits and depth.
 
@@ -70,22 +70,17 @@ class Circuit:
             return list(groups.values())
         index_sets = index_lists(dimensions)  # list of lists of indexes for each dimension
         n_dims = len(index_sets)  # number of different dimensions
-        if gate_list is None:
-            gate_list = [S, H, CX]
-        allowed_gates = [H, S, CX, SWAP, CNOT]
-        if not all([gate in allowed_gates for gate in gate_list]):
-            raise ValueError("All gates must be in the list of allowed gates: H, S, CX, SWAP, CNOT")
 
-        single_qudit_gates = [gate for gate in gate_list if gate in [H, S]]
-        two_qudit_gates = [gate for gate in gate_list if gate in [CX, SWAP, CNOT]]
+        single_qudit_gates = [H, S]
+        two_qudit_gates = [CX, SWAP]
         gg = []
         for _ in range(n_gates):
             set_idx = np.random.randint(n_dims)
             dim = dimensions[index_sets[set_idx][0]]
             if np.random.rand() < two_qudit_gate_ratio and len(index_sets[set_idx]) > 1:
                 indices = random.sample(index_sets[set_idx], 2)
-                gate = random.choice(two_qudit_gates)
-                gg.append(gate(indices[0], indices[1], dim))
+                gate_cls = random.choice(two_qudit_gates)
+                gg.append(gate_cls(indices[0], indices[1], dim))
             else:
                 index = random.choice(index_sets[set_idx])
                 gate = random.choice(single_qudit_gates)
@@ -253,9 +248,11 @@ class Circuit:
     def composite_gate(self) -> Gate:
         """Composes the list of symplectics acting on all qudits to a single symplectic"""
 
-        total_indexes = []
-        total_symplectic = np.eye(2 * self.n_qudits(), dtype=np.uint8)
+        n_qudits = self.n_qudits()
+        total_symplectic = np.eye(2 * n_qudits, dtype=np.uint8)
         lcm = np.lcm.reduce(self.dimensions)
+        total_phase_vector = np.zeros(2 * n_qudits, dtype=int)
+
         for i, gate in enumerate(self.gates):
             symplectic = gate.symplectic
             indexes = gate.qudit_indices
@@ -271,9 +268,7 @@ class Circuit:
 
             total_symplectic = np.mod(total_symplectic @ F.T, lcm)
 
-            total_indexes.extend(indexes)
-
-        total_indexes = list(set(np.sort(total_indexes)))
+        total_indexes = list(range(n_qudits))
         total_symplectic = total_symplectic.T
         return Gate('CompositeGate', total_indexes, total_symplectic, self.dimensions, total_phase_vector)
 

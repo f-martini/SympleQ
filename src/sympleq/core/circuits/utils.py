@@ -3,7 +3,6 @@ import numpy as np
 import scipy.sparse as sp
 from sympleq.utils import int_to_bases, bases_to_int
 from functools import reduce
-import scipy.sparse as sp
 
 
 def is_symplectic(F, p: int) -> bool:
@@ -42,13 +41,13 @@ def symplectic_product_arrays(u: np.ndarray, v: np.ndarray, p: int = 2) -> int:
     return (np.sum(u[:n] * v[n:] - u[n:] * v[:n])) % p
 
 
-def symplectic_product_matrix(pauli_sum: np.ndarray, p: int=2) -> np.ndarray:
-    m = len(pauli_sum)
+def symplectic_product_matrix(pauli_sum_tableau: np.ndarray, p: int = 2) -> np.ndarray:
+    m = len(pauli_sum_tableau)
     spm = np.zeros((m, m), dtype=int)
 
     for i in range(m):
         for j in range(m):
-            spm[i, j] = symplectic_product(pauli_sum[i], pauli_sum[j], p)
+            spm[i, j] = symplectic_product_arrays(pauli_sum_tableau[i], pauli_sum_tableau[j], p)
 
     return spm
 
@@ -246,12 +245,12 @@ def _Z_power(d: int, b: int) -> sp.csr_matrix:
     j = np.arange(d)
     omega = np.exp(2j * np.pi / d)
     diag = omega ** (b * j)
-    return sp.diags(diag, offsets=0, dtype=complex, format="csr")
+    return sp.csr_matrix(sp.diags(diag, offsets=0, dtype=complex, format="csr"))
 
 
 def pauli_unitary_qudit(d: int, x: int, z: int, convention: str = "bare") -> sp.csr_matrix:
     """
-    Sparse unitary for single-qudit Pauli specified by tableau [x | z] over ℤ_d.
+    Sparse unitary for single-qudit Pauli specified by tableau [x | z] over Z_d.
 
     Conventions:
       - "bare": U = Z^z X^x
@@ -267,7 +266,7 @@ def pauli_unitary_qudit(d: int, x: int, z: int, convention: str = "bare") -> sp.
     elif convention.lower() != "bare":
         raise ValueError("convention must be 'bare' or 'weyl'.")
 
-    return U.tocsr()
+    return sp.csr_matrix(U)
 
 
 def pauli_unitary_from_tableau(
@@ -290,14 +289,13 @@ def pauli_unitary_from_tableau(
     ]
     # Tensor product (left-to-right order matches locals_ order)
     U = reduce(lambda A, B: sp.kron(A, B, format="csr"), locals_)
-    return U
+    return sp.csr_matrix(U)
 
 
 def CX_func(i, a0, a1, dims):
     aa = int_to_bases(i, dims)
     aa[a1] = (aa[a1] + aa[a0]) % dims[a1]
     return bases_to_int(aa, dims)
-
 
 
 def _mixed_radix_strides(dims: np.ndarray) -> np.ndarray:

@@ -1,5 +1,4 @@
 import numpy as np
-from sympleq.core.circuits.target import find_map_to_target_pauli_sum
 from sympleq.core.circuits import Gate, Circuit
 from sympleq.core.paulis import PauliSum
 from scripts.experiments.symmetries.src.matroid_w_spm import find_clifford_symmetries
@@ -14,8 +13,8 @@ def clifford_symmetry(pauli_sum: PauliSum,
                                  dynamic_refine_every=0)
     g = G[0]
     if check_symmetry:
-        lhs = g.act(pauli_sum).standard_form()
-        rhs = pauli_sum.standard_form()
+        lhs = g.act(pauli_sum).to_standard_form()
+        rhs = pauli_sum.to_standard_form()
         assert lhs == rhs, f'Symmetry finder failed\n{lhs.__str__()}\n{rhs.__str__()}'
 
     S, T = block_decompose(g.symplectic, int(pauli_sum.lcm))
@@ -24,8 +23,8 @@ def clifford_symmetry(pauli_sum: PauliSum,
     T_gate = Gate('T', g.qudit_indices, T, g.dimensions, h_T)
 
     if check_symmetry:
-        lhs = T_gate.act(S_gate.act(T_gate.inv().act(pauli_sum))).standard_form()
-        rhs = pauli_sum.standard_form()
+        lhs = T_gate.act(S_gate.act(T_gate.inv().act(pauli_sum))).to_standard_form()
+        rhs = pauli_sum.to_standard_form()
         ts = T_gate.symplectic
         tis = T_gate.inv().symplectic
         ss = S_gate.symplectic
@@ -51,7 +50,7 @@ def multiple_clifford_symmetries(pauli_sum: PauliSum,
 
     if check_symmetry:
         for g in G:
-            assert g.act(pauli_sum).standard_form() == pauli_sum.standard_form()
+            assert g.act(pauli_sum).to_standard_form() == pauli_sum.to_standard_form()
 
     Ss = []
     Ts = []

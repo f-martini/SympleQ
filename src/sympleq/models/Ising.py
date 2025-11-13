@@ -22,7 +22,7 @@ def ising_chain_hamiltonian(n_spins, J_zz, h_x, periodic=False):
     PauliSum
         The Hamiltonian as a PauliSum object.
     """
-    paulis = []
+    paulis: list[PauliString] = []
     weights = []
     dims = [2 for _ in range(n_spins)]
 
@@ -31,7 +31,7 @@ def ising_chain_hamiltonian(n_spins, J_zz, h_x, periodic=False):
         zz = np.zeros(n_spins, dtype=int)
         zz[i] = 1
         zz[i + 1] = 1
-        paulis.append(PauliString(np.zeros(n_spins, dtype=int), zz, dims))
+        paulis.append(PauliString.from_exponents(np.zeros(n_spins, dtype=int), zz, dims))
         weights.append(J_zz)
 
     # Periodic ZZ term (last ↔ first spin)
@@ -39,18 +39,17 @@ def ising_chain_hamiltonian(n_spins, J_zz, h_x, periodic=False):
         zz = np.zeros(n_spins, dtype=int)
         zz[0] = 1
         zz[-1] = 1
-        paulis.append(PauliString(np.zeros(n_spins, dtype=int), zz, dims))
+        paulis.append(PauliString.from_exponents(np.zeros(n_spins, dtype=int), zz, dims))
         weights.append(J_zz)
 
     # X terms (transverse field)
     for i in range(n_spins):
         x = np.zeros(n_spins, dtype=int)
         x[i] = 1
-        paulis.append(PauliString(x, np.zeros(n_spins, dtype=int), dims))
+        paulis.append(PauliString.from_exponents(x, np.zeros(n_spins, dtype=int), dims))
         weights.append(h_x)
 
-    return PauliSum(paulis, weights=weights, dimensions=np.array(dims),
-                    phases=None, standardise=False)
+    return PauliSum.from_pauli_strings(paulis, weights=weights, phases=None)
 
 
 def ising_2d_hamiltonian(n_x: int, n_y: int, J_zz: float, h_x: float, periodic: bool = False) -> PauliSum:
@@ -94,7 +93,7 @@ def ising_2d_hamiltonian(n_x: int, n_y: int, J_zz: float, h_x: float, periodic: 
                 zz = np.zeros(n_spins, dtype=int)
                 zz[i] = 1
                 zz[j] = 1
-                paulis.append(PauliString(np.zeros(n_spins, dtype=int), zz, dims))
+                paulis.append(PauliString.from_exponents(np.zeros(n_spins, dtype=int), zz, dims))
                 weights.append(J_zz)
 
             # vertical coupling (y → y+1)
@@ -103,15 +102,14 @@ def ising_2d_hamiltonian(n_x: int, n_y: int, J_zz: float, h_x: float, periodic: 
                 zz = np.zeros(n_spins, dtype=int)
                 zz[i] = 1
                 zz[j] = 1
-                paulis.append(PauliString(np.zeros(n_spins, dtype=int), zz, dims))
+                paulis.append(PauliString.from_exponents(np.zeros(n_spins, dtype=int), zz, dims))
                 weights.append(J_zz)
 
     # X terms (transverse field)
     for i in range(n_spins):
         x = np.zeros(n_spins, dtype=int)
         x[i] = 1
-        paulis.append(PauliString(x, np.zeros(n_spins, dtype=int), dims))
+        paulis.append(PauliString.from_exponents(x, np.zeros(n_spins, dtype=int), dims))
         weights.append(h_x)
 
-    return PauliSum(paulis, weights=weights, dimensions=np.array(dims),
-                    phases=None, standardise=False)
+    return PauliSum.from_pauli_strings(paulis, weights=weights, phases=None)

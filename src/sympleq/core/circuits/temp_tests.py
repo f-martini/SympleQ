@@ -1,4 +1,4 @@
-from symplectic_to_circuit import (inv_gfp, mod_p, ensure_invertible_A_circuit, blocks,
+from sympleq.core.circuits.gate_decomposition_to_circuit import (inv_gfp, mod_p, ensure_invertible_A_circuit, blocks,
                                    zeros, identity, _is_invertible_mod,
                                    synth_linear_A_to_gates, _emit_local_ops_for_D, synth_lower_from_symmetric,
                                    synth_upper_from_symmetric_via_H, _as_int_mod, decompose_symplectic_to_circuit,
@@ -101,7 +101,7 @@ def test_preconditioner_after_random_conjugation(n=4, p=3, depth=10, seed=1):
     rng = np.random.default_rng(seed)
     F = random_symplectic(n, p, rng)
     # random circuit (uses only valid gates for dimension p)
-    C = Circuit.from_random(n_qudits=n, n_gates=depth, dimensions=[p] * n)
+    C = Circuit.from_random(n_gates=depth, dimensions=[p] * n)
     F_conj = (C.full_symplectic() @ F) % p
     assert is_symplectic(F_conj, p), "Conjugated F must remain symplectic"
     C_pre = ensure_invertible_A_circuit(F_conj, p)
@@ -386,7 +386,7 @@ def decomposition_tests(num_trials, n, p):
 
 def test_phase_correction(num_trials, n, p, n_gates_in_C_in=10):
     for _ in range(num_trials):
-        C_in = Circuit.from_random(n, n_gates_in_C_in, dimensions=[p] * n)
+        C_in = Circuit.from_random(n_gates_in_C_in, dimensions=[p] * n)
         big_gate_in = C_in.composite_gate()
 
         C_out = gate_to_circuit(big_gate_in)
@@ -409,17 +409,18 @@ def test_phase_correction(num_trials, n, p, n_gates_in_C_in=10):
             assert np.all((h_in - h_out) % 2 == 0), "p=2 residual odd parts cannot be Pauli-corrected"
 
         for _ in range(num_trials):
-            ps = PauliSum.from_random(n, 2 * n, [p] * n)
+            ps = PauliSum.from_random(2 * n, [p] * n)
             ps1 = big_gate_in.act(ps)
             ps2 = big_gate_out.act(ps)
-            assert ps1.standard_form() == ps2.standard_form(), f"Fail \n{ps1.standard_form()}\n{ps2.standard_form()}"
+            assert ps1.to_standard_form() == ps2.to_standard_form(), (f"Fail \n{ps1.to_standard_form()}"
+                                                                      f"\n{ps2.to_standard_form()}")
 
     print(f"Phase correction tests passed for GF({p})")
 
 
 def test_gate_to_circuit_roundtrip(num_trials=20, n=3, p=3):
     for _ in range(num_trials):
-        C_in = Circuit.from_random(n, 12, dimensions=[p] * n)
+        C_in = Circuit.from_random(12, dimensions=[p] * n)
         G_in = C_in.composite_gate()
 
         C_out = gate_to_circuit(G_in)

@@ -2,7 +2,8 @@ from __future__ import annotations
 from typing import overload, TYPE_CHECKING, Union
 import numpy as np
 import scipy.sparse as sp
-
+import galois
+from sympleq.core.finite_field_solvers import get_linear_dependencies
 from .pauli_object import PauliObject
 from .pauli_string import PauliString
 from .pauli import Pauli
@@ -315,8 +316,8 @@ class PauliSum(PauliObject):
             new_weights[i] = w_best
 
         # commit
-        self.phases = new_phases
-        self.weights = np.round(new_weights, 10)
+        self._phases = new_phases
+        self._weights = np.round(new_weights, 10)
 
     @property
     def weights(self) -> np.ndarray:
@@ -1027,7 +1028,7 @@ class PauliSum(PauliObject):
         mask = np.ones(self.n_qudits(), dtype=bool)
         mask[qudit_indices] = False
 
-        # Note: we first delete the rightmost indecies, so they are not shifted.
+        # Note: we first delete the rightmost indices, so they are not shifted.
         self._tableau = np.delete(self._tableau, [idx + self.n_qudits() for idx in qudit_indices], axis=1)
         self._tableau = np.delete(self._tableau, qudit_indices, axis=1)
 
@@ -1281,24 +1282,24 @@ class PauliSum(PauliObject):
         self._phases[index_1], self._phases[index_2] = self.phases[index_2], self.phases[index_1]
         self._tableau[index_1], self._tableau[index_2] = self._tableau[index_2], self._tableau[index_1]
 
-    def hermitian_conjugate(self):
-        conjugate_weights = np.conj(self.weights)
-        conjugate_initial_phases = (- self.phases) % (2 * self.lcm)
-        acquired_phases = []
-        for i in range(self.n_paulis()):
-            hermitian_conjugate_phase = 0
-            for j in range(self.n_qudits()):
-                r = self.x_exp[i, j]
-                s = self.z_exp[i, j]
-                hermitian_conjugate_phase += (r * s % self.lcm) * self.lcm / self.dimensions[j]
-            acquired_phases.append(2 * hermitian_conjugate_phase)
-        conjugate_phases = conjugate_initial_phases + np.array(acquired_phases, dtype=int)
-        conjugate_dimensions = self.dimensions
-        conjugate_pauli_strings = [p.hermitian() for p in self.pauli_strings]
-        return PauliSum(conjugate_pauli_strings, conjugate_weights, conjugate_phases, conjugate_dimensions,
-                        standardise=False)
+    # def hermitian_conjugate(self):
+    #     conjugate_weights = np.conj(self.weights)
+    #     conjugate_initial_phases = (- self.phases) % (2 * self.lcm)
+    #     acquired_phases = []
+    #     for i in range(self.n_paulis()):
+    #         hermitian_conjugate_phase = 0
+    #         for j in range(self.n_qudits()):
+    #             r = self.x_exp[i, j]
+    #             s = self.z_exp[i, j]
+    #             hermitian_conjugate_phase += (r * s % self.lcm) * self.lcm / self.dimensions[j]
+    #         acquired_phases.append(2 * hermitian_conjugate_phase)
+    #     conjugate_phases = conjugate_initial_phases + np.array(acquired_phases, dtype=int)
+    #     conjugate_dimensions = self.dimensions
+    #     conjugate_pauli_strings = [p.hermitian() for p in self.pauli_strings]
+    #     return PauliSum(conjugate_pauli_strings, conjugate_weights, conjugate_phases, conjugate_dimensions,
+    #                     standardise=False)
 
-    H = hermitian_conjugate
+    # H = hermitian_conjugate
 
     def dependencies(self) -> tuple[list[int], dict[int, list[tuple[int, int]]]]:
         """
@@ -1309,7 +1310,7 @@ class PauliSum(PauliObject):
         dict[int, list[tuple[int, int]]]
             The dependencies of the PauliSum.
         """
-        return get_linear_dependencies(self.tableau(), int(self.lcm))
+        return get_linear_dependencies(self.tableau, int(self.lcm))
 
     def matroid(self) -> tuple[galois.FieldArray, list[int]]:
         """
@@ -1366,24 +1367,6 @@ class PauliSum(PauliObject):
         basis_mask = np.zeros(self.n_paulis(), dtype=bool)
         basis_mask[basis_order] = True
         return basis_mask
-
-    def is_hermitian(self):
-        P = self.copy()
-        P.combine_equivalent_paulis()
-        P.phase_to_weight()
-        # First Try: Just Primitive Check
-        for i in range(P.n_paulis()):
-            pauli_string = P[i]
-            hermitian_pauli_string = pauli_string.hermitian_conjugate()
-            hermitian_pauli_string.phase_to_weight()
-            for j in range(P.n_paulis()):
-                if P[j, :] == hermitian_pauli_string[0, :]:
-                    if np.abs(hermitian_pauli_string.weights[0] - P.weights[j]) > 1e-10:
-                        return False
-                    else:
-                        break
-
-        return True
 
     # TODO: Move this to a better location and amend where it is used in the Pauli reduction code
     @staticmethod
