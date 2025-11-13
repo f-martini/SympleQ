@@ -25,18 +25,18 @@
 #                                                                                    f"for {n_qidits} qubits and "
 #                                                                                    f"{dimension} dimension.")
 
-    # def test_decomposition_with_phase(self):
-    #     pass
+# def test_decomposition_with_phase(self):
+#     pass
 
-    # def test_A_invertible(self):
-    #     n_qidits_list = [4, 6, 8]
-    #     dimension_list = [2, 3, 5]
+# def test_A_invertible(self):
+#     n_qidits_list = [4, 6, 8]
+#     dimension_list = [2, 3, 5]
 
-    #     for n_qidits in n_qidits_list:
-    #         for dimension in dimension_list:
-    #             test_gate = Gate.from_random(n_qidits, dimension)
-    #             test_circuit = decompose_symplectic_to_circuit(test_gate.symplectic, dimension)
+#     for n_qidits in n_qidits_list:
+#         for dimension in dimension_list:
+#             test_gate = Gate.from_random(n_qidits, dimension)
+#             test_circuit = decompose_symplectic_to_circuit(test_gate.symplectic, dimension)
 
-    #             gate_out = test_circuit.composite_gate()
+#             gate_out = test_circuit.composite_gate()
 
-    #             correction_gates, F_new = ensure_invertible_A(gate_out.symplectic, dimension)
+#             correction_gates, F_new = ensure_invertible_A(gate_out.symplectic, dimension)

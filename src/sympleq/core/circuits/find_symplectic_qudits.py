@@ -1,21 +1,23 @@
+# flake8: noqa
 """
-Currently this module implements Lemma 5.1 in https://kups.ub.uni-koeln.de/50465/1/dissertation_heinrich.pdf 
-to build the necessary transvection(s) to map one PauliSum in GF(p) to another. 
-It also assumes p is prime dimension. 
+Currently this module implements Lemma 5.1 in https://kups.ub.uni-koeln.de/50465/1/dissertation_heinrich.pdf
+to build the necessary transvection(s) to map one PauliSum in GF(p) to another.
+It also assumes p is prime dimension.
 
-Future extensions: input symplectic matrix -> output symplectic matrix 
+Future extensions: input symplectic matrix -> output symplectic matrix.
 """
 
 import numpy as np
 import galois
 from itertools import islice
-from sympleq.core.circuits.utils import transvection_matrix, symplectic_product
+from sympleq.core.circuits.utils import transvection_matrix, symplectic_product_arrays
 from sympleq.core.circuits.find_symplectic import check_mappable_via_clifford
 
 
 def modinv(a, p):
     """Multiplicative inverse of a mod p (works for prime p)."""
     return pow(int(a), -1, p)
+
 
 def solve_gfp(A: np.ndarray, b: np.ndarray, p: int):
     """
@@ -90,6 +92,7 @@ def pair(vec, i, n):
     """Return 2x1 pair at index i"""
     return np.array([vec[i], vec[i+n]])
 
+
 def solve_non_proportional(u_i, v_i, p):
     """Solve B x = y for non-proportional 2x2 vectors"""
 
@@ -99,6 +102,7 @@ def solve_non_proportional(u_i, v_i, p):
     B = GF(B)
     x = np.linalg.solve(B, y).astype(np.int32).view(np.ndarray) % p
     return x
+
 
 def proportionality_constant_mod(u_i, v_i, p):
     """
@@ -163,26 +167,26 @@ def solve_proportional(u_i, v_i, p, proportionality_const):
 def build_symplectic_for_transvection(u, v, p):
     """
     Build the intermediate vector w for two-step transvections if [u, v]=0 mod p 
-    Assumes qudit dimension p is prime and symplectic_product(u, v, p) == 0
+    Assumes qudit dimension p is prime and symplectic_product_arrays(u, v, p) == 0
     """
     # --- Input validation ---
     if np.all(u == 0) or np.all(v == 0):
         raise ValueError("Input vectors cannot be zero")
     if not galois.is_prime(p):
         raise NotImplementedError(f"Prime dimension expected, got p={p}")
-    if symplectic_product(u, v, p) != 0:
+    if symplectic_product_arrays(u, v, p) != 0:
         raise ValueError("Symplectic product must be zero")
 
     n = len(u) // 2
     w = np.zeros(2*n, dtype=int)
-    GF = galois.GF(p)
+    # GF = galois.GF(p)
 
     # --- First pass: find non-proportional pair ---
     for i, (ui, vi) in enumerate(islice(zip(u, v), n)):
         u_i = pair(u, i, n)
         v_i = pair(v, i, n)
         nz_u, nz_v = np.count_nonzero(u_i), np.count_nonzero(v_i)
-        sp_uv = symplectic_product(u_i, v_i, p)
+        sp_uv = symplectic_product_arrays(u_i, v_i, p)
 
         if nz_u and nz_v and sp_uv != 0:
             x = solve_non_proportional(u_i, v_i, p)
@@ -195,7 +199,7 @@ def build_symplectic_for_transvection(u, v, p):
             u_i = pair(u, i, n)
             v_i = pair(v, i, n)
             nz_u, nz_v = np.count_nonzero(u_i), np.count_nonzero(v_i)
-            sp_uv = symplectic_product(u_i, v_i, p)
+            sp_uv = symplectic_product_arrays(u_i, v_i, p)
 
             if nz_u and nz_v and sp_uv == 0:
                 k = proportionality_constant_mod(u_i, v_i, p)
@@ -215,7 +219,7 @@ def build_symplectic_for_transvection(u, v, p):
                     w_u[1] = modinv(u_i[0],p)
                 else:
                     w_u[0] = modinv(-u_i[1],p)
-                assert symplectic_product(u_i, w_u, p) == 1
+                assert symplectic_product_arrays(u_i, w_u, p) == 1
                 w[i], w[i+n] = w_u[0], w_u[1]
                 break
 
@@ -229,12 +233,12 @@ def build_symplectic_for_transvection(u, v, p):
                     w_v[1] = (-modinv(v_i[0],p)) % p
                 else:
                     w_v[0] = modinv(v_i[1],p)
-                assert symplectic_product(w_v, v_i, p) == 1
+                assert symplectic_product_arrays(w_v, v_i, p) == 1
                 w[i], w[i+n] = w_v[0], w_v[1]
                 break
 
     # --- Final validation ---
-    if symplectic_product(u, w, p) == 0 or symplectic_product(w, v, p) == 0:
+    if symplectic_product_arrays(u, w, p) == 0 or symplectic_product_arrays(w, v, p) == 0:
         raise ValueError("Failed to construct valid symplectic vector w")
 
     return w
@@ -253,8 +257,8 @@ def Find_transvection_map(input_ps, output_ps, p):
     if not galois.is_prime(p):
         raise NotImplementedError(f"Prime dimension expected, got p={p}")
 
-    n= int(len(input_ps)//2)
-    a=symplectic_product(input_ps, output_ps,p)
+    n = int(len(input_ps)//2)
+    a = symplectic_product_arrays(input_ps, output_ps,p)
 
     if a != 0:
         ainv = modinv(a, p)
@@ -264,20 +268,20 @@ def Find_transvection_map(input_ps, output_ps, p):
             raise ValueError("Failed to construct valid transvection for nonzero symplectic product")
 
     elif a == 0:
-        w=build_symplectic_for_transvection(input_ps, output_ps, p)
-        a_w= symplectic_product(input_ps, w,p)
+        w = build_symplectic_for_transvection(input_ps, output_ps, p)
+        a_w = symplectic_product_arrays(input_ps, w,p)
         a_w_inv = modinv(a_w, p)
-        h=(-input_ps + w) % p
-        F_h_1= transvection_matrix(h, p, multiplier=a_w_inv)
+        h = (-input_ps + w) % p
+        F_h_1 = transvection_matrix(h, p, multiplier=a_w_inv)
         if (input_ps @ F_h_1 % p != w).all():
             raise ValueError("Failed to construct valid transvection for u->w")
-        b_w= symplectic_product(w, output_ps, p)
+        b_w = symplectic_product_arrays(w, output_ps, p)
         b_w_inv = modinv(b_w, p)
-        h=(-w + output_ps) % p
-        F_h_2= transvection_matrix(h, p, multiplier=b_w_inv)
+        h = (-w + output_ps) % p
+        F_h_2 = transvection_matrix(h, p, multiplier=b_w_inv)
         if (w @ F_h_2 % p != output_ps).all():
             raise ValueError("Failed to construct valid transvection for w->v")
-        F_h= F_h_1 @ F_h_2 %p
+        F_h = F_h_1 @ F_h_2 %p
         if (input_ps @ F_h %p != output_ps).all():
             raise ValueError("Failed to construct valid transvection map: for u->v")
 
@@ -291,7 +295,7 @@ def intermediate_transvection_solve(u, v, p):
         raise ValueError("Input vectors cannot be zero")
     if not galois.is_prime(p):
         raise NotImplementedError(f"Prime dimension expected, got p={p}")
-    if symplectic_product(u, v, p) != 0:
+    if symplectic_product_arrays(u, v, p) != 0:
         raise ValueError("Symplectic product must be zero")
 
     n= int(len(u)//2)
@@ -320,7 +324,7 @@ def intermediate_transvection_solve(u, v, p):
             w[n:]= w1[:n]
             break
 
-    #assert symplectic_product(u, w, p)!=0 and symplectic_product(w, v,p) !=0, f'{symplectic_product(u, w, p), symplectic_product(w, v, p)}'
+    #assert symplectic_product_arrays(u, w, p)!=0 and symplectic_product_arrays(w, v,p) !=0, f'{symplectic_product_arrays(u, w, p), symplectic_product_arrays(w, v, p)}'
 
     return w
 
@@ -338,7 +342,7 @@ def Find_transvection_map_solve(input_ps, output_ps, p):
     if not galois.is_prime(p):
         raise NotImplementedError(f"Prime dimension expected, got p={p}")
 
-    a=symplectic_product(input_ps, output_ps,p)
+    a=symplectic_product_arrays(input_ps, output_ps,p)
     if a != 0:
         ainv = modinv(a, p)
         h=(-input_ps + output_ps) % p
@@ -348,13 +352,13 @@ def Find_transvection_map_solve(input_ps, output_ps, p):
 
     elif a == 0:
         w=intermediate_transvection_solve(input_ps, output_ps, p)
-        a_w= symplectic_product(input_ps, w,p)
+        a_w= symplectic_product_arrays(input_ps, w,p)
         a_w_inv = modinv(a_w, p)
         h=(-input_ps + w) % p
         F_h_1= transvection_matrix(h, p, multiplier=a_w_inv)
         if (input_ps @ F_h_1 % p != w).all():
             raise ValueError("Failed to construct valid transvection for u->w")
-        b_w= symplectic_product(w, output_ps, p)
+        b_w= symplectic_product_arrays(w, output_ps, p)
         b_w_inv = modinv(b_w, p)
         h=(-w + output_ps) % p
         F_h_2= transvection_matrix(h, p, multiplier=b_w_inv)
@@ -379,7 +383,7 @@ def intermediate_transvection_solve_extended(u, v, constraints, sps,  p):
     if not galois.is_prime(p):
         raise NotImplementedError(f"Prime dimension expected, got p={p}")
 
-    if symplectic_product(u, v, p) != 0:
+    if symplectic_product_arrays(u, v, p) != 0:
         raise ValueError("Symplectic product must be zero")
 
     else:
@@ -416,6 +420,8 @@ def intermediate_transvection_solve_extended(u, v, constraints, sps,  p):
                 if w1 is not None:
                     break
             break
+        if w1 is None:
+            raise Exception("Could not find transvection vector.")
 
         w[:n]=w1[n:]              # The solution will be [w1z
                                   #                        w1x], so, we will change it to w]
@@ -424,8 +430,8 @@ def intermediate_transvection_solve_extended(u, v, constraints, sps,  p):
         if np.all(w==0):
             raise ValueError('No solution found')
         else:
-            assert symplectic_product(u, w, p)!=0 and symplectic_product(
-                w, v,p) !=0, f'{symplectic_product(u, w, p), symplectic_product(w, v, p)}'
+            assert symplectic_product_arrays(u, w, p)!=0 and symplectic_product_arrays(
+                w, v,p) !=0, f'{symplectic_product_arrays(u, w, p), symplectic_product_arrays(w, v, p)}'
 
     return w
 
@@ -442,7 +448,7 @@ def Find_transvection_map_solve_extended(input_ps, output_ps, constraints=[], sp
     if not galois.is_prime(p):
         raise NotImplementedError(f"Prime dimension expected, got p={p}")
 
-    a= symplectic_product(input_ps, output_ps,p)
+    a= symplectic_product_arrays(input_ps, output_ps,p)
     if a != 0:
         ainv = modinv(a, p)
         h=(-input_ps + output_ps) % p
@@ -456,13 +462,13 @@ def Find_transvection_map_solve_extended(input_ps, output_ps, constraints=[], sp
             F_h= np.eye(2 * n, dtype=int)
         else:
             w=intermediate_transvection_solve_extended(input_ps, output_ps, constraints=constraints, sps=sps, p=p)
-            a_w= symplectic_product(input_ps, w,p)
+            a_w= symplectic_product_arrays(input_ps, w,p)
             a_w_inv = modinv(a_w, p)
             h=(-input_ps + w) % p
             F_h_1= transvection_matrix(h, p, multiplier=a_w_inv)
             if (input_ps @ F_h_1 % p != w).all():
                 raise ValueError("Failed to construct valid transvection for u->w")
-            b_w= symplectic_product(w, output_ps, p)
+            b_w= symplectic_product_arrays(w, output_ps, p)
             b_w_inv = modinv(b_w, p)
             h=(-w + output_ps) % p
             F_h_2= transvection_matrix(h, p, multiplier=b_w_inv)
@@ -492,7 +498,7 @@ def map_paulisum_to_target_paulisum(input_tab, output_tab, p):
 
         # Constraints: previously mapped Paulis must stay fixed
         constraints = [output_tab[j] for j in range(k)]
-        sps = [symplectic_product(input_tab[j], input_tab[k], p) for j in range(k)]
+        sps = [symplectic_product_arrays(input_tab[j], input_tab[k], p) for j in range(k)]
 
         F_k = Find_transvection_map_solve_extended(
             u_k, output_tab[k], constraints=constraints, sps=sps, p=p
