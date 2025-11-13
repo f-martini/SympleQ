@@ -1,42 +1,425 @@
-# from sympleq.core.circuits import Gate, Circuit, CNOT, Hadamard, PHASE, SUM, SWAP
-# from sympleq.core.circuits.decomposition_GFp import decompose_symplectic_to_circuit, ensure_invertible_A
-# import numpy as np
-# from sympleq.core.circuits.utils import is_symplectic
+from sympleq.core.circuits import Gate, Circuit, SUM
+import numpy as np
+from sympleq.core.circuits.utils import is_symplectic
+from sympleq.core.circuits.gate_decomposition_to_circuit import (inv_gfp, mod_p, ensure_invertible_A_circuit, blocks,
+                                                                 zeros, identity, _is_invertible_mod,
+                                                                 synth_linear_A_to_gates, _emit_local_ops_for_D,
+                                                                 synth_lower_from_symmetric,
+                                                                 synth_upper_from_symmetric_via_H, _as_int_mod,
+                                                                 decompose_symplectic_to_circuit,
+                                                                 _compose_symp, _full_from_lower, gate_to_circuit)
+
+from typing import cast
+from sympleq.core.paulis import PauliSum
 
 
-# class TestDecomposition:
-#     def test_decompose_symplectic_to_circuit(self):
-#         n_qidits_list = [4, 6, 8]
-#         dimension_list = [3, 5]
+class TestDecomposition:
+    def _full_from_upper(self, n, S, p):
+        Id = np.eye(n, dtype=int)
+        Z = np.zeros((n, n), dtype=int)
+        return mod_p(np.block([[Id, S], [Z, Id]]), p)
 
-#         for n_qidits in n_qidits_list:
-#             for dimension in dimension_list:
-#                 test_gate = Gate.from_random(n_qidits, dimension)
-#                 test_circuit = decompose_symplectic_to_circuit(test_gate.symplectic, dimension)
+    def random_invertible(self, n: int, rng: np.random.Generator, p: int) -> np.ndarray:
+        while True:
+            A = rng.integers(0, p, size=(n, n), dtype=int)
+            try:
+                _ = inv_gfp(A, p)
+                return mod_p(A, p)
+            except ValueError:
+                pass
 
-#                 gate_out = test_circuit.composite_gate()
+    def random_symmetric(self, n: int, rng: np.random.Generator, p: int) -> np.ndarray:
+        M = rng.integers(0, p, size=(n, n), dtype=int)
+        return mod_p(M + M.T, p)
 
-#                 # correction_gates, F_new = ensure_invertible_A(gate_out.symplectic, dimension)
+    def build_F_from_LMR(self, n: int, A: np.ndarray, B_sym: np.ndarray, C_sym: np.ndarray, p: int) -> np.ndarray:
+        """F = L M R with R=[I B;0 I], M=diag(A, (A^T)^{-1}), L=[I 0; C I]."""
+        A = mod_p(A, p)
+        B_sym = mod_p(B_sym, p)
+        C_sym = mod_p(C_sym, p)
+        A_invT = inv_gfp(A.T, p)
+        Z = zeros((n, n))
+        Id = identity(n)
+        L = np.block([[Id, Z], [C_sym, Id]])
+        M = np.block([[A, Z], [Z, A_invT]])
+        R = np.block([[Id, B_sym], [Z, Id]])
+        return mod_p(L @ M @ R, p)
 
-#                 assert is_symplectic(gate_out.symplectic, dimension), "Symplectic decomposition failed."
-#                 print(test_gate.symplectic)
-#                 print(gate_out.symplectic)
-#                 assert np.array_equal(gate_out.symplectic, test_gate.symplectic), ("Symplectic decomposition failed "
-#                                                                                    f"for {n_qidits} qubits and "
-#                                                                                    f"{dimension} dimension.")
+    def random_symplectic(self, n: int, p: int, rng: np.random.Generator | None = None) -> np.ndarray:
+        if rng is None:
+            rng = np.random.default_rng()
+        A = self.random_invertible(n, rng, p)
+        B = self.random_symmetric(n, rng, p)
+        C = self.random_symmetric(n, rng, p)
+        F = self.build_F_from_LMR(n, A, B, C, p)
+        assert is_symplectic(F, p)
+        return F
 
-# def test_decomposition_with_phase(self):
-#     pass
+    # ---------- preconditioner tests----------
 
-# def test_A_invertible(self):
-#     n_qidits_list = [4, 6, 8]
-#     dimension_list = [2, 3, 5]
+    def preconditioner_noop_when_A_invertible_test(self, F, p):
+        n = F.shape[0] // 2
+        from copy import deepcopy
+        F0 = deepcopy(F)
+        C_pre = ensure_invertible_A_circuit(F, p)
+        if np.linalg.det(F[:n, :n]) % p != 0:  # or inv_gfp try/except
+            # already invertible: either empty or something that keeps A invertible
+            assert len(C_pre.gates) == 0
+            F_prime = (C_pre.full_symplectic() @ F) % p
+            assert np.array_equal(F_prime, F0 % p)
 
-#     for n_qidits in n_qidits_list:
-#         for dimension in dimension_list:
-#             test_gate = Gate.from_random(n_qidits, dimension)
-#             test_circuit = decompose_symplectic_to_circuit(test_gate.symplectic, dimension)
+    def preconditioner_preserves_symplectic_test(self, F, p):
+        C_pre = ensure_invertible_A_circuit(F, p)
+        F_prime = (C_pre.full_symplectic() @ F) % p
+        assert is_symplectic(F_prime, p)
 
-#             gate_out = test_circuit.composite_gate()
+    def A_invertible_after_precondition(self, F, p):
+        n = F.shape[0] // 2
+        C_pre = ensure_invertible_A_circuit(F, p)
+        F_prime = (C_pre.full_symplectic() @ F) % p
+        A = F_prime[:n, :n]
+        _ = inv_gfp(A, p)  # should not raise
 
-#             correction_gates, F_new = ensure_invertible_A(gate_out.symplectic, dimension)
+    def preconditioner_determinism(self, F, p):
+        C1 = ensure_invertible_A_circuit(F, p)
+        C2 = ensure_invertible_A_circuit(F, p)
+        assert [g.name for g in C1.gates] == [g.name for g in C2.gates]
+        assert [tuple(g.qudit_indices) for g in C1.gates] == [tuple(g.qudit_indices) for g in C2.gates]
+
+    def preconditioner_respects_depth(self, F, p):
+        C_pre = ensure_invertible_A_circuit(F, p, max_depth=4)
+        assert len(C_pre.gates) <= 4
+
+    def preconditioner_after_random_conjugation(self, n=4, p=3, depth=10, seed=1):
+        rng = np.random.default_rng(seed)
+        F = self.random_symplectic(n, p, rng)
+        # random circuit (uses only valid gates for dimension p)
+        C = Circuit.from_random(n_gates=depth, dimensions=[p] * n)
+        F_conj = (C.full_symplectic() @ F) % p
+        assert is_symplectic(F_conj, p), "Conjugated F must remain symplectic"
+        C_pre = ensure_invertible_A_circuit(F_conj, p)
+        F_prime = (C_pre.full_symplectic() @ F_conj) % p
+        A = F_prime[:n, :n]
+        A_inv_ok = False
+        try:
+            _ = inv_gfp(A, p)
+            A_inv_ok = True
+        except ValueError:
+            A_inv_ok = False
+
+        # --- assertions ---
+        assert A_inv_ok, "A-block is not invertible after preconditioning"
+        assert is_symplectic(F_prime, p), "Preconditioning broke symplecticity"
+
+    def preconditioner(self, num_trials: int = 10, n: int = 3, p: int = 3, seed: int = 2025) -> None:
+        """
+        Generate random symplectic F, build C_pre, and verify that
+        A((C_pre)·F) is invertible (mod p). Also sanity-check symplecticity.
+        """
+        self.preconditioner_after_random_conjugation(n, p, depth=num_trials, seed=seed)
+        rng = np.random.default_rng(seed)
+        for t in range(num_trials):
+            F = self.random_symplectic(n, p, rng)
+            C_pre = ensure_invertible_A_circuit(F, p)
+            F_prime = (C_pre.full_symplectic() @ F) % p  # left multiply for the matrix factorization step
+            A, _, _, _ = blocks(F_prime, p)
+            okA = _is_invertible_mod(A, p)
+            okSp = is_symplectic(F_prime, p)
+            if not okA or not okSp:
+                raise AssertionError(
+                    f"[trial {t}] Preconditioner failed:\n"
+                    f"  A invertible? {okA}\n"
+                    f"  F' symplectic? {okSp}\n"
+                    f"F:\n{F}\nF':\n{F_prime}\nA(F'):\n{A}"
+                )
+            self.preconditioner_noop_when_A_invertible_test(F, p)
+            self.A_invertible_after_precondition(F, p)
+            self.preconditioner_preserves_symplectic_test(F, p)
+            self.preconditioner_determinism(F, p)
+            self.preconditioner_respects_depth(F, p)
+
+        print(f"Preconditioner smoke test passed for n={n}, p={p}, trials={num_trials}.")
+
+    # M block tests
+    def symp_of_gates(self, n, p, gates):
+        return Circuit([p] * n, list(gates)).composite_gate().symplectic % p
+
+    def check_linear_from_A(self, n, p, A):
+        A = mod_p(A, p)
+        D = mod_p(inv_gfp(A, p).T, p)
+        Z = np.zeros((n, n), dtype=int)
+        return mod_p(np.block([[A, Z], [Z, D]]), p)
+
+    # --- Test 1: Whole M block matches diag(A, (A^T)^{-1}) ---
+    def test_M_block_only(self, n, p, rng=np.random.default_rng(42)):
+        A = self.random_invertible(n, rng, p)
+        ops_M = synth_linear_A_to_gates(n, A, p)
+        FM = self.symp_of_gates(n, p, ops_M)
+        FM_exp = self.check_linear_from_A(n, p, A)
+        assert np.array_equal(FM, FM_exp), f"\nA=\n{A}\nGot=\n{FM}\nExp=\n{FM_exp}"
+
+    # --- Test 2: Local D(u) synthesis on a single wire (via remap) ---
+    def test_local_Du_synthesis(self, p):
+        for u in range(1, p):  # skip 0
+            ops = _emit_local_ops_for_D(0, u, p)
+            F = Circuit([p], ops).composite_gate().symplectic % p
+            target = np.array([[u, 0],
+                            [0, pow(int(u), -1, p)]], dtype=int) % p
+            assert np.array_equal(F, target), f"Failed D({u}) over GF({p})"
+
+    # --- Test 3: SUM direction micro-test (pins the column-add mapping) ---
+    def test_SUM_direction_in_M(self, n: int, p: int, rng: np.random.Generator = np.random.default_rng(42)):
+        # Try a few random (i, c, f) with i != c
+        for _ in range(20):
+            i = int(rng.integers(0, n))
+            c = int(rng.integers(0, n))
+            while i == c:
+                c = int(rng.integers(0, n))
+            f = int(rng.integers(1, p))   # 1..p-1
+
+            # Build the A we expect AFTER applying: col_i <- col_i - f * col_c (RIGHT)
+            A_exp = np.eye(n, dtype=int) % p
+            A_exp[c, i] = (A_exp[c, i] + (-f) % p) % p  # NOTE: (c, i), not (i, c)
+            # Synthesize M from this A and compare to the theoretical block diag
+            ops = cast(list[Gate], synth_linear_A_to_gates(n, A_exp, p))
+            FM = self.symp_of_gates(n, p, ops)
+            FM_exp = self.check_linear_from_A(n, p, A_exp)
+            FM_exp = self.check_linear_from_A(n, p, A_exp)
+
+            assert np.array_equal(FM, FM_exp), (
+                f"Wrong SUM mapping for (i={i}, c={c}, f={f}) over GF({p})\n"
+                f"A_exp=\n{A_exp}\nGot=\n{FM}\nExp=\n{FM_exp}"
+            )
+
+    def test_local_Du_includes_identity_and_nontrivial(self, p):
+        # identity case
+        ops = _emit_local_ops_for_D(0, 1, p)
+        M = Circuit([p], ops).composite_gate().symplectic % p
+        assert np.array_equal(M, np.eye(2, dtype=int) % p)
+
+        # all nontrivial u
+        for u in range(2, p):
+            ops = _emit_local_ops_for_D(0, u, p)
+            M = Circuit([p], ops).composite_gate().symplectic % p
+            inv_u = pow(u, -1, p)
+            target = np.array([[u, 0], [0, inv_u]], dtype=int) % p
+            assert np.array_equal(M, target), f"Failed D({u}) over GF({p})"
+
+    def test_single_wire_scaling_M(self, p: int):
+        n = 3
+        for u in range(2, p):  # skip 0 and 1
+            A = np.eye(n, dtype=int)
+            A[1, 1] = u % p
+            ops = synth_linear_A_to_gates(n, A, p)
+            FM = self.symp_of_gates(n, p, ops)
+            FM_exp = self.check_linear_from_A(n, p, A)
+            assert np.array_equal(FM, FM_exp), f"Failed D({u}) on wire 1 over GF({p})"
+
+    def A_block_of(self, gate, p):
+        F = Circuit([p, p], [gate]).composite_gate().symplectic % p
+        return F[:2, :2]
+
+    def test_one_col_add_in_M(self, n=3, p=5, c=0, i=2, f=1):
+        A = np.eye(n, dtype=int) % p
+        A_exp = A.copy()
+        A_exp[:, i] = (A_exp[:, i] + f * A_exp[:, c]) % p  # col_i += f col_c
+
+        # Build M ops for just that step:
+        ops = [SUM(i, c, p)] * (f % p)
+        FM = Circuit([p] * n, cast(list[Gate], ops)).composite_gate().symplectic % p
+        assert np.array_equal(FM[:n, :n], A_exp)
+
+    def test_m_block(self, num_trials, n, p, rng=np.random.default_rng(42)):
+        self.test_single_wire_scaling_M(p)
+        self.test_local_Du_includes_identity_and_nontrivial(p)
+        self.test_local_Du_synthesis(p)
+        # test_SUM_direction_and_sign(n, p)
+
+        # Expect A = [[1,1],[0,1]] for SUM(0,1,p)
+        A = self.A_block_of(SUM(0, 1, p), p)
+        assert np.array_equal(A, np.array([[1, 0], [1, 1]])), A
+
+        for _ in range(num_trials):
+            self.test_SUM_direction_in_M(n, p, rng)
+            self.test_M_block_only(n, p, rng)
+            self.test_one_col_add_in_M(n, p)
+
+        print(f"M block smoke test passed for n={n}, p={p}, trials={num_trials}.")
+
+    #  ############################################################################  #
+    #                                 L-R Block Tests                                        #
+    #  ############################################################################  #
+
+    def _rand_sym(self, n, p, rng):
+        M = rng.integers(0, p, size=(n, n), dtype=int)
+        return _as_int_mod(M + M.T, p)
+
+    def _check_equal(self, F_got, F_exp, p, msg=""):
+        G = _as_int_mod(F_got, p)
+        E = _as_int_mod(F_exp, p)
+        if not np.array_equal(G, E):
+            raise AssertionError(f"{msg}\nGot=\n{G}\nExp=\n{E}")
+
+    def L_block_unit_test(self, num_trials, n, ps, rng):
+        """Test L(C) = [[I,0],[C,I]] synthesis correctness."""
+        for _ in range(num_trials):
+            C_sym = self._rand_sym(n, ps, rng)
+            ops = synth_lower_from_symmetric(n, C_sym, ps)
+            F = _compose_symp(n, ps, ops)
+            F_exp = _full_from_lower(n, C_sym, ps)
+            self._check_equal(F, F_exp, ps, f"[L] mismatch over GF({ps})")
+
+        print(f"L-block unit test passed for GF({ps})")
+
+    def R_block_unit_test(self, num_trials, n, ps, rng):
+        """Test R(S) = [[I,S],[0,I]] synthesis correctness."""
+        for _ in range(num_trials):
+            S_sym = self._rand_sym(n, ps, rng)
+            ops = synth_upper_from_symmetric_via_H(n, S_sym, ps)
+            F = _compose_symp(n, ps, ops)
+            F_exp = self._full_from_upper(n, S_sym, ps)
+            self._check_equal(F, F_exp, ps, f"[R] mismatch over GF({ps})")
+
+        print(f"R-block unit test passed for GF({ps})")
+
+    def elementary_pairs_test(self, num_trials, n, ps, rng, p):
+        """Test elementary diagonal/off-diagonal increments for both L and R."""
+        for _ in range(num_trials):
+            # Diagonal (L)
+            for i in range(n):
+                C = np.zeros((n, n), dtype=int)
+                C[i, i] = rng.integers(0, ps)
+                Fl = _compose_symp(n, ps, synth_lower_from_symmetric(n, C, ps))
+                self._check_equal(Fl, _full_from_lower(n, C, ps), p, f"[L diag] GF({ps})")
+
+            # Off-diagonal (L)
+            for i in range(n):
+                for j in range(i + 1, n):
+                    C = np.zeros((n, n), dtype=int)
+                    t = rng.integers(0, ps)
+                    C[i, j] = C[j, i] = t % ps
+                    Fl = _compose_symp(n, ps, synth_lower_from_symmetric(n, C, ps))
+                    self._check_equal(Fl, _full_from_lower(n, C, ps), p, f"[L off] GF({ps})")
+
+            # Diagonal (R)
+            for i in range(n):
+                S = np.zeros((n, n), dtype=int)
+                S[i, i] = rng.integers(0, ps)
+                Fr = _compose_symp(n, ps, synth_upper_from_symmetric_via_H(n, S, ps))
+                self._check_equal(Fr, self._full_from_upper(n, S, ps), p, f"[R diag] GF({ps})")
+
+        print(f"Elementary L/R tests passed for GF({ps})")
+
+    def L_R_block_test(self, num_trials, n, p, seed=42):
+        rng = np.random.default_rng(seed)
+        self.L_block_unit_test(num_trials=num_trials, n=n, ps=p, rng=rng)
+        self.R_block_unit_test(num_trials=num_trials, n=n, ps=p, rng=rng)
+        self.elementary_pairs_test(num_trials=num_trials, n=n, ps=p, rng=rng, p=p)
+        print(f"All L/R block tests passed for GF({p})")
+
+    #  ############################################################################  #
+    #                                 All together tests                             #
+    #  ############################################################################  #
+
+    def full_decomposition_roundtrip_test(self, num_trials: int, n: int, p: int, seed: int = 2025):
+        rng = np.random.default_rng(seed)
+        for t in range(num_trials):
+            F = self.random_symplectic(n, p, rng=rng)
+            C = decompose_symplectic_to_circuit(F, p, check=True)
+            F_rec = C.composite_gate().symplectic % p
+            self._check_equal(F_rec, F, p, f"[roundtrip] GF({p}) trial={t}")
+
+    def full_decomposition_on_factored_instances_test(self, num_trials: int, n: int, p: int, seed: int = 2025):
+        """
+        Build F explicitly as L(A^{-1}B)·M(A)·R(CA^{-1}) (i.e., from random A, B_sym, C_sym),
+        then check we recover it exactly via the decomposition.
+        """
+        rng = np.random.default_rng(seed)
+        for t in range(num_trials):
+            # random invertible A and symmetric B,C
+            A = self.random_invertible(n, rng, p)
+            B_sym = self.random_symmetric(n, rng, p)
+            C_sym = self.random_symmetric(n, rng, p)
+
+            # compose a ground-truth F = L·M·R
+            F_true = self.build_F_from_LMR(n, A, B_sym, C_sym, p)      # uses the same block builders you already have
+
+            # Run decomposition
+            C = decompose_symplectic_to_circuit(F_true, p, check=True)
+            F_rec = C.composite_gate().symplectic % p
+
+            self._check_equal(F_rec, F_true, p, f"[factored-instance] GF({p}) trial={t}")
+
+    def decomposition_tests(self, num_trials, n, p):
+        self.full_decomposition_roundtrip_test(num_trials=num_trials, n=n, p=p)
+        self.full_decomposition_on_factored_instances_test(num_trials=num_trials, n=n, p=p)
+        print(f"Decomposition tests passed for GF({p})")
+
+    def phase_correction_test(self, num_trials, n, p, n_gates_in_C_in=10):
+        for _ in range(num_trials):
+            C_in = Circuit.from_random(n_gates_in_C_in, dimensions=[p] * n)
+            big_gate_in = C_in.composite_gate()
+
+            C_out = gate_to_circuit(big_gate_in)
+            big_gate_out = C_out.composite_gate()
+
+            assert np.array_equal(big_gate_in.symplectic % p, big_gate_out.symplectic % p)
+
+            lcm = int(np.lcm.reduce([p] * n))
+            mod_phase = 2 * lcm
+
+            h_in = big_gate_in.phase_vector % mod_phase
+            h_out = big_gate_out.phase_vector % mod_phase
+
+            # If p is odd, Pauli can fix any even delta exactly
+            if p % 2 == 1:
+                assert np.array_equal(h_in, h_out), f"Fail \nh_in={h_in} \nh_out={h_out}"
+            else:
+                # For p=2, Pauli can't move phases mod 4; we can at least assert the
+                # "even part" matches, or that any delta is ≡ 0 (mod 4) if you add Clifford tweaks.
+                assert np.all((h_in - h_out) % 2 == 0), "p=2 residual odd parts cannot be Pauli-corrected"
+
+            for _ in range(num_trials):
+                ps = PauliSum.from_random(2 * n, [p] * n)
+                ps1 = big_gate_in.act(ps)
+                ps2 = big_gate_out.act(ps)
+                assert ps1.to_standard_form() == ps2.to_standard_form(), (f"Fail \n{ps1.to_standard_form()}"
+                                                                          f"\n{ps2.to_standard_form()}")
+
+        print(f"Phase correction tests passed for GF({p})")
+
+    def gate_to_circuit_roundtrip_test(self, num_trials=20, n=3, p=3):
+        for _ in range(num_trials):
+            C_in = Circuit.from_random(12, dimensions=[p] * n)
+            G_in = C_in.composite_gate()
+
+            C_out = gate_to_circuit(G_in)
+            G_out = C_out.composite_gate()
+
+            # Symplectic must match exactly mod p
+            assert np.array_equal(G_in.symplectic % p, G_out.symplectic % p)
+
+            # Phase behavior: exact for odd p, even-part match for p=2
+            lcm = int(np.lcm.reduce([p] * n))
+            MOD = 2 * lcm
+            h_in = G_in.phase_vector % MOD
+            h_out = G_out.phase_vector % MOD
+
+            if p % 2 == 1:
+                assert np.array_equal(h_in, h_out)
+            else:
+                # Qubits: Pauli can only move even phases
+                assert np.all((h_in - h_out) % 2 == 0)
+
+        print(f"Gate-to-circuit roundtrip tests passed for GF({p})")
+
+    def test_circuit_decomposition_all(self):
+        n = 3
+        n_trials = 10
+        for p in (2, 3, 5):
+            self.preconditioner(num_trials=n_trials, n=n, p=p)
+            self.test_m_block(num_trials=n_trials, n=n, p=p)
+            self.L_R_block_test(num_trials=n_trials, n=n, p=p)
+            self.decomposition_tests(num_trials=n_trials, n=n, p=p)
+            self.gate_to_circuit_roundtrip_test(num_trials=n_trials, n=n, p=p)
+            self.phase_correction_test(num_trials=n_trials, n=n, p=p)
