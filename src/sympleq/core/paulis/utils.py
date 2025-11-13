@@ -213,7 +213,6 @@ def are_subsets_equal(PauliSum_1: PauliSum,
 
 
 def commutation_graph(PauliSum: PauliSum,
-                      labels: list[str] | None = None,
                       axis: Any | None = None):
     """
     Plots the commutation graph of a PauliSum, based on the adjacency
@@ -243,7 +242,7 @@ def commutation_graph(PauliSum: PauliSum,
     gr.add_edges_from(edges)
     pos1 = nx.spring_layout(gr)
 
-    nx.draw(gr, pos1, node_size=900, labels=labels, with_labels=True, ax=axis)
+    nx.draw(gr, pos1, node_size=900, with_labels=True, ax=axis)
     return gr
 
 
@@ -466,7 +465,8 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
                             break
                     else:
                         index_list.remove(j)
-                        if abs(np.conj(H.weights[i]) * np.exp(2 * np.pi * 1j * hermitian_pauli_string.phases[0] / (2 * H.lcm)) -
+                        if abs(np.conj(H.weights[i]) *
+                               np.exp(2 * np.pi * 1j * hermitian_pauli_string.phases[0] / (2 * H.lcm)) -
                                 H.weights[j] * np.exp(2 * np.pi * 1j * H.phases[j] / (2 * H.lcm))) > 10**-10:
                             # Step 1: Weight
                             H._weights[j] = np.conj(H.weights[i])

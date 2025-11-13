@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import overload, TYPE_CHECKING
 import numpy as np
-import functools
 import re
 import scipy.sparse as sp
 
@@ -14,12 +13,37 @@ if TYPE_CHECKING:
     from .pauli_sum import PauliSum
 
 
-@functools.total_ordering
 class PauliString(PauliObject):
     @classmethod
     def from_exponents(cls, x_exp: list[int] | np.ndarray | str | int, z_exp: list[int] | np.ndarray | int,
                        dimensions: list[int] | np.ndarray | int | None = None) -> PauliString:
+        """
+        Create a PauliString instance from X and Z exponents.
 
+        Parameters
+        ----------
+        x_exp : list[int] | np.ndarray | str | int
+            The X exponents used to create the PauliString tableau.
+            If no Z exponents are given, the X exponents can be also given as a parseable string.
+            If an integer is provided, it is assumed the PauliString contains a single Pauli.
+        z_exp: list[int] | np.ndarray | int
+            The Z exponents used to create the PauliString tableau.
+            If an integer is provided, it is assumed the PauliString contains a single Pauli.
+        dimensions: list[int] | np.ndarray | int, optional
+            The dimensions of each qudit. If an integer is provided,
+            all qudits are assumed to have the same dimension.
+            If no value is provided, the default is `DEFAULT_QUDIT_DIMENSION`.
+
+        Returns
+        -------
+        PauliString
+            A PauliString instance representing the given exponents.
+
+        Raises
+        ------
+        ValueError
+            If x_exp, z_exp, and dimensions don't have the same length.
+        """
         if isinstance(x_exp, str):
             if z_exp is not None:
                 raise Warning('If input string is provided, z_exp is unnecessary')
@@ -63,12 +87,12 @@ class PauliString(PauliObject):
     @classmethod
     def from_pauli(cls, pauli: Pauli) -> PauliString:
         """
-        Create a PauliString instance from a single Pauli object.
+        Create a PauliString instance from a single Pauli.
 
         Parameters
         ----------
         pauli : Pauli
-            The Pauli object to convert into a PauliString.
+            The Pauli to convert into a PauliString.
 
         Returns
         -------
@@ -154,12 +178,11 @@ class PauliString(PauliObject):
         ----------
         n_qudits : int
             The number of qudits in the Pauli string.
-        dimensions : list[int] or np.ndarray
+        dimensions : int | list[int] | np.ndarray
             The dimensions of each qudit. Should be a list or array of integers specifying the dimension for each qudit.
+            The size of dimensions determines the number of qudits.
         seed : int or None, optional
             Seed for the random number generator to ensure reproducibility. Default is None.
-        sanity_check : bool = True
-            Whether to run sanity checks for the input, the default is True.
 
         Returns
         -------
@@ -169,31 +192,34 @@ class PauliString(PauliObject):
         if seed is not None:
             np.random.seed(seed)
 
+        if isinstance(dimensions, int):
+            dimensions = [dimensions]
+
         tableau = np.concatenate([np.random.randint(dimensions, dtype=int), np.random.randint(dimensions, dtype=int)])
         return cls(tableau, dimensions)
 
     def __repr__(self) -> str:
         """
-        Return the string representation of the Pauli object
+        Return the string representation of the PauliString.
         (in a format that is helpful for debugging).
 
         Returns
         -------
         str
-            A string in the format "Pauli(x_exp=..., z_exp=..., dimensions=...)".
+            A string in the format "PauliString(tableau=..., dimensions=...)".
         """
 
-        return f"PauliString(x_exp={self.x_exp}, z_exp={self.z_exp}, dimensions={self.dimensions})"
+        return f"PauliString(tableau={self.tableau}, dimensions={self.dimensions})"
 
     def __str__(self) -> str:
         """
-        Return the string representation of the Pauli object
+        Return the string representation of the PauliString.
         (in the format also employed for constructing an instance of the class).
 
         Returns
         -------
         str
-            The string representation of the Pauli object, with each qudit's
+            The string representation of the PauliString, with each qudit's
             exponents shown as 'x{exp}z{exp} x{exp}z{exp} x{exp}z{exp} ...'.
         """
 
@@ -251,7 +277,7 @@ class PauliString(PauliObject):
         Parameters
         ----------
         A : Pauli
-            The Pauli object to be right-multiplied with this PauliString.
+            The Pauli to be right-multiplied with this PauliString.
 
         Returns
         -------
@@ -335,8 +361,7 @@ class PauliString(PauliObject):
     @property
     def phases(self) -> np.ndarray:
         """
-        Returns the phases associated with the Pauli object.
-        For a Pauli operator, this is just the trivial phase.
+        Returns the phases associated with the PauliString.
 
         Returns
         -------
@@ -348,8 +373,7 @@ class PauliString(PauliObject):
     @property
     def weights(self) -> np.ndarray:
         """
-        Returns the weights associated with the Pauli object.
-        For a Pauli operator, this is just 1.
+        Returns the weights associated with the Pauli String.
 
         Returns
         -------
@@ -359,6 +383,14 @@ class PauliString(PauliObject):
         return np.asarray([1], dtype=complex)
 
     def as_pauli_sum(self) -> PauliSum:
+        """
+        Converts the PauliString to the embedding PauliSum.
+
+        Returns
+        -------
+        PauliSum
+            The PauliSum containing the PauliString as single entry.
+        """
         return PauliSum(self.tableau, self.dimensions, self.weights, self.phases)
 
     def n_identities(self) -> int:
@@ -374,7 +406,7 @@ class PauliString(PauliObject):
 
     def get_pauli(self, index: int) -> Pauli:
         """
-        Returns a Pauli object at the input index.
+        Returns a Pauli at the input index.
 
         Parameters
         ----------
@@ -384,7 +416,7 @@ class PauliString(PauliObject):
         Returns
         -------
         Pauli
-            A Pauli object.
+            The Pauli at the given index.
         """
 
         tableau = np.asarray([self.x_exp[index], self.z_exp[index]], dtype=int)
@@ -392,12 +424,12 @@ class PauliString(PauliObject):
 
     def get_paulis(self) -> list[Pauli]:
         """
-        Returns a list of Pauli objects corresponding to the PauliString tableau.
+        Returns a list of Paulis corresponding to the PauliString tableau.
 
         Returns
         -------
         list[Pauli]
-            A list of Pauli objects.
+            A list of Pauli.
         """
         return [self.get_pauli(i) for i in range(self.n_qudits())]
 
@@ -544,7 +576,7 @@ class PauliString(PauliObject):
         # U is zeros with identity in lower-left n x n block
         # This is equivalent to sum over j of 2 * x'_j * z_j
         # U @ b selects b[:n] (x part) and puts it in lower half
-        phase = 2 * np.dot(a[n:], b[:n])
+        phase = 2 * np.dot(a[n:], b[:n])  # THIS ASSUMES [1 | 1] is XZ, NOT Y
 
         return int(phase % (2 * self.lcm))
 

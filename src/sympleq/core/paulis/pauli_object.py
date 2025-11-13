@@ -1,5 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+import functools
 import numpy as np
 from typing import TypeVar, Self, Union
 
@@ -11,49 +12,47 @@ ScalarType = Union[float, complex, int]
 PauliOrScalarType = Union['PauliObject', ScalarType]
 
 
+@functools.total_ordering
 class PauliObject(ABC):
     def __init__(self, tableau: np.ndarray, dimensions: int | list[int] | np.ndarray | None = None,
                  weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
                  phases: int | list[int] | np.ndarray | None = None):
         """
-        Constructor for Pauli objects represented in symplectic tableau form.
+        Initialize a PauliObject represented in symplectic tableau form.
+
         Represents a sum of Pauli operators acting on multiple qudits.
-        For more details, see the references:
-        `Phys. Rev. A 71, 042315 (2005) <https://doi.org/10.1103/PhysRevA.71.042315>`_
-        and
-        `Phys. Rev. A 70, 052328 (2004) <https://doi.org/10.1103/PhysRevA.70.052328>`_
+        See references:
+            - Phys. Rev. A 71, 042315 (2005)
+            - Phys. Rev. A 70, 052328 (2004)
 
         Parameters
         ----------
         tableau : np.ndarray
-            Symplectic tableau representation of the object. A 2-D array with shape (n_paulis, 2 * n_qudits).
-            For a single Pauli and a PauliString, n_paulis = 1.
+            Symplectic tableau representation of the object with shape
+            (n_paulis, 2 * n_qudits). The first half corresponds to X
+            exponents, and the second half to Z exponents.
         dimensions : int | list[int] | np.ndarray | None, optional
-            Qudit dimension(s).
-            - If int, a single qudit dimension is assumed or broadcast where appropriate.
-            - If list/np.ndarray, must match the number of qudits implied by `tableau`.
-            - If None, all dimensions are defaulted to DEFAULT_QUDIT_DIMENSION.
-        weights : list | np.ndarray | None, optional
-            Coefficients associated with each PauliString (for Pauli object).
-            If None, it defaults to 1.
-            For PauliString and Pauli, it is just a 1-D array of length 1.
-        phases : list[int] | np.ndarray | None, optional
-            Integer phases associated with each PauliString.
-            Values are typically interpreted modulo (2 * lcm()).
-            If None, it defaults to zero.
+            Qudit dimension(s). If int, all qudits share the same dimension.
+            If list or array, its length must equal the number of qudits.
+            Defaults to `DEFAULT_QUDIT_DIMENSION` if None.
+        weights : int | float | complex | list | np.ndarray | None, optional
+            Coefficients associated with each Pauli term. Defaults to 1.
+        phases : int | list[int] | np.ndarray | None, optional
+            Integer phase factors for each Pauli term, typically modulo
+            `2 * lcm(dimensions)`. Defaults to 0.
 
         Attributes
         ----------
-        weights: list[int | float | complex] | np.ndarray | None = None
-            The weights for each PauliString.
-        phases: int | list[int] | np.ndarray | None = None
-            The phases of the PauliStrings in the range [0, lcm(dimensions) - 1].
-        dimensions: list[int] | np.ndarray | int, optional
-            The dimensions of each qudit. If an integer is provided,
-            all qudits are assumed to have the same dimension.
-            If no value is provided, the default is `DEFAULT_QUDIT_DIMENSION`.
-        lcm: int
-            Least common multiplier of all qudit dimensions.
+        tableau : np.ndarray
+            Symplectic tableau representing the Pauli operators.
+        dimensions : np.ndarray
+            Dimensions of each qudit.
+        weights : np.ndarray
+            Coefficients (amplitudes) for each Pauli term.
+        phases : np.ndarray
+            Integer phases for each Pauli term.
+        lcm : int
+            Least common multiple of all qudit dimensions.
         """
 
         if tableau.ndim == 1:
@@ -93,101 +92,98 @@ class PauliObject(ABC):
     @property
     def tableau(self) -> np.ndarray:
         """
-        Returns the tableau representation of the Pauli object.
-        The tableau representation is a vector of length 2 * n_qudits,
-        where the first n_qudits entries correspond to the X exponents and the
-        last n_qudits entries correspond to the Z exponents of the Pauli string.
-        It is essential for efficient algebraic operations on Pauli strings, see
-        `Phys. Rev. A 70, 052328 (2004) <https://doi.org/10.1103/PhysRevA.70.052328>`_.
+        Return the symplectic tableau representation of the Pauli object.
+
+        The tableau is a 2D array of shape (n_paulis, 2 * n_qudits),
+        where the first half represents X exponents and the second half Z exponents.
 
         Returns
         -------
         np.ndarray
-            The tableau representation of the Pauli object.
+            Tableau representation of the Pauli object.
         """
         return self._tableau
 
     @property
     def dimensions(self) -> np.ndarray:
         """
-        Returns the dimensions of the Pauli object.
+        Return the dimensions of each qudit.
 
         Returns
         -------
         np.ndarray
-            A 1D numpy array of length n_qudits().
+            A 1D array of qudit dimensions of length `n_qudits`.
         """
         return self._dimensions
 
     @property
     def lcm(self) -> int:
         """
-        Returns the least common multiplier of the dimensions of the Pauli object.
+        Return the least common multiple (LCM) of all qudit dimensions.
 
         Returns
         -------
         int
-            The Pauli object dimensions least common multiplier as integer.
+            The least common multiple of the qudit dimensions.
         """
         return self._lcm
 
     def n_qudits(self) -> int:
         """
-        Returns the number of qudits represented by the Pauli object.
+        Return the number of qudits represented by the Pauli object.
 
         Returns
         -------
         int
-            The number of qudits.
+            Number of qudits.
         """
         return len(self.dimensions)
 
     def n_paulis(self) -> int:
         """
-        Returns the number of Pauli strings represented by the Pauli object.
+        Return the number of Pauli terms in the object.
 
         Returns
         -------
         int
-            The number of Pauli strings.
+            Number of Pauli operators (rows in the tableau).
         """
         return len(self.tableau)
 
     def shape(self) -> tuple[int, int]:
         """
-        Get the shape of the Pauli object.
+        Return the shape of the Pauli object.
 
         Returns
         -------
         tuple[int, int]
-            The number of Pauli operators and the number of qudits.
+            Tuple of (n_paulis, n_qudits).
         """
         return self.n_paulis(), self.n_qudits()
 
     @property
     @abstractmethod
     def phases(self) -> np.ndarray:
-        # FIXME: improve docstring
         """
-        Returns the phases associated with the Pauli object.
-        These phases represent the numerator, the denominator is 2 * self.lcm
+        Return the integer phases associated with the Pauli object.
+
+        Phases represent numerators, where denominators are `2 * self.lcm`.
 
         Returns
         -------
         np.ndarray
-            The phases as a 1d-vector.
+            1D array of integer phase values modulo `2 * lcm`.
         """
         pass
 
     def set_phases(self, new_phases: list[int] | np.ndarray):
-        # FIXME: improve docstring
         """
-        Set the phases associated with the Pauli object.
+        Set new integer phases for the Pauli object.
 
         Parameters
-        -------
-        new_phases: list[int] | np.ndarray
-            The new phases as a 1d-vector.
+        ----------
+        new_phases : list[int] | np.ndarray
+            1D array or list of new integer phase values.
         """
         pass
 
@@ -195,44 +191,42 @@ class PauliObject(ABC):
     @abstractmethod
     def weights(self) -> np.ndarray:
         """
-        Returns the weights associated with the Pauli object.
+        Return the weights (coefficients) of the Pauli terms.
 
         Returns
         -------
         np.ndarray
-            The weights as a 1d-vector.
+            1D array of scalar coefficients.
         """
         pass
 
     def set_weights(self, new_weights: list[int] | np.ndarray):
-        # FIXME: improve docstring
         """
-        Set the weights associated with the Pauli object.
+        Set new weights (coefficients) for the Pauli object.
 
         Parameters
-        -------
-        new_weights: list[int] | np.ndarray
-            The new weights as a 1d-vector.
+        ----------
+        new_weights : list[int] | np.ndarray
+            1D array or list of new scalar coefficients.
         """
         pass
 
     def is_close(self, other_pauli: Self, threshold: int = 10) -> bool:
         """
-        Determine if two Pauli object objects are (almost) equal.
+        Check whether two Pauli objects are approximately equal.
 
         Parameters
         ----------
-        other_pauli : Pauli object
-            The Pauli object instance to compare against.
-
-        threshold: int
-
+        other_pauli : PauliObject
+            Pauli object to compare against.
+        threshold : int, optional
+            Number of matching decimal digits required for equality. Default is 10.
 
         Returns
         -------
         bool
-            True if both Pauli object instances have identical PauliStrings, weights, phases, and dimensions;
-            False otherwise.
+            True if all tableau entries, weights, phases, and dimensions
+            match within tolerance; False otherwise.
         """
         if not isinstance(other_pauli, self.__class__):
             return False
@@ -252,14 +246,16 @@ class PauliObject(ABC):
         return True
 
     def hermitian_conjugate(self) -> Self:
-        # FIXME: add reference
         """
-        Returns the Hermitian conjugate of the Pauli object.
+        Return the Hermitian conjugate of the Pauli object.
+
+        The conjugate operation negates tableau exponents, conjugates weights,
+        and adjusts phases to preserve physical equivalence.
 
         Returns
         -------
         PauliObject
-            The PauliObject Hermitian conjugate
+            Hermitian conjugate of the Pauli object.
         """
         conjugate_weights = np.conj(self.weights)
         conjugate_tableau = (-self.tableau) % np.tile(self.dimensions, 2)
@@ -284,25 +280,24 @@ class PauliObject(ABC):
 
     def is_hermitian(self) -> bool:
         """
-        Checks if the PauliObject is Hermitian
+        Check if the Pauli object is Hermitian.
 
         Returns
         -------
         bool
-            True if the PauliObject is Hermitian, False otherwise
+            True if the object equals its Hermitian conjugate; False otherwise.
         """
         # NOTE: rounding errors could make this fail, hence we call the is_close function.
         return self.to_standard_form().is_close(self.H().to_standard_form())
 
     def _sanity_check(self):
         """
-        Validates the consistency of the Pauli object's internal representation.
+        Validate internal consistency of the Pauli object.
 
         Raises
         ------
         ValueError
-            If the lengths of `tableau`, and `dimensions` are not consistent
-            or if any exponent is not valid for its corresponding dimension.
+            If tableau, dimensions, or exponents are inconsistent or invalid.
         """
         if len(self.weights) != self.n_paulis():
             # FIXME: Improve error message
@@ -337,17 +332,17 @@ class PauliObject(ABC):
 
     def __eq__(self, other_pauli: Self) -> bool:
         """
-        Determine if two Pauli object objects are equal.
+        Determine if two Pauli objects are equal.
 
         Parameters
         ----------
-        other_pauli : Pauli object
-            The Pauli object instance to compare against.
+        other_pauli : PauliObject
+            Object to compare with.
 
         Returns
         -------
         bool
-            True if both Pauli object instances have identical PauliStrings, weights, phases, and dimensions;
+            True if tableau, weights, phases, and dimensions match exactly;
             False otherwise.
         """
         if not isinstance(other_pauli, self.__class__):
@@ -369,37 +364,46 @@ class PauliObject(ABC):
 
     def __ne__(self, other_pauli: PauliObject) -> bool:
         """
-        Determine if two Pauli object objects are different.
+        Determine if two Pauli objects are different.
 
         Parameters
         ----------
-        other_pauli : Pauli object
-            The Pauli object instance to compare against.
+        other_pauli : PauliObject
+            Object to compare with.
 
         Returns
         -------
         bool
-            True if the Pauli object instances do not have identical PauliStrings, weights, phases, and dimensions;
-            False otherwise.
+            True if objects are not equal; False otherwise.
         """
         return not self == other_pauli
 
     def __gt__(self, other_pauli: PauliObject) -> bool:
         """
-        Compare this PauliString with another PauliString for the greater-than relationship.
-        This method overrides the `>` operator to compare two PauliString objects by converting
-        them to their integer representations (with bits reversed) and checking if this instance
-        is greater than the other.
+        Strict greater-than comparison for ordering single Pauli terms.
+
+        Behavior
+        --------
+        This operator is intended to impose an ordering on single-term Pauli
+        objects by interpreting their tableau as an integer (or comparable)
+        representation. It is undefined for multi-term objects.
 
         Parameters
         ----------
-        other_pauli : PauliString
-            The other PauliString instance to compare against.
+        other_pauli : PauliObject
+            Other Pauli object to compare against. Both objects must represent
+            a single Pauli term and share identical `dimensions`.
 
         Returns
         -------
         bool
-            True if this PauliString is greater than `other_pauli`, False otherwise.
+            True if `self` is greater than `other_pauli` according to the
+            implemented integer-like ordering; False otherwise.
+
+        Raises
+        ------
+        ValueError
+            If either object contains multiple Pauli terms or if dimensions differ.
 
         Examples
         --------
@@ -431,20 +435,22 @@ class PauliObject(ABC):
 
     def __lt__(self, other_pauli: Self) -> bool:
         """
-        Compare this PauliString with another PauliString for the greater-than relationship.
-        This method overrides the `<` operator to compare two PauliString objects by converting
-        them to their integer representations (with bits reversed) and checking if this instance
-        is smaller than the other.
+        Strict less-than comparison for ordering single Pauli terms.
 
         Parameters
         ----------
-        other_pauli : PauliString
-            The other PauliString instance to compare against.
+        other_pauli : PauliObject
+            Other Pauli object to compare against. Both must represent single terms.
 
         Returns
         -------
         bool
-            True if this PauliString is smaller than `other_pauli`, False otherwise.
+            True if `self` is less than `other_pauli` according to the implemented ordering.
+
+        Raises
+        ------
+        ValueError
+            If preconditions (single-term objects, matching dimensions) are not met.
 
         Examples
         --------
@@ -457,25 +463,31 @@ class PauliObject(ABC):
 
     def __pow__(self, A: int) -> Self:
         """
-        Raises the Pauli object to the power of an integer exponent.
+        Integer power of a Pauli object.
 
         Parameters
         ----------
         A : int
-            The integer exponent to which the Pauli object is to be raised.
+            Exponent to raise the Pauli object to. Typically only defined for
+            single-term Pauli objects; behavior for sums depends on implementation.
 
         Returns
         -------
-        Pauli object
-            A new Pauli object instance representing the result of the exponentiation.
+        Self
+            Resulting PauliObject after exponentiation.
+
+        Raises
+        ------
+        ValueError
+            If exponentiation is undefined for the current object (e.g., multi-term).
 
         Examples
         --------
-        >>> ps = PauliString(x_exp, z_exp, dimensions)
+        >>> ps = PauliString.from_exponents(x_exp, z_exp, dimensions)
         >>> ps_squared = ps ** 2
         """
 
-        if self.n_paulis():
+        if self.n_paulis() > 1:
             raise Exception("A Pauli object with more than a PauliString cannot be exponentiated.")
 
         tableau = np.mod(self.tableau * A, np.tile(self.dimensions, 2))
@@ -541,7 +553,10 @@ class PauliObject(ABC):
 
     def to_standard_form(self) -> Self:
         """
-        Get the Pauli object in standard form.
+        Produce a standardized form of the Pauli object.
+
+        The standard form consolidates equivalent Pauli terms, normalizes phases,
+        and ensures a canonical ordering of terms.
 
         Returns
         -------
@@ -554,8 +569,10 @@ class PauliObject(ABC):
 
     def standardise(self):
         """
-        Standardises the Pauli object object by combining equivalent Paulis and
-        adding phase factors to the weights then resetting the phases.
+        In-place standardisation of the Pauli object.
+
+        Combines equivalent terms, absorbs phases into weights where appropriate,
+        and normalizes the internal representation for deterministic comparisons.
         """
         self.phase_to_weight()
         T = self.tableau
@@ -572,6 +589,12 @@ class PauliObject(ABC):
     def to_hilbert_space(self, pauli_string_index: int | None = None) -> np.ndarray:
         """
         Get the matrix form of the PauliObject as a sparse matrix.
+
+        Parameters
+        ----------
+        pauli_string_index : int | None, optional
+            Index of a specific Pauli term to convert. If None, the full operator
+            (sum of all terms) is returned.
 
         Returns
         -------

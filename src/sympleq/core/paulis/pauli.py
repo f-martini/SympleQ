@@ -69,7 +69,7 @@ class Pauli(PauliObject):
     @classmethod
     def from_string(cls, pauli_str: str, dimension: int = DEFAULT_QUDIT_DIMENSION) -> Pauli:
         """
-        Create a Pauli object from a string representation.
+        Create a Pauli from a string representation.
 
         Parameters
         ----------
@@ -179,7 +179,7 @@ class Pauli(PauliObject):
     @property
     def phases(self) -> np.ndarray:
         """
-        Returns the phases associated with the Pauli object.
+        Returns the phases associated with the Pauli.
         For a Pauli operator, this is just the trivial phase.
 
         Returns
@@ -192,7 +192,7 @@ class Pauli(PauliObject):
     @property
     def weights(self) -> np.ndarray:
         """
-        Returns the weights associated with the Pauli object.
+        Returns the weights associated with the Pauli.
         For a Pauli operator, this is just 1.
 
         Returns
@@ -279,6 +279,19 @@ class Pauli(PauliObject):
         new_tableau = (self.tableau + A.tableau) % self.lcm
 
         return Pauli(new_tableau, dimensions=self.dimensions)
+
+    def __repr__(self) -> str:
+        """
+        Return the string representation of the Pauli.
+        (in a format that is helpful for debugging).
+
+        Returns
+        -------
+        str
+            A string in the format "Pauli(x_exp=..., z_exp=..., dimensions=...)".
+        """
+
+        return f"PauliString(tableau={self.tableau}, dimensions={self.dimensions})"
 
     def __str__(self) -> str:
         """
