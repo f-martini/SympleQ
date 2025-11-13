@@ -9,8 +9,8 @@ Future extensions: input symplectic matrix -> output symplectic matrix
 import numpy as np
 import galois
 from itertools import islice
-from quaos.core.circuits.utils import transvection_matrix, symplectic_product
-from quaos.core.circuits.find_symplectic import check_mappable_via_clifford
+from sympleq.core.circuits.utils import transvection_matrix, symplectic_product
+from sympleq.core.circuits.find_symplectic import check_mappable_via_clifford
 
 
 def modinv(a, p):

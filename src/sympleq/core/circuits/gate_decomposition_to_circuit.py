@@ -88,7 +88,7 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
         max_depth = max(1, 3 * n)
 
     # Candidate generators (Gate objects). Include PHASE^{-1} via repeating PHASE (p-1) times.
-    candidates: list[Gate] = []
+    candidates: list[Gate | tuple[str, int]] = []
     for i in range(n):
         candidates.append(Hadamard(i, p))
         candidates.append(PHASE(i, p))
@@ -100,8 +100,9 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
             candidates.append(SUM(i, j, p))
             candidates.append(SUM(j, i, p))
 
-    def apply_left_once(F_mat: np.ndarray, g: Gate) -> np.ndarray:
-        if isinstance(g, tuple) and g[0] == "PHASE_INV":
+    def apply_left_once(F_mat: np.ndarray, g: Gate | tuple[str, int]) -> np.ndarray:
+        if isinstance(g, tuple):
+            assert g[0] == "PHASE_INV"
             i = g[1]
             for _ in range((p - 1) % p):
                 F_mat = (PHASE(i, p).full_symplectic(n) @ F_mat) % p
@@ -110,7 +111,7 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
 
     # BFS with an index (no deque) for clarity and determinism
     seen = {tuple(F.flatten())}
-    queue: list[tuple[np.ndarray, list[object]]] = [(F, [])]
+    queue: list[tuple[np.ndarray, list[Gate | tuple[str, int]]]] = [(F, [])]
     head = 0
 
     while head < len(queue):
@@ -130,7 +131,8 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
                 # Build the concrete Circuit with expanded PHASE_INV
                 C_pre = Circuit([p] * n, [])
                 for op in new_ops:
-                    if isinstance(op, tuple) and op[0] == "PHASE_INV":
+                    if isinstance(op, tuple):
+                        assert op[0] == "PHASE_INV"
                         i = op[1]
                         for _ in range((p - 1) % p):
                             C_pre.add_gate(PHASE(i, p))

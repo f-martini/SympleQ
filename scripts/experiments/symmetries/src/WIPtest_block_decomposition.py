@@ -10,24 +10,25 @@ def swap_symplectic(n: int, i: int, j: int, p: int) -> np.ndarray:
     assert 0 <= i < n and 0 <= j < n and i != j
     P = np.eye(n, dtype=np.int64)
     P[[i, j]] = P[[j, i]]
-    O = np.zeros((n, n), dtype=np.int64)
-    return np.block([[P, O],
-                     [O, P]]) % p
+    zeros = np.zeros((n, n), dtype=np.int64)
+    return np.block([[P, zeros],
+                     [zeros, P]]) % p
 
 
 def random_symplectic(n: int, p: int, rng=None, steps: int = 5) -> np.ndarray:
     """Lightweight scrambler (not uniform) built from generators preserving Ω."""
     if rng is None:
         rng = np.random.default_rng()
-    F = np.eye(2*n, dtype=np.int64)
+    F = np.eye(2 * n, dtype=np.int64)
     # qudit permutation
-    perm = np.arange(n); rng.shuffle(perm)
+    perm = np.arange(n)
+    rng.shuffle(perm)
     P = np.eye(n, dtype=np.int64)[perm]
-    O = np.zeros((n, n), dtype=np.int64)
-    F = matmul_mod(np.block([[P, O], [O, P]]), F, p)
+    zeros = np.zeros((n, n), dtype=np.int64)
+    F = matmul_mod(np.block([[P, zeros], [zeros, P]]), F, p)
     # local X↔Z swaps (Hadamard-like): [[0,1],[-1,0]] at sites
-    H = np.array([[0, 1], [-1 % p, 0]], dtype=np.int64)
-    D = np.eye(2*n, dtype=np.int64)
+    # H = np.array([[0, 1], [-1 % p, 0]], dtype=np.int64)
+    D = np.eye(2 * n, dtype=np.int64)
     for q in range(n):
         if rng.integers(0, 2):
             ix, iz = q, n + q

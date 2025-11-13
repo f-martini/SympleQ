@@ -94,7 +94,12 @@ def direct_construction(u: np.ndarray, v: np.ndarray) -> np.ndarray:
     A[1, n:] = v[:n]
     b = np.array([1, 1])
 
-    return solve_gf2(A, b)
+    solution = solve_gf2(A, b)
+
+    if solution is None:
+        raise Exception("Could not find a solution in gf2.")
+
+    return solution
 
 
 def solve_general_system(u: np.ndarray, v: np.ndarray) -> np.ndarray:
@@ -118,7 +123,12 @@ def solve_general_system(u: np.ndarray, v: np.ndarray) -> np.ndarray:
 
     b = np.array([1, 1])
 
-    return solve_gf2(A, b)
+    solution = solve_gf2(A, b)
+
+    if solution is None:
+        raise Exception("Could not find a solution in gf2.")
+
+    return solution
 
 
 def find_symplectic_solution_extended(u: np.ndarray, v: np.ndarray,
@@ -186,19 +196,24 @@ def solve_extended_system(u: np.ndarray, v: np.ndarray, t_vectors: list) -> np.n
         A[row_idx, n:] = t[:n]  # Z part of t_i multiplies X part of w
         b[row_idx] = symplectic_product_arrays(t, v)
 
-    return solve_gf2(A, b)
+    solution = solve_gf2(A, b)
+
+    if solution is None:
+        raise Exception("Could not find a solution in gf2.")
+
+    return solution
 
 
 def check_mappable_via_clifford(pauli_sum_tableau: np.ndarray,
                                 target_pauli_sum_tableau: np.ndarray,
-                                p: int=2) -> bool:
+                                p: int = 2) -> bool:
     sym_check = np.all(
         symplectic_product_matrix(pauli_sum_tableau, p) == symplectic_product_matrix(target_pauli_sum_tableau, p)
     )
     if sym_check:
         return True
-    else:
-        return False
+
+    return False
 
 
 def map_single_pauli_string_to_target(pauli_string_tableau: np.ndarray, target_pauli_string_tableau: np.ndarray,
@@ -211,7 +226,7 @@ def map_single_pauli_string_to_target(pauli_string_tableau: np.ndarray, target_p
 
         return F_h
 
-    elif sp == 0:
+    if sp == 0:
         w = find_symplectic_solution_extended(pauli_string_tableau, target_pauli_string_tableau, constraint_paulis)
         h_1 = target_pauli_string_tableau + w
         h_2 = pauli_string_tableau + w
