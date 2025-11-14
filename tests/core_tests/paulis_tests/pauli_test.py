@@ -689,8 +689,8 @@ class TestPaulis:
             if not dimensions:
                 dimensions = [random.choice(dimensions_to_choose_from)]
 
-            # random number of paulis
-            n_paulis = random.randint(1, int(max(dimensions)**2))
+            # random number of paulis. Has to be <= 2 * prod to guarantee unique PauliStrings.
+            n_paulis = random.randint(1, 2 * prod)
             P = PauliSum.from_random(n_paulis, dimensions, rand_phases=False)
             n_terms = P.n_paulis()
 
