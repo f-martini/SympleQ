@@ -7,11 +7,6 @@ inputs:
     required: false
     default: "3.11"
     type: string
-  cache-pip:
-    description: "Enable pip caching"
-    required: false
-    default: "true"
-    type: string
   setup-path:
     description: "Path to setup.py or pyproject.toml for project installation"
     required: false
@@ -116,7 +111,6 @@ runs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ inputs.python-version }}
-        cache: ${{ inputs.cache-pip == 'true' && 'pip' || '' }}
 
     - name: Setup CUDA
       if: inputs.enable-cuda == 'true'
@@ -133,6 +127,11 @@ runs:
         vcpkg-commit: ${{ inputs.vcpkg-commit }}
         platform: linux
         install-path: ${{ inputs.vcpkg-install-path }}
+
+    - name: Logs
+      run: |
+        echo "   Root: $VCPKG_ROOT"
+        echo "   Toolchain: $CMAKE_TOOLCHAIN"
 
     - name: Install vcpkg dependencies
       if: inputs.enable-vcpkg == 'true'

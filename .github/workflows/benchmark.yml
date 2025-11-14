@@ -24,8 +24,6 @@ jobs:
       - name: Determine Runner
         id: set-matrix
         uses: ./.github/actions/utils/determine-runner
-        with:
-          branch-pattern: "test-workflow"
 
   benchmark:
     needs: set-runner

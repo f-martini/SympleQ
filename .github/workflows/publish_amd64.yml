@@ -69,7 +69,7 @@ jobs:
           install-path: /tmp/vcpkg
 
       - name: Build wheels
-        uses: ./.github/actions/build/wheel
+        uses: ./.github/actions/project_build/wheel
         with:
           platform: linux
           architecture: ${{ env.CIBW_ARCHS_X64 }}
@@ -84,7 +84,7 @@ jobs:
           project-name: ${{ env.PROJECT_NAME }}
 
       - name: Upload artifacts
-        uses: ./.github/actions/build/upload-artifacts
+        uses: ./.github/actions/project_build/upload-artifacts
         with:
           artifact-name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
 
@@ -140,7 +140,7 @@ jobs:
           platform: windows
 
       - name: Build wheels
-        uses: ./.github/actions/build/wheel
+        uses: ./.github/actions/project_build/wheel
         with:
           platform: windows
           architecture: ${{ env.CIBW_ARCHS_X64_WIN }}
@@ -154,7 +154,7 @@ jobs:
           project-name: ${{ env.PROJECT_NAME }}
 
       - name: Upload artifacts
-        uses: ./.github/actions/build/upload-artifacts
+        uses: ./.github/actions/project_build/upload-artifacts
         with:
           artifact-name: wheels-windows-${{ matrix.arch }}-py${{ matrix.python }}
 
@@ -170,7 +170,7 @@ jobs:
 
       - name: Publish wheels to Test PyPI (on main branch push)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: ./.github/actions/build/publish
+        uses: ./.github/actions/project_build/publish
         with:
           project-name: ${{ env.PROJECT_NAME }}
           test-pypi-token: ${{ secrets.PYPI_TEST }}
@@ -178,7 +178,7 @@ jobs:
 
       - name: Publish wheels to PyPI (on release)
         if: github.event_name == 'release'
-        uses: ./.github/actions/build/publish
+        uses: ./.github/actions/project_build/publish
         with:
           project-name: ${{ env.PROJECT_NAME }}
           pypi-token: ${{ secrets.PYPI_TOKEN }}
