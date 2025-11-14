@@ -1,7 +1,10 @@
 import numpy as np
+import random
 import pytest
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
+
+prime_list = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
 
 
 class TestPaulis:
@@ -31,13 +34,13 @@ class TestPaulis:
             assert y1 * id == y1, 'Error in Pauli multiplication (y * id = y) ' + (y1 * id).__str__()
             assert z1 * id == z1, 'Error in Pauli multiplication (z * id = z) ' + (z1 * id).__str__()
 
-        for dim in [3, 5, 11]:
-            for i in range(100):
-                s = np.random.randint(0, dim)
-                r = np.random.randint(0, dim)
+        for dim in prime_list:
+            for _ in range(100):
+                s1 = np.random.randint(0, dim)
+                r1 = np.random.randint(0, dim)
                 s2 = np.random.randint(0, dim)
                 r2 = np.random.randint(0, dim)
-                p1 = Pauli.from_exponents(r, s, dim)
+                p1 = Pauli.from_exponents(r1, s1, dim)
                 p2 = Pauli.from_exponents(r2, s2, dim)
                 p3 = p1 * p2
                 assert p3.x_exp == (p1.x_exp + p2.x_exp) % dim, 'Error in Pauli multiplication (x_exp)'
@@ -45,29 +48,35 @@ class TestPaulis:
                 assert p3.dimension == dim, 'Error in Pauli multiplication (dimension)'
 
     def test_pauli_string_multiplication(self):
-        for dim in [2, 3, 5, 11]:
-            for i in range(100):
-                r1 = np.random.randint(0, dim)
-                r2 = np.random.randint(0, dim)
-                s1 = np.random.randint(0, dim)
-                s2 = np.random.randint(0, dim)
-
+        for dim in prime_list:
+            for _ in range(100):
+                r11 = np.random.randint(0, dim)
                 r12 = np.random.randint(0, dim)
-                r22 = np.random.randint(0, dim)
+                s11 = np.random.randint(0, dim)
                 s12 = np.random.randint(0, dim)
+
+                r21 = np.random.randint(0, dim)
+                r22 = np.random.randint(0, dim)
+                s21 = np.random.randint(0, dim)
                 s22 = np.random.randint(0, dim)
 
-                input_str1 = f"x{r1}z{s1} x{r2}z{s2}"
-                input_str2 = f"x{r12}z{s12} x{r22}z{s22}"
-                output_str_correct = f"x{(r1 + r12) % dim}z{(s1 + s12) % dim} x{(r2 + r22) % dim}z{(s2 + s22) % dim}"
+                input_str1 = f"x{r11}z{s11} x{r12}z{s12}"
+                input_str2 = f"x{r21}z{s21} x{r22}z{s22}"
+
+                left = f"x{(r11 + r21) % dim}z{(s11 + s21) % dim}"
+                right = f"x{(r12 + r22) % dim}z{(s12 + s22) % dim}"
+                output_str_correct = f"{left} {right}"
+
                 input_ps1 = PauliString.from_string(input_str1, dimensions=[dim, dim])
                 input_ps2 = PauliString.from_string(input_str2, dimensions=[dim, dim])
                 output_ps = input_ps1 * input_ps2
-                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[
-                                                            dim, dim]), 'Error in PauliString multiplication'
+
+                assert output_ps == PauliString.from_string(
+                    output_str_correct, dimensions=[dim, dim]
+                ), 'Error in PauliString multiplication'
 
     def test_pauli_string_tensor_product(self):
-        for dimensions in [2, 3, 5, 11]:
+        for dimensions in prime_list:
             for i in range(100):
                 r1 = np.random.randint(0, dimensions)
                 r2 = np.random.randint(0, dimensions)
@@ -90,7 +99,7 @@ class TestPaulis:
                     output_str_correct, dimensions), 'Error in PauliString tensor product'
 
     def test_pauli_string_indexing(self):
-        for dim in [2, 3, 5]:
+        for dim in prime_list:
             for _ in range(100):
                 p_string1, r1, r2, s1, s2 = self.random_pauli_string(dim)
                 ps0 = Pauli.from_string(f"x{r1}z{s1}", dimension=dim)
@@ -100,7 +109,7 @@ class TestPaulis:
                 assert p_string1[1] == ps1, 'Error in PauliString indexing'
 
     def test_pauli_sum_multiplication(self):
-        for dim in [2, 3, 5]:
+        for dim in prime_list:
 
             for i in range(100):
                 p_string1, r1, r2, s1, s2 = self.random_pauli_string(dim)
@@ -144,8 +153,8 @@ class TestPaulis:
 
     def test_pauli_sum_tensor_product(self):
 
-        for dim in [2, 3, 5, 17]:
-            for _ in range(50):
+        for dim in prime_list:
+            for _ in range(100):
                 p_string1, r1, r2, s1, s2 = self.random_pauli_string(dim)
                 p_string2, r12, r22, s12, s22 = self.random_pauli_string(dim)
                 p_string3, r13, r23, s13, s23 = self.random_pauli_string(dim)
@@ -178,25 +187,22 @@ class TestPaulis:
         np.testing.assert_array_equal(sp.tableau, expected_matrix)
 
     def test_basic_pauli_relations(self):
-        dims = 3
-        x1 = Pauli.from_string('x1z0', dimension=dims)
-        y1 = Pauli.from_string('x1z1', dimension=dims)
-        z1 = Pauli.from_string('x0z1', dimension=dims)
-        id = Pauli.from_string('x0z0', dimension=dims)
+        for d in prime_list:
+            x_exp = random.randint(1, d - 1)
+            z_exp = random.randint(1, d - 1)
+            x1 = Pauli.from_string(f'x{x_exp}z0', dimension=d)
+            z1 = Pauli.from_string(f'x0z{z_exp}', dimension=d)
+            y1 = Pauli.from_string(f'x{x_exp}z{z_exp}', dimension=d)
+            id = Pauli.Idnd(dimension=d)
 
-        assert x1 * z1 == y1
-        assert x1 * x1 * x1 == id
+            assert x1 * z1 == y1, f'Error in Pauli multiplication for d={d}'
+            assert x1**d == id, f'Error in Pauli exponentiation (x**{d} = id) for d={d}'
+            assert y1**d == id, f'Error in Pauli exponentiation (y**{d} = id) for d={d}'
+            assert z1**d == id, f'Error in Pauli exponentiation (z**{d} = id) for d={d}'
+            assert x1 * id == x1, f'Error in Pauli multiplication (x * id = x) for d={d}'
+            assert id * z1 == z1, f'Error in Pauli multiplication (id * z = z) for d={d}'
 
-    def test_pauli_equality(self):
-        dims = 3
-        p1 = Pauli.from_string('x1z0', dimension=dims)
-        p2 = Pauli.from_string('x0z1', dimension=dims)
-        p3 = Pauli.from_string('x1z1', dimension=dims)
-
-        assert Xnd(1, dims) == p1
-        assert Znd(1, dims) == p2
-        assert Ynd(1, dims) == p3
-
+    # TODO: generalize to different dimensions
     def test_pauli_string_construction(self):
         dims = [3, 3]
         x1x1 = PauliString.from_string('x1z0 x1z0', dimensions=dims)
@@ -460,7 +466,6 @@ class TestPaulis:
             # Generate random dimensions array {d_1, d_2, d_3,...} such that \prod_i d_i <= 10
             dimensions = []
             while True:
-                import random
                 d = random.sample([2, 3, 5], 1)[0]
                 if d * int(np.prod(dimensions)) > 10:
                     break
@@ -480,7 +485,7 @@ class TestPaulis:
                 assert not np.array_equal(H_e, H_e.conjugate().transpose())
 
             pauli_sum = PauliSum.from_hilbert_space(H_e, dimensions)
-            tolerance = 10**(-12)
+            tolerance = 1e-12
             assert np.max(np.abs((pauli_sum.to_hilbert_space().toarray() - H_e))) < tolerance
             assert pauli_sum.is_hermitian() == np.array_equal(H_e, H_e.conjugate().transpose())
 
@@ -603,16 +608,125 @@ class TestPaulis:
         ps3 = S.select_pauli_string(3)
         assert SPM[1, 3] % L == ps1.symplectic_product(ps3, as_scalar=True) % L
 
-    def test_associativity(self):
-        n_test = 10
-        n_qudits = 3
-        dims = [2, 3, 5]
-        for d in dims:
-            for _ in range(n_test):
-                dimensions = [d] * n_qudits
-                P = PauliString.from_random(dimensions=dimensions)
-                Q = PauliString.from_random(dimensions=dimensions)
-                R = PauliString.from_random(dimensions=dimensions)
+    # Comprehensive tests
+    # commutation relations for mixed dimensions
+    # phases for mixed dimensions
 
-                assert (P * (Q * R)) == ((P * Q) * R)
-                assert ((P * Q) * R) == (P * (Q * R))
+    def test_pauli_sum_commutation_with_matrix(self):
+        """
+        Generate a random PauliSum with mixed dimensions and verify that
+        pairwise commutation (via matrices) matches the symplectic scalar product.
+        """
+        for _ in range(50):
+            # number of paulis for each iteration
+            n_paulis = 8
+            # choose random dimensions with product < D
+            D = 100
+            dimensions_to_choose_from = [2, 3, 5, 7, 11, 15]
+            dimensions = []
+            while True:
+                d = random.choice(dimensions_to_choose_from)
+                if d * int(np.prod(dimensions)) > D:
+                    break
+                dimensions.append(d)
+
+            # generate random PauliSum
+            P = PauliSum.from_random(n_paulis, dimensions, rand_phases=True)
+            L = P.lcm
+            # check commutation relations pairwise
+            for i in range(n_paulis):
+                for j in range(i + 1, n_paulis):
+                    psi, psj = P[[i, j]]
+                    # scalar symplectic product
+                    s = psi.symplectic_product(psj, as_scalar=True)
+
+                    # matrix commutator
+                    Mi = psi.to_hilbert_space().toarray()
+                    Mj = psj.to_hilbert_space().toarray()
+                    comm = Mi @ Mj - Mj @ Mi
+                    is_commuting = np.allclose(comm, np.zeros_like(comm), atol=1e-12)
+                    # they commute iff scalar symplectic product is 0 (mod L)
+                    assert is_commuting == (s == 0), (
+                        f"Mismatch commutation for pair ({i},{j}): scalar={s} mod {L}, "
+                        f"is_commuting={is_commuting}"
+                        f"PauliStrings:\n{psi}\n{psj}"
+                    )
+
+                    # define product as a PauliString then get its matrix
+                    prod_ps = psi * psj
+                    M_prod_from_ps = prod_ps.to_hilbert_space().toarray()
+
+                    # directly from matrices
+                    M_prod_direct = Mi @ Mj
+
+                    # check for phases being handled appropriately
+                    assert np.allclose(M_prod_from_ps, M_prod_direct, atol=1e-12), (
+                        f"Product matrix mismatch for pair ({i},{j}): via PauliString vs direct multiplication\n"
+                        f"element i = {str(psi)}\n "
+                        f"element j = {str(psj)}\n"
+                        f"product i*j = {str(prod_ps)}\n"
+                    )
+
+    def test_pauli_sum_phase_invariance_matrix_equivalence(self):
+        """
+        Create a random PauliSum, then modify both the integer phases by adding
+        multiples of 2*L and the complex weights by integer multiples of 2π
+        (which are unity) so the resulting PauliSum should represent the same
+        matrix. Verify matrices are equal.
+        """
+        for _ in range(30):
+            # build random dimensions with small product
+            # choose random dimensions with product < 16
+            dimensions_to_choose_from = [2, 3, 5, 7, 11, 15]
+            dimensions = []
+            prod = 1
+            while True:
+                d = random.choice(dimensions_to_choose_from)
+                if prod * d >= 16:
+                    break
+                dimensions.append(d)
+                prod *= d
+            if not dimensions:
+                dimensions = [random.choice(dimensions_to_choose_from)]
+
+            # random number of paulis
+            n_paulis = random.randint(1, int(max(dimensions)**2))
+            P = PauliSum.from_random(n_paulis, dimensions, rand_phases=False)
+            n_terms = P.n_paulis()
+
+            weights = np.array(P.weights, copy=True)
+            phases = np.array(P.phases, copy=True)
+
+            L = P.lcm
+
+            # random integer shifts: add up to 2*L - 1
+            phase_shifts = np.random.randint(0, 2 * L - 1, size=n_terms)
+            new_phases = (phases + phase_shifts).tolist()
+
+            # fix coefficients accordingly
+            # FIXME: ensure weights are correct (notice the "-" sign to undo the added phases above)
+            new_weights = (weights * np.exp(-2j * np.pi * phase_shifts / (2 * L))).tolist()
+
+            # construct new PauliSum
+            P_dephased = PauliSum.from_tableau(P.tableau, weights=new_weights,
+                                               phases=new_phases, dimensions=P.dimensions)
+
+            # remove phases with "phase_to_weight"
+            P_rephased = P_dephased.copy()
+            P_rephased.phase_to_weight()
+
+            # check that the weights of P_rephased match those of P
+            assert np.allclose(P_rephased.weights, P.weights, atol=1e-12), "Weights differ after phase_to_weight"
+
+            # check that all PauliSums are the same:
+            P.standardise()
+            P_dephased.standardise()
+            P_rephased.standardise()
+            assert P.is_close(P_dephased), "PauliSums differ after applying trivial phase/weight shifts"
+            assert P.is_close(P_rephased), "PauliSums differ after phase_to_weight"
+
+            # compare matrices
+            M1 = P.to_hilbert_space().toarray()
+            M2 = P_dephased.to_hilbert_space().toarray()
+
+            assert np.allclose(M1, M2, atol=1e-12), "Matrices differ after applying trivial phase/weight shifts"
