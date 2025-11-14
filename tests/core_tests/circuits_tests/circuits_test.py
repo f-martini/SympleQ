@@ -17,8 +17,6 @@ class TestCircuits():
         for _ in range(n_tests):
             dimension_chosen = np.random.choice([2, 3, 5, 7, 11, 13, 17], size=1)[0]
             dims = [dimension_chosen for _ in range(np.random.randint(1, max_qudits))]
-            dims = [2, 3]
-            print("banana")
             target_x = np.random.randint(0, len(dims))
             ps = PauliString.from_random(dims)
             if ps.n_identities() == len(dims):
