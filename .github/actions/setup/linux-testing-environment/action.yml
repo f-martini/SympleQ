@@ -129,6 +129,7 @@ runs:
         install-path: ${{ inputs.vcpkg-install-path }}
 
     - name: Logs
+      shell: bash
       run: |
         echo "   Root: $VCPKG_ROOT"
         echo "   Toolchain: $CMAKE_TOOLCHAIN"
