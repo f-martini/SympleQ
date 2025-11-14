@@ -31,8 +31,8 @@ class TestPaulis:
             assert y1 * id == y1, 'Error in Pauli multiplication (y * id = y) ' + (y1 * id).__str__()
             assert z1 * id == z1, 'Error in Pauli multiplication (z * id = z) ' + (z1 * id).__str__()
 
-        for dim in [3, 5, 11]:
-            for i in range(100):
+        for dim in [2, 3, 5, 7, 11, 13, 17]:
+            for _ in range(100):
                 s = np.random.randint(0, dim)
                 r = np.random.randint(0, dim)
                 s2 = np.random.randint(0, dim)
@@ -45,8 +45,8 @@ class TestPaulis:
                 assert p3.dimension == dim, 'Error in Pauli multiplication (dimension)'
 
     def test_pauli_string_multiplication(self):
-        for dim in [2, 3, 5, 11]:
-            for i in range(100):
+        for dim in [2, 3, 5, 7, 11, 13, 17]:
+            for _ in range(100):
                 r1 = np.random.randint(0, dim)
                 r2 = np.random.randint(0, dim)
                 s1 = np.random.randint(0, dim)
