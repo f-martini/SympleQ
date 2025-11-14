@@ -64,6 +64,7 @@ runs:
             fi
             
             echo "VCPKG_ROOT=$VCPKG_ROOT" >> $GITHUB_ENV
+            echo "CMAKE_TOOLCHAIN=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
             echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
 
             echo "✅ vcpkg setup complete:"
