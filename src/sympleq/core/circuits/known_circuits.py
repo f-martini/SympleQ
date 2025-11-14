@@ -378,9 +378,14 @@ def _multi_qudit_x(pauli_string, target_index, ignore, circuit):
     raise Exception(f"No circuit found to convert {pauli_string} pauli to X")
 
 
-def to_x(pauli_string: PauliString, target_index: int, ignore: int | list[int] | None = None) -> Circuit:
-    """Finds a circuit to turn a PauliString to ****X*** where the X is at target_index"""
-
+def to_x(pauli_string: PauliString,
+         target_index: int,
+         ignore: int | list[int] | None = None) -> Circuit:
+    """Finds a circuit to turn a PauliString to ***X*** where the X is at target_index"""
+    # Check all dimensions are equal
+    dims = pauli_string.dimensions
+    if len(set(dims)) != 1:
+        raise ValueError(f"All dimensions of pauli_string must be equal, while got {dims}")
     ignore, target_index = _validate_inputs(pauli_string, target_index, ignore)
     circuit = Circuit(dimensions=pauli_string.dimensions)
     result = _single_qudit_x(pauli_string, target_index, circuit)
