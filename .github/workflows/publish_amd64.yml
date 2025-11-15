@@ -10,7 +10,7 @@ on:
 env:
   PROJECT_NAME: "sympleq"
   NATIVE_SRC_PATH: src
-  CUDA_VERSION: 12.6
+  CUDA_VERSION: "12.6.0"
   GCC_VERSION: 12
   VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
   LINUX_PRESET_X64: linux-x86_64-Release
@@ -54,10 +54,10 @@ jobs:
 
       - name: Setup CUDA
         id: cuda-setup
-        uses: ./.github/actions/setup/cuda
+        uses: Jimver/cuda-toolkit@v0.2.24
         with:
-          cuda-version: ${{ env.CUDA_VERSION }}
-          platform: linux
+          cuda: ${{ env.CUDA_VERSION }}
+          log-file-suffix: "${{ github.job }}.txt"
 
       - name: Setup vcpkg
         id: vcpkg-setup
@@ -126,10 +126,10 @@ jobs:
 
       - name: Setup CUDA
         id: cuda-setup
-        uses: ./.github/actions/setup/cuda
+        uses: Jimver/cuda-toolkit@v0.2.24
         with:
-          cuda-version: ${{ env.CUDA_VERSION }}
-          platform: windows
+          cuda: ${{ env.CUDA_VERSION }}
+          log-file-suffix: "${{ github.job }}.txt"
 
       - name: Setup vcpkg
         id: vcpkg-setup
