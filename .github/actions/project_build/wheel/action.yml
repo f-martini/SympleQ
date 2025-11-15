@@ -41,6 +41,10 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Diagnostic
+      shell: bash
+      run: echo "${{ input.cuda-path }}"
+
     - name: Build wheels (Linux)
       if: inputs.platform == 'linux'
       shell: bash
