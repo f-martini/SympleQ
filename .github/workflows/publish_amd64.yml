@@ -181,3 +181,19 @@ jobs:
         with:
           project-name: ${{ env.PROJECT_NAME }}
           pypi-token: ${{ secrets.PYPI_TOKEN }}
+
+  clear:
+    needs: [publish, build-linux-x64, build-windows-x64]
+    runs-on: ubuntu-latest
+    if: always() && github.event_name == 'release' && (needs.publish.result == 'failure' || needs.build-linux-x64.result == 'failure' || needs.build-windows-x64.result == 'failure')
+    steps:
+      - name: Delete release if workflow failed
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: context.payload.release.id
+            });
