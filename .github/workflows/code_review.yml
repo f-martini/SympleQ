@@ -49,6 +49,7 @@ jobs:
           dev-requirements: ${{ env.DEV_REQUIREMENTS }}
           extra-packages: "flake8"
           checkout: "false"
+          cuda_logs: ${{ github.job }}
 
       - name: Flake8
         run: |
@@ -72,6 +73,7 @@ jobs:
           dev-requirements: ${{ env.DEV_REQUIREMENTS }}
           extra-packages: "pytest pytest-cov"
           checkout: "false"
+          cuda_logs: ${{ github.job }}
 
       - name: Pytest (No Benchmarking)
         run: |

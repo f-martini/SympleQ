@@ -7,6 +7,10 @@ inputs:
   platform:
     description: "Target platform (linux or windows)"
     required: true
+  cuda_logs:
+    description: "Logs artifact name"
+    required: true
+    default: "-"
   method:
     description: "Installation method (network, local)"
     required: false
@@ -27,7 +31,7 @@ runs:
       with:
         cuda: "${{ inputs.cuda-version }}.0"
         method: ${{ inputs.method }}
-        use-github-cache: false
+        log-file-suffix: "${{ inputs.cuda_logs }}.txt"
 
     - name: Setup CUDA (Linux)
       if: inputs.platform == 'linux'

@@ -43,6 +43,7 @@ jobs:
           dev-requirements: ${{ env.DEV_REQUIREMENTS }}
           extra-packages: "pytest"
           checkout: "false"
+          cuda_logs: ${{ github.job }}
 
       - name: Run benchmarks
         run: |
@@ -72,6 +73,7 @@ jobs:
           setup-path: ${{ env.SETUP_PY }}
           dev-requirements: ${{ env.DEV_REQUIREMENTS }}
           checkout: "false"
+          cuda_logs: ${{ github.job }}
 
       - name: Run profiling with cProfile
         run: |

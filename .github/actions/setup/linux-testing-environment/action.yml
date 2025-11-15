@@ -42,6 +42,10 @@ inputs:
     required: false
     default: "12.6.0"
     type: string
+  cuda_logs:
+    description: "Logs artifact name"
+    required: true
+    default: "-"
   # vcpkg inputs
   enable-vcpkg:
     description: "Whether to setup vcpkg"
@@ -118,7 +122,7 @@ runs:
       uses: Jimver/cuda-toolkit@v0.2.24
       with:
       cuda: ${{ inputs.cuda-version }}
-      use-github-cache: false
+      log-file-suffix: "${{ inputs.cuda_logs }}.txt"
 
     - name: Setup vcpkg
       if: inputs.enable-vcpkg == 'true'
