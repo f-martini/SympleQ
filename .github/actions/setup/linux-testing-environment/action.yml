@@ -121,8 +121,8 @@ runs:
       id: cuda-setup
       uses: Jimver/cuda-toolkit@v0.2.24
       with:
-      cuda: ${{ inputs.cuda-version }}
-      log-file-suffix: "${{ inputs.cuda_logs }}.txt"
+        cuda: ${{ inputs.cuda-version }}
+        log-file-suffix: "${{ inputs.cuda_logs }}.txt"
 
     - name: Setup vcpkg
       if: inputs.enable-vcpkg == 'true'
