@@ -14,13 +14,9 @@ env:
   GCC_VERSION: 12
   VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
   LINUX_PRESET_X64: linux-x86_64-Release
-  LINUX_PRESET_ARM64: linux-arm64-Release
   WINDOWS_PRESET_X64: windows-x86_64-Release
   CIBW_ARCHS_X64: x86_64
   CIBW_ARCHS_X64_WIN: AMD64
-  CIBW_ARCHS_ARM64: aarch64
-  SETUP_SCRIPT_PATH_X64: scripts/tools/ci/manylinux_x86_64.sh
-  SETUP_SCRIPT_PATH_ARM64: scripts/tools/ci/manylinux_arm64.sh
   CMAKE_TOOLCHAIN_FILE: /tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
 
 jobs:
@@ -57,7 +53,7 @@ jobs:
         uses: Jimver/cuda-toolkit@v0.2.24
         with:
           cuda: ${{ env.CUDA_VERSION }}
-          log-file-suffix: "${{ github.job }}.txt"
+          log-file-suffix: "${{ github.job }}_${{ matrix.python }}.txt"
 
       - name: Setup vcpkg
         id: vcpkg-setup
@@ -129,7 +125,7 @@ jobs:
         uses: Jimver/cuda-toolkit@v0.2.24
         with:
           cuda: ${{ env.CUDA_VERSION }}
-          log-file-suffix: "${{ github.job }}.txt"
+          log-file-suffix: "${{ github.job }}_${{ matrix.python }}.txt"
 
       - name: Setup vcpkg
         id: vcpkg-setup
