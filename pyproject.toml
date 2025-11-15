@@ -1,5 +1,5 @@
 [build-system]
-requires = ["scikit-build-core[ninja]", "nanobind"]
+requires = ["scikit-build-core[ninja]", "nanobind", "setuptools-scm"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -21,8 +21,8 @@ dependencies = [
     "galois>=0.4.6,<1.0.0",
 ]
 name = "sympleq"
-version = "0.1.0-alpha.6"
-description = "QuAOS: Quantum Algorithms, Optomechanics and Simulations"
+dynamic = ["version"]
+description = "SympleQ"
 readme = "README.md"
 authors = [{ name = "Quaos-Lab", email = "sympleq.org@gmail.com" }]
 license = { text = "MIT" }
@@ -35,3 +35,8 @@ cmake.version = ">=3.21"
 build.verbose = true
 cmake.args = ["-DCMAKE_MESSAGE_LOG_LEVEL=STATUS", "-DCMAKE_VERBOSE_MAKEFILE=ON"]
 wheel.packages = ["./src/sympleq"]
+
+[tool.setuptools_scm]
+write_to = "src/sympleq/_version.py"
+version_scheme = "post-release"
+local_scheme = "node-and-timestamp"

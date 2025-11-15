@@ -3,7 +3,6 @@ name: Build and Publish QuAOS Wheels
 on:
   push:
     branches:
-      - main
       - dev
   release:
     types: [created]
@@ -162,18 +161,18 @@ jobs:
   publish:
     needs: [build-windows-x64, build-linux-x64]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
 
     steps:
       - name: Checkout repository (for actions)
         uses: actions/checkout@v4
 
       - name: Publish wheels to Test PyPI (on main branch push)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
         uses: ./.github/actions/project_build/publish
         with:
           project-name: ${{ env.PROJECT_NAME }}
-          test-pypi-token: ${{ secrets.PYPI_TEST }}
+          pypi-token: ${{ secrets.PYPI_TEST }}
           publish-to-test: "true"
 
       - name: Publish wheels to PyPI (on release)
@@ -182,4 +181,3 @@ jobs:
         with:
           project-name: ${{ env.PROJECT_NAME }}
           pypi-token: ${{ secrets.PYPI_TOKEN }}
-          publish-to-pypi: "true"
