@@ -11,17 +11,16 @@ export SRC_REQUIREMENTS=scripts/configs/requirements.txt
 # Docs env variables
 export DOC_VENV=$DOC_ROOT/doc_venv
 export DOC_REQUIREMENTS=$DOC_ROOT/doc_requirements.txt
-export DOC_AUTOSUMMARY=$DOC_ROOT/index/_autosummary
+export DOC_AUTOSUMMARY=$DOC_ROOT/index/guides/_autosummary
 export DOC_BUILD_DIR=$DOC_ROOT/_build/html
 export DOC_INDEX=$DOC_ROOT/_build/html/index.html
 
 # Setup dev environment env variables
-export PYTHON_PY_SETUP=$CONFIGS_ROOT
+export PYTHON_PY_SETUP="./"
 export PERSONAL_FOLDER=scripts/personal
+export DIST_FOLDER=dist/
 export DEV_REQUIREMENTS=scripts/configs/dev_requirements.txt
-
-# Python requirements synching env variables
-export SYNC_REQUIREMENTS_SCRIPT=scripts/tools/python/sync_requirements.py
+export CMAKE_X86_64_PRESET=linux-x86_64-RelWithDebInfo
 
 # Clear notebooks env variables
 export NOTEBOOKS_ROOT_DIR=$PROJECT_ROOT

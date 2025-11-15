@@ -1,0 +1,183 @@
+name: Build and Publish QuAOS Wheels
+
+on:
+  push:
+    branches:
+      - dev
+  release:
+    types: [created]
+
+env:
+  PROJECT_NAME: "sympleq"
+  NATIVE_SRC_PATH: src
+  CUDA_VERSION: 12.6
+  GCC_VERSION: 12
+  VCPKG_COMMIT_ID: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
+  LINUX_PRESET_X64: linux-x86_64-Release
+  LINUX_PRESET_ARM64: linux-arm64-Release
+  WINDOWS_PRESET_X64: windows-x86_64-Release
+  CIBW_ARCHS_X64: x86_64
+  CIBW_ARCHS_X64_WIN: AMD64
+  CIBW_ARCHS_ARM64: aarch64
+  SETUP_SCRIPT_PATH_X64: scripts/tools/ci/manylinux_x86_64.sh
+  SETUP_SCRIPT_PATH_ARM64: scripts/tools/ci/manylinux_arm64.sh
+  CMAKE_TOOLCHAIN_FILE: /tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+jobs:
+  build-linux-x64:
+    name: Build Linux - ${{ matrix.arch }} - Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64]
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Free up disk space
+        uses: ./.github/actions/cleanup/free-disk-space
+        with:
+          platform: linux
+          aggressive: "true"
+
+      - name: Setup Python environment
+        id: python-setup
+        uses: ./.github/actions/setup/python-environment
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.arch }}
+
+      - name: Setup CUDA
+        id: cuda-setup
+        uses: ./.github/actions/setup/cuda
+        with:
+          cuda-version: ${{ env.CUDA_VERSION }}
+          platform: linux
+
+      - name: Setup vcpkg
+        id: vcpkg-setup
+        uses: ./.github/actions/setup/vcpkg
+        with:
+          vcpkg-commit: ${{ env.VCPKG_COMMIT_ID }}
+          platform: linux
+          install-path: /tmp/vcpkg
+
+      - name: Build wheels
+        uses: ./.github/actions/project_build/wheel
+        with:
+          platform: linux
+          architecture: ${{ env.CIBW_ARCHS_X64 }}
+          python-version: ${{ matrix.python }}
+          cibw-build: ${{ steps.python-setup.outputs.cibw-build }}
+          cuda-path: ${{ steps.cuda-setup.outputs.cuda-path }}
+          vcpkg-root: ${{ steps.vcpkg-setup.outputs.vcpkg-root }}
+          cmake-toolchain: ${{ steps.vcpkg-setup.outputs.cmake-toolchain }}
+          cmake-preset: ${{ env.LINUX_PRESET_X64 }}
+          source-path: ${{ env.NATIVE_SRC_PATH }}
+          gcc-version: ${{ env.GCC_VERSION }}
+          project-name: ${{ env.PROJECT_NAME }}
+
+      - name: Upload artifacts
+        uses: ./.github/actions/project_build/upload-artifacts
+        with:
+          artifact-name: wheels-linux-${{ matrix.arch }}-py${{ matrix.python }}
+
+      - name: Post cleanup
+        uses: ./.github/actions/cleanup/free-disk-space
+        with:
+          platform: linux
+          aggressive: "true"
+
+  build-windows-x64:
+    name: Build Windows x64 - ${{ matrix.arch }} - Python ${{ matrix.python }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64]
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Free up disk space
+        uses: ./.github/actions/cleanup/free-disk-space
+        with:
+          platform: windows
+
+      - name: Setup Python environment
+        id: python-setup
+        uses: ./.github/actions/setup/python-environment
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.arch }}
+          include-cibuildwheel: "false"
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup CUDA
+        id: cuda-setup
+        uses: ./.github/actions/setup/cuda
+        with:
+          cuda-version: ${{ env.CUDA_VERSION }}
+          platform: windows
+
+      - name: Setup vcpkg
+        id: vcpkg-setup
+        uses: ./.github/actions/setup/vcpkg
+        with:
+          vcpkg-commit: ${{ env.VCPKG_COMMIT_ID }}
+          platform: windows
+
+      - name: Build wheels
+        uses: ./.github/actions/project_build/wheel
+        with:
+          platform: windows
+          architecture: ${{ env.CIBW_ARCHS_X64_WIN }}
+          python-version: ${{ matrix.python }}
+          cibw-build: ${{ steps.python-setup.outputs.cibw-build }}
+          cuda-path: ${{ steps.cuda-setup.outputs.cuda-path }}
+          vcpkg-root: ${{ steps.vcpkg-setup.outputs.vcpkg-root }}
+          cmake-toolchain: ${{ steps.vcpkg-setup.outputs.cmake-toolchain }}
+          cmake-preset: ${{ env.WINDOWS_PRESET_X64 }}
+          source-path: ${{ env.NATIVE_SRC_PATH }}
+          project-name: ${{ env.PROJECT_NAME }}
+
+      - name: Upload artifacts
+        uses: ./.github/actions/project_build/upload-artifacts
+        with:
+          artifact-name: wheels-windows-${{ matrix.arch }}-py${{ matrix.python }}
+
+  # ===== Collect and publish wheels =====
+  publish:
+    needs: [build-windows-x64, build-linux-x64]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+
+    steps:
+      - name: Checkout repository (for actions)
+        uses: actions/checkout@v4
+
+      - name: Publish wheels to Test PyPI (on main branch push)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        uses: ./.github/actions/project_build/publish
+        with:
+          project-name: ${{ env.PROJECT_NAME }}
+          pypi-token: ${{ secrets.PYPI_TEST }}
+          publish-to-test: "true"
+
+      - name: Publish wheels to PyPI (on release)
+        if: github.event_name == 'release'
+        uses: ./.github/actions/project_build/publish
+        with:
+          project-name: ${{ env.PROJECT_NAME }}
+          pypi-token: ${{ secrets.PYPI_TOKEN }}

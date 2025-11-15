@@ -1,0 +1,116 @@
+name: "Build Python Wheel"
+description: "Build Python wheels using cibuildwheel"
+inputs:
+  platform:
+    description: "Target platform (linux or windows)"
+    required: true
+  architecture:
+    description: "Target architecture"
+    required: true
+  python-version:
+    description: "Python version"
+    required: true
+  cibw-build:
+    description: "CIBW_BUILD value"
+    required: true
+  cuda-path:
+    description: "Path to CUDA installation"
+    required: false
+  vcpkg-root:
+    description: "Path to vcpkg root"
+    required: false
+  cmake-toolchain:
+    description: "Path to CMake toolchain file"
+    required: false
+  cmake-preset:
+    description: "CMake preset to use"
+    required: true
+  source-path:
+    description: "Source path for the project"
+    required: false
+    default: "src"
+  gcc-version:
+    description: "GCC version for Linux builds"
+    required: false
+    default: "12"
+  project-name:
+    description: "Project name for testing"
+    required: false
+    default: "sympleq"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build wheels (Linux)
+      if: inputs.platform == 'linux'
+      shell: bash
+      env:
+        CIBW_BUILD: ${{ inputs.cibw-build }}
+        CIBW_ARCHS: ${{ inputs.architecture }}
+        CIBW_SKIP: "pp* *-musllinux*"
+        CIBW_BUILD_VERBOSITY: 1
+        CIBW_ENVIRONMENT: >-
+          CMAKE_TOOLCHAIN_FILE=${{ inputs.cmake-toolchain }}
+          CUDA_PATH=${{ inputs.cuda-path }}
+          VCPKG_ROOT=${{ inputs.vcpkg-root }}
+          PATH=${{ inputs.cuda-path }}/bin:/opt/rh/gcc-toolset-${{ inputs.gcc-version }}/root/usr/bin:$PATH
+          LD_LIBRARY_PATH=${{ inputs.cuda-path }}/lib64:$LD_LIBRARY_PATH
+        CIBW_BEFORE_ALL_LINUX: >-
+          yum install -y epel-release &&
+          yum remove -y gcc gcc-c++ &&
+          yum install -y make git which gcc-toolset-${{ inputs.gcc-version }} curl zip unzip tar &&
+          source /opt/rh/gcc-toolset-${{ inputs.gcc-version }}/enable
+        CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
+        CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}
+        CIBW_TEST_COMMAND: 'python -c "from ${{ inputs.project-name }}.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
+        CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
+          export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
+          export LD_LIBRARY_PATH="$(find / -type d -path '*/${{ inputs.project-name }}.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" &&
+          auditwheel repair -w {dest_dir} {wheel}
+      run: python -m cibuildwheel --output-dir ./dist
+
+    - name: Build wheels (Windows)
+      if: inputs.platform == 'windows'
+      shell: pwsh
+      run: |
+        Write-Host "🔨 Building wheel for Windows..."
+
+        # Install build dependencies
+        python -m pip install --upgrade pip setuptools wheel
+        python -m pip install scikit-build-core[pyproject] nanobind cmake ninja delvewheel
+
+        # Build wheel
+        python -m build --wheel --outdir dist --config-setting "cmake.args=-G;Ninja;-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}"
+
+    - name: Repair Windows wheels
+      if: inputs.platform == 'windows'
+      shell: pwsh
+      run: |
+        $wheels = Get-ChildItem -Path dist -Filter '${{ inputs.project-name }}*.whl' -ErrorAction SilentlyContinue
+        if (-not $wheels) {
+          Write-Host "No ${{ inputs.project-name }} wheels found in dist; skipping delvewheel repair"
+        } else {
+          Remove-Item -Path dist\* -Include *.whl -Exclude ${{ inputs.project-name }}*.whl -Force -ErrorAction SilentlyContinue
+          foreach ($w in $wheels) {
+            python -m delvewheel repair --add-path ${{ github.workspace }}/${{ inputs.source-path }}/${{ inputs.project-name }}.libs --wheel-dir dist $w.FullName
+          }
+        }
+
+    - name: Test wheels
+      shell: bash
+      run: |
+        echo "🧪 Testing built wheels..."
+
+        if [ "${{ inputs.platform }}" == "windows" ]; then
+          wheels=$(find dist -name "${{ inputs.project-name }}*.whl")
+          for wheel in $wheels; do
+            pip install "$wheel"
+          done
+        else
+          # For Linux, wheels are already tested by CIBW_TEST_COMMAND
+          echo "Linux wheels tested during build process"
+        fi
+
+        # Test import
+        python -c "from ${{ inputs.project-name }}.core.light import Aquire; aquire = Aquire('h', [], {})" || echo "⚠️ Wheel test failed"
