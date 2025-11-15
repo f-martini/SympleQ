@@ -2,12 +2,6 @@
   "editor.renderWhitespace": "all",
   "editor.rulers": [120],
   "editor.formatOnSave": true,
-  "files.exclude": {
-    "**/_autosummary": true
-  },
-  "search.exclude": {
-    "**/_autosummary": true
-  },
   "[python]": {
     "editor.defaultFormatter": "ms-python.autopep8"
   },
