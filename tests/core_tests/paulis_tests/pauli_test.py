@@ -304,10 +304,9 @@ class TestPaulis:
             assert False, (f"PauliSum used are not of type PauliSum, being them \n{psum}\n and \n{expected}\n,"
                            f"with dimensions {dimensions}")
 
-    # TODO: arrived here
     def test_phase_and_dot_product(self):
 
-        for _ in range (250):
+        for _ in range(250):
             d = random.choice(prime_list)
             x = PauliString.from_string('x1z0', dimensions=[d])
             z = PauliString.from_string('x0z1', dimensions=[d])
@@ -315,24 +314,27 @@ class TestPaulis:
             assert z.acquired_phase(x) == 2.0, 'Expected phase to be 2.0, got {}'.format(z.acquired_phase(x))
             assert x.acquired_phase(z) == 0.0, 'Expected phase to be 0.0, got {}'.format(x.acquired_phase(z))
 
-        dims = [3, 3]
-        x1x1 = PauliSum.from_pauli_strings(PauliString.from_string('x1z0 x1z0', dimensions=dims))
-        x1y1 = PauliSum.from_pauli_strings(PauliString.from_string('x1z0 x1z1', dimensions=dims))
+        for _ in range(250):
+            dims = [random.choice(prime_list) for _ in range(2)]
+            x1x1 = PauliSum.from_pauli_strings(PauliString.from_string('x1z0 x1z0', dimensions=dims))
+            x1y1 = PauliSum.from_pauli_strings(PauliString.from_string('x1z0 x1z1', dimensions=dims))
 
-        s1 = x1x1 + x1y1 * 0.5
-        s2 = x1x1 + x1x1
-        print("1", s1.tableau)
-        print("2", s2.tableau)
+            # define random weight
+            random_weight = random.normalvariate(0, 1)
+            # phase correction for this specific case
+            phases_correction = 2 * x1x1.lcm // dims[-1]
 
-        s3 = PauliSum.from_string(['x2z0 x2z0', 'x2z0 x2z0', 'x2z0 x2z1', 'x2z0 x2z1'],
-                                  weights=[1, 1, 0.5, 0.5],
-                                  phases=[0, 0, 2, 2],
-                                  dimensions=dims)
+            s1 = x1x1 + x1y1 * random_weight
+            s2 = x1x1 + x1x1
 
-        print("3", s3.tableau)
+            s3 = PauliSum.from_string(['x2z0 x2z0', 'x2z0 x2z0', 'x2z0 x2z1', 'x2z0 x2z1'],
+                                      weights=[1, 1, random_weight, random_weight],
+                                      phases=[0, 0, phases_correction, phases_correction],
+                                      dimensions=dims)
 
-        assert s1 * s2 == s3, 'Expected s1 * s2 to equal s3, got {}'.format(s1 * s2) + '\n' + s3.__str__()
+            assert s1 * s2 == s3, f'Expected s1 * s2 to equal s3, got \n{s1 * s2}\n instead of \n{s3}\n'
 
+    # TODO: arrived here
     def test_tensor_product_distributivity(self):
         dimensions = [3, 3]
         x1x1 = PauliSum.from_string('x1z0 x1z0', dimensions)
