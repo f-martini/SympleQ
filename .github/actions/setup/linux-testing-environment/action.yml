@@ -117,7 +117,8 @@ runs:
       id: cuda-setup
       uses: Jimver/cuda-toolkit@v0.2.24
       with:
-        cuda: ${{ inputs.cuda-version }}
+      cuda: ${{ inputs.cuda-version }}
+      use-github-cache: false
 
     - name: Setup vcpkg
       if: inputs.enable-vcpkg == 'true'
