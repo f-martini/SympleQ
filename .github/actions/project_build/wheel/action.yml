@@ -78,7 +78,7 @@ runs:
 
         # Install build dependencies
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install scikit-build-core[pyproject] nanobind cmake ninja delvewheel
+        python -m pip install build scikit-build-core[pyproject] nanobind cmake ninja delvewheel
 
         # Build wheel
         python -m build --wheel --outdir dist --config-setting "cmake.args=-G;Ninja;-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}"
