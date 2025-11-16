@@ -43,7 +43,7 @@ jobs:
       - name: Build wheels
         uses: ./.github/actions/project_build/wheel/manylinux
         with:
-          platform: linux
+          matrix-arc: ${{ matrix.arch }}
           architecture: ${{ env.CIBW_ARCHS_X64 }}
           python-version: ${{ matrix.python }}
           cmake-preset: ${{ env.LINUX_PRESET_X64 }}
@@ -87,6 +87,7 @@ jobs:
       - name: Build wheels
         uses: ./.github/actions/project_build/wheel/windows
         with:
+          matrix-arc: ${{ matrix.arch }}
           architecture: ${{ env.CIBW_ARCHS_X64_WIN }}
           python-version: ${{ matrix.python }}
           vcpkg-commit: ${{ env.VCPKG_COMMIT_ID }}

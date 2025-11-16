@@ -4,6 +4,9 @@ inputs:
   platform:
     description: "Target platform (linux or windows)"
     required: true
+  matrix-arc:
+    description: "Matrix architecture (x64, x86, arm64)"
+    required: true
   architecture:
     description: "Target architecture"
     required: true
@@ -42,7 +45,7 @@ runs:
       uses: ./.github/actions/setup/python-environment
       with:
         python-version: "${{ inputs.python-version }}.x"
-        architecture: ${{ inputs.architecture }}
+        architecture: ${{ inputs.matrix-arc }}
         include-cibuildwheel: "true"
 
     - name: Build wheels (Linux)

@@ -1,6 +1,9 @@
 name: "Build Windows Python Wheel"
 description: "Build Python wheels for Windows platform"
 inputs:
+  matrix-arc:
+    description: "Matrix architecture (x64, x86, arm64)"
+    required: true
   architecture:
     description: "Target architecture (x64, x86, arm64)"
     required: true
@@ -36,7 +39,7 @@ runs:
       uses: ./.github/actions/setup/python-environment
       with:
         python-version: "${{ inputs.python-version }}.x"
-        architecture: ${{ inputs.architecture }}
+        architecture: ${{ inputs.matrix-arc }}
         include-cibuildwheel: "false"
 
     - name: Set up MSVC environment
@@ -47,7 +50,7 @@ runs:
       uses: Jimver/cuda-toolkit@v0.2.24
       with:
         cuda: ${{ env.CUDA_VERSION }}
-        log-file-suffix: "windows_${{ inputs.architecture }}_${{ inputs.python-version }}.txt"
+        log-file-suffix: "windows_${{ inputs.matrix-arc }}_${{ inputs.python-version }}.txt"
 
     - name: Setup vcpkg
       id: vcpkg-setup
