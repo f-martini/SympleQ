@@ -83,7 +83,7 @@ outputs:
     value: ${{ steps.python-setup.outputs.cache-dir }}
   cuda-path:
     description: "Path to CUDA installation"
-    value: ${{ steps.cuda-setup.outputs.cuda-path }}
+    value: ${{ steps.cuda-setup.outputs.CUDA_PATH }}
   vcpkg-root:
     description: "Path to vcpkg root"
     value: ${{ steps.vcpkg-setup.outputs.vcpkg-root }}
