@@ -1,0 +1,79 @@
+name: "Build Python Wheel"
+description: "Build Python wheels using cibuildwheel"
+inputs:
+  platform:
+    description: "Target platform (linux or windows)"
+    required: true
+  architecture:
+    description: "Target architecture"
+    required: true
+  python-version:
+    description: "Python version"
+    required: true
+  cmake-preset:
+    description: "CMake preset to use"
+    required: true
+  source-path:
+    description: "Source path for the project"
+    required: false
+    default: "src"
+  gcc-version:
+    description: "GCC version for Linux builds"
+    required: false
+    default: "12"
+  project-name:
+    description: "Project name for testing"
+    required: false
+    default: "sympleq"
+  cuda-version:
+    description: "CUDA version to install"
+    required: false
+    default: "12.6"
+  vcpkg-commit:
+    description: "vcpkg commit ID"
+    required: false
+    default: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Generate CIBW_BUILD value
+      shell: bash
+      run: |
+        CIBW_BUILD="cp$(echo ${{ inputs.python-version }} | tr -d '.')-*"
+        echo "CIBW_BUILD=$CIBW_BUILD" >> $GITHUB_ENV
+
+    - name: Build wheels (Linux)
+      shell: bash
+      env:
+        CIBW_BUILD: ${{ env.CIBW_BUILD }}
+        CIBW_ARCHS: ${{ inputs.architecture }}
+        CIBW_SKIP: "pp* *-musllinux*"
+        CIBW_BUILD_VERBOSITY: 1
+        CIBW_ENVIRONMENT: >-
+          CMAKE_TOOLCHAIN_FILE=/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake
+          CUDA_PATH=/usr/local/cuda
+          VCPKG_ROOT=/tmp/vcpkg
+          PATH=/usr/local/cuda/bin:/opt/rh/gcc-toolset-${{ inputs.gcc-version }}/root/usr/bin:$PATH
+          LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+        CIBW_BEFORE_ALL_LINUX: >-
+          yum install -y epel-release &&
+          yum remove -y gcc gcc-c++ &&
+          yum install -y make git which gcc-toolset-${{ inputs.gcc-version }} curl zip unzip tar &&
+          source /opt/rh/gcc-toolset-${{ inputs.gcc-version }}/enable &&
+          wget https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-keyring-1.0-1.noarch.rpm &&
+          rpm -i cuda-keyring-1.0-1.noarch.rpm &&
+          yum install -y cuda-toolkit-${{ inputs.cuda-version }} &&
+          git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
+          cd /tmp/vcpkg && git checkout ${{ inputs.vcpkg-commit }} &&
+          ./bootstrap-vcpkg.sh &&
+          cd /github/workspace/src && /tmp/vcpkg/vcpkg install --recurse
+        CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
+        CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}
+        CIBW_TEST_COMMAND: 'python -c "from ${{ inputs.project-name }}.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
+        CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
+          export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
+          export LD_LIBRARY_PATH="$(find / -type d -path '*/${{ inputs.project-name }}.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" &&
+          auditwheel repair -w {dest_dir} {wheel}
+      run: python -m cibuildwheel --output-dir ./dist

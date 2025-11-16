@@ -6,7 +6,6 @@ on:
       - dev
   release:
     types: [created]
-
 env:
   PROJECT_NAME: "sympleq"
   NATIVE_SRC_PATH: src
@@ -41,42 +40,18 @@ jobs:
           platform: linux
           aggressive: "true"
 
-      - name: Setup Python environment
-        id: python-setup
-        uses: ./.github/actions/setup/python-environment
-        with:
-          python-version: ${{ matrix.python }}
-          architecture: ${{ matrix.arch }}
-
-      - name: Setup CUDA
-        id: cuda-setup
-        uses: Jimver/cuda-toolkit@v0.2.24
-        with:
-          cuda: ${{ env.CUDA_VERSION }}
-          log-file-suffix: "${{ github.job }}_${{ matrix.python }}.txt"
-
-      - name: Setup vcpkg
-        id: vcpkg-setup
-        uses: ./.github/actions/setup/vcpkg
-        with:
-          vcpkg-commit: ${{ env.VCPKG_COMMIT_ID }}
-          platform: linux
-          install-path: /tmp/vcpkg
-
       - name: Build wheels
-        uses: ./.github/actions/project_build/wheel
+        uses: ./.github/actions/project_build/wheel/manylinux
         with:
           platform: linux
           architecture: ${{ env.CIBW_ARCHS_X64 }}
           python-version: ${{ matrix.python }}
-          cibw-build: ${{ steps.python-setup.outputs.cibw-build }}
-          cuda-path: ${{ steps.cuda-setup.outputs.cuda-path }}
-          vcpkg-root: ${{ steps.vcpkg-setup.outputs.vcpkg-root }}
-          cmake-toolchain: ${{ steps.vcpkg-setup.outputs.cmake-toolchain }}
           cmake-preset: ${{ env.LINUX_PRESET_X64 }}
           source-path: ${{ env.NATIVE_SRC_PATH }}
           gcc-version: ${{ env.GCC_VERSION }}
           project-name: ${{ env.PROJECT_NAME }}
+          cuda-version: ${{ env.CUDA_VERSION }}
+          vcpkg-commit: ${{ env.VCPKG_COMMIT_ID }}
 
       - name: Upload artifacts
         uses: ./.github/actions/project_build/upload-artifacts
@@ -109,41 +84,13 @@ jobs:
         with:
           platform: windows
 
-      - name: Setup Python environment
-        id: python-setup
-        uses: ./.github/actions/setup/python-environment
-        with:
-          python-version: ${{ matrix.python }}
-          architecture: ${{ matrix.arch }}
-          include-cibuildwheel: "false"
-
-      - name: Set up MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Setup CUDA
-        id: cuda-setup
-        uses: Jimver/cuda-toolkit@v0.2.24
-        with:
-          cuda: ${{ env.CUDA_VERSION }}
-          log-file-suffix: "${{ github.job }}_${{ matrix.python }}.txt"
-
-      - name: Setup vcpkg
-        id: vcpkg-setup
-        uses: ./.github/actions/setup/vcpkg
-        with:
-          vcpkg-commit: ${{ env.VCPKG_COMMIT_ID }}
-          platform: windows
-
       - name: Build wheels
-        uses: ./.github/actions/project_build/wheel
+        uses: ./.github/actions/project_build/wheel/windows
         with:
-          platform: windows
           architecture: ${{ env.CIBW_ARCHS_X64_WIN }}
           python-version: ${{ matrix.python }}
-          cibw-build: ${{ steps.python-setup.outputs.cibw-build }}
-          cuda-path: ${{ steps.cuda-setup.outputs.cuda-path }}
-          vcpkg-root: ${{ steps.vcpkg-setup.outputs.vcpkg-root }}
-          cmake-toolchain: ${{ steps.vcpkg-setup.outputs.cmake-toolchain }}
+          vcpkg-commit: ${{ env.VCPKG_COMMIT_ID }}
+          cuda-version: ${{ env.CUDA_VERSION }}
           cmake-preset: ${{ env.WINDOWS_PRESET_X64 }}
           source-path: ${{ env.NATIVE_SRC_PATH }}
           project-name: ${{ env.PROJECT_NAME }}
@@ -153,7 +100,6 @@ jobs:
         with:
           artifact-name: wheels-windows-${{ matrix.arch }}-py${{ matrix.python }}
 
-  # ===== Collect and publish wheels =====
   publish:
     needs: [build-windows-x64, build-linux-x64]
     runs-on: ubuntu-latest
