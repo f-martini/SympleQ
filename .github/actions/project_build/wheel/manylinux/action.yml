@@ -41,7 +41,7 @@ runs:
       id: python-setup
       uses: ./.github/actions/setup/python-environment
       with:
-        python-version: ${{ inputs.python-version }}
+        python-version: "${{ inputs.python-version }}.x"
         architecture: ${{ inputs.architecture }}
         include-cibuildwheel: "true"
 

@@ -11,7 +11,7 @@ inputs:
     description: "CUDA version to install"
     required: false
     default: "12.6"
-  vcpkg_commit:
+  vcpkg-commit:
     description: "vcpkg commit ID to use"
     required: false
     default: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
@@ -35,7 +35,7 @@ runs:
       id: python-setup
       uses: ./.github/actions/setup/python-environment
       with:
-        python-version: ${{ inputs.python-version }}
+        python-version: "${{ inputs.python-version }}.x"
         architecture: ${{ inputs.architecture }}
         include-cibuildwheel: "false"
 
@@ -53,7 +53,7 @@ runs:
       id: vcpkg-setup
       uses: ./.github/actions/setup/vcpkg
       with:
-        vcpkg-commit: ${{ inputs.vcpkg_commit }}
+        vcpkg-commit: ${{ inputs.vcpkg-commit }}
         platform: windows
 
     - name: Build Windows wheel
