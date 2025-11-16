@@ -66,13 +66,17 @@ runs:
           yum remove -y gcc gcc-c++ &&
           yum install -y make git which gcc-toolset-${{ inputs.gcc-version }} curl zip unzip tar &&
           source /opt/rh/gcc-toolset-${{ inputs.gcc-version }}/enable &&
-          wget https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-keyring-1.0-1.noarch.rpm &&
+          export CC=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/gcc &&
+          export CXX=/opt/rh/gcc-toolset-${{ env.GCC_VERSION }}/root/usr/bin/g++ &&
+          curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-keyring-1.0-1.noarch.rpm &&
           rpm -i cuda-keyring-1.0-1.noarch.rpm &&
           yum install -y cuda-toolkit-${{ inputs.cuda-version }} &&
           git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg &&
-          cd /tmp/vcpkg && git checkout ${{ inputs.vcpkg-commit }} &&
+          cd /tmp/vcpkg && 
+          git checkout ${{ inputs.vcpkg-commit }} &&
           ./bootstrap-vcpkg.sh &&
-          cd /github/workspace/src && /tmp/vcpkg/vcpkg install --recurse
+          cd /github/workspace/src && 
+          /tmp/vcpkg/vcpkg install --recurse
         CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
         CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}
         CIBW_TEST_COMMAND: 'python -c "from ${{ inputs.project-name }}.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
