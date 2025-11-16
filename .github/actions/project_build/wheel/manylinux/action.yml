@@ -37,11 +37,13 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Generate CIBW_BUILD value
-      shell: bash
-      run: |
-        CIBW_BUILD="cp$(echo ${{ inputs.python-version }} | tr -d '.')-*"
-        echo "CIBW_BUILD=$CIBW_BUILD" >> $GITHUB_ENV
+    - name: Setup Python environment
+      id: python-setup
+      uses: ./.github/actions/setup/python-environment
+      with:
+        python-version: ${{ inputs.python-version }}
+        architecture: ${{ inputs.architecture }}
+        include-cibuildwheel: "true"
 
     - name: Build wheels (Linux)
       shell: bash
