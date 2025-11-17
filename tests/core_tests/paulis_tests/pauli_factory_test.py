@@ -11,12 +11,26 @@ prime_list = [2, 3, 5, 7, 11, 13]
 class TestPauliSumFactories:
 
     def test_from_pauli_basic(self):
-        ps = PauliString.from_exponents([1, 0], [0, 1], [2, 3])
-        pauli = Pauli(ps.tableau, ps.dimensions, ps.weights, ps.phases)
-        P = PauliSum.from_pauli(pauli)
+        pauli = Pauli.from_string('x1z2', 3)
 
+        ps = PauliString.from_pauli(pauli)
+        assert np.array_equal(ps.tableau, pauli.tableau)
+        assert np.array_equal(ps.dimensions, pauli.dimensions)
+
+        P = PauliSum.from_pauli(pauli)
         assert np.array_equal(P.tableau, pauli.tableau)
         assert np.array_equal(P.dimensions, pauli.dimensions)
+
+        pauli_exp = Pauli.from_exponents(1, 2, 3)
+        assert np.array_equal(pauli_exp.tableau, pauli.tableau)
+        assert np.array_equal(pauli_exp.dimensions, pauli.dimensions)
+
+        pauli_tableau = Pauli.from_tableau([1, 2], 3)
+        assert np.array_equal(pauli_tableau.tableau, pauli.tableau)
+        assert np.array_equal(pauli_tableau.dimensions, pauli.dimensions)
+
+        with pytest.raises(ValueError):
+            pauli = Pauli.from_string('x1z2 x2z2', 3)
 
     def test_from_pauli_strings_single(self):
         ps = PauliString.from_exponents([0, 1], [1, 0], [3, 2])
