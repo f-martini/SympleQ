@@ -340,7 +340,26 @@ class PauliString(PauliObject):
                             f" {self.dimensions} and {A.dimensions} must be equal.")
 
         tableau = np.mod(self.tableau + A.tableau, np.tile(self.dimensions, 2))
-        return PauliString(tableau, self.dimensions.copy())
+
+        w1 = self._weights[:, None]
+        w2 = A._weights[None, :]
+        new_weights = (w1 * w2).reshape(-1)
+
+        p1 = self._phases[:, None]
+        p2 = A._phases[None, :]
+
+        # Extract z- and x-parts from tableau
+        n1, n2 = self.n_qudits(), A.n_qudits()
+        a_z = self.tableau[:, n1:]
+        b_x = A.tableau[:, :n2]
+        # Compute acquired phases via symplectic form
+        factors = (self.lcm // self.dimensions)
+        acquired_phases = 2 * factors * a_z  @ b_x.T
+
+        # Combine with existing phases and flatten
+        new_phases = (p1 + p2 + acquired_phases) % (2 * self.lcm)
+        new_phases = new_phases.reshape(-1)
+        return PauliString(tableau, self.dimensions.copy(), weights=new_weights, phases=new_phases)
 
     @property
     def x_exp(self) -> np.ndarray:
@@ -391,7 +410,9 @@ class PauliString(PauliObject):
         PauliSum
             The PauliSum containing the PauliString as single entry.
         """
-        return PauliSum(self.tableau, self.dimensions, self.weights, self.phases)
+        # FIXME: import at the top. Currently we can't because of circular imports.
+        from .pauli_sum import PauliSum
+        return PauliSum(self._tableau, self._dimensions, self._weights, self._phases)
 
     def n_identities(self) -> int:
         """
@@ -576,7 +597,7 @@ class PauliString(PauliObject):
         # U is zeros with identity in lower-left n x n block
         # This is equivalent to sum over j of 2 * x'_j * z_j
         # U @ b selects b[:n] (x part) and puts it in lower half
-        phase = 2 * np.dot(a[n:], b[:n])
+        phase = 2 * np.dot(a[n:], b[:n])  # THIS ASSUMES [1 | 1] is XZ, NOT Y
 
         return int(phase % (2 * self.lcm))
 
@@ -664,7 +685,7 @@ class PauliString(PauliObject):
         if isinstance(key, np.ndarray):
             tableau_mask = np.concatenate([key, key + self.n_qudits()])
             return PauliString(
-                self.tableau[tableau_mask], self.dimensions[key])
+                self.tableau[tableau_mask], self.dimensions[key], self._weights, self._phases)
 
         raise ValueError(f"Cannot get item with key {key}. Key must be aof type int, slice, np.ndarray, or list[int].")
 
@@ -821,4 +842,3 @@ class PauliString(PauliObject):
         base[:n] = self.z_exp
         base[n:] = self.x_exp
         return bases_to_int(base[::-1], dims_double[::-1])
-

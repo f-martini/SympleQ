@@ -465,7 +465,8 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
                             break
                     else:
                         index_list.remove(j)
-                        if abs(np.conj(H.weights[i]) * np.exp(2 * np.pi * 1j * hermitian_pauli_string.phases[0] / (2 * H.lcm)) -
+                        if abs(np.conj(H.weights[i]) *
+                               np.exp(2 * np.pi * 1j * hermitian_pauli_string.phases[0] / (2 * H.lcm)) -
                                 H.weights[j] * np.exp(2 * np.pi * 1j * H.phases[j] / (2 * H.lcm))) > 10**-10:
                             # Step 1: Weight
                             H._weights[j] = np.conj(H.weights[i])

@@ -7,7 +7,7 @@ from sympleq.core.circuits.find_symplectic import (
 )
 import numpy as np
 from sympleq.core.circuits.utils import transvection, transvection_matrix, symplectic_product_arrays
-from sympleq.utils import get_linear_dependencies
+from sympleq.core.finite_field_solvers import get_linear_dependencies
 from sympleq.models import random_hamiltonian
 from sympleq.core.circuits import Circuit
 
@@ -196,7 +196,7 @@ class TestSymplecticSolver:
             pl_sum = pl_sum[basis_indices]
 
             # scramble input hamiltonian to get target
-            C = Circuit.from_random(len(dimensions), 10 * n**2, dimensions=dimensions)
+            C = Circuit.from_random(10 * n**2, dimensions=dimensions)
             target_pl_sum = C.act(pl_sum)
             # target hamiltonian
             sym_sum = pl_sum.tableau

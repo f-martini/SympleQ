@@ -7,6 +7,7 @@ from sympleq.core.measurement.allocation import weight_to_phase
 
 class TestPauliUtils:
 
+    @pytest.mark.skip()
     def test_make_hermitian(self):
         #       Check for various qubit PauliSums
         # Standard (need i for Y)

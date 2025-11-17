@@ -2,6 +2,9 @@ from __future__ import annotations
 from typing import overload, TYPE_CHECKING, Union
 import numpy as np
 import scipy.sparse as sp
+import galois
+from sympleq.core.finite_field_solvers import get_linear_dependencies
+import warnings
 
 from .pauli_object import PauliObject
 from .pauli_string import PauliString
@@ -47,7 +50,7 @@ class PauliSum(PauliObject):
         return P
 
     @classmethod
-    def from_pauli(cls, pauli: Pauli) -> 'PauliSum':
+    def from_pauli(cls, pauli: Pauli) -> PauliSum:
         """
         Create a PauliSum instance from a single Pauli.
 
@@ -123,7 +126,8 @@ class PauliSum(PauliObject):
     @classmethod
     def from_pauli_strings(cls, pauli_string: PauliString | list[PauliString],
                            weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
-                           phases: int | list[int] | np.ndarray | None = None,) -> PauliSum:
+                           phases: int | list[int] | np.ndarray | None = None,
+                           inherit_phases: bool = False) -> PauliSum:
         """
         Create a PauliSum instance from a (list of) PauliString object.
 
@@ -148,7 +152,12 @@ class PauliSum(PauliObject):
                 if not np.array_equal(ps.dimensions, dimensions):
                     raise ValueError("The dimensions of all Pauli strings must be equal.")
 
-        tableau = np.vstack([p.tableau for p in pauli_string])
+        tableau = np.vstack([p._tableau for p in pauli_string])
+
+        if inherit_phases:
+            if phases is not None:
+                warnings.warn("Phases are disregarded if inherit_phases is set to True.")
+            phases = np.hstack([p._phases for p in pauli_string])
         return cls(tableau, dimensions, weights, phases)
 
     @classmethod
@@ -188,6 +197,7 @@ class PauliSum(PauliObject):
                     n_paulis: int,
                     dimensions: int | list[int] | np.ndarray,
                     rand_weights: bool = True,
+                    rand_phases: bool = False,
                     seed: int | None = None) -> 'PauliSum':
         """
         Create a random PauliSum object.
@@ -202,6 +212,8 @@ class PauliSum(PauliObject):
             The dimensions of the qudits. The size of dimensions determines the number of qudits.
         rand_weights : bool
             Whether to use random weights for the Pauli operators.
+        rand_phases : bool
+            Whether to use random phases for the Pauli operators.
 
         Returns
         -------
@@ -228,8 +240,12 @@ class PauliSum(PauliObject):
                 j += 1
                 ps = PauliString.from_random(dimensions, seed=string_seeds[j])
             strings.append(ps)
+        # Generate random phases if required
+        # TODO: check random phases below are correctly generated
+        phases = 2 * np.random.randint(0, 2 * int(np.prod(dimensions)) - 1,
+                                       size=n_paulis) if rand_phases else [0] * n_paulis
 
-        return cls.from_pauli_strings(strings, weights=weights, phases=[0] * n_paulis).to_standard_form()
+        return cls.from_pauli_strings(strings, weights=weights, phases=phases)
 
     @property
     def phases(self) -> np.ndarray:
@@ -253,6 +269,70 @@ class PauliSum(PauliObject):
                 f"New phases ({len(new_phases)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
 
         self._phases = new_phases
+
+    def weight_to_phase(self):
+        """
+        Extract per-term phases from complex weights onto the integer phase vector.
+
+        For each weight w_i, choose an integer k_i in [0, 2*d - 1] (with d=self.lcm)
+        so that w_i * exp(-2πi * k_i / (2d)) is as close as possible to a positive real.
+        Then add k_i to self.phases[i] (mod 2d) and replace the weight with the rotated value.
+
+        Notes:
+        - If a weight is (numerically) zero, we leave it and add no phase.
+        - We try the nearest discrete phase (by rounding the argument), and also ±1
+            neighbor to break ties in favor of larger positive real part.
+        """
+        d = int(self.lcm)
+        two_d = 2 * d
+        new_weights = np.array(self.weights, dtype=np.complex128)
+        new_phases = np.array(self.phases, dtype=int)
+
+        # tiny threshold to treat weights as zero (avoid noisy angles)
+        eps = 1e-15
+
+        for i in range(self.n_paulis()):
+            w = new_weights[i]
+
+            # skip non-finite or numerically-zero weights
+            if not np.isfinite(w) or abs(w) < eps:
+                continue
+
+            theta = np.angle(w)
+
+            # nearest discrete phase index
+            k0 = int(np.round((two_d * theta) / (2.0 * np.pi))) % two_d
+            candidates = [(k0 - 1) % two_d, k0 % two_d, (k0 + 1) % two_d]
+
+            valid = []
+            for k in candidates:
+                # rotation by discrete (2d)-th root of unity
+                # safe because two_d > 0 (checked above)
+                rot = np.exp(-2j * np.pi * (k / two_d))
+                w_rot = w * rot
+                if not np.isfinite(w_rot):
+                    continue
+                ang = np.angle(w_rot)
+                if np.isnan(ang):
+                    continue
+                # prefer smallest |angle| (closest to real axis), break ties by larger real part
+                score = (abs(ang), -w_rot.real)
+                valid.append((score, k, w_rot))
+
+            if valid:
+                # pick the best candidate
+                _, k_best, w_best = min(valid)
+            else:
+                # fallback: use k0 even if odd numerics; keep original magnitude
+                k_best = k0
+                w_best = w * np.exp(-2j * np.pi * (k_best / two_d))
+
+            new_phases[i] = (new_phases[i] + k_best) % two_d
+            new_weights[i] = w_best
+
+        # commit
+        self._phases = new_phases
+        self._weights = np.round(new_weights, 10)
 
     @property
     def weights(self) -> np.ndarray:
@@ -327,7 +407,7 @@ class PauliSum(PauliObject):
         if isinstance(key, int):
             # Here we don't copy and return a view.
             tableau = self.tableau[key]
-            return PauliString(tableau, self.dimensions)
+            return PauliString(tableau, self.dimensions, self.weights[key], self.phases[key])
 
         if isinstance(key, (list, np.ndarray, slice)):
             return PauliSum(self.tableau[key], self.dimensions, self.weights[key], self.phases[key])
@@ -349,7 +429,7 @@ class PauliSum(PauliObject):
                 if isinstance(qudit_indices, (list, np.ndarray, slice)):
                     sub_tableau = self.tableau[pauli_indices, :][qudit_indices]
                     sub_dims = self.dimensions[qudit_indices]
-                    return PauliString(sub_tableau, sub_dims)
+                    return PauliString(sub_tableau, sub_dims, self.weights[pauli_indices], self.phases[pauli_indices])
 
             return self.get_subspace(qudit_indices, pauli_indices)
 
@@ -439,10 +519,8 @@ class PauliSum(PauliObject):
         if not np.array_equal(self.dimensions, A.dimensions):
             raise ValueError(f"The dimensions of the PauliSums do not match ({self.dimensions}, {A.dimensions}).")
 
-        if isinstance(A, Pauli):
-            A = PauliSum(A.tableau, A.dimensions)
-        elif isinstance(A, PauliString):
-            A = PauliSum(A.tableau, A.dimensions)
+        if isinstance(A, (Pauli, PauliString)):
+            A = A.as_pauli_sum()
         elif isinstance(A, PauliSum):
             pass
         else:
@@ -598,13 +676,13 @@ class PauliSum(PauliObject):
         """
 
         if isinstance(A, ScalarType):
-            return PauliSum(self.tableau, self.dimensions, self.weights * A, self.phases)
+            return PauliSum(self._tableau, self._dimensions, self._weights * A, self._phases)
 
         if isinstance(A, Pauli):
-            return self * PauliSum.from_pauli(A)
+            return self * A.as_pauli_sum()
 
         if isinstance(A, PauliString):
-            return self * PauliSum.from_pauli_strings(A)
+            return self * A.as_pauli_sum()
 
         if not isinstance(A, PauliSum):
             raise ValueError("Multiplication only supported with Pauli, PauliSum, PauliString, or scalar")
@@ -912,7 +990,7 @@ class PauliSum(PauliObject):
         """
         # NOTE: We pass a view to the tableau row and the dimensions,
         #       meaning that they could be modified from the PauliString.
-        return PauliString(self.tableau[index], self.dimensions)
+        return PauliString(self.tableau[index], self.dimensions, self.weights[index], self.phases[index])
 
     def select_pauli(self, index: tuple[int, int]) -> Pauli:
         """
@@ -963,7 +1041,7 @@ class PauliSum(PauliObject):
         mask = np.ones(self.n_qudits(), dtype=bool)
         mask[qudit_indices] = False
 
-        # Note: we first delete the rightmost indecies, so they are not shifted.
+        # Note: we first delete the rightmost indices, so they are not shifted.
         self._tableau = np.delete(self._tableau, [idx + self.n_qudits() for idx in qudit_indices], axis=1)
         self._tableau = np.delete(self._tableau, qudit_indices, axis=1)
 
@@ -1028,14 +1106,14 @@ class PauliSum(PauliObject):
         n = self.n_paulis()
         # list_of_symplectics = self.symplectic_matrix()
 
-        qspm = np.zeros([n, n], dtype=int)
+        q_spm = np.zeros([n, n], dtype=int)
         for i in range(n):
             ps1 = self.select_pauli_string(i)
             for j in range(i + 1, n):
                 ps2 = self.select_pauli_string(j)
-                qspm[i, j] = ps1.quditwise_product(ps2)
-        qspm = qspm + qspm.T
-        return qspm
+                q_spm[i, j] = ps1.quditwise_product(ps2)
+        q_spm = q_spm + q_spm.T
+        return q_spm
 
     # TODO: What's the difference between the next two functions?
     def __str__(self) -> str:
@@ -1126,7 +1204,6 @@ class PauliSum(PauliObject):
         scipy.sparse.csr_matrix
             Matrix representation of input Pauli.
         """
-        # TODO: If pauli_string_index is selected it maybe should account for the weights and phases
         if pauli_string_index is not None:
             ps = PauliSum(self.tableau[pauli_string_index], self.dimensions,
                           self.weights[pauli_string_index], self.phases[pauli_string_index])
@@ -1217,6 +1294,92 @@ class PauliSum(PauliObject):
         self._weights[index_1], self._weights[index_2] = self.weights[index_2], self.weights[index_1]
         self._phases[index_1], self._phases[index_2] = self.phases[index_2], self.phases[index_1]
         self._tableau[index_1], self._tableau[index_2] = self._tableau[index_2], self._tableau[index_1]
+
+    # def hermitian_conjugate(self):
+    #     conjugate_weights = np.conj(self.weights)
+    #     conjugate_initial_phases = (- self.phases) % (2 * self.lcm)
+    #     acquired_phases = []
+    #     for i in range(self.n_paulis()):
+    #         hermitian_conjugate_phase = 0
+    #         for j in range(self.n_qudits()):
+    #             r = self.x_exp[i, j]
+    #             s = self.z_exp[i, j]
+    #             hermitian_conjugate_phase += (r * s % self.lcm) * self.lcm / self.dimensions[j]
+    #         acquired_phases.append(2 * hermitian_conjugate_phase)
+    #     conjugate_phases = conjugate_initial_phases + np.array(acquired_phases, dtype=int)
+    #     conjugate_dimensions = self.dimensions
+    #     conjugate_pauli_strings = [p.hermitian() for p in self.pauli_strings]
+    #     return PauliSum(conjugate_pauli_strings, conjugate_weights, conjugate_phases, conjugate_dimensions,
+    #                     standardise=False)
+
+    # H = hermitian_conjugate
+
+    def dependencies(self) -> tuple[list[int], dict[int, list[tuple[int, int]]]]:
+        """
+        Returns the dependencies of the PauliSum.
+
+        Returns
+        -------
+        dict[int, list[tuple[int, int]]]
+            The dependencies of the PauliSum.
+        """
+        return get_linear_dependencies(self.tableau, int(self.lcm))
+
+    def matroid(self) -> tuple[galois.FieldArray, list[int]]:
+        """
+        Returns the matroid of the PauliSum.
+
+        This represents the PauliSum in terms of its independent components and dependencies in the form
+
+        G = [I | D]
+
+        where I is the identity matrix and D is the dependency matrix.
+
+        Each column of the dependency matrix corresponds to a PauliString in the PauliSum.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray, np.ndarray]
+            The matroid of the PauliSum.
+        1st element: The generator matrix G of the matroid.
+        2nd element: The list of basis PauliString indices.
+        3rd element: A boolean mask indicating which PauliStrings are in the basis.
+        """
+        p = int(self.lcm)
+        labels = list(range(self.n_paulis()))
+        independent, dependencies = self.dependencies()
+        GF = galois.GF(p)
+        basis_order = sorted(independent)
+        k, n = len(basis_order), len(labels)
+        label_to_col = {lab: j for j, lab in enumerate(labels)}
+        basis_index = {b: i for i, b in enumerate(basis_order)}
+
+        G_int = np.zeros((k, n), dtype=int)
+        for b in basis_order:
+            G_int[basis_index[b], label_to_col[b]] = 1
+        for d, pairs in dependencies.items():
+            j = label_to_col[d]
+            for b, m in pairs:
+                G_int[basis_index[b], j] += int(m)
+        G_int %= p
+        G = GF(G_int)
+
+        return G, basis_order
+
+    def _basis_mask(self) -> np.ndarray:
+        """
+        Returns a boolean mask indicating which PauliStrings are in the (a possible) basis.
+
+        Returns
+        -------
+        np.ndarray
+            A boolean mask indicating which PauliStrings are in the basis (as represented by the matroid - note there
+            are multiple possible bases).
+        """
+        _, basis_order = self.matroid()
+        basis_mask = np.zeros(self.n_paulis(), dtype=bool)
+        basis_mask[basis_order] = True
+        return basis_mask
 
     # TODO: Move this to a better location and amend where it is used in the Pauli reduction code
     @staticmethod
