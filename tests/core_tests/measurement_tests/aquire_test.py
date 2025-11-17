@@ -117,7 +117,6 @@ class TestAquire:
                        [5, 8], [6, 7], [6, 8]]
 
         # Check that the circuits are the same
-        circuit_list, circuit_dictionary = construct_circuit_list(P, sorted(clique_covering), {})
         correct_circuit_list = [[('S', [0]), ('S', [1]), ('S', [2]), ('H', [0]), ('H', [1]), ('H', [2])],
                                 [('SUM', [0, 1]), ('SUM', [0, 2]), ('SUM', [1, 0]), ('SUM', [2, 0]), ('S', [0]),
                                 ('SUM', [1, 2]), ('S', [1]), ('H', [0]), ('H', [1])],
