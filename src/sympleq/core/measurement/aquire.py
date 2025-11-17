@@ -345,7 +345,7 @@ class Aquire:
             else:
                 raise Exception("Invalid input")
 
-        P = weight_to_phase(P)
+        #P = weight_to_phase(P)
 
         # supposed to be permanent
         self._H = P
