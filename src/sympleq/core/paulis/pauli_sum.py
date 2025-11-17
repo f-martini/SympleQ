@@ -1128,7 +1128,8 @@ class PauliSum(PauliObject):
         """
         # TODO: If pauli_string_index is selected it maybe should account for the weights and phases
         if pauli_string_index is not None:
-            ps = PauliSum(self.tableau[pauli_string_index], self.dimensions, self.weights, self.phases)
+            ps = PauliSum(self.tableau[pauli_string_index], self.dimensions,
+                          self.weights[pauli_string_index], self.phases[pauli_string_index])
             return ps.to_hilbert_space()
 
         list_of_pauli_matrices = []
