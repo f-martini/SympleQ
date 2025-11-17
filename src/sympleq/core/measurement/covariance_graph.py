@@ -302,7 +302,7 @@ def commutation_graph(P: PauliSum):
 
 
 def quditwise_inner_product(PS1, PS2):
-    if PS1.dimensions != PS2.dimensions:
+    if any(PS1.dimensions != PS2.dimensions):
         raise ValueError("Pauli strings must have the same dimensions for quditwise inner product.")
     X_1 = PS1.x_exp[:]
     X_2 = PS2.x_exp[:]
