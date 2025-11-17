@@ -1031,7 +1031,7 @@ class PauliSum(PauliObject):
         qspm = np.zeros([n, n], dtype=int)
         for i in range(n):
             ps1 = self.select_pauli_string(i)
-            for j in range(i+1, n):
+            for j in range(i + 1, n):
                 ps2 = self.select_pauli_string(j)
                 qspm[i, j] = ps1.quditwise_product(ps2)
         qspm = qspm + qspm.T
