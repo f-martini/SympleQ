@@ -58,18 +58,16 @@ def true_mean(H: PauliSum, psi):
 
 
 def true_covariance_graph(H: PauliSum, psi):
-    weights = H.weights
     p = H.n_paulis()
-    mm = [np.exp(2 * np.pi * 1j * H.phases[i] / (2 * H.lcm)) * H.to_hilbert_space(i) for i in range(p)]
+    mm = [H.to_hilbert_space(i) for i in range(p)]
     psi_dag = psi.conj().T
     cc1 = [psi_dag @ mm[i] @ psi for i in range(p)]
     cc2 = [psi_dag @ mm[i].conj().T @ psi for i in range(p)]
     cm = np.zeros((p, p), dtype=complex)
     for i0 in range(p):
         for i1 in range(p):
-            pre_factor = np.conj(weights[i0]) * weights[i1]
             cov = (psi_dag @ mm[i0].conj().T @ mm[i1] @ psi) - cc2[i0] * cc1[i1]
-            cm[i0, i1] = pre_factor * cov
+            cm[i0, i1] = cov
     return graph(cm)
 
 
