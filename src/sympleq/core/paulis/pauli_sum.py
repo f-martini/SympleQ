@@ -7,6 +7,8 @@ import galois
 from sympleq.core.finite_field_solvers import get_linear_dependencies
 import warnings
 
+from sympleq.utils import int_to_bases
+
 from .pauli_object import PauliObject
 from .pauli_string import PauliString
 from .pauli import Pauli
@@ -242,20 +244,16 @@ class PauliSum(PauliObject):
 
         # For small population we ensure unicity.
         def from_small_population() -> list[PauliString]:
+            base_dims = [d**2 for d in dimensions]
             indices = np.random.choice(max_n_paulis, size=n_paulis, replace=False)
-            # Use mixed-radix encoding to decode indices into exponent to generate PauliString using from_exponents.
             strings = []
             for k in indices:
-                x_exp = []
-                z_exp = []
-                for d in dimensions:
-                    base = d * d
-                    idx = k % base
-                    k //= base
-                    x = idx // d
-                    z = idx % d
-                    x_exp.append(x)
-                    z_exp.append(z)
+                # int_to_bases converts the integer index to a mixed-radix digit.
+                # Here however we need two digits (one per exponent), so we need to use the squared dimensions
+                # and then extract the two exponents.
+                pair_digits = int_to_bases(k, base_dims)
+                x_exp = [p // d for p, d in zip(pair_digits, dimensions)]
+                z_exp = [p % d for p, d in zip(pair_digits, dimensions)]
                 ps = PauliString.from_exponents(x_exp, z_exp, dimensions)
                 strings.append(ps)
             return strings
