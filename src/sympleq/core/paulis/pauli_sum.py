@@ -7,6 +7,7 @@ import galois
 from sympleq.core.finite_field_solvers import get_linear_dependencies
 import warnings
 
+from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 from sympleq.utils import int_to_bases
 
 from .pauli_object import PauliObject
@@ -269,10 +270,8 @@ class PauliSum(PauliObject):
         return cls.from_pauli_strings(pauli_strings, weights=weights, phases=phases)
 
     @classmethod
-    def from_file(cls, path: str,
-                  dimensions: int | list[int] | np.ndarray = DEFAULT_QUDIT_DIMENSION,
-                  spaces: bool = True) -> PauliSum:
-        """Reads a Hamiltonian file and parses the Pauli strings and coefficients.
+    def from_file(cls, path: str, dimensions: int | list[int] | np.ndarray = DEFAULT_QUDIT_DIMENSION) -> PauliSum:
+        """Reads a PauliSum from file.
 
         Parameters
         ----------
@@ -280,28 +279,26 @@ class PauliSum(PauliObject):
                 Path to the Hamiltonian file.
             dimensions: int | list[int] | np.ndarray
                 Dimension(s) of the qudits, default is DEFAULT_QUDIT_DIMENSION.
-            spaces: bool
-                Whether to expect spaces in the Pauli string format, default is True.
 
         Returns
         -------
         PauliSum
-            The parsed PauliSum
+            The parsed PauliSum.
         """
         with open(path, "r") as f:
             lines = f.readlines()
 
         pauli_strings = []
         weights = []
+        phases = []
 
         for line in lines:
-            pauli_list = line.split(', {') if spaces else line.split(',{')
-            coeff = pauli_list[0][1:].replace(" ", "").replace('*I', 'j')
-            weights.append(complex(coeff))
-            pauli_str = ' '.join(f"x{item.count('X')}z{item.count('Z')}" for item in pauli_list[1:])
-            pauli_strings.append(pauli_str.strip())
+            weight, string, phase = line.split("|")
+            pauli_strings.append(PauliString.from_string(string, dimensions))
+            weights.append(complex(weight))
+            phases.append(int(phase))
 
-        return PauliSum.from_string(pauli_strings, dimensions, weights)
+        return PauliSum.from_pauli_strings(pauli_strings, weights, phases)
 
     @property
     def phases(self) -> np.ndarray:
@@ -1067,6 +1064,19 @@ class PauliSum(PauliObject):
         # NOTE: We pass a view to the tableau row and the dimensions,
         #       meaning that they could be modified from the PauliString.
         return Pauli(self.tableau[index], self.dimensions)
+
+    def to_file(self, path: str, spaces: bool = True) -> None:
+        """
+        Writes the PauliSum to a file using its internal representation.
+
+        Parameters
+        ----------
+        path : str
+            Path to the output file.
+        """
+
+        with open(path, "w") as f:
+            f.write(str(self))
 
     def _delete_paulis(self, pauli_indices: int | list[int] | np.ndarray):
         """
