@@ -9,7 +9,7 @@ prime_list = [2, 3, 5, 7, 11, 13, 17, 19, 23]  # , 29, 31, 37, 41, 43, 47]
 # Number of random tests to perform for each (most) test function
 # Set to a lower number for faster testing during development (e.g. 250)
 # Set to a higher number before PR merging (e.g. 10 000)
-N_tests = 250
+N_tests = 1000
 
 
 class TestPaulis:
