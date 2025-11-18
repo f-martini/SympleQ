@@ -4,7 +4,12 @@ import pytest
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 
+# List of prime dimensions to test
 prime_list = [2, 3, 5, 7, 11, 13, 17, 19, 23]  # , 29, 31, 37, 41, 43, 47]
+# Number of random tests to perform for each (most) test function
+# Set to a lower number for faster testing during development (e.g. 250)
+# Set to a higher number before PR merging (e.g. 10 000)
+N_tests = 250
 
 
 class TestPaulis:
@@ -35,26 +40,26 @@ class TestPaulis:
         return PauliString.from_string(pauli_str, dimensions=dim), r_list, s_list
 
     def test_pauli_multiplication(self):
-        # TODO: generalize to different dimensions - this requires addressing issue #76
-        for dim in [2]:  # TODO: for dim in prime_list:
+        for dim in prime_list:
             x1 = Pauli.Xnd(1, dim)
             y1 = Pauli.Ynd(1, dim)
             z1 = Pauli.Znd(1, dim)
             id = Pauli.Idnd(dim)
 
+            # REMARK: phases do not matter, since these are Pauli objects
             assert x1 * z1 == y1, 'Error in Pauli multiplication (x * z = y) ' + (x1 * z1).__str__()
             assert x1**dim == id, 'Error in Pauli exponentiation (x**dim = id) ' + (x1**dim).__str__()
             assert y1**dim == id, 'Error in Pauli exponentiation (y**dim = id) ' + (y1**dim).__str__()
             assert z1**dim == id, 'Error in Pauli exponentiation (z**dim = id)  ' + (z1**dim).__str__()
-            assert x1 * y1 == z1, 'Error in Pauli multiplication (x * y = z) ' + (x1 * y1).__str__()
-            assert y1 * z1 == x1, 'Error in Pauli multiplication (y * z = x) ' + (y1 * z1).__str__()
+            assert x1 * y1 == x1**2 * z1, 'Error in Pauli multiplication (x * y = x**2 * z) ' + (x1 * y1).__str__()
+            assert y1 * z1 == x1 * z1**2, 'Error in Pauli multiplication (y * z = x**2 * z) ' + (y1 * z1).__str__()
             assert z1 * x1 == y1, 'Error in Pauli multiplication (z * x = y) ' + (z1 * x1).__str__()
             assert x1 * id == x1, 'Error in Pauli multiplication (x * id = x) ' + (x1 * id).__str__()
             assert y1 * id == y1, 'Error in Pauli multiplication (y * id = y) ' + (y1 * id).__str__()
             assert z1 * id == z1, 'Error in Pauli multiplication (z * id = z) ' + (z1 * id).__str__()
 
         for dim in prime_list:
-            for _ in range(250):
+            for _ in range(N_tests):
                 s1 = np.random.randint(0, dim)
                 r1 = np.random.randint(0, dim)
                 s2 = np.random.randint(0, dim)
@@ -68,7 +73,7 @@ class TestPaulis:
 
     def test_pauli_string_multiplication(self):
         for dim in prime_list:
-            for _ in range(250):
+            for _ in range(N_tests):
                 r11 = np.random.randint(0, dim)
                 r12 = np.random.randint(0, dim)
                 s11 = np.random.randint(0, dim)
@@ -96,7 +101,7 @@ class TestPaulis:
 
     def test_pauli_string_tensor_product(self):
         for dimensions in prime_list:
-            for _ in range(250):
+            for _ in range(N_tests):
                 r1 = np.random.randint(0, dimensions)
                 r2 = np.random.randint(0, dimensions)
                 s1 = np.random.randint(0, dimensions)
@@ -119,7 +124,7 @@ class TestPaulis:
 
     def test_pauli_string_indexing(self):
         for dim in prime_list:
-            for _ in range(250):
+            for _ in range(N_tests):
                 p_string1, [r1, r2], [s1, s2] = self.random_pauli_string([dim, dim])
                 ps0 = Pauli.from_string(f"x{r1}z{s1}", dimension=dim)
                 ps1 = Pauli.from_string(f"x{r2}z{s2}", dimension=dim)
@@ -129,7 +134,7 @@ class TestPaulis:
 
     def test_pauli_sum_multiplication(self):
         for dim in prime_list:
-            for _ in range(250):
+            for _ in range(N_tests):
                 p_string1, [r11, r21], [s11, s21] = self.random_pauli_string([dim, dim])
                 p_string2, [r12, r22], [s12, s22] = self.random_pauli_string([dim, dim])
 
@@ -171,7 +176,7 @@ class TestPaulis:
 
     def test_pauli_sum_tensor_product(self):
         for dim in prime_list:
-            for _ in range(250):
+            for _ in range(N_tests):
                 p_string1, [r11, r21], [s11, s21] = self.random_pauli_string([dim, dim])
                 p_string2, [r12, r22], [s12, s22] = self.random_pauli_string([dim, dim])
                 p_string3, [r13, r23], [s13, s23] = self.random_pauli_string([dim, dim])
@@ -184,7 +189,7 @@ class TestPaulis:
                 assert ps_out == ps_out_correct, 'Error in PauliSum tensor product'
 
     def test_symplectic_matrix_single_pauli(self):
-        for _ in range(250):
+        for _ in range(N_tests):
             dim = random.choice(prime_list)
             expected_tableau = np.array([[random.randint(0, dim - 1), random.randint(0, dim - 1)]])
             pauli_list = [f'x{expected_tableau[0, 0]}z{expected_tableau[0, 1]}']
@@ -194,7 +199,7 @@ class TestPaulis:
             np.testing.assert_array_equal(sp.tableau, expected_tableau)
 
     def test_symplectic_matrix_multiple_paulis(self):
-        for _ in range(250):
+        for _ in range(N_tests):
             # randomly choose dimensions and number of paulis
             dimensions, n_paulis = self.choose_dimensions(10, prime_available=prime_list)
             # choose tableau
@@ -234,9 +239,8 @@ class TestPaulis:
             assert x1 * id == x1, f'Error in Pauli multiplication (x * id = x) for d={d}'
             assert id * z1 == z1, f'Error in Pauli multiplication (id * z = z) for d={d}'
 
-    # TODO: generalize to different dimensions
     def test_pauli_string_construction(self):
-        for _ in range(250):
+        for _ in range(N_tests):
             # randomly choose dimensions and number of paulis
             dims, _ = self.choose_dimensions(10, prime_available=prime_list)
 
@@ -264,7 +268,7 @@ class TestPaulis:
     def test_pauli_sum_addition(self):
 
         for dimensions in prime_list:
-            for _ in range(250):
+            for _ in range(N_tests):
                 p_string1, _, _ = self.random_pauli_string([dimensions, dimensions])
                 p_string2, _, _ = self.random_pauli_string([dimensions, dimensions])
                 p_string3, _, _ = self.random_pauli_string([dimensions, dimensions])
@@ -275,7 +279,7 @@ class TestPaulis:
                 ps_out_correct = PauliSum.from_pauli_strings([p_string1, p_string2, p_string3])
                 assert ps_out == ps_out_correct, 'Error in PauliSum addition'
 
-        for _ in range(250):
+        for _ in range(N_tests):
             dimensions, n_paulis = self.choose_dimensions(10, prime_available=prime_list)
 
             # Generate random PauliStrings
@@ -306,7 +310,7 @@ class TestPaulis:
 
     def test_phase_and_dot_product(self):
 
-        for _ in range(250):
+        for _ in range(N_tests):
             d = random.choice(prime_list)
             x = PauliString.from_string('x1z0', dimensions=[d])
             z = PauliString.from_string('x0z1', dimensions=[d])
@@ -314,7 +318,7 @@ class TestPaulis:
             assert z.acquired_phase(x) == 2.0, 'Expected phase to be 2.0, got {}'.format(z.acquired_phase(x))
             assert x.acquired_phase(z) == 0.0, 'Expected phase to be 0.0, got {}'.format(x.acquired_phase(z))
 
-        for _ in range(250):
+        for _ in range(N_tests):
             dims = [random.choice(prime_list) for _ in range(2)]
             x1x1 = PauliSum.from_pauli_strings(PauliString.from_string('x1z0 x1z0', dimensions=dims))
             x1y1 = PauliSum.from_pauli_strings(PauliString.from_string('x1z0 x1z1', dimensions=dims))
@@ -336,7 +340,7 @@ class TestPaulis:
 
     def test_tensor_product_distributivity(self):
 
-        for _ in range(250):
+        for _ in range(N_tests):
 
             dimensions, _ = self.choose_dimensions(10, prime_available=prime_list)
 
@@ -355,7 +359,7 @@ class TestPaulis:
             assert left == right
 
     def test_pauli_sum_indexing(self):
-        for _ in range(250):
+        for _ in range(N_tests):
             # Randomly choose dimensions and number of qudits
             dimensions, n_paulis = self.choose_dimensions(10, prime_available=prime_list)
             n_qudits = len(dimensions)
@@ -429,7 +433,7 @@ class TestPaulis:
                     'Error in PauliSum combined indexing (list, list)'
 
     def test_pauli_sum_amend(self):
-        for _ in range(250):
+        for _ in range(N_tests):
             dims = random.choices(prime_list, k=2)
             while dims[-1] == 2:
                 dims = random.choices(prime_list, k=2)
@@ -457,7 +461,7 @@ class TestPaulis:
 
     def test_ordering(self):
         # check that the symplectic basis gives the identity when ordered
-        for _ in range(250):
+        for _ in range(N_tests):
             n_qudits = random.randint(2, 50)
             d = random.choices(prime_list, k=n_qudits)
             n_paulis = 2 * n_qudits
@@ -486,8 +490,8 @@ class TestPaulis:
         assert product.phases == [8]
 
         dimensions, _ = self.choose_dimensions(10, prime_available=prime_list)
-        for _ in range(50):
-            for _ in range(50):
+        for _ in range(int(np.ceil(np.sqrt(N_tests)))):
+            for _ in range(int(np.ceil(np.sqrt(N_tests)))):
                 P1 = PauliSum.from_random(random.randint(1, 25), dimensions)
                 P2 = PauliSum.from_random(random.randint(1, 25), dimensions)
                 P_res = P1 * P2
@@ -503,7 +507,7 @@ class TestPaulis:
 
     def test_pauli_sum_delete_qudits(self):
         dims_pool = prime_list
-        for _ in range(250):
+        for _ in range(N_tests):
             n_qudits = random.randint(2, 8)
             dims = [random.choice(dims_pool) for _ in range(n_qudits)]
             n_terms = random.randint(2, 6)
@@ -555,7 +559,7 @@ class TestPaulis:
             assert psum_seq == expected_psum, "Sequential deletions differ from batch deletion"
 
     def test_symplectic_product(self):
-        for _ in range(250):
+        for _ in range(N_tests):
             dim = random.choices(prime_list, k=2)
             while dim[-1] < 3:
                 dim = random.choices(prime_list, k=2)
@@ -593,7 +597,7 @@ class TestPaulis:
             assert P1.symplectic_product(P2) == (dim[-1] - 3) * P1.lcm / dim[1]
 
     def test_hermitian_generation(self):
-        for _ in range(250):
+        for _ in range(N_tests):
             dim = random.choices(prime_list, k=1)
             P1 = PauliString.from_string('x1z0', dimensions=dim)
             P2 = PauliString.from_string(f'x{dim[0] - 1}z0', dimensions=dim)
@@ -627,9 +631,8 @@ class TestPaulis:
         P2 = PauliString.from_string(f'x{dim[0] - 2}z{dim[0] - 1} x0z{dim[1] - 1}', dimensions=dim)
         assert P1.H() == P2
 
-    # TODO: arrived here
     def test_pauli_sum_is_hermitian(self):
-        for run in range(25):
+        for run in range(int(np.ceil(np.sqrt(N_tests)))):
             # Generate random dimensions array {d_1, d_2, d_3,...} such that \prod_i d_i <= 10
             dimensions, _ = self.choose_dimensions(10, prime_available=prime_list)
 
@@ -653,7 +656,7 @@ class TestPaulis:
 
     def test_qubit_XZ_phase_is_minus_one(self):
         # Single qubit (dimension 2): X * Z = (-1) Z * X  => scalar exponent r = 1 mod 2
-        for _ in range(250):
+        for _ in range(N_tests):
             dims = random.choices(prime_list, k=1)
             psX = PauliString.from_exponents(x_exp=[1], z_exp=[0], dimensions=dims)  # X
             psZ = PauliString.from_exponents(x_exp=[0], z_exp=[1], dimensions=dims)  # Z
@@ -667,121 +670,124 @@ class TestPaulis:
             r_scalar = psX.symplectic_product(psZ, as_scalar=True)
             assert r_scalar == 1 % L
 
-    # TODO: arrived here
-    def test_mixed_dims_qutrit_XZ_phase(self):
-        # dims = [2, 3]; use site 1 (qutrit) to get omega_3
-        dims = [2, 3]
-        P = PauliString.from_exponents(x_exp=[0, 1], z_exp=[0, 0], dimensions=dims)  # X on qutrit
-        Q = PauliString.from_exponents(x_exp=[0, 0], z_exp=[0, 1], dimensions=dims)  # Z on qutrit
+    def test_mixed_dims_XZ_phase(self):
+        for _ in range(N_tests):
+            # dims = [2, 3]; use site 1 (qutrit) to get omega_3
+            dims = random.choices(prime_list, k=2)
+            P = PauliString.from_exponents(x_exp=[0, 1], z_exp=[0, 0], dimensions=dims)  # X on qutrit
+            Q = PauliString.from_exponents(x_exp=[0, 0], z_exp=[0, 1], dimensions=dims)  # Z on qutrit
 
-        # residues: [0 mod 2, 1 mod 3]
-        assert P.symplectic_residues(Q).tolist() == [0, 1]
+            # residues: [0 mod dim[0], 1 mod dim[1]]
+            assert P.symplectic_residues(Q).tolist() == [0, 1]
 
-        # scalar: L = 6, weights = [3, 2], r = 0*3 + 1*2 = 2 mod 6
-        assert P.symplectic_product(Q, as_scalar=True) == 2
+            # scalar: r = 0*lcm/dim[0] + 1*lcm/dim[1] = lcm/dim[1] mod lcm
+            assert P.symplectic_product(Q, as_scalar=True) == P.lcm // dims[1]
 
     def test_mixed_dims_all_sites_X_vs_Z_product(self):
-        dims = [2, 3, 5]
-        P = PauliString.from_exponents(x_exp=[1, 1, 1], z_exp=[0, 0, 0], dimensions=dims)  # X on all
-        Q = PauliString.from_exponents(x_exp=[0, 0, 0], z_exp=[1, 1, 1], dimensions=dims)  # Z on all
+        for _ in range(N_tests):
+            dims = random.choices(prime_list, k=3)
+            P = PauliString.from_exponents(x_exp=[1, 1, 1], z_exp=[0, 0, 0], dimensions=dims)  # X on all
+            Q = PauliString.from_exponents(x_exp=[0, 0, 0], z_exp=[1, 1, 1], dimensions=dims)  # Z on all
 
-        # residues per site are all 1
-        assert P.symplectic_residues(Q).tolist() == [1, 1, 1]
+            # residues per site are all 1
+            assert P.symplectic_residues(Q).tolist() == [1, 1, 1]
 
-        # scalar: L=30, weights=[15,10,6], r = 15+10+6 = 31 ≡ 1 (mod 30)
-        assert P.symplectic_product(Q, as_scalar=True) == 1
+            # scalar: r = lcm/dims[0] + lcm/dims[1] + lcm/dims[2]) mod lcm
+            assert P.symplectic_product(Q, as_scalar=True) == (
+                P.lcm // dims[0] + P.lcm // dims[1] + P.lcm // dims[2]) % P.lcm
 
     def test_bilinearity_scalar_mode(self):
         # Check <v1+v2, w> = <v1, w> + <v2, w>  (phase-preserving scalar)
-        dims = [2, 3]
-        v1 = PauliString.from_exponents(x_exp=[1, 0], z_exp=[0, 0], dimensions=dims)  # X on qubit
-        v2 = PauliString.from_exponents(x_exp=[0, 1], z_exp=[0, 0], dimensions=dims)  # X on qutrit
-        w = PauliString.from_exponents(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)  # XZ on qutrit
+        for _ in range(N_tests):
+            dims = random.choices(prime_list, k=2)
+            v1 = PauliString.from_exponents(x_exp=[1, 0], z_exp=[0, 0], dimensions=dims)  # X on qubit
+            v2 = PauliString.from_exponents(x_exp=[0, 1], z_exp=[0, 0], dimensions=dims)  # X on qutrit
+            w = PauliString.from_exponents(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)  # XZ on qutrit
 
-        # Build v12 by adding tableaux modulo dims
-        x12 = (np.array([1, 0]) + np.array([0, 1])) % np.array(dims)
-        z12 = (np.array([0, 0]) + np.array([0, 0])) % np.array(dims)
-        v12 = PauliString.from_exponents(x_exp=x12.tolist(), z_exp=z12.tolist(), dimensions=dims)
+            # Build v12 by adding tableaux modulo dims
+            x12 = (np.array([1, 0]) + np.array([0, 1])) % np.array(dims)
+            z12 = (np.array([0, 0]) + np.array([0, 0])) % np.array(dims)
+            v12 = PauliString.from_exponents(x_exp=x12.tolist(), z_exp=z12.tolist(), dimensions=dims)
 
-        L = int(np.lcm.reduce(np.array(dims, int)))
-        lhs = v12.symplectic_product(w, as_scalar=True)
-        rhs = (v1.symplectic_product(w, as_scalar=True) +
-               v2.symplectic_product(w, as_scalar=True)) % L
-        assert lhs == rhs
+            L = int(np.lcm.reduce(np.array(dims, int)))
+            lhs = v12.symplectic_product(w, as_scalar=True)
+            rhs = (v1.symplectic_product(w, as_scalar=True) +
+                   v2.symplectic_product(w, as_scalar=True)) % L
+            assert lhs == rhs
 
     def test_antisymmetry_residues_and_scalar(self):
-        dims = [2, 5]
-        P = PauliString.from_exponents(x_exp=[1, 0], z_exp=[0, 1], dimensions=dims)    # X0 Z1
-        Q = PauliString.from_exponents(x_exp=[1, 1], z_exp=[0, 0], dimensions=dims)    # X0 X1
+        for _ in range(N_tests):
+            dims = random.choices(prime_list, k=2)
+            P = PauliString.from_exponents(x_exp=[1, 0], z_exp=[0, 1], dimensions=dims)    # X0 Z1
+            Q = PauliString.from_exponents(x_exp=[1, 1], z_exp=[0, 0], dimensions=dims)    # X0 X1
 
-        rP_Q = P.symplectic_residues(Q)
-        rQ_P = Q.symplectic_residues(P)
-        dims_arr = np.array(dims, int)
+            rP_Q = P.symplectic_residues(Q)
+            rQ_P = Q.symplectic_residues(P)
+            dims_arr = np.array(dims, int)
 
-        # r(P,Q) == - r(Q,P) (mod d_j) per qudit
-        assert np.all((rP_Q + rQ_P) % dims_arr == 0)
+            # r(P,Q) == - r(Q,P) (mod d_j) per qudit
+            assert np.all((rP_Q + rQ_P) % dims_arr == 0)
 
-        # scalar version mod L
-        L = int(np.lcm.reduce(np.array(dims, int)))
-        sPQ = P.symplectic_product(Q, as_scalar=True)
-        sQP = Q.symplectic_product(P, as_scalar=True)
-        assert (sPQ + sQP) % L == 0
+            # scalar version mod L
+            L = int(np.lcm.reduce(np.array(dims, int)))
+            sPQ = P.symplectic_product(Q, as_scalar=True)
+            sQP = Q.symplectic_product(P, as_scalar=True)
+            assert (sPQ + sQP) % L == 0
 
     def test_symplectic_product_matrix_matches_pairwise_mixed_dims(self):
-        dims = [2, 3]
-        # P1 = X on qubit, P2 = Z on qutrit, P3 = XZ on qutrit
-        P1 = PauliString.from_exponents(x_exp=[1, 0], z_exp=[0, 0], dimensions=dims)
-        P2 = PauliString.from_exponents(x_exp=[0, 0], z_exp=[0, 1], dimensions=dims)
-        P3 = PauliString.from_exponents(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)
-        S = PauliSum.from_pauli_strings([P1, P2, P3], weights=None, phases=None)
+        for _ in range(N_tests):
+            dims = random.choices(prime_list, k=2)
+            # P1 = X on first qudit, P2 = Z on second qudit, P3 = XZ on second qudit
+            P1 = PauliString.from_exponents(x_exp=[1, 0], z_exp=[0, 0], dimensions=dims)
+            P2 = PauliString.from_exponents(x_exp=[0, 0], z_exp=[0, 1], dimensions=dims)
+            P3 = PauliString.from_exponents(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)
+            S = PauliSum.from_pauli_strings([P1, P2, P3], weights=None, phases=None)
 
-        SPM = S.symplectic_product_matrix()
-        L = int(np.lcm.reduce(np.array(dims, int)))
+            SPM = S.symplectic_product_matrix()
+            L = int(np.lcm.reduce(np.array(dims, int)))
 
-        # Compute expected lower triangle via pairwise scalar products
-        expect = np.zeros_like(SPM)
-        ps = [P1, P2, P3]
-        for i in range(len(ps)):
-            for j in range(i):
-                expect[i, j] = ps[i].symplectic_product(ps[j], as_scalar=True)
-        expect = (expect + expect.T) % L
-        np.fill_diagonal(expect, 0)
+            # Compute expected lower triangle via pairwise scalar products
+            expect = np.zeros_like(SPM)
+            ps = [P1, P2, P3]
+            for i in range(len(ps)):
+                for j in range(i):
+                    expect[i, j] = ps[i].symplectic_product(ps[j], as_scalar=True)
+            expect = (expect + expect.T) % L
+            np.fill_diagonal(expect, 0)
 
-        assert np.array_equal(SPM % L, expect % L)
+            assert np.array_equal(SPM % L, expect % L)
 
     def test_symplectic_product_matrix_properties(self):
-        # Symmetry and zero diagonal
-        dims = [2, 3, 5]
-        P1 = PauliString.from_exponents(x_exp=[1, 0, 0], z_exp=[0, 0, 0], dimensions=dims)  # X on qubit
-        P2 = PauliString.from_exponents(x_exp=[0, 1, 0], z_exp=[0, 1, 0], dimensions=dims)  # XZ on qutrit
-        P3 = PauliString.from_exponents(x_exp=[0, 0, 1], z_exp=[0, 0, 0], dimensions=dims)  # X on ququint
-        P4 = PauliString.from_exponents(x_exp=[0, 0, 0], z_exp=[1, 0, 1], dimensions=dims)  # Z on qubit & ququint
-        S = PauliSum.from_pauli_strings([P1, P2, P3, P4])
-        print("S", S.tableau.shape)
+        for _ in range(N_tests):
+            # Symmetry and zero diagonal
+            dims = random.choices(prime_list, k=3)
+            P1 = PauliString.from_exponents(x_exp=[1, 0, 0], z_exp=[0, 0, 0], dimensions=dims)  # X on first qudit
+            P2 = PauliString.from_exponents(x_exp=[0, 1, 0], z_exp=[0, 1, 0], dimensions=dims)  # XZ on second qudit
+            P3 = PauliString.from_exponents(x_exp=[0, 0, 1], z_exp=[0, 0, 0], dimensions=dims)  # X on third qudit
+            P4 = PauliString.from_exponents(x_exp=[0, 0, 0], z_exp=[1, 0, 1],
+                                            dimensions=dims)  # Z on first & third qudit
+            S = PauliSum.from_pauli_strings([P1, P2, P3, P4])
+            print("S", S.tableau.shape)
 
-        SPM = S.symplectic_product_matrix()
-        L = S.lcm
+            SPM = S.symplectic_product_matrix()
+            L = S.lcm
 
-        # Symmetric and zero diagonal modulo L
-        assert np.array_equal(SPM % L, SPM.T % L)
-        assert np.all((np.diag(SPM) % L) == 0)
+            # Symmetric and zero diagonal modulo L
+            assert np.array_equal(SPM % L, SPM.T % L)
+            assert np.all((np.diag(SPM) % L) == 0)
 
-        # Spot-check against pairwise method:
+            # Spot-check against pairwise method:
 
-        ps1 = S.select_pauli_string(1)
-        ps3 = S.select_pauli_string(3)
-        assert SPM[1, 3] % L == ps1.symplectic_product(ps3, as_scalar=True) % L
-
-    # Comprehensive tests
-    # commutation relations for mixed dimensions
-    # phases for mixed dimensions
+            ps1 = S.select_pauli_string(1)
+            ps3 = S.select_pauli_string(3)
+            assert SPM[1, 3] % L == ps1.symplectic_product(ps3, as_scalar=True) % L
 
     def test_pauli_sum_commutation_with_matrix(self):
         """
         Generate a random PauliSum with mixed dimensions and verify that
         pairwise commutation (via matrices) matches the symplectic scalar product.
         """
-        for _ in range(50):
+        for _ in range(int(np.ceil(np.sqrt(N_tests)))):
             # randomly choose dimensions and number of paulis
             dimensions, n_paulis = self.choose_dimensions(25, prime_available=prime_list)
 
@@ -829,7 +835,7 @@ class TestPaulis:
         (which are unity) so the resulting PauliSum should represent the same
         matrix. Verify matrices are equal.
         """
-        for _ in range(50):
+        for _ in range(int(np.ceil(np.sqrt(N_tests)))):
             # randomly choose dimensions and number of paulis
             dimensions, n_paulis = self.choose_dimensions(25, prime_available=prime_list)
 
