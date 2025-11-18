@@ -6,6 +6,8 @@ import galois
 from sympleq.core.finite_field_solvers import get_linear_dependencies
 import warnings
 
+from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
+
 from .pauli_object import PauliObject
 from .pauli_string import PauliString
 from .pauli import Pauli
@@ -246,6 +248,41 @@ class PauliSum(PauliObject):
                                        size=n_paulis) if rand_phases else [0] * n_paulis
 
         return cls.from_pauli_strings(strings, weights=weights, phases=phases)
+
+    @classmethod
+    def from_file(cls, path: str,
+                  dimensions: int | list[int] | np.ndarray = DEFAULT_QUDIT_DIMENSION,
+                  spaces: bool = True) -> PauliSum:
+        """Reads a Hamiltonian file and parses the Pauli strings and coefficients.
+
+        Parameters
+        ----------
+            path: str
+                Path to the Hamiltonian file.
+            dimensions: int | list[int] | np.ndarray
+                Dimension(s) of the qudits, default is DEFAULT_QUDIT_DIMENSION.
+            spaces: bool
+                Whether to expect spaces in the Pauli string format, default is True.
+
+        Returns
+        -------
+        PauliSum
+            The parsed PauliSum
+        """
+        with open(path, "r") as f:
+            lines = f.readlines()
+
+        pauli_strings = []
+        weights = []
+
+        for line in lines:
+            pauli_list = line.split(', {') if spaces else line.split(',{')
+            coeff = pauli_list[0][1:].replace(" ", "").replace('*I', 'j')
+            weights.append(complex(coeff))
+            pauli_str = ' '.join(f"x{item.count('X')}z{item.count('Z')}" for item in pauli_list[1:])
+            pauli_strings.append(pauli_str.strip())
+
+        return PauliSum.from_string(pauli_strings, dimensions, weights)
 
     @property
     def phases(self) -> np.ndarray:
