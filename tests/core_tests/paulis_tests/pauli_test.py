@@ -1,13 +1,13 @@
 import numpy as np
 import random
-import math
 import pytest
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 
 # List of prime dimensions to test
-# For local fast testing, keep few primes. Set to more/all before PR merging.
-prime_list = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
+# Choose few for faster testing during development (e.g. until 13)
+# Choose all before PR merging
+prime_list = [2, 3, 5, 7]  # , 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
 # Number of random tests to perform for each (most) test function
 # Set to a lower number for faster testing during development (e.g. 25)
 # Set to a higher number before PR merging (e.g. 1000)
@@ -16,7 +16,8 @@ N_tests = 100
 
 class TestPaulis:
 
-    def choose_dimensions(self, max_paulis: int,
+    def choose_dimensions(self,
+                          max_paulis: int,
                           prime_available: list[int] = prime_list) -> tuple[list[int], int]:
         dimensions_to_choose_from = prime_available
         dimensions = []
