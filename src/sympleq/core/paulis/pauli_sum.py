@@ -1065,7 +1065,7 @@ class PauliSum(PauliObject):
         #       meaning that they could be modified from the PauliString.
         return Pauli(self.tableau[index], self.dimensions)
 
-    def to_file(self, path: str, spaces: bool = True) -> None:
+    def to_file(self, path: str) -> None:
         """
         Writes the PauliSum to a file using its internal representation.
 

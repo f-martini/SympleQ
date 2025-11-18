@@ -136,14 +136,8 @@ class TestPauliSumFactories:
         path = TEST_DATA_FOLDER + "/test_pauli_sum_to_and_from_file"
         dimensions = [2, 3, 5, 7, 11]
 
-        P = PauliSum.from_random(10, dimensions)
-
-        spaces = False
-        P.to_file(path, spaces)
-        P_from_file = PauliSum.from_file(path, dimensions)
-        assert P == P_from_file
-
-        spaces = True
-        P.to_file(path, spaces)
-        P_from_file = PauliSum.from_file(path, dimensions)
-        assert P == P_from_file
+        for _ in range(50):
+            P = PauliSum.from_random(10, dimensions)
+            P.to_file(path)
+            P_from_file = PauliSum.from_file(path, dimensions)
+            assert P == P_from_file
