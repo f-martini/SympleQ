@@ -1,36 +1,11 @@
+from __future__ import annotations
 import numpy as np
-from sympleq.core.paulis import PauliSum
 import galois
+from typing import TYPE_CHECKING
 
-
-def read_luca_test_2(path: str, dims: list[int] | int = 2, spaces: bool = True):
-    """Reads a Hamiltonian file and parses the Pauli strings and coefficients.
-
-    Args:
-        path (str): Path to the Hamiltonian file.
-        dims (Union[int, List[int]]): Dimension(s) of the qudits, default is 2.
-        spaces (bool): Whether to expect spaces in the Pauli string format, default is True.
-
-    Returns:
-        Tuple: Parsed Pauli operators and corresponding coefficients.
-    """
-    with open(path, "r") as f:
-        lines = f.readlines()
-
-    pauli_strings = []
-    coefficients = []
-
-    for line in lines:
-        pauli_list = line.split(', {') if spaces else line.split(',{')
-        coeff = pauli_list[0][1:].replace(" ", "").replace('*I', 'j')
-        coefficients.append(complex(coeff))
-
-        pauli_str = ' '.join(
-            f"x{item.count('X')}z{item.count('Z')}" for item in pauli_list[1:])
-        pauli_strings.append(pauli_str.strip())
-
-    return PauliSum.from_string(pauli_strings, dimensions=dims if isinstance(dims, list) else [dims],
-                                weights=coefficients)
+if TYPE_CHECKING:
+    from sympleq.core.paulis import PauliSum
+    from sympleq.core.paulis import PauliObject
 
 
 def bases_to_int(base, dimensions) -> int:
@@ -58,6 +33,7 @@ def bases_to_int(base, dimensions) -> int:
         The integer that corresponds to the input base in the given
         dimensions.
     """
+    # FIXME: maybe there is a way to avoid flipping twice?
     dimensions = np.flip(dimensions)
     base = np.flip(base)
     number = base[0] + sum([base[qudit] * np.prod(dimensions[:qudit])
@@ -67,7 +43,7 @@ def bases_to_int(base, dimensions) -> int:
     return number
 
 
-def int_to_bases(number, dimensions) -> np.ndarray:
+def int_to_bases(number: int, dimensions: int | list[int] | np.ndarray) -> np.ndarray:
     """
     Converts an integer to a list of integers given the dimensions. The returned list of integers can be thought of
     as a number in basis of the dimensions which is converted from a number in base 10.
@@ -89,21 +65,24 @@ def int_to_bases(number, dimensions) -> np.ndarray:
     np.ndarray
         The list of integers that corresponds to the input number in the given dimensions.
     """
-    dimensions = np.flip(dimensions)
-    base = [number % dimensions[0]]
+    if isinstance(dimensions, int):
+        dimensions = [dimensions]
+
+    # FIXME: maybe there is a way to avoid flipping twice?
+    dims = np.flip(dimensions)
+    base = [number % dims[0]]
     for i in range(1, len(dimensions)):
-        s0 = base[0] + sum([base[i1] * dimensions[i1 - 1]
+        s0 = base[0] + sum([base[i1] * dims[i1 - 1]
                            for i1 in range(1, i)])
-        s1 = np.prod(dimensions[:i])
-        base.append(((number - s0) // s1) % dimensions[i])
-    dimensions = np.flip(dimensions)
-    return np.flip(np.array(base))
+        s1 = np.prod(dims[:i])
+        base.append(((number - s0) // s1) % dims[i])
+    return np.flip(np.array(base, dtype=int))
 
 
 # PHYSICS FUNCTIONS
 
 
-def Hamiltonian_Mean(P: PauliSum, psi: np.ndarray) -> float:
+def Hamiltonian_Mean(P: PauliObject, psi: np.ndarray) -> float:
     """Returns the mean of a Hamiltonian with a given state.
 
     Args:
@@ -118,7 +97,7 @@ def Hamiltonian_Mean(P: PauliSum, psi: np.ndarray) -> float:
     return sum(P.weights[i] * psi_dag @ P.to_hilbert_space(i) @ psi for i in range(p))
 
 
-def covariance_matrix(P: PauliSum, psi: np.ndarray) -> np.ndarray:
+def covariance_matrix(P: PauliObject, psi: np.ndarray) -> np.ndarray:
     """
     Computes the covariance matrix for a given set of Pauli operators and a quantum state.
 

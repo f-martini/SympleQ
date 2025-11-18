@@ -14,14 +14,14 @@ from .constants import DEFAULT_QUDIT_DIMENSION
 
 class Pauli(PauliObject):
     @classmethod
-    def from_tableau(cls, tableau: np.ndarray, dimension: int = DEFAULT_QUDIT_DIMENSION) -> Pauli:
+    def from_tableau(cls, tableau: list[int] | np.ndarray, dimension: int = DEFAULT_QUDIT_DIMENSION) -> Pauli:
         """
         Create a Pauli from its tableau.
 
         Parameters
         ----------
-        tableau : inp.ndarray
-            The tableau of the Pauli, a 1D array of length 2.
+        tableau : list[int] | np.ndarray
+            The tableau of the Pauli, a 1D list or array of length 2.
         dimension : int, optional
             Qudit dimension used to reduce exponents modulo `dimension`.
 
@@ -30,6 +30,9 @@ class Pauli(PauliObject):
         Pauli
             Pauli instance with tableau reduced modulo `dimension`.
         """
+
+        if isinstance(tableau, list):
+            tableau = np.asarray(tableau, dtype=int)
         P = cls(tableau, dimensions=dimension)
         P._sanity_check()
 
@@ -93,6 +96,9 @@ class Pauli(PauliObject):
         """
         tableau = np.empty(2, dtype=int)
         xz_exponents = re.split('x|z', pauli_str)[1:]
+        if len(xz_exponents) != 2:
+            raise ValueError(f"A Pauli has only 1 quidt (got {len(xz_exponents) // 2}).")
+
         x_exp = int(xz_exponents[0])
         z_exp = int(xz_exponents[1])
         tableau[0] = x_exp
