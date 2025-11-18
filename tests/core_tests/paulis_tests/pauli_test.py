@@ -852,7 +852,7 @@ class TestPaulis:
             new_phases = (P.phases + phase_shifts).tolist()
 
             # fix coefficients accordingly
-            new_weights = (weights * np.exp(-2j * np.pi * phase_shifts / (2 * L))).tolist()
+            new_weights = (P.weights * np.exp(-2j * np.pi * phase_shifts / (2 * L))).tolist()
 
             # construct new PauliSum
             P_dephased = PauliSum.from_tableau(P.tableau, weights=new_weights,

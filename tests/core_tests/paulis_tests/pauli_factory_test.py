@@ -12,7 +12,6 @@ class TestPauliSumFactories:
 
     def test_from_pauli_basic(self):
         pauli = Pauli.from_string('x1z2', 3)
-
         ps = PauliString.from_pauli(pauli)
         assert np.array_equal(ps.tableau, pauli.tableau)
         assert np.array_equal(ps.dimensions, pauli.dimensions)
