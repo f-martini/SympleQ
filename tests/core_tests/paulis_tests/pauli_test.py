@@ -716,14 +716,41 @@ class TestPaulis:
             assert np.allclose(P_rephased.weights, P.weights, atol=1e-12), "Weights differ after phase_to_weight"
 
             # check that all PauliSums are the same:
-            P.standardise()
-            P_dephased.standardise()
-            P_rephased.standardise()
-            assert P.is_close(P_dephased), "PauliSums differ after applying trivial phase/weight shifts"
-            assert P.is_close(P_rephased), "PauliSums differ after phase_to_weight"
+            assert P.is_close(P_dephased, literal=False), "PauliSums differ after applying trivial phase/weight shifts"
+            assert P.is_close(P_rephased, literal=False), "PauliSums differ after phase_to_weight"
 
             # compare matrices
             M1 = P.to_hilbert_space().toarray()
             M2 = P_dephased.to_hilbert_space().toarray()
 
             assert np.allclose(M1, M2, atol=1e-12), "Matrices differ after applying trivial phase/weight shifts"
+
+    def test_is_close(self):
+        # literal = True
+        dims = [2, 3]
+        ps1 = PauliString.from_exponents(x_exp=[1, 0], z_exp=[0, 0], dimensions=dims)  # X on qubit
+        ps2 = PauliString.from_exponents(x_exp=[0, 1], z_exp=[0, 1], dimensions=dims)  # XZ on qutrit
+        ps3 = PauliString.from_exponents(x_exp=[1, 1], z_exp=[0, 1], dimensions=dims)  # X on qubit, XZ on qutrit
+
+        psum1 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0, 0.5], phases=[0, 1])
+        psum2 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0 + 1e-10, 0.5 - 1e-10], phases=[0, 1])
+        psum3 = PauliSum.from_pauli_strings([ps1, ps3], weights=[1.0, 0.5], phases=[0, 1])
+
+        assert psum1.is_close(psum2, threshold=9)
+        assert not psum1.is_close(psum3, threshold=9)
+
+        # literal = False
+        psum1 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0, 0.5], phases=[0, 1])
+        psum1.phase_to_weight()
+        psum2 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0 + 1e-12, 0.5 - 1e-12], phases=[0, 1])
+        assert psum1.is_close(psum2, literal=False)
+
+        psum1 = PauliSum.from_pauli_strings([ps2, ps1], weights=[0.5, 1.0], phases=[1, 0])
+        psum1.phase_to_weight()
+        psum2 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0 + 1e-12, 0.5 - 1e-12], phases=[0, 1])
+        assert psum1.is_close(psum2, literal=False)
+
+        psum1 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0, 0.5], phases=[0, 2])
+        psum1.phase_to_weight()
+        psum2 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0 + 1e-12, 0.5 - 1e-12], phases=[0, 1])
+        assert not psum1.is_close(psum2, literal=False)
