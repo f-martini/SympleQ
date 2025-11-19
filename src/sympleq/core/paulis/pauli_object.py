@@ -224,6 +224,9 @@ class PauliObject(ABC):
             Pauli object to compare against.
         threshold : int, optional
             Number of matching decimal digits required for equality. Default is 10.
+        literal : bool, optional
+            If True, compares objects literally in their current form. If False,
+            accounts for reordering and phases in weights. Default is True.
 
         Returns
         -------
