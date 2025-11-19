@@ -174,8 +174,7 @@ class AquireConfig:
 
     def test_noise_and_error_function(self):
         for i in range(10):
-            test_circuit = Circuit.from_random(self.Hamiltonian.n_qudits(),
-                                               depth=np.random.randint(1, 6),
+            test_circuit = Circuit.from_random(n_gates=np.random.randint(1, 6),
                                                dimensions=self.Hamiltonian.dimensions)
 
             noise_prob = self.noise_probability_function(
@@ -345,7 +344,7 @@ class Aquire:
             else:
                 raise Exception("Invalid input")
 
-        #P = weight_to_phase(P)
+        # P = weight_to_phase(P)
 
         # supposed to be permanent
         self._H = P
