@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import math
 import pytest
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
@@ -690,22 +691,18 @@ class TestPaulis:
                 dimensions = [random.choice(dimensions_to_choose_from)]
 
             # random number of paulis
-            n_paulis = random.randint(1, int(max(dimensions)**2))
+            n_paulis = random.randint(1, math.prod([d**2 for d in dimensions]))
             P = PauliSum.from_random(n_paulis, dimensions, rand_phases=False)
             n_terms = P.n_paulis()
 
-            weights = np.array(P.weights, copy=True)
-            phases = np.array(P.phases, copy=True)
-
             L = P.lcm
-
             # random integer shifts: add up to 2*L - 1
             phase_shifts = np.random.randint(0, 2 * L - 1, size=n_terms)
-            new_phases = (phases + phase_shifts).tolist()
+            new_phases = (P.phases + phase_shifts).tolist()
 
             # fix coefficients accordingly
             # FIXME: ensure weights are correct (notice the "-" sign to undo the added phases above)
-            new_weights = (weights * np.exp(-2j * np.pi * phase_shifts / (2 * L))).tolist()
+            new_weights = (P.weights * np.exp(-2j * np.pi * phase_shifts / (2 * L))).tolist()
 
             # construct new PauliSum
             P_dephased = PauliSum.from_tableau(P.tableau, weights=new_weights,
