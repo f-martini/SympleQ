@@ -76,7 +76,7 @@ runs:
           cd /tmp/vcpkg && 
           git checkout ${{ inputs.vcpkg-commit }} &&
           ./bootstrap-vcpkg.sh &&
-          cd /github/workspace/src && 
+          cd ${{ github.workspace }}/src && 
           /tmp/vcpkg/vcpkg install --recurse
         CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
         CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}
