@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
+from scipy.sparse import issparse
 from sympleq.core.circuits.known_circuits import to_x, to_ix
 from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE, PauliGate
 from sympleq.core.paulis import PauliSum, PauliString
-from scipy.sparse import issparse
 
 
 class TestCircuits():

@@ -5,34 +5,27 @@ import math
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 
-# List of prime dimensions to test
-# Choose few for faster testing during development (e.g. until 13)
-# Choose all before PR merging
-prime_list = [2, 3, 5, 7]  # , 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
-# Number of random tests to perform for each (most) test function
-# Set to a lower number for faster testing during development (e.g. 25)
-# Set to a higher number before PR merging (e.g. 1000)
-N_tests = 100
+prime_list = [2, 3, 5, 7, 11] #  , 13, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
+N_tests = 250
 
 
 class TestPaulis:
 
-    def choose_dimensions(self,
-                          max_paulis: int,
-                          prime_available: list[int] = prime_list) -> tuple[list[int], int]:
-        dimensions_to_choose_from = prime_available
+    def choose_dimensions_and_n_paulis(self,
+                                       max_paulis: int,
+                                       prime_available: list[int] = prime_list) -> tuple[list[int], int]:
         dimensions = []
         prod = 1
         while True:
-            d = random.choice(dimensions_to_choose_from)
-            if prod * d >= 10 * np.max(dimensions_to_choose_from) + 1:
+            d = random.choice(prime_available)
+            if prod * d >= 10 * np.max(prime_available) + 1:
                 break
             dimensions.append(d)
             prod *= d
         if not dimensions:
-            dimensions = [random.choice(dimensions_to_choose_from)]
+            dimensions = [random.choice(prime_available)]
 
-        # random number of paulis between 1 and prod(dimensions)^2 - 1
+        # fix n_paulis if too large
         n_paulis = min([int(math.prod(dimensions)**2 - 1), max_paulis])
 
         return dimensions, n_paulis
@@ -198,15 +191,23 @@ class TestPaulis:
     def test_pauli_sum_tensor_product(self):
         for dim in prime_list:
             for _ in range(N_tests):
-                p_string1 = PauliString.from_string(f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}"
-                                                    f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}",
-                                                    dimensions=[dim, dim])
-                p_string2 = PauliString.from_string(f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}"
-                                                    f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}",
-                                                    dimensions=[dim, dim])
-                p_string3 = PauliString.from_string(f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}"
-                                                    f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}",
-                                                    dimensions=[dim, dim])
+                r11 = np.random.randint(0, 2 * dim)
+                s11 = np.random.randint(0, 2 * dim)
+                r12 = np.random.randint(0, 2 * dim)
+                s12 = np.random.randint(0, 2 * dim)
+                p_string1 = PauliString.from_string(f"x{r11}z{s11} x{r12}z{s12}", dimensions=[dim, dim])
+
+                r21 = np.random.randint(0, 2 * dim)
+                s21 = np.random.randint(0, 2 * dim)
+                r22 = np.random.randint(0, 2 * dim)
+                s22 = np.random.randint(0, 2 * dim)
+                p_string2 = PauliString.from_string(f"x{r21}z{s21} x{r22}z{s22}", dimensions=[dim, dim])
+
+                r31 = np.random.randint(0, 2 * dim)
+                s31 = np.random.randint(0, 2 * dim)
+                r32 = np.random.randint(0, 2 * dim)
+                s32 = np.random.randint(0, 2 * dim)
+                p_string3 = PauliString.from_string(f"x{r31}z{s31} x{r32}z{s32}", dimensions=[dim, dim])
 
                 random_pauli_sum = PauliSum.from_pauli_strings([p_string1, p_string2])
                 random_pauli_sum2 = PauliSum.from_pauli_strings([p_string3])
@@ -228,7 +229,7 @@ class TestPaulis:
     def test_symplectic_matrix_multiple_paulis(self):
         for _ in range(N_tests):
             # randomly choose dimensions and number of paulis
-            dimensions, n_paulis = self.choose_dimensions(10, prime_available=prime_list)
+            dimensions, n_paulis = self.choose_dimensions_and_n_paulis(10, prime_available=prime_list)
             # choose tableau
             expected_tableau = np.array([
                 (lambda x, z: x + z)(
@@ -269,7 +270,7 @@ class TestPaulis:
     def test_pauli_string_construction(self):
         for _ in range(N_tests):
             # randomly choose dimensions and number of paulis
-            dims, _ = self.choose_dimensions(10, prime_available=prime_list)
+            dims, _ = self.choose_dimensions_and_n_paulis(10, prime_available=prime_list)
 
             # test 1
             exps = [[random.randint(0, dim - 1) for dim in dims], [random.randint(0, dim - 1) for dim in dims]]
@@ -296,17 +297,23 @@ class TestPaulis:
 
         for dim in prime_list:
             for _ in range(N_tests):
-                p_string1 = PauliString.from_string(f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}"
-                                                    f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}",
-                                                    dimensions=[dim, dim])
+                r11 = np.random.randint(0, 2 * dim)
+                s11 = np.random.randint(0, 2 * dim)
+                r12 = np.random.randint(0, 2 * dim)
+                s12 = np.random.randint(0, 2 * dim)
+                p_string1 = PauliString.from_string(f"x{r11}z{s11} x{r12}z{s12}", dimensions=[dim, dim])
 
-                p_string2 = PauliString.from_string(f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}"
-                                                    f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}",
-                                                    dimensions=[dim, dim])
+                r21 = np.random.randint(0, 2 * dim)
+                s21 = np.random.randint(0, 2 * dim)
+                r22 = np.random.randint(0, 2 * dim)
+                s22 = np.random.randint(0, 2 * dim)
+                p_string2 = PauliString.from_string(f"x{r21}z{s21} x{r22}z{s22}", dimensions=[dim, dim])
 
-                p_string3 = PauliString.from_string(f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}"
-                                                    f"x{np.random.randint(0, 2 * dim)}z{np.random.randint(0, 2 * dim)}",
-                                                    dimensions=[dim, dim])
+                r31 = np.random.randint(0, 2 * dim)
+                s31 = np.random.randint(0, 2 * dim)
+                r32 = np.random.randint(0, 2 * dim)
+                s32 = np.random.randint(0, 2 * dim)
+                p_string3 = PauliString.from_string(f"x{r31}z{s31} x{r32}z{s32}", dimensions=[dim, dim])
 
                 random_pauli_sum_1 = PauliSum.from_pauli_strings([p_string1, p_string2])
                 random_pauli_sum_2 = PauliSum.from_pauli_strings([p_string3])
@@ -315,7 +322,7 @@ class TestPaulis:
                 assert ps_out == ps_out_correct, 'Error in PauliSum addition'
 
         for _ in range(N_tests):
-            dimensions, n_paulis = self.choose_dimensions(10, prime_available=prime_list)
+            dimensions, n_paulis = self.choose_dimensions_and_n_paulis(10, prime_available=prime_list)
 
             # Generate random PauliStrings
             pauli_strings = []
@@ -377,7 +384,7 @@ class TestPaulis:
 
         for _ in range(N_tests):
 
-            dimensions, _ = self.choose_dimensions(10, prime_available=prime_list)
+            dimensions, _ = self.choose_dimensions_and_n_paulis(10, prime_available=prime_list)
 
             tmp1 = PauliString.from_exponents(
                 x_exp=[random.randint(0, d - 1) for d in dimensions],
@@ -404,7 +411,7 @@ class TestPaulis:
     def test_pauli_sum_indexing(self):
         for _ in range(N_tests):
             # Randomly choose dimensions and number of qudits
-            dimensions, n_paulis = self.choose_dimensions(10, prime_available=prime_list)
+            dimensions, n_paulis = self.choose_dimensions_and_n_paulis(10, prime_available=prime_list)
             n_qudits = len(dimensions)
 
             # Generate random PauliStrings
@@ -536,7 +543,7 @@ class TestPaulis:
         product = P1.H() * P2
         assert product.phases == [8]
 
-        dimensions, _ = self.choose_dimensions(10, prime_available=prime_list)
+        dimensions, _ = self.choose_dimensions_and_n_paulis(10, prime_available=prime_list)
         for _ in range(int(np.ceil(np.sqrt(N_tests)))):
             for _ in range(int(np.ceil(np.sqrt(N_tests)))):
                 P1 = PauliSum.from_random(random.randint(1, 25), dimensions)
@@ -681,7 +688,7 @@ class TestPaulis:
     def test_pauli_sum_is_hermitian(self):
         for run in range(int(np.ceil(np.sqrt(N_tests)))):
             # Generate random dimensions array {d_1, d_2, d_3,...} such that \prod_i d_i <= 10
-            dimensions, _ = self.choose_dimensions(10, prime_available=prime_list)
+            dimensions, _ = self.choose_dimensions_and_n_paulis(10, prime_available=prime_list)
 
             D = int(np.prod(dimensions))
 
@@ -836,7 +843,7 @@ class TestPaulis:
         """
         for _ in range(int(np.ceil(np.sqrt(N_tests)))):
             # randomly choose dimensions and number of paulis
-            dimensions, n_paulis = self.choose_dimensions(25, prime_available=prime_list)
+            dimensions, n_paulis = self.choose_dimensions_and_n_paulis(25, prime_available=prime_list)
 
             # generate random PauliSum
             P = PauliSum.from_random(n_paulis, dimensions, rand_phases=True)
@@ -884,7 +891,7 @@ class TestPaulis:
         """
         for _ in range(int(np.ceil(np.sqrt(N_tests)))):
             # randomly choose dimensions and number of paulis
-            dimensions, n_paulis = self.choose_dimensions(25, prime_available=prime_list)
+            dimensions, n_paulis = self.choose_dimensions_and_n_paulis(25, prime_available=prime_list)
 
             P = PauliSum.from_random(n_paulis, dimensions, rand_phases=False)
             n_terms = P.n_paulis()
