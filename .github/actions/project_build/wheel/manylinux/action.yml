@@ -76,8 +76,7 @@ runs:
           cd /tmp/vcpkg && 
           git checkout ${{ inputs.vcpkg-commit }} &&
           ./bootstrap-vcpkg.sh &&
-          cd ${{ github.workspace }}/src && 
-          /tmp/vcpkg/vcpkg install --recurse
+          ls
         CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
         CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}
         CIBW_TEST_COMMAND: 'python -c "from ${{ inputs.project-name }}.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
