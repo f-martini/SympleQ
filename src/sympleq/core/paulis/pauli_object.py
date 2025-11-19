@@ -214,36 +214,43 @@ class PauliObject(ABC):
         """
         pass
 
-    def is_close(self, other_pauli: Self, threshold: int = 10) -> bool:
+    def is_close(self, other_pauli: Self, threshold: int = 10, literal: bool = True) -> bool:
         """
         Check whether two Pauli objects are approximately equal.
-
         Parameters
         ----------
         other_pauli : PauliObject
             Pauli object to compare against.
         threshold : int, optional
             Number of matching decimal digits required for equality. Default is 10.
-
+        literal : bool, optional
+            If True, compares objects literally in their current form. If False,
+            accounts for reordering and phases in weights. Default is True.
         Returns
         -------
         bool
             True if all tableau entries, weights, phases, and dimensions
             match within tolerance; False otherwise.
         """
+        self_PauliSum = self.copy()
+        other_PauliSum = other_pauli.copy()
+        if not literal:
+            self_PauliSum = self_PauliSum.to_standard_form()
+            other_PauliSum = other_PauliSum.to_standard_form()
+
         if not isinstance(other_pauli, self.__class__):
             return False
 
-        if not np.array_equal(self.tableau, other_pauli.tableau):
+        if not np.array_equal(self_PauliSum.tableau, other_PauliSum.tableau):
             return False
 
-        if not np.all(np.isclose(self.weights, other_pauli.weights, 10**(-threshold))):
+        if not np.all(np.isclose(self_PauliSum.weights, other_PauliSum.weights, 10**(-threshold))):
             return False
 
-        if not np.array_equal(self.phases, other_pauli.phases):
+        if not np.array_equal(self_PauliSum.phases, other_PauliSum.phases):
             return False
 
-        if not np.array_equal(self.dimensions, other_pauli.dimensions):
+        if not np.array_equal(self_PauliSum.dimensions, other_PauliSum.dimensions):
             return False
 
         return True
