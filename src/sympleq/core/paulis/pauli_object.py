@@ -214,7 +214,7 @@ class PauliObject(ABC):
         """
         pass
 
-    def is_close(self, other_pauli: Self, threshold: int = 10) -> bool:
+    def is_close(self, other_pauli: Self, threshold: int = 10, literal: bool = True) -> bool:
         """
         Check whether two Pauli objects are approximately equal.
 
@@ -224,6 +224,9 @@ class PauliObject(ABC):
             Pauli object to compare against.
         threshold : int, optional
             Number of matching decimal digits required for equality. Default is 10.
+        literal : bool, optional
+            If True, compares objects literally in their current form. If False,
+            accounts for reordering and phases in weights. Default is True.
 
         Returns
         -------
@@ -234,16 +237,22 @@ class PauliObject(ABC):
         if not isinstance(other_pauli, self.__class__):
             return False
 
-        if not np.array_equal(self.tableau, other_pauli.tableau):
+        ps1 = self
+        ps2 = other_pauli
+        if not literal:
+            ps1 = ps1.to_standard_form()
+            ps2 = ps2.to_standard_form()
+
+        if not np.all(np.isclose(ps1.weights, ps2.weights, 10**(-threshold))):
             return False
 
-        if not np.all(np.isclose(self.weights, other_pauli.weights, 10**(-threshold))):
+        if not np.array_equal(ps1.phases, ps2.phases):
             return False
 
-        if not np.array_equal(self.phases, other_pauli.phases):
+        if not np.array_equal(ps1.dimensions, ps2.dimensions):
             return False
 
-        if not np.array_equal(self.dimensions, other_pauli.dimensions):
+        if not np.array_equal(ps1.tableau, ps2.tableau):
             return False
 
         return True
@@ -291,7 +300,7 @@ class PauliObject(ABC):
             True if the object equals its Hermitian conjugate; False otherwise.
         """
         # NOTE: rounding errors could make this fail, hence we call the is_close function.
-        return self.to_standard_form().is_close(self.H().to_standard_form())
+        return self.is_close(self.H(), literal=False)
 
     def _sanity_check(self):
         """
