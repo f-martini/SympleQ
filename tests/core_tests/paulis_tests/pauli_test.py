@@ -742,7 +742,8 @@ class TestPaulis:
         # literal = False
         psum1 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0, 0.5], phases=[0, 1])
         psum1.phase_to_weight()
-        psum2 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0 + 1e-12, 0.5 - 1e-12], phases=[0, 1])
+        psum2 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0, 0.5], phases=[0, 1])
+        assert not psum1.is_close(psum2, literal=True)
         assert psum1.is_close(psum2, literal=False)
 
         psum1 = PauliSum.from_pauli_strings([ps2, ps1], weights=[0.5, 1.0], phases=[1, 0])

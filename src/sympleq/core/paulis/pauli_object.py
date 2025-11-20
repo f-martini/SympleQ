@@ -234,25 +234,25 @@ class PauliObject(ABC):
             True if all tableau entries, weights, phases, and dimensions
             match within tolerance; False otherwise.
         """
-        self_PauliSum = self.copy()
-        other_PauliSum = other_pauli.copy()
-        if not literal:
-            self_PauliSum = self_PauliSum.to_standard_form()
-            other_PauliSum = other_PauliSum.to_standard_form()
-
         if not isinstance(other_pauli, self.__class__):
             return False
 
-        if not np.array_equal(self_PauliSum.tableau, other_PauliSum.tableau):
+        ps1 = self
+        ps2 = other_pauli
+        if not literal:
+            ps1 = ps1.to_standard_form()
+            ps2 = ps2.to_standard_form()
+
+        if not np.all(np.isclose(ps1.weights, ps2.weights, 10**(-threshold))):
             return False
 
-        if not np.all(np.isclose(self_PauliSum.weights, other_PauliSum.weights, 10**(-threshold))):
+        if not np.array_equal(ps1.phases, ps2.phases):
             return False
 
-        if not np.array_equal(self_PauliSum.phases, other_PauliSum.phases):
+        if not np.array_equal(ps1.dimensions, ps2.dimensions):
             return False
 
-        if not np.array_equal(self_PauliSum.dimensions, other_PauliSum.dimensions):
+        if not np.array_equal(ps1.tableau, ps2.tableau):
             return False
 
         return True
