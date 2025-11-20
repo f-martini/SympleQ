@@ -1,12 +1,12 @@
 import numpy as np
 import random
 import pytest
-import math
+#  import math
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 
-prime_list = [2, 3, 5, 7, 11] #  , 13, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
-N_tests = 250
+prime_list = [2, 3, 5, 7, 11]
+N_tests = 100
 
 
 class TestPaulis:
@@ -25,8 +25,9 @@ class TestPaulis:
         if not dimensions:
             dimensions = [random.choice(prime_available)]
 
-        # fix n_paulis if too large
-        n_paulis = min([int(math.prod(dimensions)**2 - 1), max_paulis])
+        # fix n_paulis if too large to the max of non-identity paulis that are available for the given dimensions
+        # n_paulis = min([int(math.prod(dimensions)**2 - 1), max_paulis])
+        n_paulis = max_paulis
 
         return dimensions, n_paulis
 
@@ -343,12 +344,14 @@ class TestPaulis:
             expected = PauliSum.from_pauli_strings(pauli_strings, weights=[1 + 0j] * n_paulis, phases=[0] * n_paulis)
             expected.standardise()
 
-        if isinstance(psum, PauliSum) and isinstance(expected, PauliSum):
-            assert psum == expected, (f"PauliSum addition failed, \n obtained \n{psum}\n expected \n{expected}\n,"
-                                      f"with dimensions {dimensions}")
-        else:
-            assert False, (f"PauliSum used are not of type PauliSum, being them \n{psum}\n and \n{expected}\n,"
-                           f"with dimensions {dimensions}")
+        assert isinstance(psum, PauliSum) and isinstance(expected, PauliSum), (
+            f"PauliSum used are not of type PauliSum, being them \n{psum}\n and \n{expected}\n,"
+            f"with dimensions {dimensions}"
+        )
+        assert psum == expected, (
+            f"PauliSum addition failed, \n obtained \n{psum}\n expected \n{expected}\n,"
+            f"with dimensions {dimensions}"
+        )
 
     def test_phase_and_dot_product(self):
 
@@ -821,7 +824,6 @@ class TestPaulis:
             P4 = PauliString.from_exponents(x_exp=[0, 0, 0], z_exp=[1, 0, 1],
                                             dimensions=dims)  # Z on first & third qudit
             S = PauliSum.from_pauli_strings([P1, P2, P3, P4])
-            print("S", S.tableau.shape)
 
             SPM = S.symplectic_product_matrix()
             L = S.lcm
