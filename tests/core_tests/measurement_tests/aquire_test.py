@@ -9,7 +9,7 @@ from sympleq.core.measurement.allocation import sort_hamiltonian
 
 import pytest
 
-
+@pytest.mark.integration
 class TestAquire:
 
     def test_aquire_for_specific_mono_qubit(self):

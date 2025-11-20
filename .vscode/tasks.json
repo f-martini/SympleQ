@@ -73,5 +73,25 @@
             },
             "problemMatcher": []
         },
+        {
+            "label": "Run Tests With Coverage",
+            "type": "shell",
+            "windows": {
+                "command": "${workspaceFolder}/scripts/tools/shell/run_tests.bat",
+                "args": []
+            },
+            "linux": {
+                "command": "bash ${workspaceFolder}/scripts/tools/shell/run_tests.sh",
+                "args": []
+            },
+            "osx": {
+                "command": "echo Test running not supported on macOS."
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
     ]
 }
