@@ -4,15 +4,17 @@ import numpy as np
 import math
 import scipy.sparse as sp
 import galois
-from sympleq.core.finite_field_solvers import get_linear_dependencies
 import warnings
+from pathlib import Path
 
-from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 from sympleq.utils import int_to_bases
+from sympleq.core.finite_field_solvers import get_linear_dependencies
 
 from .pauli_object import PauliObject
 from .pauli_string import PauliString
 from .pauli import Pauli
+from .constants import DEFAULT_QUDIT_DIMENSION
+
 
 ScalarType = Union[float, complex, int]
 
@@ -270,12 +272,13 @@ class PauliSum(PauliObject):
         return cls.from_pauli_strings(pauli_strings, weights=weights, phases=phases)
 
     @classmethod
-    def from_file(cls, path: str, dimensions: int | list[int] | np.ndarray = DEFAULT_QUDIT_DIMENSION) -> PauliSum:
+    def from_file(cls, path: str | Path,
+                  dimensions: int | list[int] | np.ndarray = DEFAULT_QUDIT_DIMENSION) -> PauliSum:
         """Reads a PauliSum from file.
 
         Parameters
         ----------
-            path: str
+            path: str | Path
                 Path to the Hamiltonian file.
             dimensions: int | list[int] | np.ndarray
                 Dimension(s) of the qudits, default is DEFAULT_QUDIT_DIMENSION.
@@ -1065,13 +1068,13 @@ class PauliSum(PauliObject):
         #       meaning that they could be modified from the PauliString.
         return Pauli(self.tableau[index], self.dimensions)
 
-    def to_file(self, path: str) -> None:
+    def to_file(self, path: str | Path) -> None:
         """
         Writes the PauliSum to a file using its internal representation.
 
         Parameters
         ----------
-        path : str
+        path : str | Path
             Path to the output file.
         """
 

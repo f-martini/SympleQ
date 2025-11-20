@@ -1,27 +1,14 @@
 import numpy as np
 import pytest
 import math
-import os
-import shutil
-
-
+from pathlib import Path
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
-from tests import TEST_DATA_FOLDER
 
 
 prime_list = [2, 3, 5, 7, 11, 13]
 
 
 class TestPauliSumFactories:
-
-    @classmethod
-    def setup_class(cls):
-        if not os.path.exists(TEST_DATA_FOLDER):
-            os.makedirs(TEST_DATA_FOLDER)
-
-    @classmethod
-    def teardown_class(cls):
-        shutil.rmtree(TEST_DATA_FOLDER)
 
     def test_from_pauli_basic(self):
         pauli = Pauli.from_string('x1z2', 3)
@@ -132,8 +119,8 @@ class TestPauliSumFactories:
                 assert 0 <= xe < d
                 assert 0 <= ze < d
 
-    def test_pauli_sum_to_and_from_file(self):
-        path = TEST_DATA_FOLDER + "/test_pauli_sum_to_and_from_file"
+    def test_pauli_sum_to_and_from_file(self, tmp_path: Path):
+        path = tmp_path / "paulisum.data"
         dimensions = [2, 3, 5, 7, 11]
 
         for _ in range(50):
