@@ -265,19 +265,6 @@ class Pauli(PauliObject):
 
         return Pauli(new_tableau, dimensions=self.dimensions)
 
-    def __repr__(self) -> str:
-        """
-        Return the string representation of the Pauli.
-        (in a format that is helpful for debugging).
-
-        Returns
-        -------
-        str
-            A string in the format "Pauli(x_exp=..., z_exp=..., dimensions=...)".
-        """
-
-        return f"PauliString(tableau={self.tableau}, dimensions={self.dimensions})"
-
     def __str__(self) -> str:
         """
         String representation in the form 'x{X}z{Z}'.

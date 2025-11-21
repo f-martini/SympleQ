@@ -390,6 +390,17 @@ class PauliObject(ABC):
                 f"tableau={self.tableau[bad_indices]}"
             )
 
+    def __repr__(self) -> str:
+        """
+        Returns an unambiguous string representation of the PauliObject.
+
+        Returns
+        -------
+        str
+            A string representation of the PauliObject with tableau, dimensions, weights, and phases.
+        """
+        return f'{self.__class__.__name__}({self.tableau}, {self.dimensions}, {self.weights}, {self.phases})'
+
     def __eq__(self, other_pauli: Self) -> bool:
         """
         Determine if two Pauli objects are equal.

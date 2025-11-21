@@ -198,19 +198,6 @@ class PauliString(PauliObject):
         tableau = np.concatenate([np.random.randint(dimensions, dtype=int), np.random.randint(dimensions, dtype=int)])
         return cls(tableau, dimensions)
 
-    def __repr__(self) -> str:
-        """
-        Return the string representation of the PauliString.
-        (in a format that is helpful for debugging).
-
-        Returns
-        -------
-        str
-            A string in the format "PauliString(tableau=..., dimensions=...)".
-        """
-
-        return f"PauliString(tableau={self.tableau}, dimensions={self.dimensions})"
-
     def __str__(self) -> str:
         """
         Return the string representation of the PauliString.

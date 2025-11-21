@@ -1113,17 +1113,6 @@ class PauliSum(PauliObject):
             p_string += f'{self.weights[i]}' + ' ' * n_spaces + '|' + qudit_string + f'| {self.phases[i]} \n'
         return p_string
 
-    def __repr__(self) -> str:
-        """
-        Returns an unambiguous string representation of the PauliSum.
-
-        Returns
-        -------
-        str
-            A string representation of the PauliSum with tableau, dimensions, weights, and phases.
-        """
-        return f'PauliSum({self.tableau}, {self.dimensions}, {self.weights}, {self.phases})'
-
     def get_subspace(self,
                      qudit_indices: int | list[int] | np.ndarray,
                      pauli_indices: int | list[int] | np.ndarray | None = None):
