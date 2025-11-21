@@ -377,30 +377,6 @@ class PauliString(PauliObject):
         """
         return self._tableau[0][self.n_qudits():]
 
-    @property
-    def phases(self) -> np.ndarray:
-        """
-        Returns the phases associated with the PauliString.
-
-        Returns
-        -------
-        np.ndarray
-            The phases as a 1d-vector.
-        """
-        return np.asarray([0], dtype=int)
-
-    @property
-    def weights(self) -> np.ndarray:
-        """
-        Returns the weights associated with the Pauli String.
-
-        Returns
-        -------
-        np.ndarray
-            The weights as a 1d-vector.
-        """
-        return np.asarray([1], dtype=complex)
-
     def as_pauli_sum(self) -> PauliSum:
         """
         Converts the PauliString to the embedding PauliSum.

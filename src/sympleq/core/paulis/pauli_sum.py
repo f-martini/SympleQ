@@ -268,29 +268,6 @@ class PauliSum(PauliObject):
 
         return cls.from_pauli_strings(pauli_strings, weights=weights, phases=phases)
 
-    @property
-    def phases(self) -> np.ndarray:
-        """
-        Returns the phases associated with the PauliSum.
-        These phases represent the numerator, the denominator is 2 * self.lcm
-
-        Returns
-        -------
-        np.ndarray
-            The phases as a 1d-vector.
-        """
-        return self._phases
-
-    def set_phases(self, new_phases: list[int] | np.ndarray):
-        if isinstance(new_phases, list):
-            new_phases = np.asarray(new_phases, dtype=int)
-
-        if len(new_phases) != self.n_paulis():
-            raise ValueError(
-                f"New phases ({len(new_phases)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
-
-        self._phases = new_phases
-
     def weight_to_phase(self):
         """
         Extract per-term phases from complex weights onto the integer phase vector.
@@ -354,28 +331,6 @@ class PauliSum(PauliObject):
         # commit
         self._phases = new_phases
         self._weights = np.round(new_weights, 10)
-
-    @property
-    def weights(self) -> np.ndarray:
-        """
-        Returns the weights associated with the PauliSum.
-
-        Returns
-        -------
-        np.ndarray
-            The weights as a 1d-vector.
-        """
-        return self._weights
-
-    def set_weights(self, new_weights: list[int] | np.ndarray):
-        if isinstance(new_weights, list):
-            new_weights = np.asarray(new_weights, dtype=int)
-
-        if len(new_weights) != self.n_paulis():
-            raise ValueError(
-                f"New phases ({len(new_weights)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
-
-        self._weights = new_weights
 
     @overload
     def __getitem__(self,

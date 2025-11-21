@@ -69,6 +69,7 @@ class PauliObject(ABC):
                 dimensions = np.full(n_qudits, dimensions.item(), dtype=int)
 
         self._dimensions = dimensions
+        self._dimensions.setflags(write=False)
         self._lcm = int(np.lcm.reduce(self.dimensions))
 
         self._tableau = tableau % np.tile(self._dimensions, 2)
@@ -162,7 +163,6 @@ class PauliObject(ABC):
         return self.n_paulis(), self.n_qudits()
 
     @property
-    @abstractmethod
     def phases(self) -> np.ndarray:
         """
         Return the integer phases associated with the Pauli object.
@@ -174,7 +174,18 @@ class PauliObject(ABC):
         np.ndarray
             1D array of integer phase values modulo `2 * lcm`.
         """
-        pass
+        return self._phases
+
+    @phases.setter
+    def phases(self, new_phases: list[int] | np.ndarray):
+        if isinstance(new_phases, list):
+            new_phases = np.asarray(new_phases, dtype=int)
+
+        if len(new_phases) != self.n_paulis():
+            raise ValueError(
+                f"New phases ({len(new_phases)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
+
+        self._phases = new_phases
 
     def set_phases(self, new_phases: list[int] | np.ndarray):
         """
@@ -185,23 +196,45 @@ class PauliObject(ABC):
         new_phases : list[int] | np.ndarray
             1D array or list of new integer phase values.
         """
-        pass
+        self.phases = new_phases
 
     def reset_phases(self):
+        """
+        Reset all phase values to zero.
+
+        This replaces the internal phase vector with an array of zeros
+        of the same length, effectively removing all accumulated phase
+        contributions.
+
+        Returns
+        -------
+        None
+            This method modifies the object in place.
+        """
         self._phases = np.zeros(len(self._phases))
 
     @property
-    @abstractmethod
     def weights(self) -> np.ndarray:
         """
-        Return the weights (coefficients) of the Pauli terms.
+        Return the weights (coefficients) of the PauliString terms.
 
         Returns
         -------
         np.ndarray
-            1D array of scalar coefficients.
+            1D array of scalar complex coefficients.
         """
-        pass
+        return self._weights
+
+    @weights.setter
+    def weights(self, new_weights: list[int] | np.ndarray):
+        if isinstance(new_weights, list):
+            new_weights = np.asarray(new_weights, dtype=int)
+
+        if len(new_weights) != self.n_paulis():
+            raise ValueError(
+                f"New phases ({len(new_weights)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
+
+        self._weights = new_weights
 
     def set_weights(self, new_weights: list[int] | np.ndarray):
         """
@@ -212,7 +245,22 @@ class PauliObject(ABC):
         new_weights : list[int] | np.ndarray
             1D array or list of new scalar coefficients.
         """
-        pass
+        self.weights = new_weights
+
+    def reset_weights(self):
+        """
+        Reset all weight coefficients to one.
+
+        This replaces the internal weight vector with an array of ones
+        of the same length, restoring the default uniform weighting of
+        all PauliString terms.
+
+        Returns
+        -------
+        None
+            This method modifies the object in place.
+        """
+        self._weights = np.ones(len(self._weights))
 
     def is_close(self, other_pauli: Self, threshold: int = 10, literal: bool = True) -> bool:
         """

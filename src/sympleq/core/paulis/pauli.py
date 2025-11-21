@@ -184,32 +184,6 @@ class Pauli(PauliObject):
         return cls.from_exponents(0, 0, dimension)
 
     @property
-    def phases(self) -> np.ndarray:
-        """
-        Returns the phases associated with the Pauli.
-        For a Pauli operator, this is just the trivial phase.
-
-        Returns
-        -------
-        np.ndarray
-            The phases as a 1d-vector.
-        """
-        return np.asarray([0], dtype=int)
-
-    @property
-    def weights(self) -> np.ndarray:
-        """
-        Returns the weights associated with the Pauli.
-        For a Pauli operator, this is just 1.
-
-        Returns
-        -------
-        np.ndarray
-            The weights as a 1d-vector.
-        """
-        return np.asarray([1], dtype=complex)
-
-    @property
     def dimension(self) -> int:
         """
         Returns the dimension of the Pauli as an int.
