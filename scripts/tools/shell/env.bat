@@ -1,5 +1,6 @@
 REM All the variable below assume PROJECT_ROOT as working directory
 set PROJECT_ROOT=%~dp0../../..
+set PRJ_NAME=sympleq
 
 REM Project env variables
 set CONFIGS_ROOT=scripts/configs
@@ -26,3 +27,9 @@ set SYNC_REQUIREMENTS_SCRIPT=scripts/tools/python/sync_requirements.py
 REM Clear notebooks env variables
 set NOTEBOOKS_ROOT_DIR=%PROJECT_ROOT%
 set CLEAR_NOTEBOOKS_SCRIPT=scripts/tools/python/clear_notebooks.py
+
+REM Test coverage
+set PYTEST_INI=%PROJECT_ROOT%/scripts/configs/pytest.ini
+set COVERAGE_REPORT_XML=%PROJECT_ROOT%/scripts/personal/coverage_report.xml
+set COVERAGE_REPORT_HTML=%PROJECT_ROOT%/scripts/personal/coverage_html_report
+set COVERAGE_REPORT_JUNIT=%PROJECT_ROOT%/scripts/personal/junit.xml
