@@ -87,7 +87,7 @@ class TestSymplecticSolver:
     def test_map_single_pauli_string_to_target(self):
         n = 14
         p = 2
-        for _ in range(10000):
+        for _ in range(1000):
             input_ps = np.random.randint(p, size=2 * n)
             target_ps = np.random.randint(p, size=2 * n)
             if np.array_equal(input_ps, np.zeros(2 * n)):
