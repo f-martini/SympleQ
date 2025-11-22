@@ -47,18 +47,18 @@ runs:
       uses: lukka/run-vcpkg@v11
       id: setup-windows
       with:
-        vcpkgDirectory: "${{ github.workspace }}\\vcpkg"
+        vcpkgDirectory: "${{ github.workspace }}/vcpkg"
         vcpkgGitCommitId: ${{ inputs.vcpkg-commit }}
         runVcpkgInstall: true
-        vcpkgJsonGlob: "${{ github.workspace }}\\src\\vcpkg.json"
+        vcpkgJsonGlob: "${{ github.workspace }}/src/vcpkg.json"
 
     - name: Set unified outputs
       id: setup
       shell: bash
       run: |
         if [ "${{ inputs.platform }}" == "windows" ]; then
-              echo "VCPKG_ROOT="${{ github.workspace }}\\vcpkg" >> $GITHUB_ENV
-              echo "CMAKE_TOOLCHAIN="${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake" >> $GITHUB_ENV
+              echo "VCPKG_ROOT="${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
+              echo "CMAKE_TOOLCHAIN="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
             else
               VCPKG_ROOT="${{ steps.setup-linux.outputs.vcpkg-root }}"
               CMAKE_TOOLCHAIN="${{ steps.setup-linux.outputs.cmake-toolchain }}"
