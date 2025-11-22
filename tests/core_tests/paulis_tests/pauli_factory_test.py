@@ -54,6 +54,13 @@ class TestPauliSumFactories:
         with pytest.raises(ValueError):
             PauliSum.from_pauli_strings([ps1, ps2])
 
+    def test_from_pauli_strings_invalid_input(self):
+        dimensions = [3, 3]
+        ps1 = PauliSum.from_random(2, dimensions)
+        ps2 = PauliString.from_exponents([0, 1], [1, 0], dimensions)
+        with pytest.raises(ValueError):
+            PauliSum.from_pauli_strings([ps1, ps2])  # type: ignore
+
     def test_from_string(self):
         ps = PauliString.from_exponents([1, 2], [3, 1], [5, 7])
         s = str(ps)  # Use the same formatting

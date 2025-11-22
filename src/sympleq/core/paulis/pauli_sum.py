@@ -149,6 +149,10 @@ class PauliSum(PauliObject):
         elif isinstance(pauli_string, list) and len(pauli_string) == 0:
             raise ValueError("At least one PauliString must be provided.")
 
+        for ps in pauli_string:
+            if not isinstance(ps, PauliString):
+                raise ValueError("One of the input is not a PauliString.")
+
         dimensions = pauli_string[0].dimensions
         if len(pauli_string) > 1:
             for ps in pauli_string[1:]:
