@@ -211,7 +211,10 @@ class PauliSum(PauliObject):
                 warnings.warn("Weights are disregarded if inherit_weights is set to True.")
             weights = np.hstack([p.weights for p in pauli_objects])
 
-        return cls(tableau, dimensions, weights, phases)
+        P = cls(tableau, dimensions, weights, phases)
+        P._sanity_check()
+
+        return P
 
     @classmethod
     def from_string(cls, pauli_str: str | list[str], dimensions: int | list[int] | np.ndarray,
@@ -243,7 +246,7 @@ class PauliSum(PauliObject):
             pauli_str = [pauli_str]
 
         pauli_strings = [PauliString.from_string(s, dimensions) for s in pauli_str]
-        return cls.from_pauli_strings(pauli_strings, weights, phases)
+        return PauliSum.from_pauli_strings(pauli_strings, weights, phases)
 
     @classmethod
     def from_random(cls,
