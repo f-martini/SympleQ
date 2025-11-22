@@ -53,7 +53,8 @@ runs:
       run: |
         PYTHON_VERSION="${{ inputs.python-version }}"
         CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
-        echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
+        echo "CIBW_BUILD_VALUE=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
+        echo "Building for Python $PYTHON_VERSION -> $CIBW_BUILD_VALUE"
 
     - name: Build wheels (Linux)
       shell: bash
