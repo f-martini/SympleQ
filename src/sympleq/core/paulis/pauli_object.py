@@ -262,6 +262,39 @@ class PauliObject(ABC):
         """
         self._weights = np.ones(len(self._weights))
 
+    def has_equal_tableau(self, other_pauli: PauliObject, literal: bool = True) -> bool:
+        """
+        Check whether two Pauli objects have the same tableau and dimensions.
+
+        Parameters
+        ----------
+        other_pauli : PauliObject
+            Pauli object to compare against.
+
+        literal : bool, optional
+            If True, compares objects literally in their current form. If False,
+            the objects are first brought to standard form. Default is True.
+
+        Returns
+        -------
+        bool
+            True if all tableau entries and dimensions match; False otherwise.
+        """
+
+        ps1 = self
+        ps2 = other_pauli
+        if not literal:
+            ps1 = ps1.to_standard_form()
+            ps2 = ps2.to_standard_form()
+
+        if not np.array_equal(ps1.dimensions, ps2.dimensions):
+            return False
+
+        if not np.array_equal(ps1.tableau, ps2.tableau):
+            return False
+
+        return True
+
     def is_close(self, other_pauli: Self, threshold: int = 10, literal: bool = True) -> bool:
         """
         Check whether two Pauli objects are approximately equal.
@@ -274,7 +307,7 @@ class PauliObject(ABC):
             Number of matching decimal digits required for equality. Default is 10.
         literal : bool, optional
             If True, compares objects literally in their current form. If False,
-            accounts for reordering and phases in weights. Default is True.
+            the objects are first brought to standard form. Default is True.
 
         Returns
         -------
