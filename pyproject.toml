@@ -38,7 +38,8 @@ wheel.packages = ["./src/sympleq"]
 
 [tool.setuptools_scm]
 write_to = "src/sympleq/_version.py"
-version_scheme = "post-release"
-local_scheme = "node-and-timestamp"
-fallback_version = "0.0.0.dev0"
-git_describe_command = ["git", "describe", "--dirty", "--long", "--match", "*"]
+version_scheme = "python-simplified-semver"
+local_scheme = "no-local-version"
+fallback_version = "0.1.0.dev0"
+# Try SCM first, fall back to environment variable, then fallback_version
+git_describe_command = ["git", "describe", "--dirty", "--long", "--match", "v*"]
