@@ -42,6 +42,22 @@ runs:
         echo "vcpkg-root=${{ inputs.install-path }}" >> $GITHUB_OUTPUT
         echo "cmake-toolchain=${{ inputs.install-path }}/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_OUTPUT
 
+    - name: Debug workspace contents
+      if: inputs.platform == 'windows'
+      shell: bash
+      run: |
+        echo "📂 Listing workspace contents..."
+        echo "Workspace root: ${{ github.workspace }}"
+        ls -la "${{ github.workspace }}" || true
+
+        echo ""
+        echo "Workspace src directory:"
+        ls -la "${{ github.workspace }}/src" || true
+
+        echo ""
+        echo "vcpkg.json contents:"
+        cat "${{ github.workspace }}/src/vcpkg.json" || echo "vcpkg.json not found"
+
     - name: Setup vcpkg (Windows)
       if: inputs.platform == 'windows'
       uses: lukka/run-vcpkg@v11
@@ -50,7 +66,7 @@ runs:
         vcpkgDirectory: "${{ github.workspace }}/vcpkg"
         vcpkgGitCommitId: ${{ inputs.vcpkg-commit }}
         runVcpkgInstall: true
-        vcpkgJsonGlob: "**/src/vcpkg.json"
+        vcpkgJsonGlob: "${{ github.workspace }}/src/vcpkg.json"
 
     - name: Set unified outputs
       id: setup
