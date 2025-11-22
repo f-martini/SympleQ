@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import overload, TYPE_CHECKING, Union
+from typing import overload, Sequence, TYPE_CHECKING, Union
 import numpy as np
 import math
 import scipy.sparse as sp
@@ -161,6 +161,52 @@ class PauliSum(PauliObject):
             if phases is not None:
                 warnings.warn("Phases are disregarded if inherit_phases is set to True.")
             phases = np.hstack([p._phases for p in pauli_string])
+        return cls(tableau, dimensions, weights, phases)
+
+    @classmethod
+    def from_pauli_objects(cls, pauli_objects: PauliObject | Sequence[PauliObject],
+                           weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
+                           phases: int | list[int] | np.ndarray | None = None,
+                           inherit_weights: bool = False,
+                           inherit_phases: bool = False) -> PauliSum:
+        """
+        Create a PauliSum instance from a (list of) PauliObjects.
+
+        Parameters
+        ----------
+        pauli_objects : PauliObject | list[PauliObject]
+            The PauliObject(s) to convert into a PauliSum.
+
+        Returns
+        -------
+        PauliSum
+            A PauliSum instance resulting from concatenating the input PauliObject(s).
+        """
+
+        if isinstance(pauli_objects, PauliObject):
+            pauli_objects = [pauli_objects]
+
+        if len(pauli_objects) == 0:
+            raise ValueError("At least one PauliObject must be provided.")
+
+        dimensions = pauli_objects[0].dimensions
+        if len(pauli_objects) > 1:
+            for ps in pauli_objects[1:]:
+                if not np.array_equal(ps.dimensions, dimensions):
+                    raise ValueError("The dimensions of all Pauli strings must be equal.")
+
+        tableau = np.vstack([p.tableau for p in pauli_objects])
+
+        if inherit_phases:
+            if phases is not None:
+                warnings.warn("Phases are disregarded if inherit_phases is set to True.")
+            phases = np.hstack([p.phases for p in pauli_objects])
+
+        if inherit_weights:
+            if weights is not None:
+                warnings.warn("Weights are disregarded if inherit_weights is set to True.")
+            weights = np.hstack([p.weights for p in pauli_objects])
+
         return cls(tableau, dimensions, weights, phases)
 
     @classmethod

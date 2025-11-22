@@ -418,7 +418,7 @@ class TestPaulis:
             n_qudits = len(dimensions)
 
             # Generate random PauliStrings
-            pauli_strings = []
+            pauli_strings: list[PauliString] = []
             for _ in range(n_paulis):
                 ps = PauliString.from_exponents(
                     x_exp=[random.randint(0, d - 1) for d in dimensions],
@@ -464,7 +464,7 @@ class TestPaulis:
                 idx_list = [0, min(n_paulis - 1, random.randint(1, n_paulis - 1))]
                 qudit_idx = random.randint(0, n_qudits - 1)
 
-                expected_combined = PauliSum.from_pauli_strings(
+                expected_combined = PauliSum.from_pauli_objects(
                     [pauli_strings[i][qudit_idx] for i in idx_list],
                     weights=[weights[i] for i in idx_list],
                     phases=[phases[i] for i in idx_list]
