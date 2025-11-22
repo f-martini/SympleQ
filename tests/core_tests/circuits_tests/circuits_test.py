@@ -1,21 +1,27 @@
+import numpy as np
+import pytest
+from scipy.sparse import issparse
 from sympleq.core.circuits.known_circuits import to_x, to_ix
 from sympleq.core.circuits import Circuit, SUM, SWAP, Hadamard, PHASE, PauliGate
 from sympleq.core.paulis import PauliSum, PauliString
-import numpy as np
-from scipy.sparse import issparse
-import pytest
 
 
 class TestCircuits():
 
+    # TODO: I have tried to generalise this to mixed dimensions, but it seems that the to_x
+    # function does not yet support this properly. If this is OK ignore this
+    # (I added an error when mixed dimensions are inputted for the time being)
     def test_to_x(self, n_tests=500):
-        target_x = 0
+        max_qudits = 25
         list_of_failures = []
         for _ in range(n_tests):
-            ps = PauliString.from_random([3, 3, 3, 3])
-            if ps.n_identities() == 4:
+            dimension_chosen = np.random.choice([2, 3, 5, 7, 11, 13, 17], size=1)[0]
+            dims = [dimension_chosen for _ in range(np.random.randint(1, max_qudits))]
+            target_x = np.random.randint(0, len(dims))
+            ps = PauliString.from_random(dims)
+            if ps.n_identities() == len(dims):
                 continue
-            c = to_x(ps, 0)
+            c = to_x(ps, target_x)
             if c.act(ps).x_exp[target_x] == 0 or c.act(ps).z_exp[target_x] != 0:
                 print(f"Failed: {ps} -> {c.act(ps)}")
                 list_of_failures.append(ps)

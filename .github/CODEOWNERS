@@ -1,3 +1,17 @@
-* @c-nation @f-martini @ldellant @RickSimon79221
+* @c-nation @f-martini @ricott1 @RickSimon79221
 
-/sympleq/ @c-nation @f-martini @ldellant @RickSimon79221 @
+/.github/ @f-martini @ricott1
+
+/.vscode/ @f-martini @ricott1
+
+/docs/ @c-nation @f-martini @ricott1 @RickSimon79221 @ldellant
+
+/scripts/configs/ @f-martini @ricott1
+
+/scripts/tools/ @f-martini @ricott1
+
+/src/ @f-martini @ricott1
+
+/src/sympleq/ @c-nation @ricott1 @RickSimon79221
+
+/tests/ @c-nation @ricott1 @RickSimon79221

@@ -1,5 +1,6 @@
 # All the variables below assume PROJECT_ROOT as working directory
 export PROJECT_ROOT="$(realpath "$(dirname "$0")/../../..")"
+export PRJ_NAME=sympleq
 
 # Project env variables
 export CONFIGS_ROOT=scripts/configs
@@ -25,3 +26,9 @@ export CMAKE_X86_64_PRESET=linux-x86_64-RelWithDebInfo
 # Clear notebooks env variables
 export NOTEBOOKS_ROOT_DIR=$PROJECT_ROOT
 export CLEAR_NOTEBOOKS_SCRIPT=scripts/tools/python/clear_notebooks.py
+
+# Test coverage
+export PYTEST_INI=$PROJECT_ROOT/scripts/configs/pytest.ini
+export COVERAGE_REPORT_XML=$PROJECT_ROOT/scripts/personal/coverage_report.xml
+export COVERAGE_REPORT_HTML=$PROJECT_ROOT/scripts/personal/coverage_html_report
+export COVERAGE_REPORT_JUNIT=$PROJECT_ROOT/scripts/personal/junit.xml
