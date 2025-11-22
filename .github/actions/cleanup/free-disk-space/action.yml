@@ -21,7 +21,7 @@ runs:
 
         # Remove large packages
         if [ "${{ inputs.aggressive }}" == "true" ]; then
-          sudo apt-get remove -y '^dotnet-.*' '^llvm-.*' 'php.*' 'mongodb.*' 'mysql.*' 'postgresql.*'
+            sudo apt-get remove -y '^dotnet-.*' '^llvm-.*' 'php.*' 'mongodb.*' 'mysql.*' 'postgresql.*' || true
         fi
 
         # Remove directories
