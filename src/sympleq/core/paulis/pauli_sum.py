@@ -197,7 +197,7 @@ class PauliSum(PauliObject):
         if len(pauli_objects) > 1:
             for ps in pauli_objects[1:]:
                 if not np.array_equal(ps.dimensions, dimensions):
-                    raise ValueError("The dimensions of all Pauli strings must be equal.")
+                    raise ValueError("The dimensions of all PauliObjects must be equal.")
 
         tableau = np.vstack([p.tableau for p in pauli_objects])
 
