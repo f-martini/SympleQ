@@ -48,10 +48,17 @@ runs:
         architecture: ${{ inputs.matrix-arc }}
         include-cibuildwheel: "true"
 
+    - name: Set CIBW_BUILD for Python version
+      shell: bash
+      run: |
+        PYTHON_VERSION="${{ inputs.python-version }}"
+        CIBW_BUILD_VALUE="cp${PYTHON_VERSION//./}-*"
+        echo "CIBW_BUILD_VERSION=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
+
     - name: Build wheels (Linux)
       shell: bash
       env:
-        CIBW_BUILD: ${{ env.CIBW_BUILD }}
+        CIBW_BUILD: ${{ env.CIBW_BUILD_VALUE }}
         CIBW_ARCHS: ${{ inputs.architecture }}
         CIBW_SKIP: "pp* *-musllinux*"
         CIBW_BUILD_VERBOSITY: 1
@@ -77,7 +84,7 @@ runs:
           git checkout ${{ inputs.vcpkg-commit }} &&
           ./bootstrap-vcpkg.sh &&
           ls
-        CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja
+        CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja setuptools-scm
         CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}
         CIBW_TEST_COMMAND: 'python -c "from ${{ inputs.project-name }}.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
         CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-

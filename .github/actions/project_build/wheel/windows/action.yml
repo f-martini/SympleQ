@@ -68,7 +68,7 @@ runs:
       run: |
         Write-Host "🔨 Building wheel for Windows (${{ inputs.architecture }})..."
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install build scikit-build-core[pyproject] nanobind cmake ninja delvewheel
+        python -m pip install build scikit-build-core[pyproject] nanobind cmake ninja delvewheel setuptools-scm
         python -m build --wheel --outdir dist --config-setting "cmake.args=-G;Ninja;-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}"
 
     - name: Repair Windows wheels with delvewheel

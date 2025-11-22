@@ -50,7 +50,7 @@ runs:
         vcpkgDirectory: "${{ github.workspace }}\\vcpkg"
         vcpkgGitCommitId: ${{ inputs.vcpkg-commit }}
         runVcpkgInstall: true
-        vcpkgJsonGlob: "**src\\vcpkg.json"
+        vcpkgJsonGlob: "${{ github.workspace }}\\src\\vcpkg.json"
 
     - name: Set unified outputs
       id: setup
