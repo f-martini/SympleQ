@@ -75,23 +75,23 @@ runs:
       shell: bash
       run: |
         if [ "${{ inputs.platform }}" == "windows" ]; then
-              echo "VCPKG_ROOT="${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
-              echo "CMAKE_TOOLCHAIN="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
-              echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
-              echo "✅ vcpkg setup complete:"
-              echo "   Root: $VCPKG_ROOT"
-              echo "   Toolchain: $CMAKE_TOOLCHAIN"
-            else
-              VCPKG_ROOT="${{ steps.setup-linux.outputs.vcpkg-root }}"
-              CMAKE_TOOLCHAIN="${{ steps.setup-linux.outputs.cmake-toolchain }}"
-              echo "vcpkg-root=$VCPKG_ROOT" >> $GITHUB_OUTPUT
-              echo "cmake-toolchain=$CMAKE_TOOLCHAIN" >> $GITHUB_OUTPUT
-              echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
-              echo "✅ vcpkg setup complete:"
-              echo "   Root: $VCPKG_ROOT"
-              echo "   Toolchain: $CMAKE_TOOLCHAIN"
-            fi
+          echo "VCPKG_ROOT="${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
+          echo "CMAKE_TOOLCHAIN="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+          echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
+          echo "✅ vcpkg setup complete:"
+          echo "   Root: $VCPKG_ROOT"
+          echo "   Toolchain: $CMAKE_TOOLCHAIN"
+        else
+          VCPKG_ROOT="${{ steps.setup-linux.outputs.vcpkg-root }}"
+          CMAKE_TOOLCHAIN="${{ steps.setup-linux.outputs.cmake-toolchain }}"
+          echo "vcpkg-root=$VCPKG_ROOT" >> $GITHUB_OUTPUT
+          echo "cmake-toolchain=$CMAKE_TOOLCHAIN" >> $GITHUB_OUTPUT
+          echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
+          echo "✅ vcpkg setup complete:"
+          echo "   Root: $VCPKG_ROOT"
+          echo "   Toolchain: $CMAKE_TOOLCHAIN"
+        fi
 
-            echo "✅ vcpkg setup complete:"
-            echo "   Root: $VCPKG_ROOT"
-            echo "   Toolchain: $CMAKE_TOOLCHAIN"
+        echo "✅ vcpkg setup complete:"
+        echo "   Root: $VCPKG_ROOT"
+        echo "   Toolchain: $CMAKE_TOOLCHAIN"
