@@ -66,7 +66,9 @@ runs:
         vcpkgDirectory: "${{ github.workspace }}/vcpkg"
         vcpkgGitCommitId: ${{ inputs.vcpkg-commit }}
         runVcpkgInstall: true
-        vcpkgJsonGlob: "${{ github.workspace }}/src/vcpkg.json"
+        vcpkgJsonGlob: "**/src/vcpkg.json"
+        doNotCache: true
+        vcpkgTriplet: "x64-windows"
 
     - name: Set unified outputs
       id: setup
@@ -74,7 +76,7 @@ runs:
       run: |
         if [ "${{ inputs.platform }}" == "windows" ]; then
               echo "VCPKG_ROOT="${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
-              echo "CMAKE_TOOLCHAIN="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+              echo "CMAKE_TOOLCHAIN="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
             else
               VCPKG_ROOT="${{ steps.setup-linux.outputs.vcpkg-root }}"
               CMAKE_TOOLCHAIN="${{ steps.setup-linux.outputs.cmake-toolchain }}"

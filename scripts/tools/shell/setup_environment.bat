@@ -36,7 +36,7 @@ if /I "%ARCH%"=="AMD64" (
 echo Detected architecture %ARCH%: using preset %PRESET%
 
 call %SRC_VENV%/Scripts/activate
-call python -m pip install --upgrade pip setuptools wheel scikit-build-core nanobind
+call python -m pip install --upgrade pip setuptools wheel scikit-build-core nanobind setuptools-scm
 call python -m pip install -e %PYTHON_PY_SETUP% --config-settings=cmake.args="--preset;%PRESET%"
 call deactivate
 
