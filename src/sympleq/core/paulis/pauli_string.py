@@ -137,7 +137,7 @@ class PauliString(PauliObject):
         return P
 
     @classmethod
-    def from_string(cls, pauli_str: str, dimensions: int | list[int] | np.ndarray) -> PauliString:
+    def from_string(cls, pauli_str: str, dimensions: int | list[int] | np.ndarray | None = None) -> PauliString:
         """
         Create a PauliString instance from a string representation.
 
@@ -145,7 +145,7 @@ class PauliString(PauliObject):
         ----------
         pauli_str : str
             The string representation of the Pauli string, where exponents are separated by 'x' and 'z'.
-        dimensions : list[int] | np.ndarray
+        dimensions : list[int] | np.ndarray | None
             The dimensions parameter to be passed to the PauliString constructor.
 
         Returns

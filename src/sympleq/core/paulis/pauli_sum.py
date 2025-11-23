@@ -167,7 +167,7 @@ class PauliSum(PauliObject):
         return P
 
     @classmethod
-    def from_string(cls, pauli_str: str | list[str], dimensions: int | list[int] | np.ndarray,
+    def from_string(cls, pauli_str: str | list[str], dimensions: int | list[int] | np.ndarray | None = None,
                     weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
                     phases: int | list[int] | np.ndarray | None = None
                     ) -> PauliSum:
@@ -178,8 +178,12 @@ class PauliSum(PauliObject):
         ----------
         pauli_str : str | list[str]
             The string representation of the Pauli string, where exponents are separated by 'x' and 'z'.
-        dimensions : list[int] | np.ndarray
+        dimensions : list[int] | np.ndarray | None
             The dimensions parameter to be passed to the PauliSum constructor.
+        weights : int | float | complex | list[int | float | complex] | np.ndarray | None
+            The weights parameter to be passed to the PauliSum constructor.
+        phases : int | list[int] | np.ndarray | None
+            The phases parameter to be passed to the PauliSum constructor.
 
         Returns
         -------

@@ -3,6 +3,7 @@ import pytest
 import math
 
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
+from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 
 
 prime_list = [2, 3, 5, 7, 11, 13]
@@ -63,8 +64,14 @@ class TestPauliSumFactories:
 
     def test_from_string_list(self):
         s1 = "x1z0 x0z2"
-        P = PauliSum.from_string([s1], [3, 3])
+        P = PauliSum.from_string([s1], 3)
         assert P.tableau.shape[0] == 1
+        assert P.dimensions.tolist() == [3, 3]
+
+        s1 = "x1z0 x0z1"
+        P = PauliSum.from_string([s1])
+        assert P.tableau.shape[0] == 1
+        assert P.dimensions.tolist() == [DEFAULT_QUDIT_DIMENSION, DEFAULT_QUDIT_DIMENSION]
 
     def test_from_tableau_roundtrip(self):
         ps = PauliString.from_exponents([1, 0], [2, 0], [5, 7])
