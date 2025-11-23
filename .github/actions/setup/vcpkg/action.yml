@@ -52,7 +52,6 @@ runs:
         runVcpkgInstall: true
         vcpkgJsonGlob: "**/src/vcpkg.json"
         doNotCache: true
-        vcpkgTriplet: "x64-windows"
 
     - name: Set unified outputs
       id: setup

@@ -5,7 +5,7 @@ permissions:
 
 on:
   push:
-    branches: [dev, hotfix/*]
+    branches: [dev]
 
 jobs:
   tag:

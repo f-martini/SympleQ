@@ -56,17 +56,6 @@ runs:
         echo "CIBW_BUILD_VALUE=$CIBW_BUILD_VALUE" >> $GITHUB_ENV
         echo "Building for Python $PYTHON_VERSION -> $CIBW_BUILD_VALUE"
 
-        # Check if we have any tags
-        if git tag --list | grep -q .; then
-          echo "✅ Git tags found, setuptools-scm should work"
-          echo "SETUPTOOLS_SCM_DEBUG=1" >> $GITHUB_ENV
-        else
-          echo "⚠️ No Git tags found, using computed version"
-          VERSION_FALLBACK="0.1.0.dev${{ github.run_number }}+g$(echo ${{ github.sha }} | cut -c1-7)"
-          echo "SETUPTOOLS_SCM_PRETEND_VERSION=$VERSION_FALLBACK" >> $GITHUB_ENV
-          echo "Using computed version: $VERSION_FALLBACK"
-        fi
-
     - name: Build wheels (Linux)
       shell: bash
       env:
