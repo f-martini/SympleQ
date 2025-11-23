@@ -10,7 +10,8 @@ def generate_version(version_scheme="post-release", local_scheme="node-and-date"
         version = setuptools_scm.get_version(
             version_scheme=version_scheme,
             local_scheme=local_scheme,
-            fallback_version=fallback_version
+            fallback_version=fallback_version,
+            tag_regex=r'^v?(\d+\.\d+\.\d+)(?:\.\d+)?$'
         )
         return version
     except Exception:

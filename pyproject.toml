@@ -35,3 +35,10 @@ cmake.version = ">=3.21"
 build.verbose = true
 cmake.args = ["-DCMAKE_MESSAGE_LOG_LEVEL=STATUS", "-DCMAKE_VERBOSE_MAKEFILE=ON"]
 wheel.packages = ["./src/sympleq"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["*_test.py", "*_tests.py", "test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

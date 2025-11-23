@@ -96,5 +96,6 @@ runs:
             python -m pip install $wheel.FullName
           }
           
-          python -c "from ${{ inputs.project-name }}.core.light import Aquire; aquire = Aquire('h', [], {}); print('Wheel test passed')"
+          python -m pip install pytest
+          python -m pytest tests -v
         }

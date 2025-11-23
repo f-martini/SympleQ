@@ -87,7 +87,8 @@ runs:
           ls
         CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja setuptools-scm
         CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}
-        CIBW_TEST_COMMAND: 'python -c "from ${{ inputs.project-name }}.core.light import Aquire; aquire = Aquire(''h'', [], {})"'
+        CIBW_TEST_REQUIRES: pytest
+        CIBW_TEST_COMMAND: pytest {project}/tests -v
         CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
           export LD_LIBRARY_PATH="$(find / -type d -path '*/intel64' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
           export LD_LIBRARY_PATH="$(find / -type d -path '*/${{ inputs.project-name }}.libs' 2>/dev/null | paste -sd: -):$LD_LIBRARY_PATH" &&
