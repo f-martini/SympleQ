@@ -61,16 +61,13 @@ runs:
         if [ "${{ inputs.platform }}" == "windows" ]; then
           VCPKG_ROOT="${{ github.workspace }}/vcpkg"
           CMAKE_TOOLCHAIN="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
-          echo "VCPKG_ROOT="VCPKG_ROOT" >> $GITHUB_ENV
-          echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
         else
           VCPKG_ROOT="${{ steps.setup-linux.outputs.vcpkg-root }}"
           CMAKE_TOOLCHAIN="${{ steps.setup-linux.outputs.cmake-toolchain }}"
-          echo "vcpkg-root=$VCPKG_ROOT" >> $GITHUB_OUTPUT
-          echo "cmake-toolchain=$CMAKE_TOOLCHAIN" >> $GITHUB_OUTPUT
-          echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
         fi
 
+        echo "VCPKG_ROOT="$VCPKG_ROOT" >> $GITHUB_ENV
+        echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
         echo "vcpkg-root=$VCPKG_ROOT" >> $GITHUB_OUTPUT
         echo "cmake-toolchain=$CMAKE_TOOLCHAIN" >> $GITHUB_OUTPUT
         echo "✅ vcpkg setup complete:"
