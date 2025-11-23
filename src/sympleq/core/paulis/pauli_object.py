@@ -62,7 +62,7 @@ class PauliObject(ABC):
         n_qudits = tableau.shape[1] // 2
 
         if dimensions is None:
-            dimensions = np.ones(n_qudits) * DEFAULT_QUDIT_DIMENSION
+            dimensions = np.ones(n_qudits, dtype=int) * DEFAULT_QUDIT_DIMENSION
         else:  # Catches int but also list and arrays of length 1
             dimensions = np.asarray(dimensions, dtype=int)
             if dimensions.ndim == 0:
