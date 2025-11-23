@@ -526,10 +526,11 @@ class TestPaulis:
         assert product.phases == [8]
 
         dimensions = choose_random_dimensions(max_product=30)
+        max_n_paulis = int(np.prod(dimensions)**2)
         for _ in range(int(np.ceil(np.sqrt(N_tests)))):
             for _ in range(int(np.ceil(np.sqrt(N_tests)))):
-                P1 = PauliSum.from_random(random.randint(1, 25), dimensions)
-                P2 = PauliSum.from_random(random.randint(1, 25), dimensions)
+                P1 = PauliSum.from_random(random.randint(1, max_n_paulis), dimensions)
+                P2 = PauliSum.from_random(random.randint(1, max_n_paulis), dimensions)
                 P_res = P1 * P2
                 phase_symplectic = P_res.phases[0]
 
