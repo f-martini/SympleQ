@@ -42,22 +42,6 @@ runs:
         echo "vcpkg-root=${{ inputs.install-path }}" >> $GITHUB_OUTPUT
         echo "cmake-toolchain=${{ inputs.install-path }}/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_OUTPUT
 
-    - name: Debug workspace contents
-      if: inputs.platform == 'windows'
-      shell: bash
-      run: |
-        echo "📂 Listing workspace contents..."
-        echo "Workspace root: ${{ github.workspace }}"
-        ls -la "${{ github.workspace }}" || true
-
-        echo ""
-        echo "Workspace src directory:"
-        ls -la "${{ github.workspace }}/src" || true
-
-        echo ""
-        echo "vcpkg.json contents:"
-        cat "${{ github.workspace }}/src/vcpkg.json" || echo "vcpkg.json not found"
-
     - name: Setup vcpkg (Windows)
       if: inputs.platform == 'windows'
       uses: lukka/run-vcpkg@v11
@@ -75,23 +59,20 @@ runs:
       shell: bash
       run: |
         if [ "${{ inputs.platform }}" == "windows" ]; then
-          echo "VCPKG_ROOT="${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
-          echo "CMAKE_TOOLCHAIN="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+          VCPKG_ROOT="${{ github.workspace }}/vcpkg"
+          CMAKE_TOOLCHAIN="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+          echo "VCPKG_ROOT="VCPKG_ROOT" >> $GITHUB_ENV
           echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
-          echo "✅ vcpkg setup complete:"
-          echo "   Root: $VCPKG_ROOT"
-          echo "   Toolchain: $CMAKE_TOOLCHAIN"
         else
           VCPKG_ROOT="${{ steps.setup-linux.outputs.vcpkg-root }}"
           CMAKE_TOOLCHAIN="${{ steps.setup-linux.outputs.cmake-toolchain }}"
           echo "vcpkg-root=$VCPKG_ROOT" >> $GITHUB_OUTPUT
           echo "cmake-toolchain=$CMAKE_TOOLCHAIN" >> $GITHUB_OUTPUT
           echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
-          echo "✅ vcpkg setup complete:"
-          echo "   Root: $VCPKG_ROOT"
-          echo "   Toolchain: $CMAKE_TOOLCHAIN"
         fi
 
+        echo "vcpkg-root=$VCPKG_ROOT" >> $GITHUB_OUTPUT
+        echo "cmake-toolchain=$CMAKE_TOOLCHAIN" >> $GITHUB_OUTPUT
         echo "✅ vcpkg setup complete:"
         echo "   Root: $VCPKG_ROOT"
         echo "   Toolchain: $CMAKE_TOOLCHAIN"

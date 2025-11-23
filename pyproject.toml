@@ -40,5 +40,4 @@ wheel.packages = ["./src/sympleq"]
 write_to = "src/sympleq/_version.py"
 version_scheme = "post-release"
 local_scheme = "node-and-date"
-fallback_version = "0.1.0.dev0"
-git_describe_command = ["git", "describe", "--dirty", "--long", "--match", "v*"]
+fallback_version = "v0.0.0.dev0"
