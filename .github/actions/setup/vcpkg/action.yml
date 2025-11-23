@@ -66,7 +66,7 @@ runs:
           CMAKE_TOOLCHAIN="${{ steps.setup-linux.outputs.cmake-toolchain }}"
         fi
 
-        echo "VCPKG_ROOT="$VCPKG_ROOT" >> $GITHUB_ENV
+        echo "VCPKG_ROOT=$VCPKG_ROOT" >> $GITHUB_ENV
         echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
         echo "vcpkg-root=$VCPKG_ROOT" >> $GITHUB_OUTPUT
         echo "cmake-toolchain=$CMAKE_TOOLCHAIN" >> $GITHUB_OUTPUT
