@@ -232,11 +232,6 @@ class PauliObject(ABC):
             True if all tableau entries, weights, phases, and dimensions
             match within tolerance; False otherwise.
         """
-        self_PauliSum = self.copy()
-        other_PauliSum = other_pauli.copy()
-        if not literal:
-            self_PauliSum = self_PauliSum.to_standard_form()
-            other_PauliSum = other_PauliSum.to_standard_form()
 
         if not isinstance(other_pauli, self.__class__):
             return False
