@@ -189,42 +189,24 @@ runs:
       shell: bash
       run: |
         echo "=== Setting up LD_LIBRARY_PATH for C++ extensions ==="
-        
+
         echo "🔍 Searching for Intel MKL libraries..."
         INTEL_DIRS=$(find ${{ github.workspace }} /usr/local /opt -type d -path '*/intel64' 2>/dev/null || echo "")
-        if [ -n "$INTEL_DIRS" ]; then
-          echo "✓ Found Intel directories:"
-          echo "$INTEL_DIRS" | while read dir; do
-            echo "  - $dir"
-            if [ -d "$dir" ]; then
-              echo "    Contents: $(ls -la "$dir" 2>/dev/null | wc -l) items"
-              ls "$dir"/*.so* 2>/dev/null | head -5 | sed 's/^/      /'
-            fi
-          done
           INTEL_PATH=$(echo "$INTEL_DIRS" | paste -sd: -)
         else
           INTEL_PATH=""
           echo "⚠ No Intel MKL libraries found"
         fi
-        
+
         echo ""
         echo "🔍 Searching for project-specific .libs directories..."
         PROJECT_LIB_DIRS=$(find ${{ github.workspace }} -type d -name '*.libs' 2>/dev/null || echo "")
-        if [ -n "$PROJECT_LIB_DIRS" ]; then
-          echo "✓ Found project .libs directories:"
-          echo "$PROJECT_LIB_DIRS" | while read dir; do
-            echo "  - $dir"
-            if [ -d "$dir" ]; then
-              echo "    Contents: $(ls -la "$dir" 2>/dev/null | wc -l) items"
-              ls "$dir" 2>/dev/null | head -10 | sed 's/^/      /'
-            fi
-          done
           PROJECT_LIBS=$(echo "$PROJECT_LIB_DIRS" | paste -sd: -)
         else
           PROJECT_LIBS=""
           echo "⚠ No .libs directories found"
         fi
-        
+
         echo ""
         echo "🔍 Setting CUDA library paths..."
         CUDA_LIBS="${CUDA_PATH}/lib64:${CUDA_PATH}/lib"
@@ -233,7 +215,7 @@ runs:
           echo "  CUDA lib64 contents (first 5):"
           ls "${CUDA_PATH}/lib64"/*.so* 2>/dev/null | head -5 | sed 's/^/    /'
         fi
-        
+
         export LD_LIBRARY_PATH="${INTEL_PATH}:${PROJECT_LIBS}:${CUDA_LIBS}:${LD_LIBRARY_PATH}"
         echo ""
         echo "📋 Final LD_LIBRARY_PATH:"
