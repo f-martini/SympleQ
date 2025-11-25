@@ -181,12 +181,28 @@ class TestAquire:
         psi = np.random.rand(10) + 1j * np.random.rand(10)
         psi = psi / np.linalg.norm(psi)
         with pytest.raises(ValueError):
-            model = Aquire(H=P, psi=psi)
+            Aquire(H=P, psi=psi)
 
     def test_aquire_state_normalization_check(self):
         # check that the function that compares state and hamiltonian dimension raises an error correctly
         P = self.random_comparison_hamiltonian(20, [3,3,3], mode='rand')
         psi = np.random.rand(int(np.prod([3, 3, 3]))) + 1j*np.random.rand(int(np.prod([3, 3, 3]))) # not normalized
         with pytest.raises(ValueError):
-            model = Aquire(H=P, psi=psi)
+            Aquire(H=P, psi=psi)
+
+    def test_aquire_commutation_validation(self):
+        P = self.random_comparison_hamiltonian(20, [3,3,3], mode='rand')
+        commutation_rule = 'generl'
+        with pytest.raises(ValueError):
+            Aquire(H=P, commutation_mode=commutation_rule)
+
+    def test_aquire_allocation_mode_validation(self):
+        P = self.random_comparison_hamiltonian(20, [3,3,3], mode='rand')
+        allocation_mode = 'randm'
+        with pytest.raises(ValueError):
+            Aquire(H=P, allocation_mode=allocation_mode)
+
+
+
+
 
