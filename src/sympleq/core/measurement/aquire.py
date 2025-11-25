@@ -302,7 +302,8 @@ class Aquire:
     def __init__(self,
                  H: PauliSum,
                  psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,
-                 config: AquireConfig | None = None):
+                 config: AquireConfig | None = None,
+                 **kwargs):
         """
         Constructor for the Aquire class.
 
@@ -352,7 +353,7 @@ class Aquire:
 
         # Config for the experiment
         if config is None:
-            self.config = AquireConfig(self._H, psi=np.array(psi) if psi is not None else None)
+            self.config = AquireConfig(self._H, psi=np.array(psi) if psi is not None else None, **kwargs)
         else:
             self.config = config
             self.config.Hamiltonian = self._H
