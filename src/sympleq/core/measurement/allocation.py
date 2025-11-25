@@ -75,6 +75,11 @@ def sort_hamiltonian(P: PauliSum):
     P1 = P.copy()
     P1.reorder(sorted_indices)
 
+    # Remove identity
+    for i in range(P1.n_paulis()):
+        if P1.weights[i] != 0 and P1[i, :].is_identity():
+            P1._delete_paulis([i])
+
     return P1, np.array(pauli_block_sizes)
 
 
