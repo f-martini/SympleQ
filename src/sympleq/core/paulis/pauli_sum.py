@@ -878,6 +878,7 @@ class PauliSum(PauliObject):
         Combines equivalent Pauli operators in the sum by summing their coefficients and deleting duplicates.
         """
         # self.standardise()  # makes sure all phases are 0
+        self.phase_to_weight()
         # combine equivalent Paulis
         to_delete = []
         for i in reversed(range(self.n_paulis())):
