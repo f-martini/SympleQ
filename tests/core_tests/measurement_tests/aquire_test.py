@@ -174,3 +174,11 @@ class TestAquire:
             mean_distance = model.true_mean_value - model.estimated_mean[-1]
             distance_in_sigma = mean_distance / np.sqrt(np.abs(model.statistical_variance[-1]))
             assert np.abs(distance_in_sigma) < 5, f"Mean estimate too far from true value for dims {dims}"
+
+    def test_aquire_state_hamiltonian_mismatch_detection(self):
+        # check that the function that compares state and hamiltonian dimension raises an error correctly
+        P = self.random_comparison_hamiltonian(20, [3,3,3], mode='rand')
+        psi = np.random.rand(10) + 1j * np.random.rand(10)
+        psi = psi / np.linalg.norm(psi)
+        with pytest.raises(ValueError):
+            model = Aquire(H=P, psi=psi)
