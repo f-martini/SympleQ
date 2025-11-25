@@ -957,3 +957,34 @@ class TestPaulis:
         psum1.phase_to_weight()
         psum2 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0 + 1e-12, 0.5 - 1e-12], phases=[0, 1])
         assert not psum1.is_close(psum2, literal=False)
+
+    def test_pauli_object_sum(self):
+        dimension = 4
+        pauli_objects = [
+            Pauli.Xnd(1, dimension),
+            PauliString.from_string('x2z3', dimension),
+            PauliSum.from_random(3, dimensions=dimension)
+        ]
+        P = sum(pauli_objects, start=PauliSum.from_random(1, dimensions=dimension))
+        assert isinstance(P, PauliSum)
+        assert P.shape() == (6, 1)
+
+        with pytest.raises(ValueError):
+            _ = P + PauliString.from_exponents([2, 3], [0, 0], dimensions=dimension)
+
+        ps1 = PauliString.from_exponents([0, 0], [1, 1])
+        ps2 = PauliString.from_exponents([1, 0], [1, 1])
+        P = ps1 + ps2
+        assert P.shape() == (2, 2)
+        assert P.x_exp.tolist() == [[0, 0], [1, 0]]
+
+    def test_pauli_object_sub(self):
+        ps1 = PauliString.from_exponents([0, 0, 1], [1, 1, 1])
+        ps2 = PauliString.from_exponents([1, 0, 0], [1, 1, 0])
+        P = ps1 - ps2
+        assert P.shape() == (2, 3)
+        assert P.x_exp.tolist() == [[0, 0, 1], [1, 0, 0]]
+        assert P.weights.tolist() == [1, -1]
+
+        with pytest.raises(ValueError):
+            _ = P - PauliString.from_exponents([2, 3], [0, 0], dimensions=[4, 5])
