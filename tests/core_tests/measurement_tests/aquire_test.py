@@ -177,7 +177,7 @@ class TestAquire:
 
     def test_aquire_state_hamiltonian_mismatch_detection(self):
         # check that the function that compares state and hamiltonian dimension raises an error correctly
-        P = self.random_comparison_hamiltonian(20, [3,3,3], mode='rand')
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         psi = np.random.rand(10) + 1j * np.random.rand(10)
         psi = psi / np.linalg.norm(psi)
         with pytest.raises(ValueError):
@@ -185,22 +185,41 @@ class TestAquire:
 
     def test_aquire_state_normalization_check(self):
         # check that the function that compares state and hamiltonian dimension raises an error correctly
-        P = self.random_comparison_hamiltonian(20, [3,3,3], mode='rand')
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         psi = np.random.rand(int(np.prod([3, 3, 3]))) + 1j*np.random.rand(int(np.prod([3, 3, 3]))) # not normalized
         with pytest.raises(ValueError):
             Aquire(H=P, psi=psi)
 
     def test_aquire_commutation_validation(self):
-        P = self.random_comparison_hamiltonian(20, [3,3,3], mode='rand')
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         commutation_rule = 'generl'
         with pytest.raises(ValueError):
             Aquire(H=P, commutation_mode=commutation_rule)
 
     def test_aquire_allocation_mode_validation(self):
-        P = self.random_comparison_hamiltonian(20, [3,3,3], mode='rand')
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         allocation_mode = 'randm'
         with pytest.raises(ValueError):
             Aquire(H=P, allocation_mode=allocation_mode)
+
+    def test_aquire_diagnostic_mode_validation(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        diagnostic_mode = 'randm'
+        with pytest.raises(ValueError):
+            Aquire(H=P, diagnostic_mode=diagnostic_mode)
+        diagnostic_mode = 'informed'
+        with pytest.raises(NotImplementedError):
+            Aquire(H=P, diagnostic_mode=diagnostic_mode)
+
+    def test_aquire_true_value_mode_validation(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        calculate_true_values = True
+        with pytest.warns(UserWarning):
+            model = Aquire(H=P, calculate_true_values=calculate_true_values)
+        assert model.config.calculate_true_values == False
+
+
+
 
 
 
