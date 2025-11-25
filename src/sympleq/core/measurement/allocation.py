@@ -100,26 +100,22 @@ def choose_measurement(S, V, aaa, allocation_mode):
     return aa
 
 
-def construct_circuit_list(P, xxx, D, debug=False):
+def construct_circuit_list(P, xxx, D):
     circuit_list = []
     for aa in xxx:
-        C, D = construct_diagonalization_circuit(P, aa, D=D, debug=debug)
+        C, D = construct_diagonalization_circuit(P, aa, D=D)
         if not is_diagonalizing_circuit(P, C, aa):
             raise ValueError('Circuit is not diagonalizing')
         circuit_list.append(C)
     return circuit_list, D
 
 
-def construct_diagonalization_circuit(P: PauliSum, aa, D={}, debug=False):
+def construct_diagonalization_circuit(P: PauliSum, aa, D={}):
     if str(aa) in D:
         P1, C, k_dict = D[str(aa)]
     else:
         P1 = P.copy()
         P1._delete_paulis([i for i in range(P.n_paulis()) if i not in aa])
-        if debug:
-            print(aa)
-            print(P1)
-            print()
         # add products
         k_dict = {str(j0): [(a0, a0, P1.phases[j0])] for j0, a0 in enumerate(aa)}
         for j0, a0 in enumerate(aa):
@@ -132,17 +128,6 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}, debug=False):
                     # compute their product pauli
                     P2 = P_a0c * P_a1
                     P2.weights[0] = 1
-                    if debug:
-                        print('j', j0, j1)
-                        print('a', a0, a1)
-                        print('P0.H')
-                        print(P_a0c)
-                        print('P1')
-                        print(P_a1)
-                        print('product')
-                        print(P2)
-                        print()
-                        print()
                     # check if the product is in the original pauli list
                     P1_pauli_string_list = [str(P1[k]) for k in range(P1.n_paulis())]
                     if str(P2[0]) not in P1_pauli_string_list:
@@ -153,23 +138,9 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}, debug=False):
                     else:
                         k_dict[str(P1_pauli_string_list.index(str(P2[0])))].append((a0, a1, P2.phases[0]))
 
-        if debug:
-            print('P1')
-            print(P1)
-            print()
-            print()
-            print()
         C = diagonalize(P1)
         P1.set_phases(np.zeros(P1.n_paulis()))
         P1 = C.act(P1)
-        if debug:
-            print('Diagonalized P1')
-            print(P1)
-            print('Circuit')
-            print(C)
-            print()
-            print()
-            print()
         D[str(aa)] = (P1, C, k_dict)
     return C, D
 
@@ -299,7 +270,7 @@ def update_data(xxx, rr, X, D):
         for j0, s0 in enumerate(ss):
             for a0, a1, s1 in k_dict[str(j0)]:
                 if (phases1[j0] + s1) % 2 == 1:
-                    print('warning, odd phase detected for sorting into data matrix', phases1[j0] + s1, phases1[j0], s1)
+                    raise Exception('Odd phase detected for sorting into data matrix')
                 X[a0, a1, int(s0 + (phases1[j0] + s1) / 2) % d] += 1
     return X
 
