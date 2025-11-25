@@ -850,7 +850,7 @@ class Aquire:
         self.config.enable_diagnostics = True
         simulated_diagnostic_results = []
         for i, dsp_circuit in enumerate(self.diagnostic_circuits_since_last_update()):
-            result = simulate_measurement(self.H, self.config.psi, dsp_circuit)
+            result = simulate_measurement(self.H, self.diagnostic_states[i], dsp_circuit)
             noise_probability = self.config.noise_probability_function(dsp_circuit, *self.config.noise_probability_args,
                                                                        **self.config.noise_kwargs)
 
@@ -1074,12 +1074,12 @@ class Aquire:
         plot_aquire(self, filename)
 
 
-def simulate_measurement(PauliSum: PauliSum, psi: list[float | complex] | list[float] | list[complex] | np.ndarray,
+def simulate_measurement(paulisum: PauliSum, psi: list[float | complex] | list[float] | list[complex] | np.ndarray,
                          circuit: Circuit):
     # Simulate measurement
     psi_diag = circuit.unitary() @ psi
     pdf = np.abs(psi_diag * psi_diag.conj())
-    dims1 = PauliSum.dimensions
+    dims1 = paulisum.dimensions
     a1 = np.random.choice(np.prod(dims1), p=pdf)
     result = int_to_bases(a1, dims1)
     return result
