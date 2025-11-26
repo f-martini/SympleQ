@@ -323,6 +323,7 @@ class Aquire:
     # TODO: make working save and load methods
     # TODO: make summary method (also for config class) that only shows the most important information
     # TODO: Progressbar for simulate observable
+    # TODO: make method/property that returns the combined error (statistical + systematic)
     def __init__(self,
                  H: PauliSum,
                  psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,

@@ -173,9 +173,34 @@ class TestAquire:
                                     verbose=True)
 
             model.simulate_observable(update_steps=update_steps)
-            mean_distance = model.true_mean_value - model.estimated_mean[-1]
-            distance_in_sigma = mean_distance / np.sqrt(np.abs(model.statistical_variance[-1]))
-            assert np.abs(distance_in_sigma) < 5, f"Mean estimate too far from true value for dims {dims}"
+            mean_distance = np.abs(model.true_mean_value - model.estimated_mean[-1])
+            distance_in_sigma = mean_distance / np.sqrt(model.statistical_variance[-1])
+            assert distance_in_sigma < 5, f"Mean estimate too far from true value for dims {dims}"
+
+    def test_aquire_mean_distance_with_noise(self):
+        update_steps = [6,12,25,50,100,200,400,800,1600,3200]
+        dim_list = [[2,2,2], [3,3,3]]
+        for dims in dim_list:
+            P = self.random_comparison_hamiltonian(10, dims, mode='rand')
+            psi = np.random.rand(int(np.prod(dims))) + 1j*np.random.rand(int(np.prod(dims)))
+            psi = psi/np.linalg.norm(psi)
+
+            model = Aquire(H=P, psi=psi)
+
+            model.config.set_params(commutation_mode='general',
+                                    calculate_true_values=True,
+                                    enable_simulated_hardware_noise=True,
+                                    enable_diagnostics=True,
+                                    save_covariance_graph_checkpoints=False,
+                                    auto_update_covariance_graph=True,
+                                    auto_update_settings=True,
+                                    verbose=True)
+
+            model.simulate_observable(update_steps=update_steps)
+            mean_distance = np.abs(model.true_mean_value - model.estimated_mean[-1])
+            error = np.sqrt(model.statistical_variance[-1] + model.systematic_variance[-1])
+            distance_in_sigma = mean_distance / error
+            assert distance_in_sigma-1 < 5, f"Mean estimate too far from true value for dims {dims}"
 
     # AQUIRE CONFIG TESTS
     def test_aquire_state_hamiltonian_mismatch_detection(self):
@@ -377,23 +402,3 @@ class TestAquire:
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         AConfig = AquireConfig(P, calculate_true_values=False)
         model = Aquire(H=P, config=AConfig)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
