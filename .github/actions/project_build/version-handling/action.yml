@@ -4,15 +4,11 @@ inputs:
   fallback-version:
     description: "Fallback version if SCM detection fails"
     required: false
-    default: "0.0.0.dev0"
-  version-scheme:
-    description: "Version scheme for setuptools-scm"
+    default: "0.0.0.0a0"
+  include-distance:
+    description: "Include distance (aN) in version for non-exact tags"
     required: false
-    default: "post-release"
-  local-scheme:
-    description: "Local scheme for setuptools-scm"
-    required: false
-    default: "node-and-date"
+    default: "true"
 
 outputs:
   version:
@@ -38,9 +34,8 @@ runs:
       shell: bash
       run: |
         python "${{ github.action_path }}/inject_version.py" \
-          --version-scheme "${{ inputs.version-scheme }}" \
-          --local-scheme "${{ inputs.local-scheme }}" \
           --fallback-version "${{ inputs.fallback-version }}" \
+          --include-distance "${{ inputs.include-distance }}" \
           >> $GITHUB_OUTPUT
 
     - name: Inject version (Windows)
@@ -50,9 +45,8 @@ runs:
       run: |
         $scriptPath = "${{ github.action_path }}/inject_version.py" -replace '/', '\'
         python $scriptPath `
-          --version-scheme "${{ inputs.version-scheme }}" `
-          --local-scheme "${{ inputs.local-scheme }}" `
           --fallback-version "${{ inputs.fallback-version }}" `
+          --include-distance "${{ inputs.include-distance }}" `
           | Add-Content $env:GITHUB_OUTPUT
 
     - name: Set output

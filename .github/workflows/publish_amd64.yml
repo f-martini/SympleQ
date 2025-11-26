@@ -36,8 +36,20 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Determine version format
+        id: version-config
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "include-distance=false" >> $GITHUB_OUTPUT
+          else
+            echo "include-distance=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Inject version
         uses: ./.github/actions/project_build/version-handling
+        with:
+          include-distance: ${{ steps.version-config.outputs.include-distance }}
 
       - name: Free up disk space
         uses: ./.github/actions/cleanup/free-disk-space
@@ -85,8 +97,20 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Determine version format
+        id: version-config
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "include-distance=false" >> $GITHUB_OUTPUT
+          else
+            echo "include-distance=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Inject version
         uses: ./.github/actions/project_build/version-handling
+        with:
+          include-distance: ${{ steps.version-config.outputs.include-distance }}
 
       - name: Free up disk space
         uses: ./.github/actions/cleanup/free-disk-space
