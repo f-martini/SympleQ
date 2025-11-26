@@ -192,22 +192,12 @@ runs:
 
         echo "🔍 Searching for Intel MKL libraries..."
         INTEL_DIRS=$(find ${{ github.workspace }} /usr/local /opt -type d -path '*/intel64' 2>/dev/null || echo "")
-          INTEL_PATH=$(echo "$INTEL_DIRS" | paste -sd: -)
-        else
-          INTEL_PATH=""
-          echo "⚠ No Intel MKL libraries found"
-        fi
+        INTEL_PATH=$(echo "$INTEL_DIRS" | paste -sd: -)
 
-        echo ""
         echo "🔍 Searching for project-specific .libs directories..."
         PROJECT_LIB_DIRS=$(find ${{ github.workspace }} -type d -name '*.libs' 2>/dev/null || echo "")
-          PROJECT_LIBS=$(echo "$PROJECT_LIB_DIRS" | paste -sd: -)
-        else
-          PROJECT_LIBS=""
-          echo "⚠ No .libs directories found"
-        fi
+        PROJECT_LIBS=$(echo "$PROJECT_LIB_DIRS" | paste -sd: -)
 
-        echo ""
         echo "🔍 Setting CUDA library paths..."
         CUDA_LIBS="${CUDA_PATH}/lib64:${CUDA_PATH}/lib"
         echo "✓ CUDA libs: $CUDA_LIBS"
@@ -217,10 +207,8 @@ runs:
         fi
 
         export LD_LIBRARY_PATH="${INTEL_PATH}:${PROJECT_LIBS}:${CUDA_LIBS}:${LD_LIBRARY_PATH}"
-        echo ""
         echo "📋 Final LD_LIBRARY_PATH:"
         echo "$LD_LIBRARY_PATH" | tr ':' '\n' | nl
-        echo ""
         echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> $GITHUB_ENV
         echo "✅ Library paths configured successfully"
 
