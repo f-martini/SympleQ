@@ -4,12 +4,22 @@ import sys
 import argparse
 
 
-def generate_version(version_scheme="post-release", local_scheme="node-and-date", fallback_version="0.0.0.dev0"):
+def generate_version(fallback_version="0.0.0.0a0", include_distance=True):
     try:
         import setuptools_scm
+
+        def custom_version_scheme(version):
+            if version.exact:
+                return version.format_with("{tag}")
+            else:
+                if include_distance:
+                    return version.format_with("{tag}a{distance}")
+                else:
+                    return version.format_with("{tag}")
+
         version = setuptools_scm.get_version(
-            version_scheme=version_scheme,
-            local_scheme=local_scheme,
+            version_scheme=custom_version_scheme,
+            local_scheme="no-local-version",
             fallback_version=fallback_version,
             tag_regex=r'^v?(\d+\.\d+\.\d+)(?:\.\d+)?$'
         )
@@ -41,17 +51,18 @@ def inject_version(version, pyproject_path="pyproject.toml"):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--version-scheme', default='post-release')
-    parser.add_argument('--local-scheme', default='node-and-date')
-    parser.add_argument('--fallback-version', default='0.0.0.dev0')
+    parser.add_argument('--fallback-version', default='0.0.0.0a0')
     parser.add_argument('--pyproject-path', default='pyproject.toml')
+    parser.add_argument('--include-distance', default='true', choices=['true', 'false'],
+                        help='Include distance (aN) in version for non-exact tags')
 
     args = parser.parse_args()
 
+    include_distance = args.include_distance.lower() == 'true'
+
     version = generate_version(
-        version_scheme=args.version_scheme,
-        local_scheme=args.local_scheme,
-        fallback_version=args.fallback_version
+        fallback_version=args.fallback_version,
+        include_distance=include_distance
     )
 
     success = inject_version(version, args.pyproject_path)
