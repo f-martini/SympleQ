@@ -192,19 +192,19 @@ class TestAquire:
 
     def test_aquire_commutation_validation(self):
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
-        commutation_rule = 'generl'
+        commutation_rule = 'test'
         with pytest.raises(ValueError):
             Aquire(H=P, commutation_mode=commutation_rule)
 
     def test_aquire_allocation_mode_validation(self):
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
-        allocation_mode = 'randm'
+        allocation_mode = 'test'
         with pytest.raises(ValueError):
             Aquire(H=P, allocation_mode=allocation_mode)
 
     def test_aquire_diagnostic_mode_validation(self):
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
-        diagnostic_mode = 'randm'
+        diagnostic_mode = 'test'
         with pytest.raises(ValueError):
             Aquire(H=P, diagnostic_mode=diagnostic_mode)
         diagnostic_mode = 'informed'
@@ -217,6 +217,81 @@ class TestAquire:
         with pytest.warns(UserWarning):
             model = Aquire(H=P, calculate_true_values=calculate_true_values)
         assert model.config.calculate_true_values == False
+
+    def test_aquire_config_update_all(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
+        model.config.set_params(commutation_mode='local')
+        assert model.config.commutation_mode == 'local'
+        with pytest.raises(ValueError):
+            model.config.set_params(commutation_mode='test')
+        model.config.set_params(auto_update_settings=False)
+        with pytest.warns(UserWarning):
+            model.config.set_params(commutation_mode='general')
+
+    def test_aquire_config_update_set_params(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
+        with pytest.raises(AttributeError):
+            model.config.set_params(test='test')
+
+    def test_aquire_config_verbose(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        model = Aquire(H=P, calculate_true_values=False, verbose=True, auto_update_settings=True)
+        with pytest.warns(UserWarning):
+            model.config.update_all()
+
+    def test_aquire_config_string_representation(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
+        str(model)
+        assert type(str(model.config)) == str
+
+    def test_aquire_config_mcmc_validation(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
+
+        def n_test(shots):
+            return shots + 10
+        def n_max_test(shots):
+            return int(shots*0.9) + 100
+
+        with pytest.warns(UserWarning):
+            model.config.set_params(mcmc_initial_samples_per_chain=n_test,
+                                    mcmc_max_samples_per_chain=n_max_test)
+            model.config.test_mcmc_settings()
+
+        with pytest.warns(UserWarning):
+            model.config.set_params(mcmc_initial_samples_per_chain=101.1,
+                                    mcmc_max_samples_per_chain=2003.5)
+            model.config.test_mcmc_settings()
+
+        with pytest.raises(ValueError):
+            model.config.set_params(mcmc_initial_samples_per_chain=-10,
+                                    mcmc_max_samples_per_chain=2000)
+            model.config.test_mcmc_settings()
+
+    def test_aquire_noise_and_error_function_validation(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
+        def faulty_noise_probability_function(circuit,*args, **kwargs):
+            return -0.1
+        def faulty_error_function(results, *args, **kwargs):
+            return np.array([1.2 for _ in results])
+        with pytest.raises(ValueError):
+            model.config.set_params(noise_probability_function=faulty_noise_probability_function)
+            model.config.test_noise_and_error_function()
+        with pytest.raises(ValueError):
+            model.config.set_params(error_function=faulty_error_function)
+            model.config.test_noise_and_error_function()
+
+
+
+
+
+
+
+
 
 
 

@@ -41,13 +41,12 @@ class AquireConfig:
                  enable_debug_checks: bool = False,
                  mcmc_number_of_chains: int = 8,
                  mcmc_initial_samples_per_chain: int | Callable = mcmc_number_initial_samples,
-                 mcmc_initial_samples_per_chain_kwargs: dict = {'n_0': 500, 'scaling_factor': 1 / 10000},
+                 mcmc_initial_samples_per_chain_kwargs: dict = {},
                  mcmc_max_samples_per_chain: int | Callable = mcmc_number_max_samples,
-                 mcmc_max_samples_per_chain_kwargs: dict = {'n_0': 2001, 'scaling_factor': 1 / 10000},
+                 mcmc_max_samples_per_chain_kwargs: dict = {},
                  noise_probability_function: Callable = standard_noise_probability_function,
                  noise_probability_args: tuple = (),
-                 noise_probability_function_kwargs: dict = {
-                     'p_entangling': 0.03, 'p_local': 0.001, 'p_measurement': 0.001},
+                 noise_probability_function_kwargs: dict = {},
                  error_function: Callable = standard_error_function,
                  error_function_args: tuple = (),
                  error_function_kwargs: dict = {}):
@@ -71,13 +70,25 @@ class AquireConfig:
 
         # MCMC settings
         self.mcmc_number_of_chains = mcmc_number_of_chains
+
         self.mcmc_initial_samples_per_chain = mcmc_initial_samples_per_chain
-        self.mcmc_initial_samples_per_chain_kwargs = mcmc_initial_samples_per_chain_kwargs
+        if (self.mcmc_initial_samples_per_chain == mcmc_number_initial_samples and mcmc_initial_samples_per_chain_kwargs is {}):
+            self.mcmc_initial_samples_per_chain_kwargs = {'n_0': 500, 'scaling_factor': 1 / 10000}
+        else:
+            self.mcmc_initial_samples_per_chain_kwargs = mcmc_initial_samples_per_chain_kwargs
+
         self.mcmc_max_samples_per_chain = mcmc_max_samples_per_chain
-        self.mcmc_max_samples_per_chain_kwargs = mcmc_max_samples_per_chain_kwargs
+        if (self.mcmc_max_samples_per_chain == mcmc_number_max_samples and mcmc_max_samples_per_chain_kwargs is {}):
+            self.mcmc_max_samples_per_chain_kwargs = {'n_0': 2001, 'scaling_factor': 1 / 10000}
+        else:
+            self.mcmc_max_samples_per_chain_kwargs = mcmc_max_samples_per_chain_kwargs
 
         # noise and error functions
         self.noise_probability_function = noise_probability_function
+        if (self.noise_probability_function == standard_noise_probability_function and noise_probability_function_kwargs is {}):
+            self.noise_probability_function_kwargs = {'p_entangling': 0.03, 'p_local': 0.001, 'p_measurement': 0.001}
+        else:
+            self.noise_probability_function_kwargs = noise_probability_function_kwargs
         self.noise_probability_args = noise_probability_args
         self.noise_kwargs = noise_probability_function_kwargs
         self.error_function = error_function
@@ -171,6 +182,9 @@ class AquireConfig:
             if N > N_max:
                 warnings.warn(f"Warning: For {shots} shots, initial MCMC samples per chain ({N}) "
                               f"exceeds maximum MCMC samples per chain ({N_max}).", UserWarning)
+            if N <= 0 or N_max <= 0:
+                raise ValueError(f"Warning: For {shots} shots, initial and maximum MCMC samples per chain "
+                                 f"must be positive integers.")
 
     def test_noise_and_error_function(self):
         for i in range(10):
@@ -190,16 +204,19 @@ class AquireConfig:
                 if j > self.Hamiltonian.dimensions[i0] or j < 0:
                     raise ValueError(f"Error function gives erroneous values. It must be between 0 and qudit dimension."
                                      f"Wrong values where found for measurement outcome: \n {test_result}.")
+                elif not isinstance(j, int):
+                    raise ValueError(f"Error function gives erroneous values. It must return integers."
+                                     f"Wrong values where found for measurement outcome: \n {test_result}.")
 
-    # TODO: Check whether this works
     @classmethod
     def from_json(cls, path):
+        # FIXME: does not work with non-serializable attributes
         with open(path) as f:
             data = json.load(f)
         return cls(**data)
 
-    # TODO: Check whether this works
     def to_json(self, path):
+        # FIXME: does not work with non-serializable attributes
         with open(path, 'w') as f:
             json.dump(self.__dict__, f, indent=4)
 
