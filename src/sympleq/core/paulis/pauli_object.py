@@ -117,6 +117,11 @@ class PauliObject(ABC):
         """
         return self._dimensions
 
+    @dimensions.setter
+    def dimensions(self, value: np.ndarray):
+        raise Exception("The dimensions of a PauliObject cannot be set.\
+                        If you want to change the PauliObject dimensions, generate a new one.")
+
     @property
     def lcm(self) -> int:
         """
@@ -128,6 +133,11 @@ class PauliObject(ABC):
             The least common multiple of the qudit dimensions.
         """
         return self._lcm
+
+    @lcm.setter
+    def lcm(self, value: int):
+        raise Exception("The lcm of a PauliObject cannot be set, as it is derived from its dimensions.\
+                        If you want to change the PauliObject dimensions, generate a new one.")
 
     def n_qudits(self) -> int:
         """

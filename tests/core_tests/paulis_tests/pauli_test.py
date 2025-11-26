@@ -958,3 +958,22 @@ class TestPaulis:
         psum1.phase_to_weight()
         psum2 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0 + 1e-12, 0.5 - 1e-12], phases=[0, 1])
         assert not psum1.is_close(psum2, literal=False)
+
+    def test_pauli_object_invalid_setters(self):
+        p = Pauli.Xnd(1, 2)
+        with pytest.raises(Exception):
+            p.lcm = 2
+        with pytest.raises(Exception):
+            p.dimensions = np.array([2], dtype=int)
+
+        p = PauliString.from_random([2, 3, 5])
+        with pytest.raises(Exception):
+            p.lcm = 12
+        with pytest.raises(Exception):
+            p.dimensions = np.array([2], dtype=int)
+
+        p = PauliSum.from_random(4, [2, 3, 5])
+        with pytest.raises(Exception):
+            p.lcm = 24
+        with pytest.raises(Exception):
+            p.dimensions = np.array([2], dtype=int)
