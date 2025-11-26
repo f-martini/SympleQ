@@ -47,28 +47,28 @@ runs:
       uses: lukka/run-vcpkg@v11
       id: setup-windows
       with:
-        vcpkgDirectory: "${{ github.workspace }}\\vcpkg"
+        vcpkgDirectory: "${{ github.workspace }}/vcpkg"
         vcpkgGitCommitId: ${{ inputs.vcpkg-commit }}
-        vcpkgJsonGlob: "**\\vcpkg.json"
+        runVcpkgInstall: true
+        vcpkgJsonGlob: "**/src/vcpkg.json"
+        doNotCache: true
 
     - name: Set unified outputs
       id: setup
       shell: bash
       run: |
         if [ "${{ inputs.platform }}" == "windows" ]; then
-              VCPKG_ROOT="${{ github.workspace }}\\vcpkg"
-              CMAKE_TOOLCHAIN="${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
-            else
-              VCPKG_ROOT="${{ steps.setup-linux.outputs.vcpkg-root }}"
-              CMAKE_TOOLCHAIN="${{ steps.setup-linux.outputs.cmake-toolchain }}"
-            fi
-            
-            echo "vcpkg-root=$VCPKG_ROOT" >> $GITHUB_OUTPUT
-            echo "cmake-toolchain=$CMAKE_TOOLCHAIN" >> $GITHUB_OUTPUT
-            echo "VCPKG_ROOT=$VCPKG_ROOT" >> $GITHUB_ENV
-            echo "CMAKE_TOOLCHAIN=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
-            echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
+          VCPKG_ROOT="${{ github.workspace }}/vcpkg"
+          CMAKE_TOOLCHAIN="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+        else
+          VCPKG_ROOT="${{ steps.setup-linux.outputs.vcpkg-root }}"
+          CMAKE_TOOLCHAIN="${{ steps.setup-linux.outputs.cmake-toolchain }}"
+        fi
 
-            echo "✅ vcpkg setup complete:"
-            echo "   Root: $VCPKG_ROOT"
-            echo "   Toolchain: $CMAKE_TOOLCHAIN"
+        echo "VCPKG_ROOT=$VCPKG_ROOT" >> $GITHUB_ENV
+        echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN" >> $GITHUB_ENV
+        echo "vcpkg-root=$VCPKG_ROOT" >> $GITHUB_OUTPUT
+        echo "cmake-toolchain=$CMAKE_TOOLCHAIN" >> $GITHUB_OUTPUT
+        echo "✅ vcpkg setup complete:"
+        echo "   Root: $VCPKG_ROOT"
+        echo "   Toolchain: $CMAKE_TOOLCHAIN"

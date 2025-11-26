@@ -29,7 +29,7 @@ fi
 echo "Detected architecture $ARCH: using preset $PRESET"
 
 source "$SRC_VENV/bin/activate"
-python3 -m pip install  --upgrade pip setuptools wheel scikit-build-core nanobind
+python3 -m pip install  --upgrade pip setuptools wheel scikit-build-core nanobind setuptools-scm
 python3 -m pip install -e "$PYTHON_PY_SETUP" --config-settings=cmake.args="--preset;$PRESET"
 deactivate
 

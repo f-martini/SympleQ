@@ -1,14 +1,20 @@
 from __future__ import annotations
 from typing import overload, TYPE_CHECKING, Union
 import numpy as np
+import math
 import scipy.sparse as sp
 import galois
-from sympleq.core.finite_field_solvers import get_linear_dependencies
 import warnings
+from pathlib import Path
+
+from sympleq.utils import int_to_bases
+from sympleq.core.finite_field_solvers import get_linear_dependencies
 
 from .pauli_object import PauliObject
 from .pauli_string import PauliString
 from .pauli import Pauli
+from .constants import DEFAULT_QUDIT_DIMENSION
+
 
 ScalarType = Union[float, complex, int]
 
@@ -220,32 +226,82 @@ class PauliSum(PauliObject):
         PauliSum
             A PauliSum object.
         """
-        # TODO: Eliminate n_qudits and set dimensions directly from len(dimensions)
-        # TODO: Ensure no duplicate strings
+
+        # Ensure no duplicate strings
+        if isinstance(dimensions, int):
+            dimensions = [dimensions]
+
+        max_n_paulis = math.prod([int(d)**2 for d in dimensions])
+        if n_paulis > max_n_paulis:
+            raise ValueError(
+                f"Too many Paulis {n_paulis} for dimensions {dimensions} to guarantee unicity\
+                     (max {max_n_paulis}).")
+
         if seed is not None:
             np.random.seed(seed)
-        weights = 2 * (np.random.rand(n_paulis) - 0.5) if rand_weights else np.ones(n_paulis)
-        string_seeds = np.random.randint(1000000, size=1000)
-        # Ensure no duplicate strings
-        # FIXME: this check is useful, but it fails if the product is too large and does not fit in int64.
-        # if n_paulis > 2 * int(np.prod(dimensions)):
-        #     raise ValueError(
-        #         f"Too many Paulis {n_paulis} for dimensions {dimensions} to guarantee unicity\
-        #              (max {2 * int(np.prod(dimensions))}).")
-        strings = []
-        for i in range(n_paulis):
-            ps = PauliString.from_random(dimensions, seed=string_seeds[i])
-            j = 0
-            while ps in strings:
-                j += 1
-                ps = PauliString.from_random(dimensions, seed=string_seeds[j])
-            strings.append(ps)
-        # Generate random phases if required
-        # TODO: check random phases below are correctly generated
-        phases = 2 * np.random.randint(0, 2 * int(np.prod(dimensions)) - 1,
-                                       size=n_paulis) if rand_phases else [0] * n_paulis
 
-        return cls.from_pauli_strings(strings, weights=weights, phases=phases)
+        # For large max_n_paulis we accept that we may have repetitions,
+        # especially if n_paulis is large.
+        def from_large_population() -> list[PauliString]:
+            return [PauliString.from_random(dimensions, seed) for _ in range(n_paulis)]
+
+        # For small population we ensure unicity.
+        def from_small_population() -> list[PauliString]:
+            base_dims = [d**2 for d in dimensions]
+            indices = np.random.choice(max_n_paulis, size=n_paulis, replace=False)
+            strings = []
+            for k in indices:
+                # int_to_bases converts the integer index to a mixed-radix digit.
+                # Here however we need two digits (one per exponent), so we need to use the squared dimensions
+                # and then extract the two exponents.
+                pair_digits = int_to_bases(k, base_dims)
+                x_exp = [p // d for p, d in zip(pair_digits, dimensions)]
+                z_exp = [p % d for p, d in zip(pair_digits, dimensions)]
+                ps = PauliString.from_exponents(x_exp, z_exp, dimensions)
+                strings.append(ps)
+            return strings
+
+        max_n_paulis_threshold = 1e6
+        pauli_strings = from_small_population() if max_n_paulis < max_n_paulis_threshold else from_large_population()
+
+        weights = 2 * (np.random.rand(n_paulis) - 0.5) if rand_weights else np.ones(n_paulis)
+
+        lcm = np.lcm.reduce(dimensions)
+        phases = np.random.randint(0, 2 * int(lcm) - 1, size=n_paulis) if rand_phases else np.zeros(n_paulis)
+
+        return cls.from_pauli_strings(pauli_strings, weights=weights, phases=phases)
+
+    @classmethod
+    def from_file(cls, path: str | Path,
+                  dimensions: int | list[int] | np.ndarray = DEFAULT_QUDIT_DIMENSION) -> PauliSum:
+        """Reads a PauliSum from file.
+
+        Parameters
+        ----------
+            path: str | Path
+                Path to the Hamiltonian file.
+            dimensions: int | list[int] | np.ndarray
+                Dimension(s) of the qudits, default is DEFAULT_QUDIT_DIMENSION.
+
+        Returns
+        -------
+        PauliSum
+            The parsed PauliSum.
+        """
+        with open(path, "r") as f:
+            lines = f.readlines()
+
+        pauli_strings = []
+        weights = []
+        phases = []
+
+        for line in lines:
+            weight, string, phase = line.split("|")
+            pauli_strings.append(PauliString.from_string(string, dimensions))
+            weights.append(complex(weight))
+            phases.append(int(phase))
+
+        return PauliSum.from_pauli_strings(pauli_strings, weights, phases)
 
     @property
     def phases(self) -> np.ndarray:
@@ -864,6 +920,8 @@ class PauliSum(PauliObject):
             for j in range(i + 1, self.n_paulis()):
                 ps2 = self.select_pauli_string(j)
                 if ps1 == ps2:
+                    # FIXME: can overflow for very large n_paulis.
+                    #        One solution could be to normalize it by dividing by the smallest weight.
                     self._weights[i] = self._weights[i] + self._weights[j]
                     to_delete.append(j)
         self._delete_paulis(to_delete)
@@ -1009,6 +1067,19 @@ class PauliSum(PauliObject):
         # NOTE: We pass a view to the tableau row and the dimensions,
         #       meaning that they could be modified from the PauliString.
         return Pauli(self.tableau[index], self.dimensions)
+
+    def to_file(self, path: str | Path) -> None:
+        """
+        Writes the PauliSum to a file using its internal representation.
+
+        Parameters
+        ----------
+        path : str | Path
+            Path to the output file.
+        """
+
+        with open(path, "w") as f:
+            f.write(str(self))
 
     def _delete_paulis(self, pauli_indices: int | list[int] | np.ndarray):
         """

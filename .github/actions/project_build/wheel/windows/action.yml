@@ -62,13 +62,13 @@ runs:
     - name: Build Windows wheel
       shell: pwsh
       env:
-        CMAKE_TOOLCHAIN_FILE: ${{ steps.vcpkg-setup.outputs.toolchain-file }}
+        CMAKE_TOOLCHAIN_FILE: ${{ steps.vcpkg-setup.outputs.cmake-toolchain }}
         CUDA_PATH: ${{ steps.cuda-setup.outputs.CUDA_PATH }}
         VCPKG_ROOT: ${{ steps.vcpkg-setup.outputs.vcpkg-root }}
       run: |
         Write-Host "🔨 Building wheel for Windows (${{ inputs.architecture }})..."
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install build scikit-build-core[pyproject] nanobind cmake ninja delvewheel
+        python -m pip install build scikit-build-core[pyproject] nanobind cmake ninja delvewheel setuptools-scm
         python -m build --wheel --outdir dist --config-setting "cmake.args=-G;Ninja;-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}"
 
     - name: Repair Windows wheels with delvewheel
@@ -96,5 +96,6 @@ runs:
             python -m pip install $wheel.FullName
           }
           
-          python -c "from ${{ inputs.project-name }}.core.light import Aquire; aquire = Aquire('h', [], {}); print('✅ Wheel test passed')"
+          python -m pip install pytest
+          python -m pytest tests -v
         }

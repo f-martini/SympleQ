@@ -36,7 +36,9 @@ build.verbose = true
 cmake.args = ["-DCMAKE_MESSAGE_LOG_LEVEL=STATUS", "-DCMAKE_VERBOSE_MAKEFILE=ON"]
 wheel.packages = ["./src/sympleq"]
 
-[tool.setuptools_scm]
-write_to = "src/sympleq/_version.py"
-version_scheme = "post-release"
-local_scheme = "node-and-timestamp"
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["*_test.py", "*_tests.py", "test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
