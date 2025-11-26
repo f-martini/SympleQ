@@ -9,10 +9,7 @@ def generate_version(fallback_version="0.0.0.0a0", include_distance=True):
         import setuptools_scm
 
         def custom_version_scheme(version):
-            if version.exact:
-                return version.format_with("{tag}")
-            else:
-                return version.format_with("{tag}a{distance}")
+            return version.format_with("{tag}a{distance}")
 
         def custom_local_scheme(version):
             return ""
@@ -24,6 +21,7 @@ def generate_version(fallback_version="0.0.0.0a0", include_distance=True):
             tag_regex=r'^v?(\d+\.\d+\.\d+)(?:\.\d+)?$'
         )
 
+        # If include_distance is False, strip the 'aN' suffix
         if not include_distance and 'a' in version:
             version = version.split('a')[0]
 
