@@ -1,9 +1,10 @@
 name: Build and Publish QuAOS Wheels
 
 on:
-  push:
-    branches:
-      - "dev"
+  workflow_run:
+    workflows: ["SemVer Tagging"]
+    types:
+      - completed
   release:
     types: [created]
 env:
