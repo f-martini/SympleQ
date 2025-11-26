@@ -251,19 +251,34 @@ class TestAquire:
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
 
-        def n_test(shots):
+        def n_test1(shots):
             return shots + 10
-        def n_max_test(shots):
+        def n_max_test1(shots):
             return int(shots*0.9) + 100
 
         with pytest.warns(UserWarning):
-            model.config.set_params(mcmc_initial_samples_per_chain=n_test,
-                                    mcmc_max_samples_per_chain=n_max_test)
+            model.config.set_params(mcmc_initial_samples_per_chain=n_test1,
+                                    mcmc_max_samples_per_chain=n_max_test1)
             model.config.test_mcmc_settings()
 
-        with pytest.warns(UserWarning):
+        with pytest.raises(ValueError):
             model.config.set_params(mcmc_initial_samples_per_chain=101.1,
-                                    mcmc_max_samples_per_chain=2003.5)
+                                    mcmc_max_samples_per_chain=2000)
+            model.config.test_mcmc_settings()
+
+        with pytest.raises(ValueError):
+            model.config.set_params(mcmc_initial_samples_per_chain=100,
+                                    mcmc_max_samples_per_chain=2000.2)
+            model.config.test_mcmc_settings()
+
+        def n_test2(shots):
+            return shots + 10 + 0.1
+        def n_max_test2(shots):
+            return shots + 100 + 0.2
+
+        with pytest.warns(UserWarning):
+            model.config.set_params(mcmc_initial_samples_per_chain=n_test2,
+                                    mcmc_max_samples_per_chain=n_max_test2)
             model.config.test_mcmc_settings()
 
         with pytest.raises(ValueError):

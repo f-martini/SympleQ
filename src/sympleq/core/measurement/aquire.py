@@ -166,17 +166,21 @@ class AquireConfig:
     def test_mcmc_settings(self):
         shot_tests = [100, 1000, 10000, 100000, 1000000]
         for shots in shot_tests:
-            if isinstance(self.mcmc_initial_samples_per_chain, int):
+            if isinstance(self.mcmc_initial_samples_per_chain, (int, np.integer)):
                 N = self.mcmc_initial_samples_per_chain
-            else:
+            elif callable(self.mcmc_initial_samples_per_chain):
                 N = self.mcmc_initial_samples_per_chain(shots, **self.mcmc_initial_samples_per_chain_kwargs)
-
-            if isinstance(self.mcmc_max_samples_per_chain, int):
-                N_max = self.mcmc_max_samples_per_chain
             else:
-                N_max = self.mcmc_max_samples_per_chain(shots, **self.mcmc_max_samples_per_chain_kwargs)
+                raise ValueError("MCMC initial samples per chain must be either an integer or a callable function.")
 
-            if not (isinstance(N, int) and isinstance(N_max, int)):
+            if isinstance(self.mcmc_max_samples_per_chain, (int, np.integer)):
+                N_max = self.mcmc_max_samples_per_chain
+            elif callable(self.mcmc_max_samples_per_chain):
+                N_max = self.mcmc_max_samples_per_chain(shots, **self.mcmc_max_samples_per_chain_kwargs)
+            else:
+                raise ValueError("MCMC max samples per chain must be either an integer or a callable function.")
+
+            if not (isinstance(N, (int, np.integer)) and isinstance(N_max, (int, np.integer))):
                 warnings.warn("Warning: Initial and maximum MCMC samples per chain must be integers.", UserWarning)
 
             if N > N_max:
@@ -204,10 +208,12 @@ class AquireConfig:
                 if j > self.Hamiltonian.dimensions[i0] or j < 0:
                     raise ValueError(f"Error function gives erroneous values. It must be between 0 and qudit dimension."
                                      f"Wrong values where found for measurement outcome: \n {test_result}.")
-                elif not isinstance(j, int):
+                elif not isinstance(j, (int, np.integer)):
+                    '''
                     raise ValueError(f"Error function gives erroneous values. It must return integers."
-                                     f"Wrong values where found for measurement outcome: \n {test_result}.")
-
+                                     f"Wrong values where found for measurement outcome: \n {error_test_result}.")
+                    '''
+                    raise ValueError(f"j:{j} is of type {type(j)}")  # DEBUGGING
     @classmethod
     def from_json(cls, path):
         # FIXME: does not work with non-serializable attributes
