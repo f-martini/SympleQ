@@ -136,7 +136,7 @@ jobs:
   clear:
     needs: [publish, build-linux-x64, build-windows-x64]
     runs-on: ubuntu-latest
-    if: always() && github.event_name == 'release' && (needs.publish.result == 'failure' || needs.build-linux-x64.result == 'failure' || needs.build-windows-x64.result == 'failure')
+    if: github.event_name == 'release' && (needs.publish.result == 'failure' || needs.build-linux-x64.result == 'failure' || needs.build-windows-x64.result == 'failure')
     steps:
       - name: Delete release if workflow failed
         uses: actions/github-script@v7
