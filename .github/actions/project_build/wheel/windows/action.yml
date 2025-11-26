@@ -96,6 +96,6 @@ runs:
             python -m pip install $wheel.FullName
           }
           
-          python -m pip install pytest
-          python -m pytest tests -v
+          python -m pip install pytest pytest-benchmark
+          python -m pytest tests -v -k "not benchmark" --benchmark-quiet --benchmark-disable
         }
