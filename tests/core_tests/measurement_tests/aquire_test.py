@@ -1,6 +1,6 @@
 # flake8: noqa
 import numpy as np
-from sympleq.core.measurement.aquire import Aquire
+from sympleq.core.measurement.aquire import Aquire, AquireConfig
 from sympleq.core.paulis import PauliSum, PauliString
 from sympleq.core.paulis.utils import XZ_to_Y
 from sympleq.core.measurement.covariance_graph import commutation_graph, weighted_vertex_covering_maximal_cliques
@@ -8,6 +8,8 @@ from sympleq.core.measurement.allocation import construct_circuit_list
 from sympleq.core.measurement.allocation import sort_hamiltonian
 from sympleq.core.measurement.aquire_utils import true_covariance_graph
 import json
+from unittest.mock import patch
+import warnings
 
 import pytest
 
@@ -175,6 +177,7 @@ class TestAquire:
             distance_in_sigma = mean_distance / np.sqrt(np.abs(model.statistical_variance[-1]))
             assert np.abs(distance_in_sigma) < 5, f"Mean estimate too far from true value for dims {dims}"
 
+    # AQUIRE CONFIG TESTS
     def test_aquire_state_hamiltonian_mismatch_detection(self):
         # check that the function that compares state and hamiltonian dimension raises an error correctly
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
@@ -286,6 +289,11 @@ class TestAquire:
                                     mcmc_max_samples_per_chain=2000)
             model.config.test_mcmc_settings()
 
+        with pytest.raises(ValueError):
+            model.config.set_params(mcmc_initial_samples_per_chain=10,
+                                    mcmc_max_samples_per_chain=-2000)
+            model.config.test_mcmc_settings()
+
     def test_aquire_noise_and_error_function_validation(self):
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
@@ -299,6 +307,80 @@ class TestAquire:
         with pytest.raises(ValueError):
             model.config.set_params(error_function=faulty_error_function)
             model.config.test_noise_and_error_function()
+
+        def faulty_error_function2(results, *args, **kwargs):
+            return np.array([10 for _ in results])
+        with pytest.raises(ValueError):
+            model.config.set_params(error_function=faulty_error_function2)
+            model.config.test_noise_and_error_function()
+
+    # AQUIRE CONFIG TESTS END
+
+    # AQUIRE FUNCTIONALITY TESTS
+
+    def test_aquire_identity_warning(self):
+        P = PauliSum.from_string(['x0z0 x0z0', 'x1z1 x1z1'], dimensions=[2,2], weights=[1,1], phases=[0,0])
+        with pytest.warns(UserWarning):
+            Aquire(H=P, calculate_true_values=False)
+
+    @patch("builtins.input", return_value="y")
+    def test_aquire_input_with_wrong_phase_y(self, mock_input):
+        P = PauliSum.from_string(['x1z0 x0z0', 'x1z1 x1z0'], dimensions=[2,2], weights=[1,1], phases=[0,0])
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            Aquire(H=P, calculate_true_values=False)
+            assert len(w) == 1
+            assert issubclass(w[0].category, UserWarning)
+
+    @patch("builtins.input", return_value="n")
+    def test_aquire_input_with_wrong_phase_n(self, mock_input):
+        P = PauliSum.from_string(['x1z0 x0z0', 'x1z1 x1z0'], dimensions=[2,2], weights=[1,1], phases=[0,0])
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            Aquire(H=P, calculate_true_values=False)
+            assert len(w) == 1
+            assert issubclass(w[0].category, UserWarning)
+
+    @patch("builtins.input", return_value="invalid input")
+    def test_aquire_input_with_wrong_phase_invalid(self, mock_input):
+        P = PauliSum.from_string(['x1z0 x0z0', 'x1z1 x1z0'], dimensions=[2,2], weights=[1,1], phases=[0,0])
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            with pytest.raises(Exception):
+                Aquire(H=P, calculate_true_values=False)
+            assert len(w) == 1
+            assert issubclass(w[0].category, UserWarning)
+
+    @patch("builtins.input", side_effect=["y", "y"])
+    def test_aquire_non_hermitian_input_yy(self, mock_input):
+        P = PauliSum.from_string(['x1z0 x0z0', 'x1z1 x1z0'], dimensions=[3,3], weights=[1,1], phases=[0,0])
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = Aquire(H=P, calculate_true_values=False)
+            assert len(w) == 2
+            assert issubclass(w[0].category, UserWarning)
+            assert issubclass(w[1].category, UserWarning)
+            assert model.H.is_hermitian()
+
+    @patch("builtins.input", side_effect=["y", "n"])
+    def test_aquire_non_hermitian_input_yn(self, mock_input):
+        P = PauliSum.from_string(['x1z0 x0z0', 'x1z1 x1z0'], dimensions=[3,3], weights=[1,1], phases=[0,0])
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            with pytest.raises(Exception):
+                model = Aquire(H=P, calculate_true_values=False)
+            assert len(w) == 2
+            assert issubclass(w[0].category, UserWarning)
+            assert issubclass(w[1].category, UserWarning)
+
+    def test_aquire_with_input_config_file(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        AConfig = AquireConfig(P, calculate_true_values=False)
+        model = Aquire(H=P, config=AConfig)
+
+
+
+
 
 
 

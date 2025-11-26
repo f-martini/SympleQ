@@ -214,6 +214,7 @@ class AquireConfig:
                                      f"Wrong values where found for measurement outcome: \n {error_test_result}.")
                     '''
                     raise ValueError(f"j:{j} is of type {type(j)}")  # DEBUGGING
+
     @classmethod
     def from_json(cls, path):
         # FIXME: does not work with non-serializable attributes
@@ -418,7 +419,7 @@ class Aquire:
             pass
 
     @property
-    def H(self):
+    def H(self) -> PauliSum:
         return self._H
 
     @property
