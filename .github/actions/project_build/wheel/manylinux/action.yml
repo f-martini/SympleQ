@@ -86,6 +86,7 @@ runs:
           ./bootstrap-vcpkg.sh &&
           ls
         CIBW_BEFORE_BUILD: pip install scikit-build-core[pyproject] nanobind cmake ninja setuptools-scm
+        CIBW_CONFIG_SETTINGS: cmake.args=-S;${{ inputs.source-path }};--preset;${{ inputs.cmake-preset }}
         CIBW_TEST_REQUIRES: pytest pytest-benchmark
         CIBW_TEST_COMMAND: pytest {project}/tests -v -k "not benchmark" --benchmark-quiet --benchmark-disable
         CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
