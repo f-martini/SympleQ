@@ -12,17 +12,21 @@ def generate_version(fallback_version="0.0.0.0a0", include_distance=True):
             if version.exact:
                 return version.format_with("{tag}")
             else:
-                if include_distance:
-                    return version.format_with("{tag}a{distance}")
-                else:
-                    return version.format_with("{tag}")
+                return version.format_with("{tag}a{distance}")
+
+        def custom_local_scheme(version):
+            return ""
 
         version = setuptools_scm.get_version(
             version_scheme=custom_version_scheme,
-            local_scheme="no-local-version",
+            local_scheme=custom_local_scheme,
             fallback_version=fallback_version,
             tag_regex=r'^v?(\d+\.\d+\.\d+)(?:\.\d+)?$'
         )
+
+        if not include_distance and 'a' in version:
+            version = version.split('a')[0]
+
         return version
     except Exception:
         return fallback_version
