@@ -8,7 +8,7 @@ from sympleq.core.measurement.allocation import construct_circuit_list
 from sympleq.core.measurement.allocation import sort_hamiltonian
 from sympleq.core.measurement.aquire_utils import true_covariance_graph
 import json
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import warnings
 
 import pytest
@@ -155,6 +155,60 @@ class TestAquire:
         self.AEQuO_comparison("mono_qudit_d555_p16")
         pass
 
+    def test_aquire_run_no_errors(self):
+        update_steps = [25,50]
+        dim_list = [[2,2,2], [3,3,3], [2,2,3]]
+        for dims in dim_list:
+            # general commutation mode
+            P = self.random_comparison_hamiltonian(6, dims, mode='rand')
+            psi = np.random.rand(int(np.prod(dims))) + 1j*np.random.rand(int(np.prod(dims)))
+            psi = psi/np.linalg.norm(psi)
+
+            model = Aquire(H=P, psi=psi)
+
+            model.config.set_params(commutation_mode='general',
+                                    calculate_true_values=True,
+                                    save_covariance_graph_checkpoints=False,
+                                    auto_update_covariance_graph=True,
+                                    auto_update_settings=True,
+                                    verbose=True)
+
+            model.simulate_observable(update_steps=update_steps)
+
+            # bitwise commutation mode
+            P = self.random_comparison_hamiltonian(6, dims, mode='rand')
+            psi = np.random.rand(int(np.prod(dims))) + 1j*np.random.rand(int(np.prod(dims)))
+            psi = psi/np.linalg.norm(psi)
+
+            model = Aquire(H=P, psi=psi)
+
+            model.config.set_params(commutation_mode='bitwise',
+                                    calculate_true_values=False,
+                                    save_covariance_graph_checkpoints=False,
+                                    auto_update_covariance_graph=True,
+                                    auto_update_settings=True,
+                                    verbose=True)
+
+            model.simulate_observable(update_steps=update_steps)
+
+            # with noise
+            P = self.random_comparison_hamiltonian(6, dims, mode='rand')
+            psi = np.random.rand(int(np.prod(dims))) + 1j*np.random.rand(int(np.prod(dims)))
+            psi = psi/np.linalg.norm(psi)
+
+            model = Aquire(H=P, psi=psi)
+
+            model.config.set_params(commutation_mode='general',
+                                    calculate_true_values=False,
+                                    enable_simulated_hardware_noise=True,
+                                    enable_diagnostics=True,
+                                    save_covariance_graph_checkpoints=False,
+                                    auto_update_covariance_graph=True,
+                                    auto_update_settings=True,
+                                    verbose=True)
+
+            model.simulate_observable(update_steps=update_steps)
+
     def test_aquire_mean_distance(self):
         update_steps = [6,12,25,50,100,200,400,800,1600,3200,6400,12800]
         dim_list = [[2,2,2], [3,3,3], [5,5,5], [2,3,5], [2,2,3,3]]
@@ -203,7 +257,7 @@ class TestAquire:
             assert distance_in_sigma-1 < 5, f"Mean estimate too far from true value for dims {dims}"
 
     # AQUIRE CONFIG TESTS
-    def test_aquire_state_hamiltonian_mismatch_detection(self):
+    def test_aquire_state_hamiltonian_mismatch_validation(self):
         # check that the function that compares state and hamiltonian dimension raises an error correctly
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         psi = np.random.rand(10) + 1j * np.random.rand(10)
@@ -211,7 +265,7 @@ class TestAquire:
         with pytest.raises(ValueError):
             Aquire(H=P, psi=psi)
 
-    def test_aquire_state_normalization_check(self):
+    def test_aquire_state_normalization_validation(self):
         # check that the function that compares state and hamiltonian dimension raises an error correctly
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         psi = np.random.rand(int(np.prod([3, 3, 3]))) + 1j*np.random.rand(int(np.prod([3, 3, 3]))) # not normalized
@@ -257,6 +311,35 @@ class TestAquire:
         with pytest.warns(UserWarning):
             model.config.set_params(commutation_mode='general')
 
+    def test_aquire_config_default_function_kwargs(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
+
+        # noise_probability_function
+        default_noise_kwargs = {'p_entangling': 0.03, 'p_local': 0.001, 'p_measurement': 0.001}
+        assert model.config.noise_probability_function_kwargs == default_noise_kwargs
+
+        # mcmc_initial_samples_per_chain
+        default_mcmc_initial_kwargs = {'n_0': 500, 'scaling_factor': 1 / 10000}
+        assert model.config.mcmc_initial_samples_per_chain_kwargs == default_mcmc_initial_kwargs
+
+        # mcmc_max_samples_per_chain
+        default_mcmc_max_kwargs = {'n_0': 2001, 'scaling_factor': 1 / 10000}
+        assert model.config.mcmc_max_samples_per_chain_kwargs == default_mcmc_max_kwargs
+
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        model = Aquire(H=P, calculate_true_values=False,
+                       verbose=False, auto_update_settings=True,
+                       mcmc_initial_samples_per_chain_kwargs={'n_0': 1000, 'scaling_factor': 1 / 10000},
+                       mcmc_max_samples_per_chain_kwargs={'n_0': 4001, 'scaling_factor': 1 / 10000},
+                       noise_probability_function_kwargs={'p_entangling': 0.01, 'p_local': 0.001,
+                                                          'p_measurement': 0.001})
+
+        assert model.config.noise_probability_function_kwargs == {'p_entangling': 0.01, 'p_local': 0.001,
+                                                                  'p_measurement': 0.001}
+        assert model.config.mcmc_initial_samples_per_chain_kwargs == {'n_0': 1000, 'scaling_factor': 1 / 10000}
+        assert model.config.mcmc_max_samples_per_chain_kwargs == {'n_0': 4001, 'scaling_factor': 1 / 10000}
+
     def test_aquire_config_update_set_params(self):
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
@@ -271,8 +354,12 @@ class TestAquire:
 
     def test_aquire_config_string_representation(self):
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        psi = np.random.rand(int(np.prod([3,3,3]))) + 1j*np.random.rand(int(np.prod([3,3,3])))
+        psi = psi/np.linalg.norm(psi)
         model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
-        str(model)
+        assert type(str(model.config)) == str
+        model = Aquire(H=P,psi=psi, calculate_true_values=True, mcmc_initial_samples_per_chain=500,
+                       mcmc_max_samples_per_chain=2000, verbose=False, auto_update_settings=True)
         assert type(str(model.config)) == str
 
     def test_aquire_config_mcmc_validation(self):
@@ -322,10 +409,12 @@ class TestAquire:
     def test_aquire_noise_and_error_function_validation(self):
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
+
         def faulty_noise_probability_function(circuit,*args, **kwargs):
             return -0.1
         def faulty_error_function(results, *args, **kwargs):
             return np.array([1.2 for _ in results])
+
         with pytest.raises(ValueError):
             model.config.set_params(noise_probability_function=faulty_noise_probability_function)
             model.config.test_noise_and_error_function()
@@ -335,9 +424,21 @@ class TestAquire:
 
         def faulty_error_function2(results, *args, **kwargs):
             return np.array([10 for _ in results])
+
         with pytest.raises(ValueError):
             model.config.set_params(error_function=faulty_error_function2)
             model.config.test_noise_and_error_function()
+
+    def test_aquire_config_info(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
+        model.config.info()
+        model.config.info(name="Hamiltonian")
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model.config.info(name='Invalid info')
+            assert len(w) == 1
+            assert issubclass(w[0].category, UserWarning)
 
     # AQUIRE CONFIG TESTS END
 
@@ -402,3 +503,32 @@ class TestAquire:
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
         AConfig = AquireConfig(P, calculate_true_values=False)
         model = Aquire(H=P, config=AConfig)
+
+    @patch("builtins.input", side_effect=["y", "y"])   # answer to input(), input2()
+    @patch("sympleq.core.paulis.utils.make_hermitian")
+    @patch("sympleq.core.measurement.allocation.sort_hamiltonian")
+    def test_make_hermitian_fails(self, mock_sort, mock_make_hermitian, mock_input):
+        # --- Create a fake P with .is_hermitian() behavior ---
+        P_before = MagicMock()               # P returned by sort_hamiltonian
+        P_before.is_hermitian.return_value = False
+
+        P_after = MagicMock()                # P returned by make_hermitian
+        P_after.is_hermitian.return_value = False   # <-- forces the error branch!
+
+        mock_sort.return_value = (P_before, None)
+        mock_make_hermitian.return_value = P_after
+
+        H = MagicMock()                      # mock Hamiltonian with trivial attributes
+        H.n_paulis.return_value = 0
+        H.weights = []
+        H.__getitem__ = lambda *args: MagicMock(is_identity=lambda: False)
+
+        # --- Capture the exception ---
+        with pytest.raises(Exception):
+            Aquire(H)
+
+    def test_aquire_manual_inputs(self):
+        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        model = Aquire(H=P, commutation_mode='general',
+                       calculate_true_values=False,
+                       enable_diagnostics=True)

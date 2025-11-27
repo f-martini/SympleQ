@@ -11,7 +11,7 @@ from sympleq.core.measurement.covariance_graph import (graph, quditwise_commutat
 from sympleq.core.measurement.mcmc import bayes_covariance_graph
 from sympleq.core.measurement.aquire_utils import (calculate_mean_estimate, calculate_statistical_variance_estimate,
                                                    calculate_systematic_variance_estimate, true_mean,
-                                                   true_statistical_variance, config_params)
+                                                   true_statistical_variance, config_params, aquire_params)
 from sympleq.core.circuits import Circuit
 from sympleq.utils import int_to_bases
 from sympleq.core.paulis.utils import make_hermitian, XZ_to_Y
@@ -72,20 +72,23 @@ class AquireConfig:
         self.mcmc_number_of_chains = mcmc_number_of_chains
 
         self.mcmc_initial_samples_per_chain = mcmc_initial_samples_per_chain
-        if (self.mcmc_initial_samples_per_chain == mcmc_number_initial_samples and mcmc_initial_samples_per_chain_kwargs is {}):
+        if (self.mcmc_initial_samples_per_chain is mcmc_number_initial_samples and
+                mcmc_initial_samples_per_chain_kwargs == {}):
             self.mcmc_initial_samples_per_chain_kwargs = {'n_0': 500, 'scaling_factor': 1 / 10000}
         else:
             self.mcmc_initial_samples_per_chain_kwargs = mcmc_initial_samples_per_chain_kwargs
 
         self.mcmc_max_samples_per_chain = mcmc_max_samples_per_chain
-        if (self.mcmc_max_samples_per_chain == mcmc_number_max_samples and mcmc_max_samples_per_chain_kwargs is {}):
+        if (self.mcmc_max_samples_per_chain is mcmc_number_max_samples and
+                mcmc_max_samples_per_chain_kwargs == {}):
             self.mcmc_max_samples_per_chain_kwargs = {'n_0': 2001, 'scaling_factor': 1 / 10000}
         else:
             self.mcmc_max_samples_per_chain_kwargs = mcmc_max_samples_per_chain_kwargs
 
         # noise and error functions
         self.noise_probability_function = noise_probability_function
-        if (self.noise_probability_function == standard_noise_probability_function and noise_probability_function_kwargs is {}):
+        if (self.noise_probability_function is standard_noise_probability_function and
+                noise_probability_function_kwargs == {}):
             self.noise_probability_function_kwargs = {'p_entangling': 0.03, 'p_local': 0.001, 'p_measurement': 0.001}
         else:
             self.noise_probability_function_kwargs = noise_probability_function_kwargs
@@ -209,23 +212,20 @@ class AquireConfig:
                     raise ValueError(f"Error function gives erroneous values. It must be between 0 and qudit dimension."
                                      f"Wrong values where found for measurement outcome: \n {test_result}.")
                 elif not isinstance(j, (int, np.integer)):
-                    '''
                     raise ValueError(f"Error function gives erroneous values. It must return integers."
                                      f"Wrong values where found for measurement outcome: \n {error_test_result}.")
-                    '''
-                    raise ValueError(f"j:{j} is of type {type(j)}")  # DEBUGGING
 
-    @classmethod
-    def from_json(cls, path):
-        # FIXME: does not work with non-serializable attributes
-        with open(path) as f:
-            data = json.load(f)
-        return cls(**data)
+    # @classmethod
+    # def from_json(cls, path):
+    #     # FIXME: does not work with non-serializable attributes
+    #     with open(path) as f:
+    #         data = json.load(f)
+    #     return cls(**data)
 
-    def to_json(self, path):
-        # FIXME: does not work with non-serializable attributes
-        with open(path, 'w') as f:
-            json.dump(self.__dict__, f, indent=4)
+    # def to_json(self, path):
+    #     # FIXME: does not work with non-serializable attributes
+    #     with open(path, 'w') as f:
+    #         json.dump(self.__dict__, f, indent=4)
 
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
@@ -256,6 +256,7 @@ class AquireConfig:
                         warnings.warn("Changing commutation mode may cause commutation graph and clique covering to "
                                       "be deprecated. Run update_all() to update them.", UserWarning)
                         pass
+        self.validate_parameters()
 
     def __str__(self):
         config_string = ''
@@ -309,7 +310,7 @@ class AquireConfig:
                 print(key + ": " + param_type)
             print("\nUse `config.info(name='parameter_name')` for detailed info.")
         else:
-            if name in self.param_info:
+            if name in self.param_info.keys():
                 print(self.param_info[name])
             else:
                 warnings.warn(f"Unknown parameter '{name}'.", UserWarning)
@@ -324,6 +325,8 @@ class Aquire:
     # TODO: make summary method (also for config class) that only shows the most important information
     # TODO: Progressbar for simulate observable
     # TODO: make method/property that returns the combined error (statistical + systematic)
+    aquire_params = aquire_params()
+
     def __init__(self,
                  H: PauliSum,
                  psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,
@@ -738,6 +741,7 @@ class Aquire:
         Exception
             If data already input for all circuits or not enough measurement results input.
         """
+        # FIXME: Warning if too many measurement results input
         if len(self.measurement_results) == len(self.circuits):
             warnings.warn("Data already input for all circuits.", UserWarning)
             return
@@ -1069,6 +1073,19 @@ class Aquire:
             aquire_str += "True means: " + str(self.true_mean_value) + '\n'
             aquire_str += "True statistical variances: " + str(self.true_statistical_variance_value)
         return aquire_str
+
+    def info(self, name=None):
+        if name is None:
+            print("Available attributes and methods of AQUIRE:\n")
+            for key in self.aquire_params:
+                param_type = self.aquire_params[key].get("type")
+                print(key + ": " + param_type)
+            print("\nUse `Aquire.info(name='parameter_name')` for detailed info.")
+        else:
+            if name in self.aquire_params:
+                print(self.aquire_params[name])
+            else:
+                warnings.warn(f"Unknown parameter '{name}'.", UserWarning)
 
     ###################################################################
     # Validation Check methods ########################################

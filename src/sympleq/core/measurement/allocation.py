@@ -150,6 +150,7 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}):
     return C, D
 
 
+# TODO: Make this part of the core function
 def diagonalize(P: PauliSum):
     # Inputs:
     #     P - (pauli) - Pauli to be diagonalized
