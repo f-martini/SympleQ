@@ -973,7 +973,27 @@ class TestPaulis:
             p.dimensions = np.array([2], dtype=int)
 
         p = PauliSum.from_random(4, [2, 3, 5])
+
+        # Cannot set lcm
         with pytest.raises(Exception):
             p.lcm = 24
+
+        # Cannot set dimensions
         with pytest.raises(Exception):
             p.dimensions = np.array([2], dtype=int)
+
+        # Dimensions is read-only
+        with pytest.raises(Exception):
+            p.dimensions[0] = 2
+
+        # Invalid phases length
+        with pytest.raises(ValueError):
+            p.phases[:] = np.array([2.4, 1, 0])
+
+        # Cannot convert complex to int
+        with pytest.raises(TypeError):
+            p.phases[0] = 2.4j
+
+        # Invalid weights length
+        with pytest.raises(ValueError):
+            p.weights[:] = np.array([2.4, 1, 0])

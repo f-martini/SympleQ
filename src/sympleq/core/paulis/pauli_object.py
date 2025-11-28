@@ -69,6 +69,7 @@ class PauliObject(ABC):
                 dimensions = np.full(n_qudits, dimensions.item(), dtype=int)
 
         self._dimensions = dimensions
+        # Dimensions is read-only, so any type of assignment will fail.
         self._dimensions.setflags(write=False)
         self._lcm = int(np.lcm.reduce(self.dimensions))
 
@@ -119,6 +120,8 @@ class PauliObject(ABC):
 
     @dimensions.setter
     def dimensions(self, value: np.ndarray):
+        # Dimensions is read-only, and this setter is not strictly required.
+        # We keep it to raise with a meaningful error message.
         raise Exception("The dimensions of a PauliObject cannot be set.\
                         If you want to change the PauliObject dimensions, generate a new one.")
 
@@ -188,14 +191,13 @@ class PauliObject(ABC):
 
     @phases.setter
     def phases(self, new_phases: list[int] | np.ndarray):
-        if isinstance(new_phases, list):
-            new_phases = np.asarray(new_phases, dtype=int)
+        new_phases = np.asarray(new_phases, dtype=int)
 
         if len(new_phases) != self.n_paulis():
             raise ValueError(
-                f"New phases ({len(new_phases)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
+                f"New phases ({len(new_phases)}) length must equal the number of Pauli strings ({self.n_paulis()}).")
 
-        self._phases = new_phases
+        self._phases = new_phases % (2 * self.lcm)
 
     def set_phases(self, new_phases: list[int] | np.ndarray):
         """
@@ -237,12 +239,11 @@ class PauliObject(ABC):
 
     @weights.setter
     def weights(self, new_weights: list[int] | np.ndarray):
-        if isinstance(new_weights, list):
-            new_weights = np.asarray(new_weights, dtype=int)
+        new_weights = np.asarray(new_weights, dtype=complex)
 
         if len(new_weights) != self.n_paulis():
             raise ValueError(
-                f"New phases ({len(new_weights)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
+                f"New weights ({len(new_weights)}) length must equal the number of Pauli strings ({self.n_paulis()}).")
 
         self._weights = new_weights
 
