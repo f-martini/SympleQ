@@ -2,7 +2,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import functools
 import numpy as np
-from typing import TypeVar, Self, Union
+from typing import TypeVar, Self, Union, TYPE_CHECKING
+if TYPE_CHECKING:
+    from .pauli_sum import PauliSum
 
 from .constants import DEFAULT_QUDIT_DIMENSION
 
@@ -575,6 +577,154 @@ class PauliObject(ABC):
         False
         """
         return not self.__gt__(other_pauli) and not self.__eq__(other_pauli)
+
+    def __add__(self, A: PauliObject) -> PauliSum:
+        """
+        Implements the addition of Pauli objects.
+
+        Parameters
+        ----------
+        A : PauliObject
+            The Pauli operator to add.
+
+        Returns
+        -------
+        PauliSum
+            A new PauliSum instance representing the sum of `self` and `A`.
+
+        Examples
+        --------
+        >>> p1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
+        >>> p2 = PauliSum.from_pauli_strings("x2z1 x1z1", [3, 2])
+        >>> p1 + p2
+        PauliSum(...)
+
+        Raises
+        ------
+        ValueError
+            If the dimensions of `self` and `A` do not match.
+
+        Notes
+        -----
+        - Dimensions must agree!
+        """
+
+        if not np.array_equal(self.dimensions, A.dimensions):
+            raise ValueError(f"The dimensions of the Pauli objects do not match ({self.dimensions}, {A.dimensions}).")
+
+        new_tableau = np.vstack([self.tableau, A.tableau])
+        new_weights = np.concatenate([self.weights, A.weights])
+        new_phases = np.concatenate([self.phases, A.phases])
+
+        from .pauli_sum import PauliSum
+        return PauliSum(new_tableau, self.dimensions.copy(), new_weights, new_phases)
+
+    def __radd__(self, A: PauliObject) -> PauliSum:
+        """
+        Implements the addition of Pauli objects.
+
+        Parameters
+        ----------
+        A : PauliObject
+            The Pauli operator to add.
+
+        Returns
+        -------
+        PauliSum
+            A new PauliSum instance representing the sum of `self` and `A`.
+
+        Examples
+        --------
+        >>> p1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
+        >>> p2 = PauliSum.from_pauli_strings("x2z1 x1z1", [3, 2])
+        >>> p1 + p2
+        PauliSum(...)
+
+        Raises
+        ------
+        ValueError
+            If the dimensions of `self` and `A` do not match.
+
+        Notes
+        -----
+        - Dimensions must agree!
+        """
+
+        return self + A
+
+    def __sub__(self, A: PauliObject) -> PauliSum:
+        """
+        Implements the subtraction of Pauli objects.
+
+        Parameters
+        ----------
+        A : PauliObject
+            The Pauli operator to subtract.
+
+        Returns
+        -------
+        PauliSum
+            A new PauliSum instance representing the difference of `self` and `A`.
+
+        Examples
+        --------
+        >>> p1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
+        >>> p2 = PauliSum.from_pauli_strings("x2z1 x1z1", [3, 2])
+        >>> p1 - p2
+        PauliSum(...)
+
+        Raises
+        ------
+        ValueError
+            If the dimensions of `self` and `A` do not match.
+
+        Notes
+        -----
+        - Dimensions must agree!
+        """
+
+        if not np.array_equal(self.dimensions, A.dimensions):
+            raise ValueError(f"The dimensions of the Pauli objects do not match ({self.dimensions}, {A.dimensions}).")
+
+        new_tableau = np.vstack([self.tableau, A.tableau])
+        new_weights = np.concatenate([self.weights, -np.array(A.weights)])
+        new_phases = np.concatenate([self.phases, A.phases])
+
+        from .pauli_sum import PauliSum
+        return PauliSum(new_tableau, self.dimensions.copy(), new_weights, new_phases)
+
+    def __rsub__(self, A: PauliObject) -> PauliSum:
+        """
+        Implements the subtraction of Pauli objects.
+
+        Parameters
+        ----------
+        A : PauliObject
+            The Pauli operator to subtract.
+
+        Returns
+        -------
+        PauliSum
+            A new PauliSum instance representing the difference of `self` and `A`.
+
+        Examples
+        --------
+        >>> p1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
+        >>> p2 = PauliSum.from_pauli_strings("x2z1 x1z1", [3, 2])
+        >>> p1 - p2
+        PauliSum(...)
+
+        Raises
+        ------
+        ValueError
+            If the dimensions of `self` and `A` do not match.
+
+        Notes
+        -----
+        - Dimensions must agree!
+        """
+
+        return self - A
 
     def __pow__(self, A: int) -> Self:
         """
