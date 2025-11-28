@@ -1,0 +1,135 @@
+name: "Setup Linux Testing Environment"
+description: "Sets up complete Linux environment with Python, CUDA, vcpkg, and CMake for testing and development"
+
+inputs:
+  python-version:
+    description: "Python version to install"
+    required: false
+    default: "3.11"
+    type: string
+  setup-path:
+    description: "Path to setup.py or pyproject.toml for project installation"
+    required: false
+    default: "./"
+    type: string
+  dev-requirements:
+    description: "Path to development requirements file"
+    required: false
+    default: "./scripts/configs/dev_requirements.txt"
+    type: string
+  install-project:
+    description: "Whether to install the project itself"
+    required: false
+    default: "true"
+    type: string
+  extra-packages:
+    description: "Additional packages to install (space-separated)"
+    required: false
+    type: string
+  checkout:
+    description: "Whether to checkout the repository"
+    required: false
+    default: "true"
+    type: string
+  # CUDA inputs
+  enable-cuda:
+    description: "Whether to install CUDA toolkit"
+    required: false
+    default: "true"
+    type: string
+  cuda-version:
+    description: "CUDA version to install"
+    required: false
+    default: "12.6.0"
+    type: string
+  cuda_logs:
+    description: "Logs artifact name"
+    required: true
+  # vcpkg inputs
+  enable-vcpkg:
+    description: "Whether to setup vcpkg"
+    required: false
+    default: "true"
+    type: string
+  vcpkg-commit:
+    description: "vcpkg commit ID to checkout"
+    required: false
+    default: "15fd3bbcf7cc66249ba11f87a6215ee6f291bb26"
+    type: string
+  vcpkg-install-path:
+    description: "vcpkg installation path"
+    required: false
+    default: "/tmp/vcpkg"
+    type: string
+  # Cleanup inputs
+  enable-cleanup:
+    description: "Whether to free up disk space"
+    required: false
+    default: "true"
+    type: string
+  cleanup-aggressive:
+    description: "Perform aggressive cleanup"
+    required: false
+    default: "false"
+    type: string
+
+outputs:
+  python-path:
+    description: "Path to Python executable"
+    value: ${{ steps.python-outputs.outputs.python-path }}
+  pip-cache-dir:
+    description: "Pip cache directory"
+    value: ${{ steps.python-outputs.outputs.cache-dir }}
+  cuda-path:
+    description: "Path to CUDA installation"
+    value: ${{ steps.cuda-setup.outputs.CUDA_PATH }}
+  vcpkg-root:
+    description: "Path to vcpkg root"
+    value: ${{ steps.vcpkg-setup.outputs.vcpkg-root }}
+  cmake-toolchain:
+    description: "Path to CMake toolchain file"
+    value: ${{ steps.vcpkg-setup.outputs.cmake-toolchain }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      if: inputs.checkout == 'true'
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Python environment
+      id: python-setup
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Python dependencies and project
+      id: python-deps
+      shell: bash
+      run: |
+        echo "Upgrading pip and build tools..."
+        python -m pip install --upgrade pip build setuptools wheel
+
+        echo "Installing project from pyproject.toml at ${{ inputs.setup-path }}..."
+        python -m pip install ${{ inputs.setup-path }}
+
+        echo "Installing development requirements from ${{ inputs.dev-requirements }}..."
+        python -m pip install -r ${{ inputs.dev-requirements }}
+
+        echo "Installing extra packages: ${{ inputs.extra-packages }}..."
+        python -m pip install ${{ inputs.extra-packages }}
+
+        echo "Python dependencies installation completed"
+
+    - name: Set Python outputs
+      id: python-outputs
+      shell: bash
+      run: |
+        PYTHON_PATH=$(which python)
+        CACHE_DIR=$(python -m pip cache dir 2>/dev/null || echo "")
+        echo "python-path=${PYTHON_PATH}" >> $GITHUB_OUTPUT
+        echo "cache-dir=${CACHE_DIR}" >> $GITHUB_OUTPUT
+        echo "Python path: ${PYTHON_PATH}"
+        echo "Cache dir: ${CACHE_DIR}"
