@@ -1,6 +1,6 @@
 # flake8: noqa
 import numpy as np
-from sympleq.core.measurement.aquire import Aquire, AquireConfig
+from sympleq.core.measurement.aquire import Aquire, AquireConfig, simulate_measurement
 from sympleq.core.paulis import PauliSum, PauliString
 from sympleq.core.paulis.utils import XZ_to_Y
 from sympleq.core.measurement.covariance_graph import commutation_graph, weighted_vertex_covering_maximal_cliques
@@ -529,6 +529,25 @@ class TestAquire:
 
     def test_aquire_manual_inputs(self):
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
+        psi = np.random.rand(int(np.prod([3,3,3]))) + 1j*np.random.rand(int(np.prod([3,3,3])))
+        psi = psi/np.linalg.norm(psi)
+
         model = Aquire(H=P, commutation_mode='general',
                        calculate_true_values=False,
-                       enable_diagnostics=True)
+                       enable_diagnostics=True, auto_update_settings=False, diagnostic_mode=None)
+        mock_circuit_list = model.allocate_measurements(shots=100)
+        mock_diagnostic_circuit_list, mock_dsp_circuit_list = model.construct_diagnostic_circuits()
+
+        assert model.shots_since_last_update() == 100
+        assert model.total_shots() == 100
+        assert len(model.cliques_since_last_update()) == 100
+        assert len(model.measurement_circuits_since_last_update()) == 100
+        assert len(model.diagnostic_circuits_since_last_update()) == 100
+        assert len(model.diagnostic_states_since_last_update()) == 100
+        assert len(model.diagnostic_state_preparation_circuits_since_last_update()) == 100
+
+        mock_results = []
+        for c in mock_circuit_list:
+            mock_results.append(simulate_measurement(P, psi, circuit=c))
+
+        model.input_measurement_data(mock_results)

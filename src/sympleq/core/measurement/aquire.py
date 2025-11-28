@@ -415,10 +415,6 @@ class Aquire:
         if self.config.calculate_true_values and self.config.psi is not None:
             self.true_mean_value = true_mean(self._H, self.config.psi)
             self.true_statistical_variance_value = []
-        elif self.config.calculate_true_values and self.config.psi is None:
-            warnings.warn("Warning: true values not available without state psi, calculate_true_values set to False.",
-                          UserWarning)
-            self.config.calculate_true_values = False
         else:
             pass
 
