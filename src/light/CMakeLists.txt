@@ -1,5 +1,0 @@
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Base")
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Operators") 
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Circuits") 
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Measurements") 
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/Bindings")
