@@ -12,7 +12,8 @@ import json
 def run_command(cmd, check=True):
     """Run a shell command and return output."""
     result = subprocess.run(
-        cmd, shell=True, capture_output=True, text=True, check=False
+        cmd, shell=True, capture_output=True, text=True, encoding='utf-8',
+        errors='replace', check=False
     )
     if check and result.returncode != 0:
         print(f"Error running command: {cmd}", file=sys.stderr)
@@ -25,7 +26,7 @@ def set_output(name, value):
     """Set GitHub Actions output."""
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
-        with open(github_output, "a") as f:
+        with open(github_output, "a", encoding='utf-8') as f:
             f.write(f"{name}={value}\n")
     print(f"{name}={value}")
 
