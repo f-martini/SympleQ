@@ -46,35 +46,35 @@ def get_valid_version(tag):
     version = tag.lstrip('v')
     parts = version.split('.')
 
-    major = int(parts[0]) if len(parts) > 0 else 0
-    minor = int(parts[1]) if len(parts) > 1 else 0
-    patch = int(parts[2]) if len(parts) > 2 else 0
-    extra = int(parts[3]) if len(parts) > 3 else 0
+    major = int(parts[0]) if len(parts) > 0 else -1
+    minor = int(parts[1]) if len(parts) > 1 else -1
+    patch = int(parts[2]) if len(parts) > 2 else -1
+    extra = int(parts[3]) if len(parts) > 3 else -1
 
     # Get the base version from PROJECT_VERSION
     base_parts = PROJECT_VERSION.split('.')
-    base_major = int(base_parts[0]) if len(base_parts) > 0 else 0
-    base_minor = int(base_parts[1]) if len(base_parts) > 1 else 0
-    base_patch = int(base_parts[2]) if len(base_parts) > 2 else 0
+    base_major = int(base_parts[0]) if len(base_parts) > 0 else -1
+    base_minor = int(base_parts[1]) if len(base_parts) > 1 else -1
+    base_patch = int(base_parts[2]) if len(base_parts) > 2 else -1
+
+    if base_major == major and base_minor == minor and base_patch == patch:
+        return major, minor, patch, extra
 
     # Ensure single bump following semver logic
     if major > base_major:
-        if major != base_major + 1 or (minor != 0 or patch != 0):
+        if major != base_major + 1 or (base_minor != 0 or base_patch != 0):
             print("Error: Invalid major version bump.", file=sys.stderr)
             sys.exit(1)
     elif major == base_major and minor > base_minor:
-        if minor != base_minor + 1 or patch != 0:
+        if minor != base_minor + 1 or base_patch != 0:
             print("Error: Invalid minor version bump.", file=sys.stderr)
             sys.exit(1)
     elif major == base_major and minor == base_minor and patch > base_patch:
         if patch != base_patch + 1:
             print("Error: Invalid patch version bump.", file=sys.stderr)
             sys.exit(1)
-    else:
-        print("Error: Invalid version.")
-        sys.exit(1)
 
-    return major, minor, patch, extra
+    return base_major, base_minor, base_patch, 0
 
 
 def count_commits(tag):
