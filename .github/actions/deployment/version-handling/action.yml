@@ -9,6 +9,10 @@ inputs:
     description: "Include distance (aN) in version for non-exact tags"
     required: false
     default: "true"
+  is-prerelease:
+    description: "Mark version as prerelease
+    required: false
+    default: "false"
 
 outputs:
   version:
@@ -36,6 +40,7 @@ runs:
         python "${{ github.action_path }}/inject_version.py" \
           --fallback-version "${{ inputs.fallback-version }}" \
           --include-distance "${{ inputs.include-distance }}" \
+          --is-prerelease "${{ inputs.is-prerelease }}" \
           >> $GITHUB_OUTPUT
 
     - name: Inject version (Windows)
@@ -47,6 +52,7 @@ runs:
         python $scriptPath `
           --fallback-version "${{ inputs.fallback-version }}" `
           --include-distance "${{ inputs.include-distance }}" `
+          --is-prerelease "${{ inputs.is-prerelease }}" `
           | Add-Content $env:GITHUB_OUTPUT
 
     - name: Set output
