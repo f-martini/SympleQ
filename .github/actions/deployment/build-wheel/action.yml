@@ -35,3 +35,15 @@ runs:
         python -m build --wheel --outdir dist/
         echo "✅ Build complete:"
         ls -la dist/
+
+    - name: Install wheel and test dependencies
+      shell: bash
+      run: |
+        pip install dist/*.whl
+        pip install pytest pytest-cov
+
+    - name: Run tests (excluding benchmarks)
+      shell: bash
+      run: |
+        echo "🧪 Running tests (excluding benchmarks)"
+        pytest tests
