@@ -1,0 +1,82 @@
+name: "Setup Linux Testing Environment"
+description: "Sets up complete Linux environment with Python, CUDA, vcpkg, and CMake for testing and development"
+
+inputs:
+  python-version:
+    description: "Python version to install"
+    required: false
+    default: "3.13"
+    type: string
+  setup-path:
+    description: "Path to setup.py or pyproject.toml for project installation"
+    required: false
+    default: "./"
+    type: string
+  dev-requirements:
+    description: "Path to development requirements file"
+    required: false
+    default: "./scripts/configs/dev_requirements.txt"
+    type: string
+  extra-packages:
+    description: "Additional packages to install (space-separated)"
+    required: false
+    type: string
+  checkout:
+    description: "Whether to checkout the repository"
+    required: false
+    default: "true"
+    type: string
+
+outputs:
+  python-path:
+    description: "Path to Python executable"
+    value: ${{ steps.python-outputs.outputs.python-path }}
+  pip-cache-dir:
+    description: "Pip cache directory"
+    value: ${{ steps.python-outputs.outputs.cache-dir }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      if: inputs.checkout == 'true'
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Python environment
+      id: python-setup
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Python dependencies and project
+      id: python-deps
+      shell: bash
+      run: |
+        echo "Upgrading pip and build tools..."
+        python -m pip install --upgrade pip build setuptools wheel
+
+        echo "Installing project from pyproject.toml at ${{ inputs.setup-path }}..."
+        python -m pip install ${{ inputs.setup-path }}
+
+        echo "Installing development requirements from ${{ inputs.dev-requirements }}..."
+        python -m pip install -r ${{ inputs.dev-requirements }}
+
+        if [ -n "${{ inputs.extra-packages }}" ]; then
+          echo "Installing extra packages: ${{ inputs.extra-packages }}..."
+          python -m pip install ${{ inputs.extra-packages }}
+        fi
+
+        echo "Python dependencies installation completed"
+
+    - name: Set Python outputs
+      id: python-outputs
+      shell: bash
+      run: |
+        PYTHON_PATH=$(which python)
+        CACHE_DIR=$(python -m pip cache dir 2>/dev/null || echo "")
+        echo "python-path=${PYTHON_PATH}" >> $GITHUB_OUTPUT
+        echo "cache-dir=${CACHE_DIR}" >> $GITHUB_OUTPUT
+        echo "Python path: ${PYTHON_PATH}"
+        echo "Cache dir: ${CACHE_DIR}"

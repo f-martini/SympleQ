@@ -1,0 +1,97 @@
+name: Linting And Testing
+
+on: pull_request
+
+env:
+  PRJ_NAME: sympleq
+  SETUP_PY: ./
+  SRC_DIR: ./src/sympleq
+  TEST_DIR: ./tests
+  PYTEST_INI: ./scripts/configs/pytest.ini
+  DEV_REQUIREMENTS: ./scripts/configs/dev_requirements.txt
+  FLAKE8_CONFIG: ./scripts/configs/setup.cfg
+  COVERAGE_REPORT_XML: ./docs/tests_results/coverage_report.xml
+  COVERAGE_REPORT_HTML: ./docs/tests_results/coverage_html_report
+  COVERAGE_REPORT_JUNIT: ./docs/tests_results/junit.xml
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  set-runner:
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.set-matrix.outputs.runner }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine Runner
+        id: set-matrix
+        uses: ./.github/actions/utils/determine-runner
+        with:
+          branch-pattern: "test-workflow"
+
+  linting:
+    needs: set-runner
+    runs-on: ${{ needs.set-runner.outputs.runner }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Linux testing environment
+        uses: ./.github/actions/setup/linux-testing-environment
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          setup-path: ${{ env.SETUP_PY }}
+          dev-requirements: ${{ env.DEV_REQUIREMENTS }}
+          extra-packages: "flake8"
+          checkout: "false"
+          cuda_logs: ${{ github.job }}
+
+      - name: Flake8
+        run: |
+          flake8 ${{ env.SRC_DIR }} --config=${{ env.FLAKE8_CONFIG }}
+
+  testing:
+    needs: [set-runner]
+    runs-on: ${{ needs.set-runner.outputs.runner }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Linux testing environment
+        uses: ./.github/actions/setup/linux-testing-environment
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          setup-path: ${{ env.SETUP_PY }}
+          dev-requirements: ${{ env.DEV_REQUIREMENTS }}
+          extra-packages: "pytest pytest-cov"
+          checkout: "false"
+          cuda_logs: ${{ github.job }}
+
+      - name: Pytest (No Benchmarking)
+        run: |
+          pytest \
+            --override-ini "pytest.ini=${{ env.PYTEST_INI }}" \
+            --cov=${{ env.PRJ_NAME }} \
+            --cov-report=xml:${{ env.COVERAGE_REPORT_XML }} \
+            --cov-report=html:${{ env.COVERAGE_REPORT_HTML }} \
+            --junitxml=${{ env.COVERAGE_REPORT_JUNIT }} \
+            --disable-warnings \
+            -vv \
+            -m "not system and not stress and not acceptance"
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          with:
+          file: ${{ env.COVERAGE_REPORT_XML }}
+          override_branch: ${{ github.base_ref }}
+          override_commit: ${{ github.event.pull_request.base.sha }}

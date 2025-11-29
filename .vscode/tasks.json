@@ -1,0 +1,79 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Sphinx Documentation",
+            "type": "shell",
+            "windows": {
+                "command": "${workspaceFolder}/scripts/tools/shell/docs.bat",
+            },
+            "linux": {
+                "command": "bash ${workspaceFolder}/scripts/tools/shell/docs.sh",
+            },
+            "osx": {
+                "command": "echo Automatic docs build not supported on macOS."
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Setup Dev Environment",
+            "type": "shell",
+            "windows": {
+                "command": "${workspaceFolder}/scripts/tools/shell/setup_environment.bat",
+            },
+            "linux": {
+                "command": "bash ${workspaceFolder}/scripts/tools/shell/setup_environment.sh",
+            },
+            "osx": {
+                "command": "echo Automatic environment setup not supported on macOS."
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Clear Notebooks Content",
+            "type": "shell",
+            "windows": {
+                "command": "${workspaceFolder}/scripts/tools/shell/clear_ipynb.bat",
+            },
+            "linux": {
+                "command": "bash ${workspaceFolder}/scripts/tools/shell/clear_ipynb.sh",
+            },
+            "osx": {
+                "command": "echo Automatic notebooks content clearing not supported on macOS."
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Tests With Coverage",
+            "type": "shell",
+            "windows": {
+                "command": "${workspaceFolder}/scripts/tools/shell/run_tests.bat",
+                "args": []
+            },
+            "linux": {
+                "command": "bash ${workspaceFolder}/scripts/tools/shell/run_tests.sh",
+                "args": []
+            },
+            "osx": {
+                "command": "echo Test running not supported on macOS."
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+    ]
+}
