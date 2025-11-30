@@ -1,0 +1,115 @@
+name: Build and Publish Wheels
+
+on:
+  workflow_run:
+    workflows: ["SemVer Tagging"]
+    types:
+      - completed
+  release:
+    types: [created]
+env:
+  PROJECT_NAME: "sympleq"
+  NATIVE_SRC_PATH: src
+
+jobs:
+  build:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Determine version format
+        id: version-config
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "include-distance=false" >> $GITHUB_OUTPUT
+            if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+              echo "is-prerelease=true" >> $GITHUB_OUTPUT
+            else
+              echo "is-prerelease=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "include-distance=true" >> $GITHUB_OUTPUT
+            echo "is-prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Inject version
+        uses: ./.github/actions/deployment/version-handling
+        with:
+          include-distance: ${{ steps.version-config.outputs.include-distance }}
+          is-prerelease: ${{ steps.version-config.outputs.is-prerelease }}
+
+      - name: Build wheels
+        uses: ./.github/actions/deployment/build-wheel
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Upload artifacts
+        uses: ./.github/actions/deployment/upload-artifacts
+        with:
+          artifact-name: wheels-py${{ matrix.python }}
+
+  publish:
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository (for actions)
+        uses: actions/checkout@v4
+
+      - name: Publish wheels to Test PyPI (on main branch push)
+        if: github.event_name != 'release'
+        uses: ./.github/actions/deployment/publish-project
+        with:
+          project-name: ${{ env.PROJECT_NAME }}
+          pypi-token: ${{ secrets.PYPI_TEST }}
+          publish-to-test: "true"
+
+      - name: Publish wheels to PyPI (on release)
+        if: github.event_name == 'release'
+        uses: ./.github/actions/deployment/publish-project
+        with:
+          project-name: ${{ env.PROJECT_NAME }}
+          pypi-token: ${{ secrets.PYPI_TOKEN }}
+
+  cleanup-or-build-doc:
+    needs: [publish, build]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      contents: write
+    environment:
+      name: github-pages
+      url: ${{ steps.publish-docs.outputs.page_url }}
+    steps:
+      - name: Delete release if workflow failed
+        if: github.event_name == 'release' && (needs.publish.result == 'failure' || needs.build.result == 'failure')
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.deleteRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: context.payload.release.id
+            });
+            core.setFailed('Workflow failed - release deleted'););
+
+      - name: Checkout repository
+        if: needs.publish.result == 'success'
+        uses: actions/checkout@v4
+
+      - name: Publish documentation
+        if: needs.publish.result == 'success'
+        uses: ./.github/actions/deployment/publish-doc
