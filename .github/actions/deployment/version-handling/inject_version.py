@@ -26,7 +26,7 @@ def generate_version(fallback_version="0.0.0a0",
     if len(version_digits) != 5:
         raise ValueError(f"Unexpected version format: {version}")
 
-    base_version = version_digits[0] + version_digits[1] + version_digits[2]
+    base_version = version_digits[0] + "." + version_digits[1] + "." + version_digits[2]
 
     # release
     if not include_distance and not is_prerelease:
