@@ -4,34 +4,45 @@ import sys
 import argparse
 
 
-def generate_version(fallback_version="0.0.0.0a0",
+def generate_version(fallback_version="0.0.0a0",
                      include_distance=True,
                      is_prerelease=False):
-    try:
-        import setuptools_scm
+    import setuptools_scm
 
-        def custom_version_scheme(version):
-            return version.format_with("{tag}a{distance}")
+    def custom_version_scheme(version):
+        return version.format_with("{tag}.{distance}")
 
-        def custom_local_scheme(version):
-            return ""
+    def custom_local_scheme(version):
+        return ""
 
-        version = setuptools_scm.get_version(
-            version_scheme=custom_version_scheme,
-            local_scheme=custom_local_scheme,
-            fallback_version=fallback_version,
-            tag_regex=r'^v?(\d+\.\d+\.\d+)(?:\.\d+)?$'
-        )
+    version = setuptools_scm.get_version(
+        version_scheme=custom_version_scheme,
+        local_scheme=custom_local_scheme,
+        fallback_version=fallback_version,
+        tag_regex=r'^v?(\d+\.\d+\.\d+)(?:\.\d+)?$'
+    )
 
-        # If include_distance is False, strip the 'aN' suffix
-        if not include_distance and 'a' in version:
-            version = version.split('a')[0]
-            if is_prerelease and 'b' not in version:
-                version = version + 'b' + "".join(version.split('a')[1:])
+    version_digits = version.split('.')
+    if len(version_digits) != 5:
+        raise ValueError(f"Unexpected version format: {version}")
 
-        return version
-    except Exception:
-        return fallback_version
+    base_version = version_digits[0] + version_digits[1] + version_digits[2]
+
+    # release
+    if not include_distance and not is_prerelease:
+        return base_version
+
+    actual_distance = str(int(version_digits[3]) + int(version_digits[4]))
+
+    # beta release
+    if not include_distance and is_prerelease:
+        return base_version + 'b' + actual_distance
+
+    # alpha release
+    if include_distance and not is_prerelease:
+        return base_version + 'a' + actual_distance
+
+    return fallback_version
 
 
 def inject_version(version, pyproject_path="pyproject.toml"):
