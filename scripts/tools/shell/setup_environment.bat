@@ -15,13 +15,10 @@ if not exist %SRC_VENV% (
     call deactivate
 )
 
-if not exist "%SRC_REQUIREMENTS%" (
-    echo requirements.txt not found.
-) else (
-    call %SRC_VENV%/Scripts/activate
-    call python -m pip install %PYTHON_PY_SETUP%
-    call deactivate
-)
+call %SRC_VENV%/Scripts/activate
+call python -m pip install --upgrade pip setuptools setuptools-scm
+call python -m pip install -e %PYTHON_PY_SETUP%
+call deactivate
 
 REM Generating unversioned folders...
 set "folders=%PERSONAL_FOLDER%"
@@ -31,9 +28,3 @@ for %%F in (%folders%) do (
         echo Created folder: %%F
     )
 )
-
-REM Writing unversioned files...
-REM if not exist "./configs/.env" (
-REM    echo GITHUB_TOKEN="undefined" > ./configs/.env
-REM )
-REM echo "Please fill the .env file with the required secrets if not already done."
