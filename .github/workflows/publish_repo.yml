@@ -33,21 +33,26 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "release" ]; then
             echo "include-distance=false" >> $GITHUB_OUTPUT
+            if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+              echo "is-prerelease=true" >> $GITHUB_OUTPUT
+            else
+              echo "is-prerelease=false" >> $GITHUB_OUTPUT
+            fi
           else
             echo "include-distance=true" >> $GITHUB_OUTPUT
+            echo "is-prerelease=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Inject version
         uses: ./.github/actions/deployment/version-handling
         with:
           include-distance: ${{ steps.version-config.outputs.include-distance }}
+          is-prerelease: ${{ steps.version-config.outputs.is-prerelease }}
 
       - name: Build wheels
         uses: ./.github/actions/deployment/build-wheel
         with:
           python-version: ${{ matrix.python }}
-          source-path: ${{ env.NATIVE_SRC_PATH }}
-          project-name: ${{ env.PROJECT_NAME }}
 
       - name: Upload artifacts
         uses: ./.github/actions/deployment/upload-artifacts
