@@ -10,7 +10,7 @@ inputs:
     required: false
     default: "true"
   is-prerelease:
-    description: "Mark version as prerelease
+    description: "Mark version as prerelease"
     required: false
     default: "false"
 
