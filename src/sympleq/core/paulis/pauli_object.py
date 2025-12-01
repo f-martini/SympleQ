@@ -75,7 +75,7 @@ class PauliObject(ABC):
         self._dimensions.setflags(write=False)
         self._lcm = int(np.lcm.reduce(self.dimensions))
 
-        self._tableau = tableau % np.tile(self._dimensions, 2)
+        self._tableau = tableau % np.tile(self.dimensions, 2)
 
         if weights is None:
             weights = np.ones(n_pauli_strings, dtype=complex)
@@ -225,7 +225,7 @@ class PauliObject(ABC):
         None
             This method modifies the object in place.
         """
-        self._phases = np.zeros(len(self._phases))
+        self._phases = np.zeros(len(self.phases))
 
     @property
     def weights(self) -> np.ndarray:
@@ -273,7 +273,7 @@ class PauliObject(ABC):
         None
             This method modifies the object in place.
         """
-        self._weights = np.ones(len(self._weights))
+        self._weights = np.ones(len(self.weights))
 
     def has_equal_tableau(self, other_pauli: PauliObject, literal: bool = True) -> bool:
         """
@@ -376,7 +376,7 @@ class PauliObject(ABC):
             acquired_phases.append(2 * hermitian_conjugate_phase)
         acquired_phases = np.asarray(acquired_phases, dtype=int)
 
-        conjugate_initial_phases = (-self._phases) % (2 * self.lcm)
+        conjugate_initial_phases = (-self.phases) % (2 * self.lcm)
         conjugate_phases = (conjugate_initial_phases + acquired_phases) % (2 * self.lcm)
 
         return self.__class__(tableau=conjugate_tableau, dimensions=self.dimensions,
@@ -756,7 +756,7 @@ class PauliObject(ABC):
             raise Exception("A Pauli object with more than a PauliString cannot be exponentiated.")
 
         tableau = np.mod(self.tableau * A, np.tile(self.dimensions, 2))
-        return self.__class__(tableau, self._dimensions.copy(), self._weights.copy(), self._phases.copy())
+        return self.__class__(tableau, self.dimensions.copy(), self.weights.copy(), self.phases.copy())
 
     def __hash__(self) -> int:
         """
@@ -796,10 +796,8 @@ class PauliObject(ABC):
         -------
         Pauli object
             A copy of the Pauli object.
-        Pauli object
-            A copy of the Pauli object.
         """
-        return self.__class__(self._tableau.copy(), self._dimensions.copy(), self._weights.copy(), self._phases.copy())
+        return self.__class__(self.tableau.copy(), self.dimensions.copy(), self.weights.copy(), self.phases.copy())
 
     def phase_to_weight(self):
         """
@@ -809,7 +807,7 @@ class PauliObject(ABC):
         """
         new_weights = np.zeros(self.n_paulis(), dtype=np.complex128)
         for i in range(self.n_paulis()):
-            phase = self._phases[i]
+            phase = self.phases[i]
             omega = np.exp(2 * np.pi * 1j * phase / (2 * self.lcm))
             new_weights[i] = self.weights[i] * omega
         self._phases = np.zeros(self.n_paulis(), dtype=int)

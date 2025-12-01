@@ -328,12 +328,12 @@ class PauliString(PauliObject):
 
         tableau = np.mod(self.tableau + A.tableau, np.tile(self.dimensions, 2))
 
-        w1 = self._weights[:, None]
-        w2 = A._weights[None, :]
+        w1 = self.weights[:, None]
+        w2 = A.weights[None, :]
         new_weights = (w1 * w2).reshape(-1)
 
-        p1 = self._phases[:, None]
-        p2 = A._phases[None, :]
+        p1 = self.phases[:, None]
+        p2 = A.phases[None, :]
 
         # Extract z- and x-parts from tableau
         n1, n2 = self.n_qudits(), A.n_qudits()
@@ -354,7 +354,7 @@ class PauliString(PauliObject):
         x_exp : np.ndarray
         Array of X exponents for each qudit.
         """
-        return self._tableau[0][:self.n_qudits()]
+        return self.tableau[0][:self.n_qudits()]
 
     @property
     def z_exp(self) -> np.ndarray:
@@ -362,7 +362,7 @@ class PauliString(PauliObject):
         z_exp : np.ndarray
         Array of Z exponents for each qudit.
         """
-        return self._tableau[0][self.n_qudits():]
+        return self.tableau[0][self.n_qudits():]
 
     def as_pauli_sum(self) -> PauliSum:
         """
@@ -375,7 +375,7 @@ class PauliString(PauliObject):
         """
         # FIXME: import at the top. Currently we can't because of circular imports.
         from .pauli_sum import PauliSum
-        return PauliSum(self._tableau, self._dimensions, self._weights, self._phases)
+        return PauliSum(self.tableau, self.dimensions, self.weights, self.phases)
 
     def n_identities(self) -> int:
         """
@@ -648,7 +648,7 @@ class PauliString(PauliObject):
         if isinstance(key, np.ndarray):
             tableau_mask = np.concatenate([key, key + self.n_qudits()])
             return PauliString(
-                self.tableau[tableau_mask], self.dimensions[key], self._weights, self._phases)
+                self.tableau[tableau_mask], self.dimensions[key], self.weights, self.phases)
 
         raise ValueError(f"Cannot get item with key {key}. Key must be aof type int, slice, np.ndarray, or list[int].")
 
@@ -722,7 +722,7 @@ class PauliString(PauliObject):
         """
 
         dimensions = self.dimensions[qudit_indices]
-        tableau = self._tableau[0][qudit_indices]
+        tableau = self.tableau[0][qudit_indices]
 
         return PauliString(tableau, dimensions)
 

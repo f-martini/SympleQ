@@ -206,7 +206,7 @@ class Pauli(PauliObject):
         """
         # FIXME: import at the top. Currently we can't because of circular imports.
         from .pauli_sum import PauliSum
-        return PauliSum(self._tableau, self._dimensions, self._weights, self._phases)
+        return PauliSum(self.tableau, self.dimensions, self.weights, self.phases)
 
     def as_pauli_string(self) -> PauliString:
         """
@@ -219,7 +219,7 @@ class Pauli(PauliObject):
         """
         # FIXME: import at the top. Currently we can't because of circular imports.
         from .pauli_string import PauliString
-        return PauliString(self._tableau, self._dimensions, self._weights, self._phases)
+        return PauliString(self.tableau, self.dimensions, self.weights, self.phases)
 
     def to_hilbert_space(self) -> sp.csr_matrix:
         """

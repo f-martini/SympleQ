@@ -162,12 +162,12 @@ class PauliSum(PauliObject):
                 if not np.array_equal(ps.dimensions, dimensions):
                     raise ValueError("The dimensions of all Pauli strings must be equal.")
 
-        tableau = np.vstack([p._tableau for p in pauli_string])
+        tableau = np.vstack([p.tableau for p in pauli_string])
 
         if inherit_phases:
             if phases is not None:
                 warnings.warn("Phases are disregarded if inherit_phases is set to True.")
-            phases = np.hstack([p._phases for p in pauli_string])
+            phases = np.hstack([p.phases for p in pauli_string])
         return cls(tableau, dimensions, weights, phases)
 
     @classmethod
@@ -579,7 +579,7 @@ class PauliSum(PauliObject):
         """
 
         if isinstance(A, ScalarType):
-            return PauliSum(self._tableau, self._dimensions, self._weights * A, self._phases)
+            return PauliSum(self.tableau, self.dimensions, self.weights * A, self.phases)
 
         if isinstance(A, Pauli):
             return self * A.as_pauli_sum()
@@ -769,14 +769,14 @@ class PauliSum(PauliObject):
                 if ps1 == ps2:
                     # FIXME: can overflow for very large n_paulis.
                     #        One solution could be to normalize it by dividing by the smallest weight.
-                    self._weights[i] = self._weights[i] + self._weights[j]
+                    self._weights[i] = self.weights[i] + self.weights[j]
                     to_delete.append(j)
         self._delete_paulis(to_delete)
 
         # remove zero weight Paulis
         to_delete = []
         for i in range(self.n_paulis()):
-            if self._weights[i] == 0:
+            if self.weights[i] == 0:
                 to_delete.append(i)
         self._delete_paulis(to_delete)
 
@@ -940,9 +940,9 @@ class PauliSum(PauliObject):
         if isinstance(pauli_indices, int):
             pauli_indices = [pauli_indices]
 
-        self._weights = np.delete(self._weights, pauli_indices)
-        self._phases = np.delete(self._phases, pauli_indices)
-        self._tableau = np.delete(self._tableau, pauli_indices, axis=0)
+        self._weights = np.delete(self.weights, pauli_indices)
+        self._phases = np.delete(self.phases, pauli_indices)
+        self._tableau = np.delete(self.tableau, pauli_indices, axis=0)
 
     def _delete_qudits(self, qudit_indices: list[int] | int):
         """
@@ -960,11 +960,11 @@ class PauliSum(PauliObject):
         mask[qudit_indices] = False
 
         # Note: we first delete the rightmost indices, so they are not shifted.
-        self._tableau = np.delete(self._tableau, [idx + self.n_qudits() for idx in qudit_indices], axis=1)
-        self._tableau = np.delete(self._tableau, qudit_indices, axis=1)
+        self._tableau = np.delete(self.tableau, [idx + self.n_qudits() for idx in qudit_indices], axis=1)
+        self._tableau = np.delete(self.tableau, qudit_indices, axis=1)
 
-        self._dimensions = self._dimensions[mask]
-        self._lcm = int(np.lcm.reduce(self._dimensions))
+        self._dimensions = self.dimensions[mask]
+        self._lcm = int(np.lcm.reduce(self.dimensions))
 
     def symplectic_product_matrix(self) -> np.ndarray:
         """
@@ -1194,12 +1194,12 @@ class PauliSum(PauliObject):
 
         self._weights = np.array([self.weights[i] for i in order])
         self._phases = np.array([self.phases[i] for i in order])
-        self._tableau = np.array([self._tableau[i] for i in order])
+        self._tableau = np.array([self.tableau[i] for i in order])
 
     def swap_paulis(self, index_1: int, index_2: int):
         self._weights[index_1], self._weights[index_2] = self.weights[index_2], self.weights[index_1]
         self._phases[index_1], self._phases[index_2] = self.phases[index_2], self.phases[index_1]
-        self._tableau[index_1], self._tableau[index_2] = self._tableau[index_2], self._tableau[index_1]
+        self._tableau[index_1], self._tableau[index_2] = self.tableau[index_2], self.tableau[index_1]
 
     # def hermitian_conjugate(self):
     #     conjugate_weights = np.conj(self.weights)
