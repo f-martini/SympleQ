@@ -549,5 +549,19 @@ class TestAquire:
         mock_results = []
         for c in mock_circuit_list:
             mock_results.append(simulate_measurement(P, psi, circuit=c))
+        mock_diagnostic_results = []
+        for i,c in enumerate(mock_diagnostic_circuit_list):
+            mock_diagnostic_results.append(simulate_measurement(P, model.diagnostic_states[i], circuit=c))
 
         model.input_measurement_data(mock_results)
+
+        model.data_at_shot(100)
+        model.data_at_shot([25,50,75,100])
+
+        model.scaling_matrix_at_shot(100)
+        model.scaling_matrix_at_shot([25,50,75,100])
+
+        model.covariance_graph_at_shot(10)
+        model.covariance_graph_at_shot([10,20])
+
+
