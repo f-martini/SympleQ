@@ -146,102 +146,62 @@ def _split_uv(T: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 def symplectic_basis_from_span(B: np.ndarray, p: int) -> np.ndarray:
     """
-    Input: B (n2 x s) spans an even-dimensional non-degenerate subspace.
-    Output: T (n2 x 2k) canonical, T^T Omega T = Omega_k, ordered [U | V].
+    Construct a canonical symplectic basis [U | V] from a non-degenerate even-dimensional span B.
+    Output: T (n2 x 2k) such that T^T Omega T = Omega_k.
     """
-    n2 = B.shape[0]
+    n2, s = B.shape
     Omega = omega_matrix(n2 // 2, p)
-
-    # Independent spanning columns S (single RREF)
     S = independent_columns(B, p)
     dS = S.shape[1]
+
     if dS % 2 != 0:
-        raise ValueError("Subspace dimension is odd; cannot form symplectic basis")
+        raise ValueError("Subspace dimension must be even")
 
-    def as_col(v: np.ndarray) -> np.ndarray:
-        v = np.asarray(v, dtype=np.int64)
-        return v.reshape(-1, 1)
-
-    def pair(a: np.ndarray, b: np.ndarray) -> int:
-        return _scalar((a.T @ Omega @ b) % p)
-
-    def row_from_vec(vec: np.ndarray) -> np.ndarray:
-        vec = as_col(vec)
-        r = mod_p(S.T @ Omega @ vec, p).reshape(-1)
-        return r
-
-    def row_from_a(a: np.ndarray) -> np.ndarray:
-        a = as_col(a)
-        r = mod_p(a.T @ Omega @ S, p).reshape(-1)
-        return r
-
-    U: List[np.ndarray] = []
-    V: List[np.ndarray] = []
-    used = np.zeros(dS, dtype=bool)
-
-    while (len(U) + len(V)) < dS:
-        # pick new a independent of current span(U|V)
-        M = np.column_stack(U + V) if (U or V) else np.zeros((n2, 0), dtype=np.int64)
-        a = None
+    # Stepwise symplectic Gram-Schmidt
+    idx_used = set()
+    U, V = [], []
+    for i in range(0, dS, 2):
+        # Find u such that not in current span and has a nonzero pairing
         for j in range(dS):
-            if used[j]:
+            if j in idx_used:
                 continue
-            candidate = S[:, j: j + 1]
-            if rank_mod(np.concatenate([M, candidate], axis=1), p) > rank_mod(M, p):
-                a = candidate
-                used[j] = True
-                break
-        if a is None:
-            # fallback: random combo (rare)
-            rng = np.random.default_rng(1337)
-            for _ in range(128):
-                coeffs = rng.integers(0, p, size=(dS, 1), dtype=np.int64)
-                candidate = mod_p(S @ coeffs, p)
-                if rank_mod(np.concatenate([M, candidate], axis=1), p) > rank_mod(M, p):
-                    a = candidate
+            u = S[:, j:j + 1]
+            for k in range(j + 1, dS):
+                if k in idx_used:
+                    continue
+                v = S[:, k: k + 1]
+                if _scalar(u.T @ Omega @ v % p) != 0:
+                    idx_used.update([j, k])
                     break
-            if a is None:
-                raise RuntimeError("Failed to extend independent vector in span(B)")
+            else:
+                continue
+            break
+        else:
+            raise RuntimeError("Failed to find symplectic pair in span")
 
-        # omega-orthogonalize a against existing pairs: a ← a - <a,v>u + <a,u>v
-        for u, v in zip(U, V):
-            av = pair(a, v)
-            au = pair(a, u)
-            if av:
-                a = mod_p(a - av * u, p)
-            if au:
-                a = mod_p(a + au * v, p)
+        # Make B(u, v) = 1
+        beta = _scalar(u.T @ Omega @ v % p)
+        beta_inv = inv_mod_scalar(beta, p)
+        v = mod_p(v * beta_inv, p)
 
-        # Solve for b in span(S): <b,u>=0, <b,v>=0, and <a,b>=1
-        rows = []
-        rhs = []
-        for u, v in zip(U, V):
-            rows.append(row_from_vec(u))
-            rhs.append(0)
-            rows.append(row_from_vec(v))
-            rhs.append(0)
-        rows.append(row_from_a(a))
-        rhs.append(1)
+        # Orthogonalize v against all previous U, V
+        for u_prev, v_prev in zip(U, V):
+            coeff_u = _scalar(v.T @ Omega @ v_prev % p)
+            coeff_v = _scalar(v.T @ Omega @ u_prev % p)
+            if coeff_u:
+                v = mod_p(v - coeff_u * u_prev, p)
+            if coeff_v:
+                v = mod_p(v + coeff_v * v_prev, p)
 
-        A = mod_p(np.vstack(rows), p)
-        b_vec = np.array(rhs, dtype=np.int64).reshape(-1, 1)
-        b = _solve_linear(A, b_vec, p)
-        b = mod_p(S @ b, p)
+        U.append(u)
+        V.append(v)
 
-        ab = pair(a, b)
-        if ab % p == 0:
-            raise RuntimeError("Zero pairing for constructed (a,b)")
-        if ab % p != 1 % p:
-            b = mod_p(b * inv_mod_scalar(ab, p), p)
-
-        U.append(a)
-        V.append(b)
-
-    T = np.column_stack([u for u in U] + [v for v in V])  # [U | V]
+    T = np.hstack(U + V)
     G = mod_p(T.T @ Omega @ T, p)
-    if rank_mod(G, p) != T.shape[1]:
-        raise RuntimeError("Degenerate Gram in symplectic_basis_from_span")
+    if not np.array_equal(G % p, omega_matrix(len(U), p)):
+        raise RuntimeError("Constructed basis is not symplectic")
     return T
+
 
 # =========================
 # Minimal symplectic block via Krylov + partner
@@ -351,12 +311,13 @@ def _minimal_block_from_seeds(
             continue  # reject trivial block
 
         size = T_blk.shape[1]
-        if (best is None or size < best[0] or (size == best[0] and r_score > best[1])):
+
+        # Enforce a *lower* size bound if desired
+        if min_block_size and size < min_block_size:
+            continue
+        # Prefer *larger* minimal blocks; break ties by r_score descending
+        if (best is None) or (size > best[0]) or (size == best[0] and r_score > best[1]):
             best = (size, r_score, T_blk)
-            if min_block_size and size == min_block_size and r_score > 0:
-                break
-            if not min_block_size and size == 2:
-                break
 
     return None if best is None else best[2]
 
@@ -437,110 +398,8 @@ def complete_symplectic_local(T_blk: np.ndarray, p: int) -> np.ndarray:
     return T_local
 
 
-def block_decompose(F: np.ndarray, p: int, min_block_size: int = 2) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Sector-aware decomposition: find S = T^{-1} F T with the largest block as small as possible.
-    Strategy:
-      1) RCF pre-pass -> primary/reciprocal sectors W_q with half-dimension floors.
-      2) In each sector, run the existing Krylov-based minimal block finder constrained to that sector.
-      3) Pick the globally-smallest nontrivial block (tie-break by rank(S_blk - I) descending).
-      4) Omega-complement, assemble T in canonical [all U | all V], then S = T^{-1} F T.
-      5) Symplectic mode permutation to pack blocks contiguously.
-    """
-    assert is_symplectic(F, p), "F must be symplectic"
-    n2 = F.shape[0]
-    n = n2 // 2
-    Omega = omega_matrix(n, p)
-
-    # -------------------------
-    # 1) RCF pre-pass (sectorization with floors)
-    # -------------------------
-    rcf_info = rcf_prepass(F, p)
-    sectors = rcf_info["sectors"]  # list of {"type","W_basis","half_dim_floor",...}
-
-    # -------------------------
-    # 2) Search minimal NONTRIVIAL block within each sector
-    # -------------------------
-    best = None  # tuple(size, score, T_blk, sector_idx)
-    for s_idx, sec in enumerate(sectors):
-        N = sec["W_basis"]                      # columns span the sector subspace
-        if N.shape[1] == 0:
-            continue
-        # Prefer to keep this deterministic: set trials=0 (sector basis already reduces search)
-        out = minimal_symplectic_block_in_complement(F, p, N, trials=0)
-        if out is None:
-            # Fallback: allow a few sector-local random seeds
-            out = minimal_symplectic_block_in_complement(F, p, N, trials=32)
-            if out is None:
-                continue
-        T_blk, S_blk = out
-        size = T_blk.shape[1]                    # = 2k
-        if size % 2 != 0:
-            continue
-        # Reject trivial blocks
-        r_score = rank_mod(mod_p(S_blk - np.eye(size, dtype=np.int64), p), p)
-        if r_score == 0:
-            continue
-        # Respect a sector-aware minimum if requested
-        if size < max(2 * sec["half_dim_floor"], min_block_size):
-            # keep going; this block is smaller than the sector’s theoretical floor (robustness)
-            pass
-        # Pick smallest size, break ties by larger r_score
-        if (best is None) or (size < best[0]) or (size == best[0] and r_score > best[1]):
-            best = (size, r_score, T_blk, s_idx)
-            if size == 2 and r_score > 0:
-                break  # cannot beat a 1-mode hyperbolic block
-
-    # If nothing found in sectors (should be rare for symplectic F), fall back to global search
-    if best is None:
-        T_blk = minimal_symplectic_block_full(F, p, trials=128, min_block_size=min_block_size)
-    else:
-        T_blk = best[2]
-
-    k2 = T_blk.shape[1]
-    k = k2 // 2
-    U_blk, V_blk = T_blk[:, :k], T_blk[:, k:]
-
-    # -------------------------
-    # 3) Exact Omega-orthogonal complement and canonical basis there
-    # -------------------------
-    A = mod_p(T_blk.T @ Omega, p)       # k2 x n2
-    N_perp = nullspace_mod(A, p)      # n2 x d_perp
-    if N_perp.shape[1] > 0:
-        T_perp = symplectic_basis_from_span(N_perp, p)  # [U_perp | V_perp]
-        kp2 = T_perp.shape[1] // 2
-        U_perp, V_perp = T_perp[:, :kp2], T_perp[:, kp2:]
-    else:
-        U_perp = np.zeros((n2, 0), dtype=np.int64)
-        V_perp = np.zeros((n2, 0), dtype=np.int64)
-
-    # -------------------------
-    # 4) Assemble global T in canonical [all U | all V]
-    # -------------------------
-    T = np.concatenate([U_blk, U_perp, V_blk, V_perp], axis=1)
-
-    # Strict symplectic check
-    assert np.array_equal(mod_p(T.T @ Omega @ T, p), Omega % p), "Constructed T is not symplectic"
-
-    # -------------------------
-    # 5) Compute S and apply mode permutation
-    # -------------------------
-    J = mod_p(T.T @ Omega @ T, p)
-    J_inv = inv_mod_mat(J, p)
-    L_inv = matmul_mod(J_inv, matmul_mod(T.T, Omega, p), p)
-    S = matmul_mod(L_inv, matmul_mod(F, T, p), p)
-
-    # Pack coupled modes contiguously and bring the smallest nontrivial first
-    S, T = _apply_mode_permutation_to_ST(S, T, p)
-
-    # Final sanity
-    assert is_symplectic(T, p)
-    assert np.array_equal(S, mod_p(inv_mod_mat(T, p) @ F @ T, p))
-    return S, T
-
-
 # =========================
-# Nontrivial block finder with size floor (public API preserved)
+# Nontrivial block finder
 # =========================
 
 def minimal_symplectic_block_full(
@@ -560,6 +419,101 @@ def minimal_symplectic_block_full(
     if T_blk is None:
         raise RuntimeError("Failed to find a nontrivial symplectic block meeting the size floor")
     return T_blk
+
+
+def block_decompose(
+    F: np.ndarray, p: int, min_block_size: int = 2, trials: int = 64
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Fully recursive block decomposition using mode-space recursion.
+
+    Returns:
+        S, T such that:
+          - T is symplectic (T^T Ω T = Ω),
+          - S = T^{-1} F T,
+          - S is block-structured in mode space (up to SWAPs).
+    """
+    assert is_symplectic(F, p), "F must be symplectic"
+    n2 = F.shape[0]
+    assert n2 % 2 == 0
+    n = n2 // 2
+    Omega = omega_matrix(n, p)
+
+    # Current similarity and transformed F
+    T_global = np.eye(n2, dtype=np.int64)
+    F_cur = F.copy()
+
+    # Number of modes already peeled into blocks at the front
+    mode_offset = 0
+
+    while mode_offset < n:
+        # Remaining number of modes
+        n_rem = n - mode_offset
+        if n_rem <= 0:
+            break
+
+        # Indices for remaining modes in canonical [X | Z] order
+        x_idx_rem = list(range(mode_offset, n))
+        z_idx_rem = list(range(n + mode_offset, n2))
+        idx_rem = x_idx_rem + z_idx_rem  # this is canonical for Ω_sub
+
+        # Restrict F_cur to the remaining subspace
+        F_sub = mod_p(F_cur[np.ix_(idx_rem, idx_rem)], p)
+
+        # Try to find a nontrivial minimal symplectic block in F_sub
+        try:
+            T_blk_sub = minimal_symplectic_block_full(
+                F_sub, p, trials=trials, min_block_size=min_block_size
+            )
+        except RuntimeError:
+            # No suitable block found in the remaining subspace
+            break
+
+        k2 = T_blk_sub.shape[1]
+        if k2 % 2 != 0:
+            # Should not happen for a valid symplectic block
+            break
+        k = k2 // 2
+        if k == 0:
+            break
+
+        # Complete this block to a full symplectic basis of the remaining subspace
+        # T_local is (2*n_rem x 2*n_rem), canonical [U_block | U_perp | V_block | V_perp]
+        T_local = complete_symplectic_local(T_blk_sub, p)
+
+        # Lift T_local back to the full space as block-diagonal (I on peeled modes)
+        T_lift = np.eye(n2, dtype=np.int64)
+        T_lift[np.ix_(idx_rem, idx_rem)] = T_local
+
+        # Update global similarity and transformed F
+        T_global = mod_p(T_global @ T_lift, p)
+        F_cur = mod_p(inv_mod_mat(T_lift, p) @ F_cur @ T_lift, p)
+
+        # After this, the first k modes in the remaining subspace
+        # have been turned into a canonical block. In global coordinates
+        # this corresponds to modes [mode_offset .. mode_offset + k - 1].
+        mode_offset += k
+
+        # If we want to enforce a floor on block size in modes, we can break
+        # once remaining modes are too small to form a nontrivial block.
+        if n - mode_offset < 1:
+            break
+
+    # Final sanity: T_global must be symplectic
+    assert np.array_equal(mod_p(T_global.T @ Omega @ T_global, p), Omega % p), \
+        "Constructed T_global is not symplectic"
+
+    # Compute S = T^{-1} F T
+    S = mod_p(inv_mod_mat(T_global, p) @ F @ T_global, p)
+
+    # Optionally pack coupled modes contiguously
+    S, T_global = _apply_mode_permutation_to_ST(S, T_global, p)
+
+    # Final checks
+    assert is_symplectic(T_global, p)
+    assert np.array_equal(S, mod_p(inv_mod_mat(T_global, p) @ F @ T_global, p))
+
+    return S, T_global
 
 
 # =========================

@@ -2,10 +2,10 @@ import numpy as np
 from typing import Dict, List, Tuple
 from .modular_helpers import mod_p, rank_mod, _solve_linear, nullspace_mod
 
-
 # --------------------------
 # Polynomial arithmetic over GF(p): coeffs low->high, monic when expected
 # --------------------------
+
 
 def poly_trim(a: np.ndarray) -> np.ndarray:
     a = np.asarray(a, dtype=np.int64)
@@ -51,7 +51,6 @@ def poly_mul(a: np.ndarray, b: np.ndarray, p: int) -> np.ndarray:
 
 
 def poly_divmod(a: np.ndarray, b: np.ndarray, p: int) -> Tuple[np.ndarray, np.ndarray]:
-    # divide a by b (monic b is best)
     a = mod_p(poly_trim(a.copy()), p)
     b = mod_p(poly_trim(b.copy()), p)
     if len(b) == 1 and b[0] == 0:
@@ -90,7 +89,6 @@ def poly_gcd(a: np.ndarray, b: np.ndarray, p: int) -> np.ndarray:
 
 
 def poly_pow_mod(a: np.ndarray, e: int, m: np.ndarray, p: int) -> np.ndarray:
-    # exponentiation mod m (poly)
     res = np.array([1], dtype=np.int64)
     base = a.copy()
     while e > 0:
@@ -102,7 +100,6 @@ def poly_pow_mod(a: np.ndarray, e: int, m: np.ndarray, p: int) -> np.ndarray:
 
 
 def poly_eval_matrix(F: np.ndarray, poly: np.ndarray, p: int) -> np.ndarray:
-    # Horner: poly(F) = a0 I + a1 F + ...; poly is low->high
     n2 = F.shape[0]
     M = np.zeros_like(F)
     P_pow = np.eye(n2, dtype=np.int64)
@@ -118,17 +115,15 @@ def poly_reciprocal(poly: np.ndarray, p: int) -> np.ndarray:
     rev = poly[::-1].copy()
     return poly_monic(rev, p)
 
+
 # --------------------------
 # Distinct-degree + equal-degree factorization (Cantor–Zassenhaus)
 # --------------------------
 
-
 def squarefree_decomposition(f: np.ndarray, p: int) -> List[Tuple[np.ndarray, int]]:
-    # returns [(f1,e1), ...] with fi squarefree, pairwise coprime, f = prod fi^ei
     f = poly_monic(f, p)
     df = derivative_poly(f, p)
     if np.all(df == 0):
-        # f = g(t^p), extract p-th roots
         g = poly_pth_root(f, p)
         sub = squarefree_decomposition(g, p)
         return [(h, e * p) for (h, e) in sub]
@@ -144,9 +139,8 @@ def squarefree_decomposition(f: np.ndarray, p: int) -> List[Tuple[np.ndarray, in
         i += 1
         if len(g) == 1 and g[0] == 1:
             break
-        g = poly_mod(g, np.array([0, 1], dtype=np.int64), p)  # noop to keep type
+        g = poly_mod(g, np.array([0, 1], dtype=np.int64), p)
     if len(g) != 1 or g[0] != 1:
-        # leftover perfect pth power
         g_root = poly_pth_root(g, p)
         sub = squarefree_decomposition(g_root, p)
         res += [(h, e * p) for (h, e) in sub]
@@ -161,7 +155,6 @@ def derivative_poly(f: np.ndarray, p: int) -> np.ndarray:
 
 
 def poly_pth_root(f: np.ndarray, p: int) -> np.ndarray:
-    # assumes f(x) = g(x^p); pull out pth root of exponents
     g = np.zeros((len(f) + p - 1) // p, dtype=np.int64)
     for i in range(0, len(f), p):
         g[i // p] = f[i]
@@ -169,14 +162,12 @@ def poly_pth_root(f: np.ndarray, p: int) -> np.ndarray:
 
 
 def distinct_degree_factorization(f: np.ndarray, p: int) -> List[Tuple[np.ndarray, int]]:
-    # input squarefree monic f; returns [(h_d, d)] where h_d = product of irreducibles of degree d
     f = poly_monic(f, p)
     res = []
-    x = np.array([0, 1], dtype=np.int64)   # x
+    x = np.array([0, 1], dtype=np.int64)
     h = x.copy()
     n = len(f) - 1
     for d in range(1, n + 1):
-        # h <- h^{p} mod f
         h = poly_pow_mod(h, p, f, p)
         g = poly_gcd(poly_sub(h, x, p), f, p)
         if len(g) > 1 and not np.array_equal(g, np.array([1], dtype=np.int64)) and not np.array_equal(g, f):
@@ -188,22 +179,18 @@ def distinct_degree_factorization(f: np.ndarray, p: int) -> List[Tuple[np.ndarra
         if len(f) <= 1 or np.array_equal(f, np.array([1], dtype=np.int64)):
             break
     if len(f) > 1 and not np.array_equal(f, np.array([1], dtype=np.int64)):
-        # whatever remains is a product of equal degree factors larger than loop range
         res.append((f, len(f) - 1))
     return res
 
 
 def equal_degree_factorization(f: np.ndarray, d: int, p: int, rng=np.random.default_rng(2025)) -> List[np.ndarray]:
-    # factor monic squarefree f that is a product of irreducibles all of degree d
     if len(f) - 1 == d:
         return [f]
     while True:
-        # pick random a(x) of deg < deg f
         a = mod_p(rng.integers(0, p, size=len(f) - 1, dtype=np.int64), p)
         a = poly_trim(a)
         if len(a) == 0:
             a = np.array([1], dtype=np.int64)
-        # compute g = gcd(a^{(p^d - 1)/2} - 1, f)
         exp = (p**d - 1) // 2
         a_pow = poly_pow_mod(a, exp, f, p)
         g = poly_gcd(poly_sub(a_pow, np.array([1], dtype=np.int64), p), f, p)
@@ -213,29 +200,26 @@ def equal_degree_factorization(f: np.ndarray, d: int, p: int, rng=np.random.defa
 
 
 def factor_poly_over_fp(f: np.ndarray, p: int) -> List[np.ndarray]:
-    # return list of monic irreducible factors (with multiplicity via repeats)
     f = poly_monic(f, p)
     if len(f) <= 1:
         return [f]
-    sq = squarefree_decomposition(f, p)  # [(fi, ei)]
+    sq = squarefree_decomposition(f, p)
     out = []
     for fi, ei in sq:
-        dd = distinct_degree_factorization(fi, p)  # [(h_d, d)]
+        dd = distinct_degree_factorization(fi, p)
         for hd, d in dd:
             parts = equal_degree_factorization(hd, d, p)
             for _ in range(ei):
                 out.extend(parts)
     return [poly_monic(h, p) for h in out]
 
+
 # --------------------------
 # Krylov cyclic decomposition: companion polynomials of cyclic blocks
 # --------------------------
 
-
 def minimal_poly_for_vector(F: np.ndarray, v: np.ndarray, p: int) -> np.ndarray:
-    """Return the monic minimal polynomial m_v(t) of F restricted to the cyclic subspace generated by v."""
     v = mod_p(v.reshape(-1, 1), p)
-    # Build Krylov [v, Fv, ..., F^k v] until dependent; solve relation
     V = v.copy()
     powers = [v]
     while True:
@@ -244,9 +228,7 @@ def minimal_poly_for_vector(F: np.ndarray, v: np.ndarray, p: int) -> np.ndarray:
         candidate = np.concatenate([V, w], axis=1)
         r2 = rank_mod(candidate, p)
         if r2 == r:
-            # find coefficients c s.t. sum_{i=0}^{k} c_i F^i v = 0 with c_k = 1 (monic)
-            # Solve V c = -w, where columns of V are [v, Fv, ..., F^{k-1}v]
-            c = _solve_linear(mod_p(V, p), mod_p(-w, p), p)  # particular
+            c = _solve_linear(mod_p(V, p), mod_p(-w, p), p)
             coeffs = np.concatenate([c.reshape(-1), np.array([1], dtype=np.int64)])
             return poly_monic(coeffs, p)
         V = candidate
@@ -254,46 +236,32 @@ def minimal_poly_for_vector(F: np.ndarray, v: np.ndarray, p: int) -> np.ndarray:
 
 
 def cyclic_decomposition(F: np.ndarray, p: int) -> List[Tuple[np.ndarray, np.ndarray]]:
-    """
-    Return list of (basis_block, m(t)) where basis_block columns span an F-invariant cyclic subspace
-    and m(t) is its monic companion polynomial on that subspace.
-    Blocks are disjoint and together span the whole space.
-    Construction is projection-free: we only use rank tests to keep new independent columns.
-    """
     n2 = F.shape[0]
     basis_blocks: List[np.ndarray] = []
     polys: List[np.ndarray] = []
-
-    # Global accumulated basis
     B = np.zeros((n2, 0), dtype=np.int64)
 
-    # Deterministic seeds: std basis + a few fixed randoms
     seeds = [np.eye(n2, dtype=np.int64)[:, i: i + 1] for i in range(n2)]
     rng = np.random.default_rng(2025)
     seeds += [rng.integers(0, p, size=(n2, 1), dtype=np.int64) for _ in range(min(8, n2))]
 
     s_idx = 0
     while B.shape[1] < n2:
-        # Get or make a seed
         if s_idx < len(seeds):
             v = mod_p(seeds[s_idx], p)
             s_idx += 1
         else:
             v = rng.integers(0, p, size=(n2, 1), dtype=np.int64)
 
-        # If v adds nothing, skip
         if rank_mod(np.concatenate([B, v], axis=1), p) == B.shape[1]:
             continue
 
-        # Compute minimal polynomial on the cyclic subspace of v (ignores B, as it should)
         m_v = minimal_poly_for_vector(F, v, p)
         deg = len(m_v) - 1
 
-        # Build a block basis by walking powers and only keeping independent columns
         block_cols = []
-        C = B.copy()  # local accumulator = current global basis + this block
+        C = B.copy()
         w = v.copy()
-        # We will attempt up to (deg + n2) steps to be robust if some powers land in span(C)
         steps_cap = deg + n2
         steps = 0
         while steps < steps_cap and len(block_cols) < deg:
@@ -303,7 +271,6 @@ def cyclic_decomposition(F: np.ndarray, p: int) -> List[Tuple[np.ndarray, np.nda
                 C = np.concatenate([C, w], axis=1)
             w = mod_p(F @ w, p)
 
-        # If we failed to collect anything (extremely unlikely), skip this seed
         if not block_cols:
             continue
 
@@ -312,9 +279,66 @@ def cyclic_decomposition(F: np.ndarray, p: int) -> List[Tuple[np.ndarray, np.nda
         basis_blocks.append(block)
         polys.append(m_v)
 
-    # Sanity: we spanned all
     assert B.shape[1] == n2, "Cyclic decomposition failed to span the space"
     return list(zip(basis_blocks, polys))
+
+
+# --------------------------
+# Symplectic-aware ±1 floor helpers
+# --------------------------
+
+def is_t_minus_lambda(q: np.ndarray, p: int):
+    """
+    Detect q(t)=t-1 or q(t)=t+1 (monic, low->high).
+    Returns lam=+1 for t-1, lam=-1 for t+1, else None.
+    Over p=2 we only get lam=+1 since +1=-1.
+    """
+    q = poly_monic(q, p)
+    if len(q) != 2:
+        return None
+    a0, a1 = int(q[0] % p), int(q[1] % p)
+    if a1 != 1:
+        return None
+    if a0 == (p - 1) % p:   # t - 1
+        return 1
+    if a0 == 1 % p and p != 2:  # t + 1 (distinct only if p!=2)
+        return -1
+    return None
+
+
+def symplectic_half_floor_pm1(F: np.ndarray, p: int, lam: int, m_lam: int) -> int:
+    """
+    Symplectic-aware half-dimension floor for q=t-lam (lam=+1 or -1).
+
+    Let K_j = ker((F-lam I)^j). The smallest j for which
+    rank(K_j^T Ω K_j) >= 2 gives the earliest appearance of a hyperbolic pair.
+    Any nondegenerate invariant symplectic subspace in this primary must have
+    half-dimension >= j.
+    """
+    n2 = F.shape[0]
+    n = n2 // 2
+    # standard Omega
+    Omega = np.block([
+        [np.zeros((n, n), dtype=np.int64), np.eye(n, dtype=np.int64)],
+        [-np.eye(n, dtype=np.int64), np.zeros((n, n), dtype=np.int64)]
+    ])
+    Omega = mod_p(Omega, p)
+
+    A = mod_p(F - lam * np.eye(n2, dtype=np.int64), p)
+    Aj = np.eye(n2, dtype=np.int64)
+
+    best_j = m_lam
+    for j in range(1, m_lam + 1):
+        Aj = mod_p(Aj @ A, p)          # Aj = (F - lam I)^j
+        Kj = nullspace_mod(Aj, p)      # basis for generalized kernel
+        if Kj.shape[1] < 2:
+            continue
+        Gj = mod_p(Kj.T @ Omega @ Kj, p)
+        if rank_mod(Gj, p) >= 2:       # at least one hyperbolic pair
+            best_j = j
+            break
+
+    return int(best_j)
 
 
 # --------------------------
@@ -324,19 +348,16 @@ def cyclic_decomposition(F: np.ndarray, p: int) -> List[Tuple[np.ndarray, np.nda
 def primary_components_from_cyclic(F: np.ndarray, p: int) -> Dict:
     """
     Build primary components V^(q) for irreducible q(t) and sector grouping.
+    Symplectic-aware half-dimension floors are applied for q=t±1.
     """
     n2 = F.shape[0]
-    cyclic_blocks = cyclic_decomposition(F, p)  # [(B_i, m_i(t))]
-    # collect irreducibles + exponents
-    mult: Dict[Tuple[int, ...], int] = {}   # key is tuple of coeffs
+    cyclic_blocks = cyclic_decomposition(F, p)
+
+    mult: Dict[Tuple[int, ...], int] = {}
     irreducible_polys: Dict[Tuple[int, ...], np.ndarray] = {}
+
     for _, m_i in cyclic_blocks:
-        factors = factor_poly_over_fp(m_i, p)  # list with multiplicities
-        # m_i may include powers; multiplicities handled by repeats above
-        # compute exponent per irreducible = max power over blocks
-        # count multiplicity of each factor within m_i
-        # (we can compute v_q(m_i) by dividing repeatedly)
-        # unique irreducibles for this m_i
+        factors = factor_poly_over_fp(m_i, p)
         uniq = {}
         for q in factors:
             key = tuple(q.tolist())
@@ -346,12 +367,12 @@ def primary_components_from_cyclic(F: np.ndarray, p: int) -> Dict:
         for key, e in uniq.items():
             mult[key] = max(mult.get(key, 0), e)
 
-    # build V^(q) = ker (q(F)^{m_q})
     primaries: Dict[Tuple[int, ...], Dict] = {}
     for key, e_max in mult.items():
         q = irreducible_polys[key]
         Mq = poly_eval_matrix(F, q, p)
-        # power by repeated squaring at matrix level
+
+        # compute q(F)^{e_max}
         P = np.eye(n2, dtype=np.int64)
         base = Mq.copy()
         e = e_max
@@ -360,8 +381,8 @@ def primary_components_from_cyclic(F: np.ndarray, p: int) -> Dict:
                 P = mod_p(P @ base, p)
             base = mod_p(base @ base, p)
             e >>= 1
-        # nullspace over GF(p)
-        Vq = nullspace_mod(P, p)  # n2 x dim
+
+        Vq = nullspace_mod(P, p)
         primaries[key] = {
             "poly": q,
             "deg": len(q) - 1,
@@ -369,7 +390,6 @@ def primary_components_from_cyclic(F: np.ndarray, p: int) -> Dict:
             "V_basis": Vq
         }
 
-    # reciprocal pairing
     keys = list(primaries.keys())
     for key in keys:
         q = primaries[key]["poly"]
@@ -378,47 +398,49 @@ def primary_components_from_cyclic(F: np.ndarray, p: int) -> Dict:
         primaries[key]["reciprocal_key"] = k_star
         primaries[key]["self_reciprocal"] = (k_star == key)
 
-    # sectors
     used = set()
     sectors = []
     for key in primaries.keys():
         if key in used:
             continue
         data = primaries[key]
+
+        # default RCF-scale floor
+        half_floor = data["deg"] * data["exponent"]
+
+        # symplectic refinement for q=t±1
+        lam = is_t_minus_lambda(data["poly"], p)
+        if lam is not None:
+            half_floor = symplectic_half_floor_pm1(F, p, lam, data["exponent"])
+
         if data["self_reciprocal"]:
             W = data["V_basis"]
-            half_floor = data["deg"] * data["exponent"]
             sectors.append({
                 "type": "self",
                 "q_key": key,
                 "W_basis": W,
-                "half_dim_floor": half_floor
+                "half_dim_floor": int(half_floor)
             })
             used.add(key)
         else:
             k_star = data["reciprocal_key"]
             if k_star not in primaries:
-                # If the reciprocal irreducible doesn't occur, the pairing space is just V^(q)
-                # (this can happen if invariant factors contain only q but not q*, but for symplectic F
-                #  the reciprocal partner should appear; still, be robust.)
                 W = data["V_basis"]
-                half_floor = data["deg"] * data["exponent"]
                 sectors.append({
-                    "type": "self",  # fallback
+                    "type": "self",  # fallback robustness
                     "q_key": key,
                     "W_basis": W,
-                    "half_dim_floor": half_floor
+                    "half_dim_floor": int(half_floor)
                 })
                 used.add(key)
             else:
                 W = np.concatenate([data["V_basis"], primaries[k_star]["V_basis"]], axis=1)
-                half_floor = data["deg"] * data["exponent"]
                 sectors.append({
                     "type": "paired",
                     "q_key": key,
                     "qstar_key": k_star,
                     "W_basis": W,
-                    "half_dim_floor": half_floor
+                    "half_dim_floor": int(half_floor)
                 })
                 used.add(key)
                 used.add(k_star)
@@ -431,20 +453,20 @@ def primary_components_from_cyclic(F: np.ndarray, p: int) -> Dict:
         "Lmin_star": int(L_min_star)
     }
 
-# --------------------------
-# Public entry
-# --------------------------
 
+# --------------------------
+# Public API
+# --------------------------
 
 def rcf_prepass(F: np.ndarray, p: int) -> Dict:
     """
     Deterministic structural pre-pass for symplectic F over GF(p).
-    - Computes a cyclic (Frobenius) decomposition via Krylov subspaces.
-    - Factors each block polynomial over GF(p).
-    - Assembles primary components V^(q) = ker (q(F)^{m_q}).
+    - Computes cyclic decomposition via Krylov subspaces.
+    - Factors block polynomials over GF(p).
+    - Assembles primary components V^(q) = ker(q(F)^{m_q}).
     - Pairs reciprocals q and q* into sectors W_q (or self-recognizes q=q*).
-    Returns a structure with per-irreducible metadata, sector bases, and the theoretical
-    half-dimension floor L_min* for the largest block.
+    - Applies symplectic-aware half-dimension floors for q=t±1 primaries.
+    Returns per-irreducible metadata, sector bases, and a half-dimension lower bound Lmin_star.
     """
     assert F.shape[0] == F.shape[1], "F must be square"
     return primary_components_from_cyclic(F, p)

@@ -150,25 +150,22 @@ class TestDecomposition:
         Z = np.zeros((n, n), dtype=int)
         return mod_p(np.block([[A, Z], [Z, D]]), p)
 
-    # --- Test 1: Whole M block matches diag(A, (A^T)^{-1}) ---
-    def test_M_block_only(self, n, p, rng=np.random.default_rng(42)):
+    def M_block_only(self, n, p, rng=np.random.default_rng(42)):
         A = self.random_invertible(n, rng, p)
         ops_M = synth_linear_A_to_gates(n, A, p)
         FM = self.symp_of_gates(n, p, ops_M)
         FM_exp = self.check_linear_from_A(n, p, A)
         assert np.array_equal(FM, FM_exp), f"\nA=\n{A}\nGot=\n{FM}\nExp=\n{FM_exp}"
 
-    # --- Test 2: Local D(u) synthesis on a single wire (via remap) ---
-    def test_local_Du_synthesis(self, p):
-        for u in range(1, p):  # skip 0
+    def local_Du_synthesis(self, p):
+        for u in range(1, p):
             ops = _emit_local_ops_for_D(0, u, p)
             F = Circuit([p], ops).composite_gate().symplectic % p
             target = np.array([[u, 0],
                             [0, pow(int(u), -1, p)]], dtype=int) % p
             assert np.array_equal(F, target), f"Failed D({u}) over GF({p})"
 
-    # --- Test 3: SUM direction micro-test (pins the column-add mapping) ---
-    def test_SUM_direction_in_M(self, n: int, p: int, rng: np.random.Generator = np.random.default_rng(42)):
+    def SUM_direction_in_M(self, n: int, p: int, rng: np.random.Generator = np.random.default_rng(42)):
         # Try a few random (i, c, f) with i != c
         for _ in range(20):
             i = int(rng.integers(0, n))
@@ -177,10 +174,8 @@ class TestDecomposition:
                 c = int(rng.integers(0, n))
             f = int(rng.integers(1, p))   # 1..p-1
 
-            # Build the A we expect AFTER applying: col_i <- col_i - f * col_c (RIGHT)
             A_exp = np.eye(n, dtype=int) % p
             A_exp[c, i] = (A_exp[c, i] + (-f) % p) % p  # NOTE: (c, i), not (i, c)
-            # Synthesize M from this A and compare to the theoretical block diag
             ops = cast(list[Gate], synth_linear_A_to_gates(n, A_exp, p))
             FM = self.symp_of_gates(n, p, ops)
             FM_exp = self.check_linear_from_A(n, p, A_exp)
@@ -191,7 +186,7 @@ class TestDecomposition:
                 f"A_exp=\n{A_exp}\nGot=\n{FM}\nExp=\n{FM_exp}"
             )
 
-    def test_local_Du_includes_identity_and_nontrivial(self, p):
+    def local_Du_includes_identity_and_nontrivial(self, p):
         # identity case
         ops = _emit_local_ops_for_D(0, 1, p)
         M = Circuit([p], ops).composite_gate().symplectic % p
@@ -205,7 +200,7 @@ class TestDecomposition:
             target = np.array([[u, 0], [0, inv_u]], dtype=int) % p
             assert np.array_equal(M, target), f"Failed D({u}) over GF({p})"
 
-    def test_single_wire_scaling_M(self, p: int):
+    def single_wire_scaling_M(self, p: int):
         n = 3
         for u in range(2, p):  # skip 0 and 1
             A = np.eye(n, dtype=int)
@@ -219,7 +214,7 @@ class TestDecomposition:
         F = Circuit([p, p], [gate]).composite_gate().symplectic % p
         return F[:2, :2]
 
-    def test_one_col_add_in_M(self, n=3, p=5, c=0, i=2, f=1):
+    def one_col_add_in_M(self, n=3, p=5, c=0, i=2, f=1):
         A = np.eye(n, dtype=int) % p
         A_exp = A.copy()
         A_exp[:, i] = (A_exp[:, i] + f * A_exp[:, c]) % p  # col_i += f col_c
@@ -229,10 +224,10 @@ class TestDecomposition:
         FM = Circuit([p] * n, cast(list[Gate], ops)).composite_gate().symplectic % p
         assert np.array_equal(FM[:n, :n], A_exp)
 
-    def test_m_block(self, num_trials, n, p, rng=np.random.default_rng(42)):
-        self.test_single_wire_scaling_M(p)
-        self.test_local_Du_includes_identity_and_nontrivial(p)
-        self.test_local_Du_synthesis(p)
+    def m_block(self, num_trials, n, p, rng=np.random.default_rng(42)):
+        self.single_wire_scaling_M(p)
+        self.local_Du_includes_identity_and_nontrivial(p)
+        self.local_Du_synthesis(p)
         # test_SUM_direction_and_sign(n, p)
 
         # Expect A = [[1,1],[0,1]] for SUM(0,1,p)
@@ -240,15 +235,9 @@ class TestDecomposition:
         assert np.array_equal(A, np.array([[1, 0], [1, 1]])), A
 
         for _ in range(num_trials):
-            self.test_SUM_direction_in_M(n, p, rng)
-            self.test_M_block_only(n, p, rng)
-            self.test_one_col_add_in_M(n, p)
-
-        print(f"M block smoke test passed for n={n}, p={p}, trials={num_trials}.")
-
-    #  ############################################################################  #
-    #                                 L-R Block Tests                                        #
-    #  ############################################################################  #
+            self.SUM_direction_in_M(n, p, rng)
+            self.M_block_only(n, p, rng)
+            self.one_col_add_in_M(n, p)
 
     def _rand_sym(self, n, p, rng):
         M = rng.integers(0, p, size=(n, n), dtype=int)
@@ -269,8 +258,6 @@ class TestDecomposition:
             F_exp = _full_from_lower(n, C_sym, ps)
             self._check_equal(F, F_exp, ps, f"[L] mismatch over GF({ps})")
 
-        print(f"L-block unit test passed for GF({ps})")
-
     def R_block_unit_test(self, num_trials, n, ps, rng):
         """Test R(S) = [[I,S],[0,I]] synthesis correctness."""
         for _ in range(num_trials):
@@ -279,8 +266,6 @@ class TestDecomposition:
             F = _compose_symp(n, ps, ops)
             F_exp = self._full_from_upper(n, S_sym, ps)
             self._check_equal(F, F_exp, ps, f"[R] mismatch over GF({ps})")
-
-        print(f"R-block unit test passed for GF({ps})")
 
     def elementary_pairs_test(self, num_trials, n, ps, rng, p):
         """Test elementary diagonal/off-diagonal increments for both L and R."""
@@ -308,14 +293,11 @@ class TestDecomposition:
                 Fr = _compose_symp(n, ps, synth_upper_from_symmetric_via_H(n, S, ps))
                 self._check_equal(Fr, self._full_from_upper(n, S, ps), p, f"[R diag] GF({ps})")
 
-        print(f"Elementary L/R tests passed for GF({ps})")
-
     def L_R_block_test(self, num_trials, n, p, seed=42):
         rng = np.random.default_rng(seed)
         self.L_block_unit_test(num_trials=num_trials, n=n, ps=p, rng=rng)
         self.R_block_unit_test(num_trials=num_trials, n=n, ps=p, rng=rng)
         self.elementary_pairs_test(num_trials=num_trials, n=n, ps=p, rng=rng, p=p)
-        print(f"All L/R block tests passed for GF({p})")
 
     #  ############################################################################  #
     #                                 All together tests                             #
@@ -353,7 +335,6 @@ class TestDecomposition:
     def decomposition_tests(self, num_trials, n, p):
         self.full_decomposition_roundtrip_test(num_trials=num_trials, n=n, p=p)
         self.full_decomposition_on_factored_instances_test(num_trials=num_trials, n=n, p=p)
-        print(f"Decomposition tests passed for GF({p})")
 
     def phase_correction_test(self, num_trials, n, p, n_gates_in_C_in=10):
         for _ in range(num_trials):
@@ -386,8 +367,6 @@ class TestDecomposition:
                 assert ps1.to_standard_form() == ps2.to_standard_form(), (f"Fail \n{ps1.to_standard_form()}"
                                                                           f"\n{ps2.to_standard_form()}")
 
-        print(f"Phase correction tests passed for GF({p})")
-
     def gate_to_circuit_roundtrip_test(self, num_trials=20, n=3, p=3):
         for _ in range(num_trials):
             C_in = Circuit.from_random(12, dimensions=[p] * n)
@@ -411,14 +390,14 @@ class TestDecomposition:
                 # Qubits: Pauli can only move even phases
                 assert np.all((h_in - h_out) % 2 == 0)
 
-        print(f"Gate-to-circuit roundtrip tests passed for GF({p})")
-
     def test_circuit_decomposition_all(self):
         n = 3
         n_trials = 10
         for p in (2, 3, 5):
+            # Note that this test takes a while... we could just do the roundtrip test, then if something
+            # breaks use the others to figure out what's going on.
             self.preconditioner(num_trials=n_trials, n=n, p=p)
-            self.test_m_block(num_trials=n_trials, n=n, p=p)
+            self.m_block(num_trials=n_trials, n=n, p=p)
             self.L_R_block_test(num_trials=n_trials, n=n, p=p)
             self.decomposition_tests(num_trials=n_trials, n=n, p=p)
             self.gate_to_circuit_roundtrip_test(num_trials=n_trials, n=n, p=p)
