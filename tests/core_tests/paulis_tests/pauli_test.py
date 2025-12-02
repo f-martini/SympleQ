@@ -67,9 +67,9 @@ class TestPaulis:
                 input_ps2 = PauliString.from_string(input_str2, dimensions=[dim, dim])
                 output_ps = input_ps1 * input_ps2
 
-                assert output_ps == PauliString.from_string(
+                assert output_ps.has_equal_tableau(PauliString.from_string(
                     output_str_correct, dimensions=[dim, dim]
-                ), 'Error in PauliString multiplication'
+                )), 'Error in PauliString multiplication'
 
     def test_pauli_string_tensor_product(self):
         for dimensions in PRIME_LIST:
@@ -362,7 +362,8 @@ class TestPaulis:
                                       phases=[0, 0, phases_correction, phases_correction],
                                       dimensions=dims)
 
-            assert s1 * s2 == s3, f'Expected s1 * s2 to equal s3, got \n{s1 * s2}\n instead of \n{s3}\n'
+            assert (
+                s1 * s2).has_equal_tableau(s3), f'Expected s1 * s2 to equal s3, got \n{s1 * s2}\n instead of \n{s3}\n'
 
     def test_tensor_product_distributivity(self):
         for _ in range(N_tests):
@@ -397,7 +398,7 @@ class TestPaulis:
             n_qudits = len(dimensions)
 
             # Generate random PauliStrings
-            pauli_strings = []
+            pauli_strings: list[PauliString] = []
             for _ in range(n_paulis):
                 ps = PauliString.from_exponents(
                     x_exp=[random.randint(0, d - 1) for d in dimensions],
@@ -415,7 +416,7 @@ class TestPaulis:
 
             # Test single indexing
             for i in range(n_paulis):
-                assert ps.select_pauli_string(i) == pauli_strings[i], \
+                assert ps.select_pauli_string(i).has_equal_tableau(pauli_strings[i]), \
                     f'Error in PauliSum single indexing at position {i}'
 
             # Test slice indexing
@@ -426,7 +427,7 @@ class TestPaulis:
                     weights=weights[slice_idx],
                     phases=phases[slice_idx]
                 )
-                assert ps[slice_idx] == expected_slice, 'Error in PauliSum slice indexing'
+                assert ps[slice_idx].has_equal_tableau(expected_slice), 'Error in PauliSum slice indexing'
 
             # Test list indexing (select multiple Pauli strings)
             if n_paulis >= 2:
@@ -436,19 +437,19 @@ class TestPaulis:
                     weights=[weights[i] for i in idx_list],
                     phases=[phases[i] for i in idx_list]
                 )
-                assert ps[idx_list] == expected_list, 'Error in PauliSum list indexing'
+                assert ps[idx_list].has_equal_tableau(expected_list), 'Error in PauliSum list indexing'
 
             # Test combined indexing (select Pauli strings and qudits)
             if n_paulis >= 2 and n_qudits >= 1:
                 idx_list = [0, min(n_paulis - 1, random.randint(1, n_paulis - 1))]
                 qudit_idx = random.randint(0, n_qudits - 1)
 
-                expected_combined = PauliSum.from_pauli_strings(
+                expected_combined = PauliSum.from_pauli_objects(
                     [pauli_strings[i][qudit_idx] for i in idx_list],
                     weights=[weights[i] for i in idx_list],
                     phases=[phases[i] for i in idx_list]
                 )
-                assert ps[idx_list, qudit_idx] == expected_combined, \
+                assert ps[idx_list, qudit_idx].has_equal_tableau(expected_combined), \
                     'Error in PauliSum combined indexing (list, single qudit)'
 
             # Test combined indexing with multiple qudits
@@ -465,7 +466,7 @@ class TestPaulis:
                     weights=[weights[i] for i in idx_list],
                     phases=[phases[i] for i in idx_list]
                 )
-                assert ps[idx_list, qudit_list] == expected_multi, \
+                assert ps[idx_list, qudit_list].has_equal_tableau(expected_multi), \
                     'Error in PauliSum combined indexing (list, list)'
 
     def test_pauli_sum_amend(self):
@@ -638,35 +639,35 @@ class TestPaulis:
             dim = random.choices(PRIME_LIST, k=1)
             P1 = PauliString.from_string('x1z0', dimensions=dim)
             P2 = PauliString.from_string(f'x{dim[0] - 1}z0', dimensions=dim)
-            assert P1.H() == P2
+            assert P1.H().has_equal_tableau(P2)
         P1 = PauliString.from_string('x1z1', dimensions=dim)
         P2 = PauliString.from_string(f'x{dim[0] - 1}z{dim[0] - 1}', dimensions=dim)
-        assert P1.H() == P2
+        assert P1.H().has_equal_tableau(P2)
 
         P1 = PauliString.from_string(f'x{dim[0] - 1}z1', dimensions=dim)
         P2 = PauliString.from_string(f'x1z{dim[0] - 1}', dimensions=dim)
-        assert P1.H() == P2
+        assert P1.H().has_equal_tableau(P2)
 
         P1 = PauliString.from_string('x0z0', dimensions=dim)
         P2 = PauliString.from_string('x0z0', dimensions=dim)
-        assert P1.H() == P2
+        assert P1.H().has_equal_tableau(P2)
         assert P1.is_hermitian()
 
         dim = random.choices(PRIME_LIST, k=2)
         P1 = PauliString.from_string('x0z1 x1z1', dimensions=dim)
         P2 = PauliString.from_string(f'x0z{dim[0] - 1} x{dim[1] - 1}z{dim[1] - 1}', dimensions=dim)
-        assert P1.H() == P2
+        assert P1.H().has_equal_tableau(P2)
 
         P1 = PauliString.from_string('x0z1 x1z0', dimensions=dim)
         P2 = PauliString.from_string(f'x0z{dim[0] - 1} x{dim[1] - 1}z0', dimensions=dim)
-        assert P1.H() == P2
+        assert P1.H().has_equal_tableau(P2)
 
         dim = random.choices(PRIME_LIST, k=2)
         while dim[0] == 2:
             dim = random.choices(PRIME_LIST, k=2)
         P1 = PauliString.from_string('x2z1 x0z1', dimensions=dim)
         P2 = PauliString.from_string(f'x{dim[0] - 2}z{dim[0] - 1} x0z{dim[1] - 1}', dimensions=dim)
-        assert P1.H() == P2
+        assert P1.H().has_equal_tableau(P2)
 
     def test_pauli_sum_is_hermitian(self):
         for run in range(int(np.ceil(np.sqrt(N_tests)))):
@@ -935,3 +936,73 @@ class TestPaulis:
         psum1.phase_to_weight()
         psum2 = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0 + 1e-12, 0.5 - 1e-12], phases=[0, 1])
         assert not psum1.is_close(psum2, literal=False)
+
+    def test_pauli_object_invalid_setters(self):
+        p = Pauli.Xnd(1, 2)
+        with pytest.raises(Exception):
+            p.lcm = 2
+        with pytest.raises(Exception):
+            p.dimensions = np.array([2], dtype=int)
+
+        p = PauliString.from_random([2, 3, 5])
+        with pytest.raises(Exception):
+            p.lcm = 12
+        with pytest.raises(Exception):
+            p.dimensions = np.array([2], dtype=int)
+
+        p = PauliSum.from_random(4, [2, 3, 5])
+
+        # Cannot set lcm
+        with pytest.raises(Exception):
+            p.lcm = 24
+
+        # Cannot set dimensions
+        with pytest.raises(Exception):
+            p.dimensions = np.array([2], dtype=int)
+
+        # Dimensions is read-only
+        with pytest.raises(Exception):
+            p.dimensions[0] = 2
+
+        # Invalid phases length
+        with pytest.raises(ValueError):
+            p.phases[:] = np.array([2.4, 1, 0])
+
+        # Cannot convert complex to int
+        with pytest.raises(TypeError):
+            p.phases[0] = 2.4j
+
+        # Invalid weights length
+        with pytest.raises(ValueError):
+            p.weights[:] = np.array([2.4, 1, 0])
+    
+    def test_pauli_object_sum(self):
+        dimension = 4
+        pauli_objects = [
+            Pauli.Xnd(1, dimension),
+            PauliString.from_string('x2z3', dimension),
+            PauliSum.from_random(3, dimensions=dimension)
+        ]
+        P = sum(pauli_objects, start=PauliSum.from_random(1, dimensions=dimension))
+        assert isinstance(P, PauliSum)
+        assert P.shape() == (6, 1)
+
+        with pytest.raises(ValueError):
+            _ = P + PauliString.from_exponents([2, 3], [0, 0], dimensions=dimension)
+
+        ps1 = PauliString.from_exponents([0, 0], [1, 1])
+        ps2 = PauliString.from_exponents([1, 0], [1, 1])
+        P = ps1 + ps2
+        assert P.shape() == (2, 2)
+        assert P.x_exp.tolist() == [[0, 0], [1, 0]]
+
+    def test_pauli_object_sub(self):
+        ps1 = PauliString.from_exponents([0, 0, 1], [1, 1, 1])
+        ps2 = PauliString.from_exponents([1, 0, 0], [1, 1, 0])
+        P = ps1 - ps2
+        assert P.shape() == (2, 3)
+        assert P.x_exp.tolist() == [[0, 0, 1], [1, 0, 0]]
+        assert P.weights.tolist() == [1, -1]
+
+        with pytest.raises(ValueError):
+            _ = P - PauliString.from_exponents([2, 3], [0, 0], dimensions=[4, 5])

@@ -184,32 +184,6 @@ class Pauli(PauliObject):
         return cls.from_exponents(0, 0, dimension)
 
     @property
-    def phases(self) -> np.ndarray:
-        """
-        Returns the phases associated with the Pauli.
-        For a Pauli operator, this is just the trivial phase.
-
-        Returns
-        -------
-        np.ndarray
-            The phases as a 1d-vector.
-        """
-        return np.asarray([0], dtype=int)
-
-    @property
-    def weights(self) -> np.ndarray:
-        """
-        Returns the weights associated with the Pauli.
-        For a Pauli operator, this is just 1.
-
-        Returns
-        -------
-        np.ndarray
-            The weights as a 1d-vector.
-        """
-        return np.asarray([1], dtype=complex)
-
-    @property
     def dimension(self) -> int:
         """
         Returns the dimension of the Pauli as an int.
@@ -232,7 +206,7 @@ class Pauli(PauliObject):
         """
         # FIXME: import at the top. Currently we can't because of circular imports.
         from .pauli_sum import PauliSum
-        return PauliSum(self._tableau, self._dimensions, self._weights, self._phases)
+        return PauliSum(self.tableau, self.dimensions, self.weights, self.phases)
 
     def as_pauli_string(self) -> PauliString:
         """
@@ -245,7 +219,7 @@ class Pauli(PauliObject):
         """
         # FIXME: import at the top. Currently we can't because of circular imports.
         from .pauli_string import PauliString
-        return PauliString(self._tableau, self._dimensions, self._weights, self._phases)
+        return PauliString(self.tableau, self.dimensions, self.weights, self.phases)
 
     def to_hilbert_space(self) -> sp.csr_matrix:
         """
@@ -290,19 +264,6 @@ class Pauli(PauliObject):
         new_tableau = (self.tableau + A.tableau) % self.lcm
 
         return Pauli(new_tableau, dimensions=self.dimensions)
-
-    def __repr__(self) -> str:
-        """
-        Return the string representation of the Pauli.
-        (in a format that is helpful for debugging).
-
-        Returns
-        -------
-        str
-            A string in the format "Pauli(x_exp=..., z_exp=..., dimensions=...)".
-        """
-
-        return f"PauliString(tableau={self.tableau}, dimensions={self.dimensions})"
 
     def __str__(self) -> str:
         """

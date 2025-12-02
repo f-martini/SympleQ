@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import math
-
+from pathlib import Path
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 
@@ -54,6 +54,34 @@ class TestPauliSumFactories:
         ps2 = PauliString.from_exponents([0, 1], [1, 0], [2, 2])
         with pytest.raises(ValueError):
             PauliSum.from_pauli_strings([ps1, ps2])
+
+    def test_from_pauli_strings_invalid_input(self):
+        dimensions = [3, 3]
+        ps1 = PauliSum.from_random(2, dimensions)
+        ps2 = PauliString.from_exponents([0, 1], [1, 0], dimensions)
+        with pytest.raises(ValueError):
+            PauliSum.from_pauli_strings([ps1, ps2])  # type: ignore
+
+    def test_from_pauli_objects(self):
+        ps = PauliSum.from_random(3, 3, rand_phases=True)
+        pauli_objects = [
+            Pauli.Xnd(1, 3),
+            PauliString.from_string('x1z2', dimensions=3),
+            ps
+        ]
+        phases = np.concatenate([np.array([0, 0], dtype=int), ps.phases])
+        P = PauliSum.from_pauli_objects(pauli_objects, inherit_phases=True)
+        assert P.shape() == (5, 1)
+        assert np.array_equal(P.phases, phases)
+
+        ps1 = PauliSum.from_string(['x0z1 x1z2 x4z4', 'x0z0 x2z2 x3z0'], [2, 3, 5], weights=[2, 0.5], phases=[1, 0])
+        ps2 = PauliSum.from_string(['x0z1 x1z1 x0z4', 'x0z0 x2z1 x2z1', 'x1z0 x2z1 x1z1'],
+                                   [2, 3, 5], weights=[2, 3.25, 1j], phases=[0, 11, 2])
+        P = PauliSum.from_pauli_objects([ps1, ps2], inherit_weights=True, inherit_phases=True)
+        P2 = PauliSum.from_string(
+            ['x0z1 x1z2 x4z4', 'x0z0 x2z2 x3z0', 'x0z1 x1z1 x0z4', 'x0z0 x2z1 x2z1', 'x1z0 x2z1 x1z1'],
+            [2, 3, 5], weights=[2, 0.5, 2, 3.25, 1j], phases=[1, 0, 0, 11, 2])
+        assert P == P2
 
     def test_from_string(self):
         ps = PauliString.from_exponents([1, 2], [3, 1], [5, 7])
@@ -125,3 +153,13 @@ class TestPauliSumFactories:
             for xe, ze, d in zip(ps.x_exp, ps.z_exp, dims):
                 assert 0 <= xe < d
                 assert 0 <= ze < d
+
+    def test_pauli_sum_to_and_from_file(self, tmp_path: Path):
+        path = tmp_path / "paulisum.data"
+        dimensions = [2, 3, 5, 7, 11]
+
+        for _ in range(50):
+            P = PauliSum.from_random(10, dimensions)
+            P.to_file(path)
+            P_from_file = PauliSum.from_file(path, dimensions)
+            assert P == P_from_file
