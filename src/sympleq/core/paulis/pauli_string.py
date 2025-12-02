@@ -170,7 +170,7 @@ class PauliString(PauliObject):
         return P
 
     @classmethod
-    def from_random(cls, dimensions: int | list[int] | np.ndarray, seed=None) -> PauliString:
+    def from_random(cls, dimensions: int | list[int] | np.ndarray, seed: int | None = None) -> PauliString:
         """
         Generate a random PauliString instance for a given number of qudits and their dimensions.
 
@@ -197,19 +197,6 @@ class PauliString(PauliObject):
 
         tableau = np.concatenate([np.random.randint(dimensions, dtype=int), np.random.randint(dimensions, dtype=int)])
         return cls(tableau, dimensions)
-
-    def __repr__(self) -> str:
-        """
-        Return the string representation of the PauliString.
-        (in a format that is helpful for debugging).
-
-        Returns
-        -------
-        str
-            A string in the format "PauliString(tableau=..., dimensions=...)".
-        """
-
-        return f"PauliString(tableau={self.tableau}, dimensions={self.dimensions})"
 
     def __str__(self) -> str:
         """
@@ -340,7 +327,26 @@ class PauliString(PauliObject):
                             f" {self.dimensions} and {A.dimensions} must be equal.")
 
         tableau = np.mod(self.tableau + A.tableau, np.tile(self.dimensions, 2))
-        return PauliString(tableau, self.dimensions.copy())
+
+        w1 = self.weights[:, None]
+        w2 = A.weights[None, :]
+        new_weights = (w1 * w2).reshape(-1)
+
+        p1 = self.phases[:, None]
+        p2 = A.phases[None, :]
+
+        # Extract z- and x-parts from tableau
+        n1, n2 = self.n_qudits(), A.n_qudits()
+        a_z = self.tableau[:, n1:]
+        b_x = A.tableau[:, :n2]
+        # Compute acquired phases via symplectic form
+        factors = (self.lcm // self.dimensions)
+        acquired_phases = 2 * factors * a_z  @ b_x.T
+
+        # Combine with existing phases and flatten
+        new_phases = (p1 + p2 + acquired_phases) % (2 * self.lcm)
+        new_phases = new_phases.reshape(-1)
+        return PauliString(tableau, self.dimensions.copy(), weights=new_weights, phases=new_phases)
 
     @property
     def x_exp(self) -> np.ndarray:
@@ -348,7 +354,7 @@ class PauliString(PauliObject):
         x_exp : np.ndarray
         Array of X exponents for each qudit.
         """
-        return self._tableau[0][:self.n_qudits()]
+        return self.tableau[0][:self.n_qudits()]
 
     @property
     def z_exp(self) -> np.ndarray:
@@ -356,31 +362,7 @@ class PauliString(PauliObject):
         z_exp : np.ndarray
         Array of Z exponents for each qudit.
         """
-        return self._tableau[0][self.n_qudits():]
-
-    @property
-    def phases(self) -> np.ndarray:
-        """
-        Returns the phases associated with the PauliString.
-
-        Returns
-        -------
-        np.ndarray
-            The phases as a 1d-vector.
-        """
-        return np.asarray([0], dtype=int)
-
-    @property
-    def weights(self) -> np.ndarray:
-        """
-        Returns the weights associated with the Pauli String.
-
-        Returns
-        -------
-        np.ndarray
-            The weights as a 1d-vector.
-        """
-        return np.asarray([1], dtype=complex)
+        return self.tableau[0][self.n_qudits():]
 
     def as_pauli_sum(self) -> PauliSum:
         """
@@ -391,6 +373,8 @@ class PauliString(PauliObject):
         PauliSum
             The PauliSum containing the PauliString as single entry.
         """
+        # FIXME: import at the top. Currently we can't because of circular imports.
+        from .pauli_sum import PauliSum
         return PauliSum(self.tableau, self.dimensions, self.weights, self.phases)
 
     def n_identities(self) -> int:
@@ -664,7 +648,7 @@ class PauliString(PauliObject):
         if isinstance(key, np.ndarray):
             tableau_mask = np.concatenate([key, key + self.n_qudits()])
             return PauliString(
-                self.tableau[tableau_mask], self.dimensions[key])
+                self.tableau[tableau_mask], self.dimensions[key], self.weights, self.phases)
 
         raise ValueError(f"Cannot get item with key {key}. Key must be aof type int, slice, np.ndarray, or list[int].")
 
@@ -738,7 +722,7 @@ class PauliString(PauliObject):
         """
 
         dimensions = self.dimensions[qudit_indices]
-        tableau = self._tableau[0][qudit_indices]
+        tableau = self.tableau[0][qudit_indices]
 
         return PauliString(tableau, dimensions)
 

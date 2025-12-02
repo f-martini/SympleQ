@@ -1,12 +1,20 @@
 from __future__ import annotations
-from typing import overload, TYPE_CHECKING, Union
+from typing import overload, Sequence, TYPE_CHECKING, Union
 import numpy as np
+import math
 import scipy.sparse as sp
 import galois
+import warnings
+from pathlib import Path
+
+from sympleq.utils import int_to_bases
 from sympleq.core.finite_field_solvers import get_linear_dependencies
+
 from .pauli_object import PauliObject
 from .pauli_string import PauliString
 from .pauli import Pauli
+from .constants import DEFAULT_QUDIT_DIMENSION
+
 
 ScalarType = Union[float, complex, int]
 
@@ -48,7 +56,7 @@ class PauliSum(PauliObject):
         return P
 
     @classmethod
-    def from_pauli(cls, pauli: Pauli) -> 'PauliSum':
+    def from_pauli(cls, pauli: Pauli) -> PauliSum:
         """
         Create a PauliSum instance from a single Pauli.
 
@@ -124,7 +132,8 @@ class PauliSum(PauliObject):
     @classmethod
     def from_pauli_strings(cls, pauli_string: PauliString | list[PauliString],
                            weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
-                           phases: int | list[int] | np.ndarray | None = None,) -> PauliSum:
+                           phases: int | list[int] | np.ndarray | None = None,
+                           inherit_phases: bool = False) -> PauliSum:
         """
         Create a PauliSum instance from a (list of) PauliString object.
 
@@ -143,6 +152,10 @@ class PauliSum(PauliObject):
         elif isinstance(pauli_string, list) and len(pauli_string) == 0:
             raise ValueError("At least one PauliString must be provided.")
 
+        for ps in pauli_string:
+            if not isinstance(ps, PauliString):
+                raise ValueError("One of the input is not a PauliString.")
+
         dimensions = pauli_string[0].dimensions
         if len(pauli_string) > 1:
             for ps in pauli_string[1:]:
@@ -150,7 +163,61 @@ class PauliSum(PauliObject):
                     raise ValueError("The dimensions of all Pauli strings must be equal.")
 
         tableau = np.vstack([p.tableau for p in pauli_string])
+
+        if inherit_phases:
+            if phases is not None:
+                warnings.warn("Phases are disregarded if inherit_phases is set to True.")
+            phases = np.hstack([p.phases for p in pauli_string])
         return cls(tableau, dimensions, weights, phases)
+
+    @classmethod
+    def from_pauli_objects(cls, pauli_objects: PauliObject | Sequence[PauliObject],
+                           weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
+                           phases: int | list[int] | np.ndarray | None = None,
+                           inherit_weights: bool = False,
+                           inherit_phases: bool = False) -> PauliSum:
+        """
+        Create a PauliSum instance from a (list of) PauliObjects.
+
+        Parameters
+        ----------
+        pauli_objects : PauliObject | list[PauliObject]
+            The PauliObject(s) to convert into a PauliSum.
+
+        Returns
+        -------
+        PauliSum
+            A PauliSum instance resulting from concatenating the input PauliObject(s).
+        """
+
+        if isinstance(pauli_objects, PauliObject):
+            pauli_objects = [pauli_objects]
+
+        if len(pauli_objects) == 0:
+            raise ValueError("At least one PauliObject must be provided.")
+
+        dimensions = pauli_objects[0].dimensions
+        if len(pauli_objects) > 1:
+            for ps in pauli_objects[1:]:
+                if not np.array_equal(ps.dimensions, dimensions):
+                    raise ValueError("The dimensions of all PauliObjects must be equal.")
+
+        tableau = np.vstack([p.tableau for p in pauli_objects])
+
+        if inherit_phases:
+            if phases is not None:
+                warnings.warn("Phases are disregarded if inherit_phases is set to True.")
+            phases = np.hstack([p.phases for p in pauli_objects])
+
+        if inherit_weights:
+            if weights is not None:
+                warnings.warn("Weights are disregarded if inherit_weights is set to True.")
+            weights = np.hstack([p.weights for p in pauli_objects])
+
+        P = cls(tableau, dimensions, weights, phases)
+        P._sanity_check()
+
+        return P
 
     @classmethod
     def from_string(cls, pauli_str: str | list[str], dimensions: int | list[int] | np.ndarray,
@@ -182,13 +249,14 @@ class PauliSum(PauliObject):
             pauli_str = [pauli_str]
 
         pauli_strings = [PauliString.from_string(s, dimensions) for s in pauli_str]
-        return cls.from_pauli_strings(pauli_strings, weights, phases)
+        return PauliSum.from_pauli_strings(pauli_strings, weights, phases)
 
     @classmethod
     def from_random(cls,
                     n_paulis: int,
                     dimensions: int | list[int] | np.ndarray,
                     rand_weights: bool = True,
+                    rand_phases: bool = False,
                     seed: int | None = None) -> 'PauliSum':
         """
         Create a random PauliSum object.
@@ -203,57 +271,90 @@ class PauliSum(PauliObject):
             The dimensions of the qudits. The size of dimensions determines the number of qudits.
         rand_weights : bool
             Whether to use random weights for the Pauli operators.
+        rand_phases : bool
+            Whether to use random phases for the Pauli operators.
 
         Returns
         -------
         PauliSum
             A PauliSum object.
         """
-        # TODO: Eliminate n_qudits and set dimensions directly from len(dimensions)
-        # TODO: Ensure no duplicate strings
+
+        # Ensure no duplicate strings
+        if isinstance(dimensions, int):
+            dimensions = [dimensions]
+
+        max_n_paulis = math.prod([int(d)**2 for d in dimensions])
+        if n_paulis > max_n_paulis:
+            raise ValueError(
+                f"Too many Paulis {n_paulis} for dimensions {dimensions} to guarantee unicity\
+                     (max {max_n_paulis}).")
+
         if seed is not None:
             np.random.seed(seed)
+
+        # For large max_n_paulis we accept that we may have repetitions,
+        # especially if n_paulis is large.
+        def from_large_population() -> list[PauliString]:
+            return [PauliString.from_random(dimensions, seed) for _ in range(n_paulis)]
+
+        # For small population we ensure unicity.
+        def from_small_population() -> list[PauliString]:
+            base_dims = [d**2 for d in dimensions]
+            indices = np.random.choice(max_n_paulis, size=n_paulis, replace=False)
+            strings = []
+            for k in indices:
+                # int_to_bases converts the integer index to a mixed-radix digit.
+                # Here however we need two digits (one per exponent), so we need to use the squared dimensions
+                # and then extract the two exponents.
+                pair_digits = int_to_bases(k, base_dims)
+                x_exp = [p // d for p, d in zip(pair_digits, dimensions)]
+                z_exp = [p % d for p, d in zip(pair_digits, dimensions)]
+                ps = PauliString.from_exponents(x_exp, z_exp, dimensions)
+                strings.append(ps)
+            return strings
+
+        max_n_paulis_threshold = 1e6
+        pauli_strings = from_small_population() if max_n_paulis < max_n_paulis_threshold else from_large_population()
+
         weights = 2 * (np.random.rand(n_paulis) - 0.5) if rand_weights else np.ones(n_paulis)
-        string_seeds = np.random.randint(1000000, size=1000)
-        # Ensure no duplicate strings
-        # FIXME: this check is useful, but it fails if the product is too large and does not fit in int64.
-        # if n_paulis > 2 * int(np.prod(dimensions)):
-        #     raise ValueError(
-        #         f"Too many Paulis {n_paulis} for dimensions {dimensions} to guarantee unicity\
-        #              (max {2 * int(np.prod(dimensions))}).")
-        strings = []
-        for i in range(n_paulis):
-            ps = PauliString.from_random(dimensions, seed=string_seeds[i])
-            j = 0
-            while ps in strings:
-                j += 1
-                ps = PauliString.from_random(dimensions, seed=string_seeds[j])
-            strings.append(ps)
 
-        return cls.from_pauli_strings(strings, weights=weights, phases=[0] * n_paulis).to_standard_form()
+        lcm = np.lcm.reduce(dimensions)
+        phases = np.random.randint(0, 2 * int(lcm) - 1, size=n_paulis) if rand_phases else np.zeros(n_paulis)
 
-    @property
-    def phases(self) -> np.ndarray:
-        """
-        Returns the phases associated with the PauliSum.
-        These phases represent the numerator, the denominator is 2 * self.lcm
+        return cls.from_pauli_strings(pauli_strings, weights=weights, phases=phases)
+
+    @classmethod
+    def from_file(cls, path: str | Path,
+                  dimensions: int | list[int] | np.ndarray = DEFAULT_QUDIT_DIMENSION) -> PauliSum:
+        """Reads a PauliSum from file.
+
+        Parameters
+        ----------
+            path: str | Path
+                Path to the Hamiltonian file.
+            dimensions: int | list[int] | np.ndarray
+                Dimension(s) of the qudits, default is DEFAULT_QUDIT_DIMENSION.
 
         Returns
         -------
-        np.ndarray
-            The phases as a 1d-vector.
+        PauliSum
+            The parsed PauliSum.
         """
-        return self._phases
+        with open(path, "r") as f:
+            lines = f.readlines()
 
-    def set_phases(self, new_phases: list[int] | np.ndarray):
-        if isinstance(new_phases, list):
-            new_phases = np.asarray(new_phases, dtype=int)
+        pauli_strings = []
+        weights = []
+        phases = []
 
-        if len(new_phases) != self.n_paulis():
-            raise ValueError(
-                f"New phases ({len(new_phases)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
+        for line in lines:
+            weight, string, phase = line.split("|")
+            pauli_strings.append(PauliString.from_string(string, dimensions))
+            weights.append(complex(weight))
+            phases.append(int(phase))
 
-        self._phases = new_phases
+        return PauliSum.from_pauli_strings(pauli_strings, weights, phases)
 
     def weight_to_phase(self):
         """
@@ -319,28 +420,6 @@ class PauliSum(PauliObject):
         self._phases = new_phases
         self._weights = np.round(new_weights, 10)
 
-    @property
-    def weights(self) -> np.ndarray:
-        """
-        Returns the weights associated with the PauliSum.
-
-        Returns
-        -------
-        np.ndarray
-            The weights as a 1d-vector.
-        """
-        return self._weights
-
-    def set_weights(self, new_weights: list[int] | np.ndarray):
-        if isinstance(new_weights, list):
-            new_weights = np.asarray(new_weights, dtype=int)
-
-        if len(new_weights) != self.n_paulis():
-            raise ValueError(
-                f"New phases ({len(new_weights)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
-
-        self._weights = new_weights
-
     @overload
     def __getitem__(self,
                     key: tuple[int, int]) -> Pauli:
@@ -392,7 +471,7 @@ class PauliSum(PauliObject):
         if isinstance(key, int):
             # Here we don't copy and return a view.
             tableau = self.tableau[key]
-            return PauliString(tableau, self.dimensions)
+            return PauliString(tableau, self.dimensions, self.weights[key], self.phases[key])
 
         if isinstance(key, (list, np.ndarray, slice)):
             return PauliSum(self.tableau[key], self.dimensions, self.weights[key], self.phases[key])
@@ -414,7 +493,7 @@ class PauliSum(PauliObject):
                 if isinstance(qudit_indices, (list, np.ndarray, slice)):
                     sub_tableau = self.tableau[pauli_indices, :][qudit_indices]
                     sub_dims = self.dimensions[qudit_indices]
-                    return PauliString(sub_tableau, sub_dims)
+                    return PauliString(sub_tableau, sub_dims, self.weights[pauli_indices], self.phases[pauli_indices])
 
             return self.get_subspace(qudit_indices, pauli_indices)
 
@@ -470,169 +549,6 @@ class PauliSum(PauliObject):
             # TODO: if the previous line works, just remove this commented line and the function overrides
             # self._setitem_tuple(key, value)
 
-    def __add__(self, A: PauliObject) -> PauliSum:
-        """
-        Implements the addition of PauliSum objects.
-
-        Parameters
-        ----------
-        A : PauliObject
-            The Pauli operator to add.
-
-        Returns
-        -------
-        PauliSum
-            A new PauliSum instance representing the sum of `self` and `A`.
-
-        Examples
-        --------
-        >>> p1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
-        >>> p2 = PauliSum.from_pauli_strings("x2z1 x1z1", [3, 2])
-        >>> p1 + p2
-        PauliSum(...)
-
-        Raises
-        ------
-        ValueError
-            If the dimensions of `self` and `A` do not match.
-
-        Notes
-        -----
-        - Dimensions must agree!
-        """
-
-        if not np.array_equal(self.dimensions, A.dimensions):
-            raise ValueError(f"The dimensions of the PauliSums do not match ({self.dimensions}, {A.dimensions}).")
-
-        if isinstance(A, Pauli):
-            A = PauliSum(A.tableau, A.dimensions)
-        elif isinstance(A, PauliString):
-            A = PauliSum(A.tableau, A.dimensions)
-        elif isinstance(A, PauliSum):
-            pass
-        else:
-            raise ValueError(f"Cannot add Pauli with type {type(A)}")
-
-        new_tableau = np.vstack([self.tableau, A.tableau])
-        new_weights = np.concatenate([self.weights, A.weights])
-        new_phases = np.concatenate([self.phases, A.phases])
-        return PauliSum(new_tableau, self.dimensions, new_weights, new_phases)
-
-    def __radd__(self, A: PauliObject) -> 'PauliSum':
-        """
-        Implements the addition of PauliSum objects.
-
-        Parameters
-        ----------
-        A : PauliObject
-            The Pauli operator to add.
-
-        Returns
-        -------
-        PauliSum
-            A new PauliSum instance representing the sum of `self` and `A`.
-
-        Examples
-        --------
-        >>> p1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
-        >>> p2 = PauliSum.from_pauli_strings("x2z1 x1z1", [3, 2])
-        >>> p1 + p2
-        PauliSum(...)
-
-        Raises
-        ------
-        ValueError
-            If the dimensions of `self` and `A` do not match.
-
-        Notes
-        -----
-        - Dimensions must agree!
-        """
-
-        return self + A
-
-    def __sub__(self,
-                A: PauliSum) -> PauliSum:
-        """
-        Implements the subtraction of PauliSum objects.
-
-        Parameters
-        ----------
-        A : PauliObject
-            The Pauli operator to subtract.
-
-        Returns
-        -------
-        PauliSum
-            A new PauliSum instance representing the difference of `self` and `A`.
-
-        Examples
-        --------
-        >>> p1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
-        >>> p2 = PauliSum.from_pauli_strings("x2z1 x1z1", [3, 2])
-        >>> p1 - p2
-        PauliSum(...)
-
-        Raises
-        ------
-        ValueError
-            If the dimensions of `self` and `A` do not match.
-
-        Notes
-        -----
-        - Dimensions must agree!
-        """
-
-        if not np.array_equal(self.dimensions, A.dimensions):
-            raise ValueError(f"The dimensions of the PauliSums do not match ({self.dimensions}, {A.dimensions}).")
-
-        if isinstance(A, Pauli):
-            A = PauliSum(A.tableau, A.dimensions)
-        elif isinstance(A, PauliString):
-            A = PauliSum(A.tableau, A.dimensions)
-        elif isinstance(A, PauliSum):
-            pass
-        else:
-            raise ValueError(f"Cannot add Pauli with type {type(A)}")
-
-        new_tableau = np.vstack([self.tableau, A.tableau])
-        new_weights = np.concatenate([self.weights, -np.array(A.weights)])
-        new_phases = np.concatenate([self.phases, A.phases])
-        return PauliSum(new_tableau, self.dimensions, new_weights, new_phases)
-
-    def __rsub__(self, A: PauliSum) -> PauliSum:
-        """
-        Implements the subtraction of PauliSum objects.
-
-        Parameters
-        ----------
-        A : PauliObject
-            The Pauli operator to subtract.
-
-        Returns
-        -------
-        PauliSum
-            A new PauliSum instance representing the difference of `self` and `A`.
-
-        Examples
-        --------
-        >>> p1 = PauliSum.from_pauli_strings("x1z0 x0z1", [3, 2])
-        >>> p2 = PauliSum.from_pauli_strings("x2z1 x1z1", [3, 2])
-        >>> p1 - p2
-        PauliSum(...)
-
-        Raises
-        ------
-        ValueError
-            If the dimensions of `self` and `A` do not match.
-
-        Notes
-        -----
-        - Dimensions must agree!
-        """
-
-        return self - A
-
     def __mul__(self, A: PauliOrScalarType) -> PauliSum:
         """
         Multiply a PauliSum and a PauliObject or scalar objects element-wise.
@@ -666,10 +582,10 @@ class PauliSum(PauliObject):
             return PauliSum(self.tableau, self.dimensions, self.weights * A, self.phases)
 
         if isinstance(A, Pauli):
-            return self * PauliSum.from_pauli(A)
+            return self * A.as_pauli_sum()
 
         if isinstance(A, PauliString):
-            return self * PauliSum.from_pauli_strings(A)
+            return self * A.as_pauli_sum()
 
         if not isinstance(A, PauliSum):
             raise ValueError("Multiplication only supported with Pauli, PauliSum, PauliString, or scalar")
@@ -851,14 +767,16 @@ class PauliSum(PauliObject):
             for j in range(i + 1, self.n_paulis()):
                 ps2 = self.select_pauli_string(j)
                 if ps1 == ps2:
-                    self._weights[i] = self._weights[i] + self._weights[j]
+                    # FIXME: can overflow for very large n_paulis.
+                    #        One solution could be to normalize it by dividing by the smallest weight.
+                    self._weights[i] = self.weights[i] + self.weights[j]
                     to_delete.append(j)
         self._delete_paulis(to_delete)
 
         # remove zero weight Paulis
         to_delete = []
         for i in range(self.n_paulis()):
-            if self._weights[i] == 0:
+            if self.weights[i] == 0:
                 to_delete.append(i)
         self._delete_paulis(to_delete)
 
@@ -977,7 +895,7 @@ class PauliSum(PauliObject):
         """
         # NOTE: We pass a view to the tableau row and the dimensions,
         #       meaning that they could be modified from the PauliString.
-        return PauliString(self.tableau[index], self.dimensions)
+        return PauliString(self.tableau[index], self.dimensions, self.weights[index], self.phases[index])
 
     def select_pauli(self, index: tuple[int, int]) -> Pauli:
         """
@@ -997,6 +915,19 @@ class PauliSum(PauliObject):
         #       meaning that they could be modified from the PauliString.
         return Pauli(self.tableau[index], self.dimensions)
 
+    def to_file(self, path: str | Path) -> None:
+        """
+        Writes the PauliSum to a file using its internal representation.
+
+        Parameters
+        ----------
+        path : str | Path
+            Path to the output file.
+        """
+
+        with open(path, "w") as f:
+            f.write(str(self))
+
     def _delete_paulis(self, pauli_indices: int | list[int] | np.ndarray):
         """
         Deletes PauliStrings from the PauliSum.
@@ -1009,9 +940,9 @@ class PauliSum(PauliObject):
         if isinstance(pauli_indices, int):
             pauli_indices = [pauli_indices]
 
-        self._weights = np.delete(self._weights, pauli_indices)
-        self._phases = np.delete(self._phases, pauli_indices)
-        self._tableau = np.delete(self._tableau, pauli_indices, axis=0)
+        self._weights = np.delete(self.weights, pauli_indices)
+        self._phases = np.delete(self.phases, pauli_indices)
+        self._tableau = np.delete(self.tableau, pauli_indices, axis=0)
 
     def _delete_qudits(self, qudit_indices: list[int] | int):
         """
@@ -1029,11 +960,11 @@ class PauliSum(PauliObject):
         mask[qudit_indices] = False
 
         # Note: we first delete the rightmost indices, so they are not shifted.
-        self._tableau = np.delete(self._tableau, [idx + self.n_qudits() for idx in qudit_indices], axis=1)
-        self._tableau = np.delete(self._tableau, qudit_indices, axis=1)
+        self._tableau = np.delete(self.tableau, [idx + self.n_qudits() for idx in qudit_indices], axis=1)
+        self._tableau = np.delete(self.tableau, qudit_indices, axis=1)
 
-        self._dimensions = self._dimensions[mask]
-        self._lcm = int(np.lcm.reduce(self._dimensions))
+        self._dimensions = self.dimensions[mask]
+        self._lcm = int(np.lcm.reduce(self.dimensions))
 
     def symplectic_product_matrix(self) -> np.ndarray:
         """
@@ -1122,17 +1053,6 @@ class PauliSum(PauliObject):
             p_string += f'{self.weights[i]}' + ' ' * n_spaces + '|' + qudit_string + f'| {self.phases[i]} \n'
         return p_string
 
-    def __repr__(self) -> str:
-        """
-        Returns an unambiguous string representation of the PauliSum.
-
-        Returns
-        -------
-        str
-            A string representation of the PauliSum with tableau, dimensions, weights, and phases.
-        """
-        return f'PauliSum({self.tableau}, {self.dimensions}, {self.weights}, {self.phases})'
-
     def get_subspace(self,
                      qudit_indices: int | list[int] | np.ndarray,
                      pauli_indices: int | list[int] | np.ndarray | None = None):
@@ -1191,9 +1111,8 @@ class PauliSum(PauliObject):
         scipy.sparse.csr_matrix
             Matrix representation of input Pauli.
         """
-        # TODO: If pauli_string_index is selected it maybe should account for the weights and phases
         if pauli_string_index is not None:
-            ps = PauliSum(self.tableau[pauli_string_index], self.dimensions, self.weights, self.phases)
+            ps = self.select_pauli_string(pauli_string_index)
             return ps.to_hilbert_space()
 
         list_of_pauli_matrices = []
@@ -1275,12 +1194,12 @@ class PauliSum(PauliObject):
 
         self._weights = np.array([self.weights[i] for i in order])
         self._phases = np.array([self.phases[i] for i in order])
-        self._tableau = np.array([self._tableau[i] for i in order])
+        self._tableau = np.array([self.tableau[i] for i in order])
 
     def swap_paulis(self, index_1: int, index_2: int):
         self._weights[index_1], self._weights[index_2] = self.weights[index_2], self.weights[index_1]
         self._phases[index_1], self._phases[index_2] = self.phases[index_2], self.phases[index_1]
-        self._tableau[index_1], self._tableau[index_2] = self._tableau[index_2], self._tableau[index_1]
+        self._tableau[index_1], self._tableau[index_2] = self.tableau[index_2], self.tableau[index_1]
 
     # def hermitian_conjugate(self):
     #     conjugate_weights = np.conj(self.weights)
