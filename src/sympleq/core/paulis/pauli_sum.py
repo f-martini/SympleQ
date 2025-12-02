@@ -162,12 +162,12 @@ class PauliSum(PauliObject):
                 if not np.array_equal(ps.dimensions, dimensions):
                     raise ValueError("The dimensions of all Pauli strings must be equal.")
 
-        tableau = np.vstack([p._tableau for p in pauli_string])
+        tableau = np.vstack([p.tableau for p in pauli_string])
 
         if inherit_phases:
             if phases is not None:
                 warnings.warn("Phases are disregarded if inherit_phases is set to True.")
-            phases = np.hstack([p._phases for p in pauli_string])
+            phases = np.hstack([p.phases for p in pauli_string])
         return cls(tableau, dimensions, weights, phases)
 
     @classmethod
@@ -356,29 +356,6 @@ class PauliSum(PauliObject):
 
         return PauliSum.from_pauli_strings(pauli_strings, weights, phases)
 
-    @property
-    def phases(self) -> np.ndarray:
-        """
-        Returns the phases associated with the PauliSum.
-        These phases represent the numerator, the denominator is 2 * self.lcm
-
-        Returns
-        -------
-        np.ndarray
-            The phases as a 1d-vector.
-        """
-        return self._phases
-
-    def set_phases(self, new_phases: list[int] | np.ndarray):
-        if isinstance(new_phases, list):
-            new_phases = np.asarray(new_phases, dtype=int)
-
-        if len(new_phases) != self.n_paulis():
-            raise ValueError(
-                f"New phases ({len(new_phases)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
-
-        self._phases = new_phases
-
     def weight_to_phase(self):
         """
         Extract per-term phases from complex weights onto the integer phase vector.
@@ -442,28 +419,6 @@ class PauliSum(PauliObject):
         # commit
         self._phases = new_phases
         self._weights = np.round(new_weights, 10)
-
-    @property
-    def weights(self) -> np.ndarray:
-        """
-        Returns the weights associated with the PauliSum.
-
-        Returns
-        -------
-        np.ndarray
-            The weights as a 1d-vector.
-        """
-        return self._weights
-
-    def set_weights(self, new_weights: list[int] | np.ndarray):
-        if isinstance(new_weights, list):
-            new_weights = np.asarray(new_weights, dtype=int)
-
-        if len(new_weights) != self.n_paulis():
-            raise ValueError(
-                f"New phases ({len(new_weights)}) length must equal the number of Pauli strings ({self.n_paulis()}.")
-
-        self._weights = new_weights
 
     @overload
     def __getitem__(self,
@@ -624,7 +579,7 @@ class PauliSum(PauliObject):
         """
 
         if isinstance(A, ScalarType):
-            return PauliSum(self._tableau, self._dimensions, self._weights * A, self._phases)
+            return PauliSum(self.tableau, self.dimensions, self.weights * A, self.phases)
 
         if isinstance(A, Pauli):
             return self * A.as_pauli_sum()
@@ -814,14 +769,14 @@ class PauliSum(PauliObject):
                 if ps1 == ps2:
                     # FIXME: can overflow for very large n_paulis.
                     #        One solution could be to normalize it by dividing by the smallest weight.
-                    self._weights[i] = self._weights[i] + self._weights[j]
+                    self._weights[i] = self.weights[i] + self.weights[j]
                     to_delete.append(j)
         self._delete_paulis(to_delete)
 
         # remove zero weight Paulis
         to_delete = []
         for i in range(self.n_paulis()):
-            if self._weights[i] == 0:
+            if self.weights[i] == 0:
                 to_delete.append(i)
         self._delete_paulis(to_delete)
 
@@ -985,9 +940,9 @@ class PauliSum(PauliObject):
         if isinstance(pauli_indices, int):
             pauli_indices = [pauli_indices]
 
-        self._weights = np.delete(self._weights, pauli_indices)
-        self._phases = np.delete(self._phases, pauli_indices)
-        self._tableau = np.delete(self._tableau, pauli_indices, axis=0)
+        self._weights = np.delete(self.weights, pauli_indices)
+        self._phases = np.delete(self.phases, pauli_indices)
+        self._tableau = np.delete(self.tableau, pauli_indices, axis=0)
 
     def _delete_qudits(self, qudit_indices: list[int] | int):
         """
@@ -1005,11 +960,11 @@ class PauliSum(PauliObject):
         mask[qudit_indices] = False
 
         # Note: we first delete the rightmost indices, so they are not shifted.
-        self._tableau = np.delete(self._tableau, [idx + self.n_qudits() for idx in qudit_indices], axis=1)
-        self._tableau = np.delete(self._tableau, qudit_indices, axis=1)
+        self._tableau = np.delete(self.tableau, [idx + self.n_qudits() for idx in qudit_indices], axis=1)
+        self._tableau = np.delete(self.tableau, qudit_indices, axis=1)
 
-        self._dimensions = self._dimensions[mask]
-        self._lcm = int(np.lcm.reduce(self._dimensions))
+        self._dimensions = self.dimensions[mask]
+        self._lcm = int(np.lcm.reduce(self.dimensions))
 
     def symplectic_product_matrix(self) -> np.ndarray:
         """
@@ -1097,17 +1052,6 @@ class PauliSum(PauliObject):
             n_spaces = max_str_len - len(f'{self.weights[i]}')
             p_string += f'{self.weights[i]}' + ' ' * n_spaces + '|' + qudit_string + f'| {self.phases[i]} \n'
         return p_string
-
-    def __repr__(self) -> str:
-        """
-        Returns an unambiguous string representation of the PauliSum.
-
-        Returns
-        -------
-        str
-            A string representation of the PauliSum with tableau, dimensions, weights, and phases.
-        """
-        return f'PauliSum({self.tableau}, {self.dimensions}, {self.weights}, {self.phases})'
 
     def get_subspace(self,
                      qudit_indices: int | list[int] | np.ndarray,
@@ -1250,12 +1194,12 @@ class PauliSum(PauliObject):
 
         self._weights = np.array([self.weights[i] for i in order])
         self._phases = np.array([self.phases[i] for i in order])
-        self._tableau = np.array([self._tableau[i] for i in order])
+        self._tableau = np.array([self.tableau[i] for i in order])
 
     def swap_paulis(self, index_1: int, index_2: int):
         self._weights[index_1], self._weights[index_2] = self.weights[index_2], self.weights[index_1]
         self._phases[index_1], self._phases[index_2] = self.phases[index_2], self.phases[index_1]
-        self._tableau[index_1], self._tableau[index_2] = self._tableau[index_2], self._tableau[index_1]
+        self._tableau[index_1], self._tableau[index_2] = self.tableau[index_2], self.tableau[index_1]
 
     # def hermitian_conjugate(self):
     #     conjugate_weights = np.conj(self.weights)
