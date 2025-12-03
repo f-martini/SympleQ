@@ -975,7 +975,7 @@ class TestPaulis:
         # Invalid weights length
         with pytest.raises(ValueError):
             p.weights[:] = np.array([2.4, 1, 0])
-    
+
     def test_pauli_object_sum(self):
         dimension = 4
         pauli_objects = [
@@ -1006,3 +1006,69 @@ class TestPaulis:
 
         with pytest.raises(ValueError):
             _ = P - PauliString.from_exponents([2, 3], [0, 0], dimensions=[4, 5])
+
+    def test_pauli_ordering(self):
+        p1 = Pauli.from_string("x0z1")
+        p2 = Pauli.from_string("x1z0")
+        assert p1 > p2
+
+        ps1 = PauliString.from_string("x1z0 x0z1")
+        ps2 = PauliString.from_string("x0z1 x1z0")
+        assert ps1 < ps2
+
+        psum1 = PauliSum.from_string(["x1z0 x0z1"])
+        psum2 = PauliSum.from_string(["x0z1 x1z0"])
+        assert psum1 < psum2
+
+        psum1 = PauliSum.from_string(["x1z2 x2z1", "x0z0 x1z2"], [2, 3])
+        psum2 = PauliSum.from_string(["x1z0 x0z1", "x1z0 x1z2"], [2, 3])
+        with pytest.raises(Exception):
+            assert psum1 < psum2
+        with pytest.raises(Exception):
+            assert psum1 > psum2
+
+    def test_pauli_phase_setters(self):
+        p1 = Pauli.from_string("x0z1")
+        p2 = Pauli.from_string("x0z1")
+        p3 = Pauli.from_string("x0z1")
+        p4 = Pauli.from_string("x0z1")
+
+        p1.phases[0] = 1.9
+        p2.set_phases([1])
+        p4.phases = [1]
+        assert p1 == p2
+        assert p1 == p4
+
+        p1.reset_phases()
+        assert p1 == p3
+        assert p2 != p3
+
+        ps1 = PauliString.from_string("x1z0 x0z1")
+        ps2 = PauliString.from_string("x1z0 x0z1")
+        ps3 = PauliString.from_string("x1z0 x0z1")
+        ps4 = PauliString.from_string("x1z0 x0z1")
+
+        ps1.phases[0] = 3
+        ps2.set_phases([3])
+        ps4.phases = np.asarray([3.4])
+        assert ps1 == ps2
+        assert ps1 == ps4
+
+        ps1.reset_phases()
+        assert ps1 == ps3
+        assert ps2 != ps3
+
+        psum1 = PauliSum.from_string(["x1z2 x2z1", "x0z0 x1z2"], [2, 3])
+        psum2 = PauliSum.from_string(["x1z2 x2z1", "x0z0 x1z2"], [2, 3])
+        psum3 = PauliSum.from_string(["x1z2 x2z1", "x0z0 x1z2"], [2, 3])
+        psum4 = PauliSum.from_string(["x1z2 x2z1", "x0z0 x1z2"], [2, 3])
+
+        psum1.phases[0:2] = (1, 4)
+        psum2.set_phases([1, 4])
+        psum4.phases = np.asarray([1.9, 4.15])
+        assert psum1 == psum2
+        assert psum1 == psum4
+
+        psum1.reset_phases()
+        assert psum1 == psum3
+        assert psum2 != psum3
