@@ -1015,6 +1015,8 @@ class TestPaulis:
         ps1 = PauliString.from_string("x1z0 x0z1")
         ps2 = PauliString.from_string("x0z1 x1z0")
         assert ps1 < ps2
+        ps3 = ps2.copy()
+        assert not ps3 > ps2 and not ps3 < ps2
 
         psum1 = PauliSum.from_string(["x1z0 x0z1"])
         psum2 = PauliSum.from_string(["x0z1 x1z0"])
@@ -1026,6 +1028,12 @@ class TestPaulis:
             assert psum1 < psum2
         with pytest.raises(Exception):
             assert psum1 > psum2
+
+    def test_pauli_ordering_dimensional_mismatch(self):
+        ps1 = PauliString.from_string("x1z0 x0z1")
+        ps2 = PauliString.from_string("x0z1 x1z0", dimensions=[2, 3])
+        with pytest.raises(Exception):
+            assert ps1 < ps2
 
     def test_pauli_phase_setters(self):
         p1 = Pauli.from_string("x0z1")
