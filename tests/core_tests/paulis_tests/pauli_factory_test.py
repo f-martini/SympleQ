@@ -194,7 +194,7 @@ class TestPauliSumFactories:
 
         with pytest.raises(ValueError):
             tableau = np.asarray([[0, 0, 1, 1], [1, 1, 0, 1]], dtype=int)
-            _ = Pauli.from_tableau(tableau)
+            _ = PauliString.from_tableau(tableau)
 
         tableau = [0, 0, 1, 1]
         _ = PauliString.from_tableau(tableau)
@@ -207,3 +207,76 @@ class TestPauliSumFactories:
         ps3 = PauliString.from_random([2, 3, 5])
         ps4 = PauliString.from_random([2, 3, 5], 12345)
         assert ps3.shape() == ps4.shape()
+
+    def test_pauli_from_exponents(self):
+        p1 = Pauli.from_exponents(1, 2, 3)
+        p2 = Pauli.from_exponents(1, 1)
+        p3 = Pauli.from_exponents(2)
+        p4 = Pauli.from_exponents()
+
+        assert p1.shape() == p2.shape()
+        assert p1.shape() == p3.shape()
+        assert p1.shape() == p4.shape()
+
+    def test_pauli_from_tableau(self):
+        tableau = np.asarray([0, 1], dtype=int)
+        _ = Pauli.from_tableau(tableau)
+
+        tableau = np.asarray([[0, 1]], dtype=int)
+        _ = Pauli.from_tableau(tableau)
+
+        with pytest.raises(ValueError):
+            tableau = np.asarray([[[0, 1]]], dtype=int)
+            _ = Pauli.from_tableau(tableau)
+
+        with pytest.raises(ValueError):
+            tableau = np.asarray([0, 0, 1, 1], dtype=int)
+            _ = Pauli.from_tableau(tableau)
+
+        with pytest.raises(ValueError):
+            tableau = np.asarray([[0], [1]], dtype=int)
+            _ = Pauli.from_tableau(tableau)
+
+        with pytest.raises(ValueError):
+            tableau = np.asarray([[0, 1], [0, 0]], dtype=int)
+            _ = Pauli.from_tableau(tableau)
+
+    def test_pauli_str(self):
+        tableau = [0, 1]
+        p = Pauli.from_tableau(tableau)
+        assert f"{p}" == "x0z1"
+
+        tableau = [11, 31]
+        p = Pauli.from_tableau(tableau, 37)
+        assert f"{p}" == "x11z31"
+
+    def test_pauli_conversions(self):
+        p = Pauli.from_string("x1z5", 7)
+        ps = PauliString.from_string("x1z5", 7)
+        assert p.has_equal_tableau(ps)
+        assert p.as_pauli_string() == ps
+
+        psum = PauliSum.from_string("x1z5", 7)
+        assert p.has_equal_tableau(psum)
+        assert p.as_pauli_sum() == psum
+
+    def test_pauli_multiplication(self):
+        p = Pauli.from_string("x1z5", 7)
+        assert p * "x0z0" == p
+        assert p * "x0z1" == Pauli.from_string("x1z6", 7)
+
+        with pytest.raises(Exception):
+            tableau = np.asarray([[0, 1, 0, 0]], dtype=int)
+            ps = PauliString.from_tableau(tableau)
+            _ = p * ps  # type: ignore
+
+        with pytest.raises(ValueError):
+            p2 = Pauli.from_string("x1z0", 5)
+            _ = p * p2
+
+    def test_pauli_to_hilbert_space(self):
+        p = Pauli.from_string("x1z0")
+        assert np.array_equal(p.to_hilbert_space().toarray(), np.asarray([[0, 1], [1, 0]], dtype=int))
+
+        p = Pauli.from_string("x1z0", 3)
+        assert np.array_equal(p.to_hilbert_space().toarray(), np.asarray([[0, 0, 1], [1, 0, 0], [0, 1, 0]], dtype=int))
