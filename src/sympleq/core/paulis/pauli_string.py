@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 class PauliString(PauliObject):
     @classmethod
-    def from_exponents(cls, x_exp: list[int] | np.ndarray | str | int, z_exp: list[int] | np.ndarray | int,
+    def from_exponents(cls, x_exp: list[int] | np.ndarray | int, z_exp: list[int] | np.ndarray | int,
                        dimensions: list[int] | np.ndarray | int | None = None) -> PauliString:
         """
         Create a PauliString instance from X and Z exponents.
@@ -24,7 +24,6 @@ class PauliString(PauliObject):
         ----------
         x_exp : list[int] | np.ndarray | str | int
             The X exponents used to create the PauliString tableau.
-            If no Z exponents are given, the X exponents can be also given as a parseable string.
             If an integer is provided, it is assumed the PauliString contains a single Pauli.
         z_exp: list[int] | np.ndarray | int
             The Z exponents used to create the PauliString tableau.
@@ -44,13 +43,7 @@ class PauliString(PauliObject):
         ValueError
             If x_exp, z_exp, and dimensions don't have the same length.
         """
-        if isinstance(x_exp, str):
-            if z_exp is not None:
-                raise Warning('If input string is provided, z_exp is unnecessary')
-            xz_exponents = re.split('x|z', x_exp)[1:]
-            z_exp = np.array(xz_exponents[1::2], dtype=int)
-            x_exp = np.array(xz_exponents[0::2], dtype=int)
-        elif isinstance(x_exp, list):
+        if isinstance(x_exp, list):
             x_exp = np.array(x_exp)
         elif isinstance(x_exp, int):
             x_exp = np.array([x_exp], dtype=int)
