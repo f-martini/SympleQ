@@ -527,17 +527,17 @@ class PauliObject(ABC):
 
         Examples
         --------
-        >>> ps1 = PauliString.from_string("x1z0 x0z1", [2, 2])
-        >>> ps2 = PauliString.from_string("x0z1 x1z0", [2, 2])
+        >>> ps1 = PauliString.from_string("x0z1 x1z0", [2, 2])
+        >>> ps2 = PauliString.from_string("x1z0 x0z1", [2, 2])
         >>> ps1 > ps2
         True
         """
 
         if self.n_paulis() > 1:
-            raise Exception("A Pauli object with more than one PauliString cannot be ordered.")
+            raise Exception("A Pauli object with more than one Pauli objects cannot be ordered.")
 
-        if np.array_equal(self.dimensions, other_pauli.dimensions):
-            raise Exception("Cannot compare PauliStrings with different dimensions.")
+        if not np.array_equal(self.dimensions, other_pauli.dimensions):
+            raise Exception("Cannot compare Pauli objects with different dimensions.")
 
         # Flatten tableaus to 1D-vectors
         self_tableau = self.tableau.ravel()
