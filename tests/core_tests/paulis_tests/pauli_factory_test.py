@@ -35,9 +35,10 @@ class TestPauliSumFactories:
 
     def test_from_pauli_strings_single(self):
         ps = PauliString.from_exponents([0, 1], [1, 0], [3, 2])
-        P = PauliSum.from_pauli_strings(ps, weights=2.0, phases=[1])
+        assert ps.shape() == (1, 2)
 
-        assert P.tableau.shape[0] == 1
+        P = PauliSum.from_pauli_strings(ps, weights=2.0, phases=[1])
+        assert P.tableau.shape == (1, 4)
         assert P.weights[0] == 2.0
         assert P.phases[0] == 1
 
@@ -163,3 +164,46 @@ class TestPauliSumFactories:
             P.to_file(path)
             P_from_file = PauliSum.from_file(path, dimensions)
             assert P == P_from_file
+
+    def test_pauli_string_from_int(self):
+        ps = PauliString.from_exponents(2, 1, 3)
+        assert ps.shape() == (1, 1)
+
+        P = PauliSum.from_pauli_strings(ps, weights=2.0, phases=[1])
+        assert P.tableau.shape == (1, 2)
+        assert P.weights[0] == 2.0
+        assert P.phases[0] == 1
+
+    def test_pauli_string_from_int_mismatch(self):
+        with pytest.raises(ValueError):
+            _ = PauliString.from_exponents(2, 1, [3, 2])
+
+        with pytest.raises(ValueError):
+            _ = PauliString.from_exponents(2, [1, 2], 3)
+
+    def test_pauli_string_from_tableau(self):
+        tableau = np.asarray([0, 0, 1, 1], dtype=int)
+        _ = PauliString.from_tableau(tableau)
+
+        tableau = np.asarray([[0, 0, 1, 1]], dtype=int)
+        _ = PauliString.from_tableau(tableau)
+
+        with pytest.raises(ValueError):
+            tableau = np.asarray([[[0, 0, 1, 1]]], dtype=int)
+            _ = PauliString.from_tableau(tableau)
+
+        with pytest.raises(ValueError):
+            tableau = np.asarray([[0, 0, 1, 1], [1, 1, 0, 1]], dtype=int)
+            _ = Pauli.from_tableau(tableau)
+
+        tableau = [0, 0, 1, 1]
+        _ = PauliString.from_tableau(tableau)
+
+    def test_pauli_string_from_random(self):
+        ps1 = PauliString.from_random(3)
+        ps2 = PauliString.from_random(3, 42)
+        assert ps1.shape() == ps2.shape()
+
+        ps3 = PauliString.from_random([2, 3, 5])
+        ps4 = PauliString.from_random([2, 3, 5], 12345)
+        assert ps3.shape() == ps4.shape()

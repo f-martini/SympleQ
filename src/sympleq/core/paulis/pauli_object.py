@@ -60,6 +60,9 @@ class PauliObject(ABC):
         if tableau.ndim == 1:
             tableau = tableau.reshape(1, -1)
 
+        if tableau.ndim != 2:
+            raise ValueError(f"Invalid tableau shape ({tableau.shape}). Tableaus should be two dimensional.")
+
         n_pauli_strings = tableau.shape[0]
         n_qudits = tableau.shape[1] // 2
 
