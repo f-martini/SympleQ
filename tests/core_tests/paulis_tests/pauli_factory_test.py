@@ -33,7 +33,7 @@ class TestPauliSumFactories:
         with pytest.raises(ValueError):
             pauli = Pauli.from_string('x1z2 x2z2', 3)
 
-    def test_from_pauli_strings_single(self):
+    def test_pauli_sum_from_pauli_strings_single(self):
         ps = PauliString.from_exponents([0, 1], [1, 0], [3, 2])
         assert ps.shape() == (1, 2)
 
@@ -42,28 +42,32 @@ class TestPauliSumFactories:
         assert P.weights[0] == 2.0
         assert P.phases[0] == 1
 
-    def test_from_pauli_strings_multiple(self):
+    def test_pauli_sum_from_pauli_strings_multiple(self):
         ps1 = PauliString.from_exponents([0, 1], [1, 2], [5, 3])
         ps2 = PauliString.from_exponents([1, 1], [0, 1], [5, 3])
-        P = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0, 2.0])
+        with pytest.warns(UserWarning, match="Phases are disregarded"):
+            P = PauliSum.from_pauli_strings([ps1, ps2], weights=[1.0, 2.0], inherit_phases=True, phases=[0, 1])
 
         assert P.tableau.shape == (2, ps1.tableau.shape[1])
         assert np.allclose(P.weights, [1.0, 2.0])
 
-    def test_from_pauli_strings_dimension_mismatch(self):
+    def test_pauli_sum_from_pauli_strings_dimension_mismatch(self):
         ps1 = PauliString.from_exponents([0], [1], [3])
         ps2 = PauliString.from_exponents([0, 1], [1, 0], [2, 2])
         with pytest.raises(ValueError):
-            PauliSum.from_pauli_strings([ps1, ps2])
+            _ = PauliSum.from_pauli_strings([ps1, ps2])
 
-    def test_from_pauli_strings_invalid_input(self):
+    def test_pauli_sum_from_pauli_strings_invalid_input(self):
         dimensions = [3, 3]
         ps1 = PauliSum.from_random(2, dimensions)
         ps2 = PauliString.from_exponents([0, 1], [1, 0], dimensions)
         with pytest.raises(ValueError):
-            PauliSum.from_pauli_strings([ps1, ps2])  # type: ignore
+            _ = PauliSum.from_pauli_strings([ps1, ps2])  # type: ignore
 
-    def test_from_pauli_objects(self):
+        with pytest.raises(ValueError):
+            _ = PauliSum.from_pauli_strings([])
+
+    def test_pauli_sum_from_pauli_objects(self):
         ps = PauliSum.from_random(3, 3, rand_phases=True)
         pauli_objects = [
             Pauli.Xnd(1, 3),
@@ -78,20 +82,43 @@ class TestPauliSumFactories:
         ps1 = PauliSum.from_string(['x0z1 x1z2 x4z4', 'x0z0 x2z2 x3z0'], [2, 3, 5], weights=[2, 0.5], phases=[1, 0])
         ps2 = PauliSum.from_string(['x0z1 x1z1 x0z4', 'x0z0 x2z1 x2z1', 'x1z0 x2z1 x1z1'],
                                    [2, 3, 5], weights=[2, 3.25, 1j], phases=[0, 11, 2])
+
+        P = PauliSum.from_pauli_objects(ps1, inherit_weights=True, inherit_phases=True)
+        P2 = PauliSum.from_string(
+            ['x0z1 x1z2 x4z4', 'x0z0 x2z2 x3z0'],
+            [2, 3, 5], weights=[2, 0.5], phases=[1, 0])
+        assert P == P2
+
         P = PauliSum.from_pauli_objects([ps1, ps2], inherit_weights=True, inherit_phases=True)
         P2 = PauliSum.from_string(
             ['x0z1 x1z2 x4z4', 'x0z0 x2z2 x3z0', 'x0z1 x1z1 x0z4', 'x0z0 x2z1 x2z1', 'x1z0 x2z1 x1z1'],
             [2, 3, 5], weights=[2, 0.5, 2, 3.25, 1j], phases=[1, 0, 0, 11, 2])
         assert P == P2
 
-    def test_from_string(self):
+        with pytest.warns(UserWarning, match="Phases are disregarded"):
+            _ = PauliSum.from_pauli_objects(ps1, phases=[0, 0], inherit_phases=True)
+
+        with pytest.warns(UserWarning, match="Weights are disregarded"):
+            _ = PauliSum.from_pauli_objects(ps1, weights=[0, 0], inherit_weights=True)
+
+    def test_pauli_sum_from_pauli_objects_exceptions(self):
+        with pytest.raises(ValueError):
+            _ = PauliSum.from_pauli_objects([])
+
+        ps1 = PauliSum.from_string(['x0z1 x1z2 x4z4', 'x0z0 x2z2 x3z0'], [2, 3, 5])
+        ps2 = PauliSum.from_string(['x0z1 x1z1 x0z4', 'x0z0 x2z1 x2z1', 'x1z0 x2z1 x1z1'],
+                                   [2, 3, 7])
+        with pytest.raises(ValueError):
+            _ = PauliSum.from_pauli_objects([ps1, ps2])
+
+    def test_pauli_sum_from_string(self):
         ps = PauliString.from_exponents([1, 2], [3, 1], [5, 7])
         s = str(ps)  # Use the same formatting
         P = PauliSum.from_string(s, [5, 7])
 
         assert P.tableau.shape[0] == 1
 
-    def test_from_string_list(self):
+    def test_pauli_sum_from_string_list(self):
         s1 = "x1z0 x0z2"
         P = PauliSum.from_string([s1], 3)
         assert P.tableau.shape[0] == 1
@@ -102,7 +129,7 @@ class TestPauliSumFactories:
         assert P.tableau.shape[0] == 1
         assert P.dimensions.tolist() == [DEFAULT_QUDIT_DIMENSION, DEFAULT_QUDIT_DIMENSION]
 
-    def test_from_tableau_roundtrip(self):
+    def test_pauli_sum_from_tableau_roundtrip(self):
         ps = PauliString.from_exponents([1, 0], [2, 0], [5, 7])
         P = PauliSum.from_pauli_strings(ps)
         P2 = PauliSum.from_tableau(P.tableau, P.dimensions, P.weights, P.phases)
@@ -111,7 +138,7 @@ class TestPauliSumFactories:
         assert np.array_equal(P2.weights, P.weights)
         assert np.array_equal(P2.phases, P.phases)
 
-    def test_from_random_small_population_no_duplicates(self):
+    def test_pauli_sum_from_random_small_population_no_duplicates(self):
         dims = [2, 3]  # max_n_paulis = 4 * 9 = 36 < 1e6
         N = math.prod([d**2 for d in dims])
         P = PauliSum.from_random(N, dims, seed=123)
@@ -119,7 +146,7 @@ class TestPauliSumFactories:
 
         assert P.n_paulis() == N
 
-    def test_from_random_large_population_allows_duplicates(self):
+    def test_pauli_sum_from_random_large_population_allows_duplicates(self):
         dims = prime_list
         N = 300
         P = PauliSum.from_random(N, dims, seed=123)
@@ -127,7 +154,7 @@ class TestPauliSumFactories:
 
         assert P.n_paulis() <= N
 
-    def test_from_random_reproducibility(self):
+    def test_pauli_sum_from_random_reproducibility(self):
         dims = [3, 5]
         P1 = PauliSum.from_random(10, dims, seed=555)
         P2 = PauliSum.from_random(10, dims, seed=555)
@@ -137,12 +164,12 @@ class TestPauliSumFactories:
         assert np.allclose(P1.weights, P2.weights)
         assert np.array_equal(P1.phases, P2.phases)
 
-    def test_from_random_too_many(self):
+    def test_pauli_sum_from_random_too_many(self):
         dims = [2, 2]  # max = 16
         with pytest.raises(ValueError):
             PauliSum.from_random(17, dims)
 
-    def test_from_random_decoding_correctness_small_population(self):
+    def test_pauli_sum_from_random_decoding_correctness_small_population(self):
         dims = [2, 3]
         n = 5
         P = PauliSum.from_random(n, dims, seed=999)
@@ -164,6 +191,33 @@ class TestPauliSumFactories:
             P.to_file(path)
             P_from_file = PauliSum.from_file(path, dimensions)
             assert P == P_from_file
+
+    def test_pauli_sum_remove_trivial_qudits(self):
+        P = PauliSum.from_string(["x0z2 x1z1 x0z0 x2z3", "x0z1 x0z0 x0z0 x0z1"], dimensions=7)
+        P.remove_trivial_qudits()
+        assert P == PauliSum.from_string(["x0z2 x1z1 x2z3", "x0z1 x0z0 x0z1"], dimensions=7)
+
+    def test_pauli_sum_remove_trivial_paulis(self):
+        P = PauliSum.from_string(["x0z0 x0z0 x0z0 x0z0", "x0z1 x0z0 x0z0 x0z1"], dimensions=7)
+        P.remove_trivial_paulis()
+        assert P == PauliSum.from_string(["x0z1 x0z0 x0z0 x0z1"], dimensions=7)
+
+    def test_pauli_sum_remove_zero_weight_paulis(self):
+        P = PauliSum.from_string(["x0z2 x1z1 x0z0 x2z3", "x0z1 x0z0 x0z0 x0z1"], dimensions=7, weights=[0, 1e-13])
+        P.remove_zero_weight_paulis()
+        assert P == PauliSum.from_string(["x0z1 x0z0 x0z0 x0z1"], dimensions=7) / 1e13
+
+        P = PauliSum.from_string(["x0z2 x1z1 x0z0 x2z3", "x0z1 x0z0 x0z0 x0z1"], dimensions=7, weights=[1, 1e-14])
+        P.remove_zero_weight_paulis()
+        assert P == PauliSum.from_string(["x0z2 x1z1 x0z0 x2z3"], dimensions=7)
+
+    def test_pauli_sum_weight_to_phase(self):
+        strings = ["x0z2 x1z2 x0z0 x2z2 x3z0", "x0z0 x3z2 x1z1 x0z0 x0z1", "x0z1 x0z0 x0z0 x0z1 x2z4"]
+        dimensions = [2, 3, 2, 5, 3]
+        P = PauliSum.from_string(strings, dimensions, weights=[1j, 0, 1 + 2j], phases=[0, 1, 5])
+        P.weight_to_phase()
+        Pres = PauliSum.from_string(strings, dimensions, weights=[1, 0, 2.233 - 0.1j], phases=[15, 1, 16])
+        assert P.is_close(Pres, threshold=3)
 
     def test_pauli_string_from_int(self):
         ps = PauliString.from_exponents(2, 1, 3)
