@@ -274,17 +274,20 @@ class Pauli(PauliObject):
             If operand type is unsupported or dimensions mismatch.
         """
         if isinstance(A, str):
-            return self * Pauli.from_string(A)
+            # When multiplying by a string, we retain the own dimensions,
+            # as otherwise it would only work for the default value.
+            A = Pauli.from_string(A)
+            new_tableau = (self.tableau + A.tableau) % self.lcm
+            return Pauli(new_tableau, dimensions=self.dimensions)
 
         if not isinstance(A, Pauli):
             raise Exception(f"Cannot multiply Pauli with type {type(A)}")
 
         if not np.array_equal(self.dimensions, A.dimensions):
-            raise Exception("To multiply two Paulis, their dimensions"
-                            f" {A.dimensions} and {self.dimensions} must be equal")
+            raise ValueError("To multiply two Paulis, their dimensions"
+                             f" {A.dimensions} and {self.dimensions} must be equal")
 
         new_tableau = (self.tableau + A.tableau) % self.lcm
-
         return Pauli(new_tableau, dimensions=self.dimensions)
 
     def __str__(self) -> str:
