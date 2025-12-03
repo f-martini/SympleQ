@@ -4,8 +4,7 @@ description: "Build Sphinx documentation and publish to GitHub Pages"
 inputs:
   python-version:
     description: "Python version to use for building documentation"
-    required: false
-    default: "3.11"
+    required: true
     type: string
   doc-requirements:
     description: "Path to documentation requirements file"

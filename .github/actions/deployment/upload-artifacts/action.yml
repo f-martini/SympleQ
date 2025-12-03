@@ -16,12 +16,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: List wheels before upload
-      shell: bash
-      run: |
-        echo "📦 Wheels found for upload:"
-        ls -la dist/*.whl 2>/dev/null || echo "No wheels found in dist/"
-
     - name: Upload wheels as artifacts
       uses: actions/upload-artifact@v4
       with:

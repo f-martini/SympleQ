@@ -25,7 +25,6 @@ jobs:
           commit-sha: ${{ github.sha }}
 
       - name: Create and push tag
-        if: steps.tag_logic.outputs.copy_tag == 'true' || steps.tag_logic.outputs.copy_tag == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

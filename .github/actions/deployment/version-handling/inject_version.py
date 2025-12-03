@@ -68,7 +68,7 @@ def inject_version(version, pyproject_path="pyproject.toml"):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--fallback-version', default='0.0.0.0a0')
+    parser.add_argument('--fallback-version', default='0.0.0a0')
     parser.add_argument('--pyproject-path', default='pyproject.toml')
     parser.add_argument('--include-distance', default='true', choices=['true', 'false'],
                         help='Include distance (aN) in version for non-exact tags')

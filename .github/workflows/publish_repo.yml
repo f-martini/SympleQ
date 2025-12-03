@@ -64,10 +64,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository (for actions)
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Publish wheels to Test PyPI (on main branch push)
+      - name: Publish wheels to Test PyPI
         if: github.event_name != 'release'
         uses: ./.github/actions/deployment/publish-project
         with:
@@ -75,23 +75,16 @@ jobs:
           pypi-token: ${{ secrets.PYPI_TEST }}
           publish-to-test: "true"
 
-      - name: Publish wheels to PyPI (on release)
+      - name: Publish wheels to PyPI on release
         if: github.event_name == 'release'
         uses: ./.github/actions/deployment/publish-project
         with:
           project-name: ${{ env.PROJECT_NAME }}
           pypi-token: ${{ secrets.PYPI_TOKEN }}
 
-  cleanup-or-build-doc:
+  cleanup-on-failure:
     needs: [publish, build]
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-      contents: write
-    environment:
-      name: github-pages
-      url: ${{ steps.publish-docs.outputs.page_url }}
     steps:
       - name: Delete release if workflow failed
         if: github.event_name == 'release' && (needs.publish.result == 'failure' || needs.build.result == 'failure')
@@ -105,11 +98,3 @@ jobs:
               release_id: context.payload.release.id
             });
             core.setFailed('Workflow failed - release deleted'););
-
-      - name: Checkout repository
-        if: needs.publish.result == 'success'
-        uses: actions/checkout@v4
-
-      - name: Publish documentation
-        if: needs.publish.result == 'success'
-        uses: ./.github/actions/deployment/publish-doc

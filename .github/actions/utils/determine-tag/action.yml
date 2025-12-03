@@ -13,9 +13,6 @@ outputs:
   final_tag:
     description: "The final calculated tag"
     value: ${{ steps.tag_logic.outputs.final_tag }}
-  copy_tag:
-    description: "Whether to copy an existing tag"
-    value: ${{ steps.tag_logic.outputs.copy_tag }}
 
 runs:
   using: "composite"

@@ -1,5 +1,5 @@
 name: "Setup Linux Testing Environment"
-description: "Sets up complete Linux environment with Python, CUDA, vcpkg, and CMake for testing and development"
+description: "Sets up complete Linux test environment"
 
 inputs:
   python-version:
@@ -8,7 +8,7 @@ inputs:
     default: "3.13"
     type: string
   setup-path:
-    description: "Path to setup.py or pyproject.toml for project installation"
+    description: "Path pyproject.toml for project installation"
     required: false
     default: "./"
     type: string
@@ -54,17 +54,11 @@ runs:
       id: python-deps
       shell: bash
       run: |
-        echo "Upgrading pip and build tools..."
         python -m pip install --upgrade pip build setuptools wheel
-
-        echo "Installing project from pyproject.toml at ${{ inputs.setup-path }}..."
         python -m pip install ${{ inputs.setup-path }}
-
-        echo "Installing development requirements from ${{ inputs.dev-requirements }}..."
         python -m pip install -r ${{ inputs.dev-requirements }}
 
         if [ -n "${{ inputs.extra-packages }}" ]; then
-          echo "Installing extra packages: ${{ inputs.extra-packages }}..."
           python -m pip install ${{ inputs.extra-packages }}
         fi
 
@@ -78,5 +72,3 @@ runs:
         CACHE_DIR=$(python -m pip cache dir 2>/dev/null || echo "")
         echo "python-path=${PYTHON_PATH}" >> $GITHUB_OUTPUT
         echo "cache-dir=${CACHE_DIR}" >> $GITHUB_OUTPUT
-        echo "Python path: ${PYTHON_PATH}"
-        echo "Cache dir: ${CACHE_DIR}"
