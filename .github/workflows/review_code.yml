@@ -38,7 +38,7 @@ jobs:
           flake8 ${{ env.SRC_DIR }} --config=${{ env.FLAKE8_CONFIG }}
 
   testing:
-    runs-on: ${{ needs.set-runner.outputs.runner }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
