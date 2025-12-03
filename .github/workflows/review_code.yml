@@ -6,7 +6,6 @@ env:
   PRJ_NAME: sympleq
   SETUP_PY: ./
   SRC_DIR: ./src/sympleq
-  TEST_DIR: ./tests
   PYTEST_INI: ./scripts/configs/pytest.ini
   DEV_REQUIREMENTS: ./scripts/configs/dev_requirements.txt
   FLAKE8_CONFIG: ./scripts/configs/setup.cfg
@@ -16,24 +15,8 @@ env:
   PYTHON_VERSION: "3.11"
 
 jobs:
-  set-runner:
-    runs-on: ubuntu-latest
-    outputs:
-      runner: ${{ steps.set-matrix.outputs.runner }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Determine Runner
-        id: set-matrix
-        uses: ./.github/actions/utils/determine-runner
-        with:
-          branch-pattern: "test-workflow"
-
   linting:
-    needs: set-runner
-    runs-on: ${{ needs.set-runner.outputs.runner }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -55,8 +38,7 @@ jobs:
           flake8 ${{ env.SRC_DIR }} --config=${{ env.FLAKE8_CONFIG }}
 
   testing:
-    needs: [set-runner]
-    runs-on: ${{ needs.set-runner.outputs.runner }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository

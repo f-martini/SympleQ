@@ -1,5 +1,5 @@
 name: "Build Python Wheels"
-description: "Build Python wheels for versions 3.11, 3.12, and 3.13"
+description: "Build Python wheels"
 
 inputs:
   python-version:
@@ -42,8 +42,8 @@ runs:
         pip install dist/*.whl
         pip install pytest pytest-cov pytest-benchmark
 
-    - name: Run tests (excluding benchmarks)
+    - name: Run tests
       shell: bash
       run: |
-        echo "🧪 Running tests (excluding benchmarks)"
+        echo "🧪 Running tests"
         pytest tests

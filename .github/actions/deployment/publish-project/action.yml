@@ -29,13 +29,11 @@ runs:
         ls -la artifacts/
         mkdir -p dist
         cp artifacts/*.whl dist/ 2>/dev/null || echo "No wheels found"
-        echo "📊 Final wheel count:"
-        ls -la dist/
 
     - name: Set up Python for publishing
       uses: actions/setup-python@v5
       with:
-        python-version: "3.12"
+        python-version: "3.13"
 
     - name: Install twine
       shell: bash
@@ -60,10 +58,3 @@ runs:
       run: |
         echo "🚀 Publishing to PyPI..."
         python -m twine upload dist/${{ inputs.project-name }}-*.whl --verbose
-
-    - name: Publishing summary
-      shell: bash
-      run: |
-        wheel_count=$(ls dist/${{ inputs.project-name }}-*.whl 2>/dev/null | wc -l)
-        echo "✅ Processing complete:"
-        echo "   - Found $wheel_count ${{ inputs.project-name }} wheel(s)"
