@@ -198,6 +198,23 @@ class PauliString(PauliObject):
         tableau = np.concatenate([np.random.randint(dimensions, dtype=int), np.random.randint(dimensions, dtype=int)])
         return cls(tableau, dimensions)
 
+    def _sanity_check(self):
+        """
+        Validate internal consistency of the PauliString.
+        The PauliString has the extra constraint of having n_paulis() == 1
+
+        Raises
+        ------
+        ValueError
+            If tableau, dimensions, or exponents are inconsistent or invalid,
+            or if n_paulis() != 1.
+        """
+
+        if self.n_paulis() != 1:
+            raise ValueError(
+                f"Invalid tableau for PauliString. The number of Pauli strings should be 1 (got {self.n_paulis()}).")
+        super()._sanity_check()
+
     def __str__(self) -> str:
         """
         Return the string representation of the PauliString.

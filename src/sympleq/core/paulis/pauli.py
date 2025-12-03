@@ -232,6 +232,28 @@ class Pauli(PauliObject):
         """
         return self.as_pauli_sum().to_hilbert_space()
 
+    def _sanity_check(self):
+        """
+        Validate internal consistency of the Pauli.
+        The Pauli has the extra constraint of having n_paulis() == n_qudits() == 1
+
+        Raises
+        ------
+        ValueError
+            If tableau, dimensions, or exponents are inconsistent or invalid,
+            if n_paulis() != 1, or if n_qudits() != 1.
+        """
+
+        if self.n_paulis() != 1:
+            raise ValueError(
+                f"Invalid tableau for PauliString. The number of Pauli strings should be 1 (got {self.n_paulis()}).")
+
+        if self.n_qudits() != 1:
+            raise ValueError(
+                f"Invalid tableau for Pauli. The number of qudits should be 1 (got {self.n_qudits()}).")
+
+        super()._sanity_check()
+
     def __mul__(self, A: str | Pauli) -> Pauli:
         """
         Multiply this Pauli by another Pauli or parseable string.
