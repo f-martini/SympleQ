@@ -162,11 +162,11 @@ class Gate:
         U = np.zeros((2 * n, 2 * n), dtype=int)
         U[n:, :n] = np.eye(n, dtype=int)
 
-        U_C = (C.T @ U @ C) % L
-        U_C_inv = (C_inv.T @ U @ C_inv) % L
+        U_C = (C.T @ U @ C) % modulus
+        U_C_inv = (C_inv.T @ U @ C_inv) % modulus
 
-        P_C = (2 * np.triu(U_C) - np.diag(np.diag(U_C))) % L
-        P_C_inv = (2 * np.triu(U_C_inv) - np.diag(np.diag(U_C_inv))) % L
+        P_C = (2 * np.triu(U_C) - np.diag(np.diag(U_C))) % modulus
+        P_C_inv = (2 * np.triu(U_C_inv) - np.diag(np.diag(U_C_inv))) % modulus
 
         h = (self.phase_vector % modulus).astype(int)
 
@@ -179,26 +179,6 @@ class Gate:
         h_inv = (term1 + term2 - term3 + term4 - term5) % modulus
 
         return Gate(self.name + "-inv", self.qudit_indices, C_inv, self.dimensions, h_inv.astype(int))
-
-    # def inv(self) -> 'Gate':
-    #     # TODO: Test for mixed dimensions - not clear that the symplectic form here is correct.
-    #     print("Warning: inverse phase vector not working - PHASES MAY BE INCORRECT.")
-
-    #     C = self.symplectic.T
-
-    #     U = np.zeros((2 * self.n_qudits, 2 * self.n_qudits), dtype=int)
-    #     U[self.n_qudits:, :self.n_qudits] = np.eye(self.n_qudits, dtype=int)
-    #     Omega = symplectic_form(int(C.shape[0] / 2), p=self.lcm)
-
-    #     C_inv = -(Omega.T @ C.T @ Omega) % self.lcm
-    #     U_c = C_inv.T @ U @ C_inv % self.lcm
-
-    #     p1 = - C_inv.T @ self.phase_vector
-    #     p2 = - np.diag(C.T @ (2 * np.triu(U_c) - np.diag(np.diag(U_c))) @ C)
-    #     p3 = C.T @ np.diag(U_c)
-
-    #     phase_vector = (p1 + p2 + p3) % (2 * self.lcm)
-    #     return Gate(self.name + "-inv", self.qudit_indices, C_inv.T, self.dimensions, phase_vector)
 
     def transvection(self, transvection_vector: np.ndarray | list, transvection_weight: int = 1) -> 'Gate':
         """
