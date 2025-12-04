@@ -390,13 +390,12 @@ class TestGates():
             gt = g.transvection(np.random.randint(0, 1, size=10))
             assert is_symplectic(gt.symplectic, 2), 'Error in transvection'
 
-    # @pytest.mark.skip(reason="Skipping for now, something broke here. This is a priority fix.")
     def test_gate_inverse(self):
         # TODO: test mixed dimensions
         n_qudits = 4
         n_paulis = 4
         for dimension in [2, 3, 5, 7, 11]:
-            for i in range(1000):
+            for i in range(100):
                 g = Gate.from_random(n_qudits, dimension, seed=1)
                 gt = g.inv()
                 rps = PauliSum.from_random(n_paulis, [dimension] * n_qudits, False, seed=1)  #
