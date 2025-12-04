@@ -1080,3 +1080,49 @@ class TestPaulis:
         psum1.reset_phases()
         assert psum1 == psum3
         assert psum2 != psum3
+
+    def test_pauli_weight_setters(self):
+        p1 = Pauli.from_string("x0z1")
+        p2 = Pauli.from_string("x0z1")
+        p3 = Pauli.from_string("x0z1")
+        p4 = Pauli.from_string("x0z1")
+
+        p1.weights[0] = 1.9 + 2j
+        p2.set_weights([1.9 + 2j])
+        p4.weights = [1.9 + 2j]
+        assert p1 == p2
+        assert p1 == p4
+
+        p1.reset_weights()
+        assert p1 == p3
+        assert p2 != p3
+
+        ps1 = PauliString.from_string("x1z0 x0z1")
+        ps2 = PauliString.from_string("x1z0 x0z1")
+        ps3 = PauliString.from_string("x1z0 x0z1")
+        ps4 = PauliString.from_string("x1z0 x0z1")
+
+        ps1.weights[0] = -1
+        ps2.set_weights([-1])
+        ps4.weights = np.asarray([-1])
+        assert ps1 == ps2
+        assert ps1 == ps4
+
+        ps1.reset_weights()
+        assert ps1 == ps3
+        assert ps2 != ps3
+
+        psum1 = PauliSum.from_string(["x1z2 x2z1", "x0z0 x1z2"], [2, 3])
+        psum2 = PauliSum.from_string(["x1z2 x2z1", "x0z0 x1z2"], [2, 3])
+        psum3 = PauliSum.from_string(["x1z2 x2z1", "x0z0 x1z2"], [2, 3])
+        psum4 = PauliSum.from_string(["x1z2 x2z1", "x0z0 x1z2"], [2, 3])
+
+        psum1.weights[0:2] = (1.9, 4.15)
+        psum2.set_weights([1.9, 4.15])
+        psum4.weights = np.asarray([1.9, 4.15])
+        assert psum1 == psum2
+        assert psum1 == psum4
+
+        psum1.reset_weights()
+        assert psum1 == psum3
+        assert psum2 != psum3

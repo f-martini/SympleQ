@@ -243,7 +243,7 @@ class PauliObject(ABC):
         return self._weights
 
     @weights.setter
-    def weights(self, new_weights: list[int] | np.ndarray):
+    def weights(self, new_weights: list[complex] | np.ndarray):
         new_weights = np.asarray(new_weights, dtype=complex)
 
         if len(new_weights) != self.n_paulis():
@@ -252,7 +252,7 @@ class PauliObject(ABC):
 
         self._weights = new_weights
 
-    def set_weights(self, new_weights: list[int] | np.ndarray):
+    def set_weights(self, new_weights: list[complex] | np.ndarray):
         """
         Set new weights (coefficients) for the Pauli object.
 
