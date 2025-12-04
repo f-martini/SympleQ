@@ -281,14 +281,14 @@ def update_data(xxx, rr, X, D):
     return X
 
 
-def update_diagnostic_data(cliques, diagnostic_results, diagnostic_data, mode='Zero'):
-    if mode == 'Zero':
+def update_diagnostic_data(cliques, diagnostic_results, diagnostic_data, mode='zero'):
+    if mode == 'zero':
         for i in range(len(diagnostic_results)):
             if np.any(diagnostic_results[i]):
                 diagnostic_data[cliques[i], 0] += 1
             else:
                 diagnostic_data[cliques[i], 1] += 1
-    elif mode == 'Random':
+    elif mode == 'random':
         raise Exception('Random diagnostic states not yet implemented')
     else:
         raise Exception('Diagnostic state mode not recognized')
@@ -320,13 +320,13 @@ def construct_diagnostic_circuits(circuit_list):
     return diagnostic_circuits
 
 
-def construct_diagnostic_states(diagnostic_circuits: list[Circuit], mode='Zero'):
-    if mode == 'Zero':
+def construct_diagnostic_states(diagnostic_circuits: list[Circuit], mode='zero'):
+    if mode == 'zero':
         state = [0] * np.prod(diagnostic_circuits[0].dimensions)
         state[0] = 1
         state_preparation_circuits = [Circuit(diagnostic_circuits[0].dimensions)] * len(diagnostic_circuits)
         return ([state] * len(diagnostic_circuits), state_preparation_circuits)
-    elif mode == 'Random':
+    elif mode == 'random':
         raise Exception('Random diagnostic states not yet implemented')
     else:
         raise Exception('Diagnostic state mode not recognized')
@@ -352,23 +352,3 @@ def extract_phase(weight, dimension):
     phase = np.floor(dimension * np.angle(weight) / (2 * np.pi))
     remainder = np.angle(weight) - phase * 2 * np.pi / dimension
     return phase, remainder
-
-
-def weight_to_phase(H: PauliSum) -> PauliSum:
-    if 2 not in H.dimensions:
-        for i in range(H.n_paulis()):
-            weight_phase, weight_remainder = extract_phase(H.weights[i], H.lcm)
-            H.phases[i] += 2 * (weight_phase % H.lcm)
-            H.weights[i] = np.abs(H.weights[i]) * np.exp(weight_remainder * 1j)
-    else:
-        for i in range(H.n_paulis()):
-            num_Ys = np.sum([H.x_exp[i, j] * H.z_exp[i, j] for j in range(H.n_qudits()) if H.dimensions[j] == 2])
-            if (num_Ys % 2 == 0 and H.phases[i] % 2 == 1) or (num_Ys % 2 == 1 and H.phases[i] % 2 == 0):
-                weight_phase, weight_remainder = extract_phase(H.weights[i], 2 * H.lcm)
-                H.phases[i] += weight_phase % (2 * H.lcm)
-                H.weights[i] = np.abs(H.weights[i]) * np.exp(weight_remainder * 1j)
-            else:
-                weight_phase, weight_remainder = extract_phase(H.weights[i], H.lcm)
-                H.phases[i] += 2 * (weight_phase % H.lcm)
-                H.weights[i] = np.abs(H.weights[i]) * np.exp(weight_remainder * 1j)
-    return H

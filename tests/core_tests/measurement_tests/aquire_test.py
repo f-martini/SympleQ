@@ -232,8 +232,8 @@ class TestAquire:
             assert distance_in_sigma < 5, f"Mean estimate too far from true value for dims {dims}"
 
     def test_aquire_mean_distance_with_noise(self):
-        update_steps = [6,12,25,50,100,200,400,800,1600,3200]
-        dim_list = [[2,2,2], [3,3,3]]
+        update_steps = [6,12,25,50,100,200,400,800,1600]
+        dim_list = [[2,2,2], [2,2,3],[3,3,3]]
         for dims in dim_list:
             P = self.random_comparison_hamiltonian(10, dims, mode='rand')
             psi = np.random.rand(int(np.prod(dims))) + 1j*np.random.rand(int(np.prod(dims)))
@@ -307,38 +307,9 @@ class TestAquire:
         assert model.config.commutation_mode == 'local'
         with pytest.raises(ValueError):
             model.config.set_params(commutation_mode='test')
-        model.config.set_params(auto_update_settings=False)
+        model.config.set_params(commutation_mode='local',auto_update_settings=False)
         with pytest.warns(UserWarning):
             model.config.set_params(commutation_mode='general')
-
-    def test_aquire_config_default_function_kwargs(self):
-        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
-        model = Aquire(H=P, calculate_true_values=False, verbose=False, auto_update_settings=True)
-
-        # noise_probability_function
-        default_noise_kwargs = {'p_entangling': 0.03, 'p_local': 0.001, 'p_measurement': 0.001}
-        assert model.config.noise_probability_function_kwargs == default_noise_kwargs
-
-        # mcmc_initial_samples_per_chain
-        default_mcmc_initial_kwargs = {'n_0': 500, 'scaling_factor': 1 / 10000}
-        assert model.config.mcmc_initial_samples_per_chain_kwargs == default_mcmc_initial_kwargs
-
-        # mcmc_max_samples_per_chain
-        default_mcmc_max_kwargs = {'n_0': 2001, 'scaling_factor': 1 / 10000}
-        assert model.config.mcmc_max_samples_per_chain_kwargs == default_mcmc_max_kwargs
-
-        P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
-        model = Aquire(H=P, calculate_true_values=False,
-                       verbose=False, auto_update_settings=True,
-                       mcmc_initial_samples_per_chain_kwargs={'n_0': 1000, 'scaling_factor': 1 / 10000},
-                       mcmc_max_samples_per_chain_kwargs={'n_0': 4001, 'scaling_factor': 1 / 10000},
-                       noise_probability_function_kwargs={'p_entangling': 0.01, 'p_local': 0.001,
-                                                          'p_measurement': 0.001})
-
-        assert model.config.noise_probability_function_kwargs == {'p_entangling': 0.01, 'p_local': 0.001,
-                                                                  'p_measurement': 0.001}
-        assert model.config.mcmc_initial_samples_per_chain_kwargs == {'n_0': 1000, 'scaling_factor': 1 / 10000}
-        assert model.config.mcmc_max_samples_per_chain_kwargs == {'n_0': 4001, 'scaling_factor': 1 / 10000}
 
     def test_aquire_config_update_set_params(self):
         P = self.random_comparison_hamiltonian(6, [3,3,3], mode='rand')
@@ -402,8 +373,9 @@ class TestAquire:
             model.config.test_mcmc_settings()
 
         with pytest.raises(ValueError):
-            model.config.set_params(mcmc_initial_samples_per_chain=10,
-                                    mcmc_max_samples_per_chain=-2000)
+            with pytest.warns(UserWarning):
+                model.config.set_params(mcmc_initial_samples_per_chain=10,
+                                        mcmc_max_samples_per_chain=-2000)
             model.config.test_mcmc_settings()
 
     def test_aquire_noise_and_error_function_validation(self):
@@ -534,7 +506,8 @@ class TestAquire:
 
         model = Aquire(H=P, commutation_mode='general',
                        calculate_true_values=False,
-                       enable_diagnostics=True, auto_update_settings=False, diagnostic_mode=None)
+                       enable_diagnostics=True, auto_update_settings=False,
+                       diagnostic_mode='zero', enable_debug_checks=True, save_covariance_graph_checkpoints=True)
         mock_circuit_list = model.allocate_measurements(shots=100)
         mock_diagnostic_circuit_list, mock_dsp_circuit_list = model.construct_diagnostic_circuits()
 
@@ -554,6 +527,7 @@ class TestAquire:
             mock_diagnostic_results.append(simulate_measurement(P, model.diagnostic_states[i], circuit=c))
 
         model.input_measurement_data(mock_results)
+        model.input_diagnostic_data(mock_diagnostic_results)
 
         model.data_at_shot(100)
         model.data_at_shot([25,50,75,100])
@@ -563,5 +537,17 @@ class TestAquire:
 
         model.covariance_graph_at_shot(10)
         model.covariance_graph_at_shot([10,20])
+
+        model.diagnostic_data_at_shot(10)
+        model.diagnostic_data_at_shot([10,20])
+
+        str(model)
+        model.info()
+        model.info(name="circuits")
+
+
+
+
+
 
 

@@ -3,7 +3,7 @@ from sympleq.core.paulis import PauliSum
 from sympleq.core.measurement.allocation import (sort_hamiltonian, choose_measurement,
                                                  construct_circuit_list, update_data,
                                                  construct_diagnostic_circuits, standard_error_function,
-                                                 construct_diagnostic_states, weight_to_phase,
+                                                 construct_diagnostic_states,
                                                  update_diagnostic_data, standard_noise_probability_function,
                                                  mcmc_number_initial_samples, mcmc_number_max_samples)
 from sympleq.core.measurement.covariance_graph import (graph, quditwise_commutation_graph, commutation_graph,
@@ -18,7 +18,6 @@ from sympleq.core.paulis.utils import make_hermitian, XZ_to_Y
 from typing import Callable
 import pickle
 import matplotlib.pyplot as plt
-import json
 import warnings
 
 
@@ -30,7 +29,7 @@ class AquireConfig:
                  psi: list[float | complex] | list[float] | list[complex] | np.ndarray | None = None,
                  commutation_mode: str = "general",  # "general" or "quditwise"/"bitwise"/"local"
                  allocation_mode: str = "set",  # random
-                 diagnostic_mode: str = "Zero",  # "Zero" or "Random" or  TODO: "informed" for readout error-mitigation
+                 diagnostic_mode: str = "zero",  # "zero" or "random" or  TODO: "informed" for readout error-mitigation
                  calculate_true_values: bool = True,
                  enable_diagnostics: bool = False,
                  auto_update_covariance_graph: bool = True,
@@ -72,26 +71,14 @@ class AquireConfig:
         self.mcmc_number_of_chains = mcmc_number_of_chains
 
         self.mcmc_initial_samples_per_chain = mcmc_initial_samples_per_chain
-        if (self.mcmc_initial_samples_per_chain is mcmc_number_initial_samples and
-                mcmc_initial_samples_per_chain_kwargs == {}):
-            self.mcmc_initial_samples_per_chain_kwargs = {'n_0': 500, 'scaling_factor': 1 / 10000}
-        else:
-            self.mcmc_initial_samples_per_chain_kwargs = mcmc_initial_samples_per_chain_kwargs
+        self.mcmc_initial_samples_per_chain_kwargs = mcmc_initial_samples_per_chain_kwargs
 
         self.mcmc_max_samples_per_chain = mcmc_max_samples_per_chain
-        if (self.mcmc_max_samples_per_chain is mcmc_number_max_samples and
-                mcmc_max_samples_per_chain_kwargs == {}):
-            self.mcmc_max_samples_per_chain_kwargs = {'n_0': 2001, 'scaling_factor': 1 / 10000}
-        else:
-            self.mcmc_max_samples_per_chain_kwargs = mcmc_max_samples_per_chain_kwargs
+        self.mcmc_max_samples_per_chain_kwargs = mcmc_max_samples_per_chain_kwargs
 
         # noise and error functions
         self.noise_probability_function = noise_probability_function
-        if (self.noise_probability_function is standard_noise_probability_function and
-                noise_probability_function_kwargs == {}):
-            self.noise_probability_function_kwargs = {'p_entangling': 0.03, 'p_local': 0.001, 'p_measurement': 0.001}
-        else:
-            self.noise_probability_function_kwargs = noise_probability_function_kwargs
+        self.noise_probability_function_kwargs = noise_probability_function_kwargs
         self.noise_probability_args = noise_probability_args
         self.noise_kwargs = noise_probability_function_kwargs
         self.error_function = error_function
@@ -134,8 +121,8 @@ class AquireConfig:
             raise ValueError("Allocation mode must be either 'set' or 'random'.")
 
         # check diagnostic mode
-        if self.diagnostic_mode not in ["Zero", "Random", "informed"]:
-            raise ValueError("Diagnostic mode must be either 'Zero', 'Random' or 'informed'.")
+        if self.diagnostic_mode not in ["zero", "random", "informed"]:
+            raise ValueError("Diagnostic mode must be either 'zero', 'random' or 'informed'.")
         elif self.diagnostic_mode == "informed":
             raise NotImplementedError("Diagnostic mode 'informed' is not implemented yet.")
 
@@ -461,7 +448,7 @@ class Aquire:
         list
             The list of cliques measured since the last covariance graph update.
         """
-        return self.cliques[self.update_steps[-1]:] if self.update_steps else self.cliques
+        return self.cliques[self.update_steps[-1]:].copy() if self.update_steps else self.cliques.copy()
 
     def measurement_circuits_since_last_update(self):
         """
@@ -472,7 +459,7 @@ class Aquire:
         list
             The list of measurement circuits used since the last covariance graph update.
         """
-        return self.circuits[self.update_steps[-1]:] if self.update_steps else self.circuits
+        return self.circuits[self.update_steps[-1]:].copy() if self.update_steps else self.circuits.copy()
 
     def diagnostic_circuits_since_last_update(self):
         """
@@ -483,8 +470,8 @@ class Aquire:
         list
             The list of diagnostic circuits constructed since the last covariance graph update.
         """
-        return (self.diagnostic_circuits[len(self.diagnostic_results):]
-                if self.update_steps else self.diagnostic_circuits)
+        return (self.diagnostic_circuits[len(self.diagnostic_results):].copy()
+                if self.update_steps else self.diagnostic_circuits.copy())
 
     def diagnostic_states_since_last_update(self):
         """
@@ -495,7 +482,8 @@ class Aquire:
         list
             The list of diagnostic states constructed since the last covariance graph update.
         """
-        return self.diagnostic_states[len(self.diagnostic_results):] if self.update_steps else self.diagnostic_states
+        return (self.diagnostic_states[len(self.diagnostic_results):].copy()
+                if self.update_steps else self.diagnostic_states.copy())
 
     def diagnostic_state_preparation_circuits_since_last_update(self):
         """
@@ -506,12 +494,12 @@ class Aquire:
         list
             The list of diagnostic state preparation circuits constructed since the last covariance graph update.
         """
-        return (self.diagnostic_state_preparation_circuits[len(self.diagnostic_results):]
-                if self.update_steps else self.diagnostic_state_preparation_circuits)
+        return (self.diagnostic_state_preparation_circuits[len(self.diagnostic_results):].copy()
+                if self.update_steps else self.diagnostic_state_preparation_circuits.copy())
 
     def data_at_shot(self, shot: int | list[int]):
         data = np.zeros((self.H.n_paulis(), self.H.n_paulis(), int(self.H.lcm)))
-        if isinstance(shot, int):
+        if isinstance(shot, (int, np.integer)):
             data = update_data(self.cliques[:shot], self.measurement_results[:shot], data, self.circuit_dictionary)
             return data
         else:
@@ -523,7 +511,7 @@ class Aquire:
             return data_list
 
     def scaling_matrix_at_shot(self, shot: int | list[int]):
-        if isinstance(shot, int):
+        if isinstance(shot, (int, np.integer)):
             shot = [shot]
         scaling_matrices = []
         for s in shot:
@@ -539,8 +527,6 @@ class Aquire:
             return scaling_matrices
 
     def diagnostic_data_at_shot(self, shot: int | list[int]):
-        if self.config.diagnostic_mode is None:
-            return
         data = np.zeros((self.H.n_paulis(), 2))
         if isinstance(shot, int):
             shot = [shot]
@@ -574,7 +560,7 @@ class Aquire:
             shot = [shot]
         graphs = []
         for s in shot:
-            data = self.data_at_shot(shot)
+            data = self.data_at_shot(s)
             N, N_max = self.set_mcmc_parameters(s)
             A = bayes_covariance_graph(data,
                                        self.H.weights,
@@ -948,43 +934,6 @@ class Aquire:
     # Meta methods ####################################################
     ###################################################################
 
-    # TODO: construct working save function
-    def save(self, filename: str):
-        """
-        Save the current state of the Aquire object to a file.
-
-        Parameters
-        ----------
-        filename : str
-            The name of the file to save the Aquire object to.
-
-        Returns
-        -------
-        None
-        """
-
-        with open(filename, 'wb') as f:
-            pickle.dump(self, f)
-
-    # TODO: construct working load function
-    @classmethod
-    def load(cls, filename: str):
-        """
-        Load an Aquire object from a file.
-
-        Parameters
-        ----------
-        filename : str
-            The name of the file to load the Aquire object from.
-
-        Returns
-        -------
-        Aquire
-            The loaded Aquire object.
-        """
-        with open(filename, 'rb') as f:
-            return pickle.load(f)
-
     def save_results(self, filename: str):
         """
         Save the results of the Aquire object to a file.
@@ -1090,7 +1039,7 @@ class Aquire:
     def check_measurement_data(self):
         for i in range(self.H.n_paulis()):
             for j in range(self.H.n_paulis()):
-                if self.data[i, j, :] < 0:
+                if np.any(self.data[i, j, :] < 0):
                     warnings.warn("Negative value in data.", UserWarning)
 
     def check_diagnostic_data(self):
