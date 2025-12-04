@@ -1,12 +1,11 @@
 import numpy as np
 import pytest
 import math
+import random
 from pathlib import Path
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
-
-
-prime_list = [2, 3, 5, 7, 11, 13]
+from tests import PRIME_LIST
 
 
 class TestPauliSumFactories:
@@ -147,7 +146,7 @@ class TestPauliSumFactories:
         assert P.n_paulis() == N
 
     def test_pauli_sum_from_random_large_population_allows_duplicates(self):
-        dims = prime_list
+        dims = [2, 3, 5, 7, 11, 13, 17]
         N = 300
         P = PauliSum.from_random(N, dims, seed=123)
         P.combine_equivalent_paulis()
@@ -242,6 +241,9 @@ class TestPauliSumFactories:
         tableau = np.asarray([[0, 0, 1, 1]], dtype=int)
         _ = PauliString.from_tableau(tableau)
 
+        tableau = [0, 0, 1, 1]
+        _ = PauliString.from_tableau(tableau)
+
         with pytest.raises(ValueError):
             tableau = np.asarray([[[0, 0, 1, 1]]], dtype=int)
             _ = PauliString.from_tableau(tableau)
@@ -249,9 +251,6 @@ class TestPauliSumFactories:
         with pytest.raises(ValueError):
             tableau = np.asarray([[0, 0, 1, 1], [1, 1, 0, 1]], dtype=int)
             _ = PauliString.from_tableau(tableau)
-
-        tableau = [0, 0, 1, 1]
-        _ = PauliString.from_tableau(tableau)
 
     def test_pauli_string_from_random(self):
         ps1 = PauliString.from_random(3)
@@ -263,9 +262,12 @@ class TestPauliSumFactories:
         assert ps3.shape() == ps4.shape()
 
     def test_pauli_from_exponents(self):
-        p1 = Pauli.from_exponents(1, 2, 3)
-        p2 = Pauli.from_exponents(1, 1)
-        p3 = Pauli.from_exponents(2)
+        dimension = random.choices(PRIME_LIST)[0]
+        x = random.randint(0, dimension - 1)
+        z = random.randint(0, dimension - 1)
+        p1 = Pauli.from_exponents(x, z, dimension)
+        p2 = Pauli.from_exponents(x, z)
+        p3 = Pauli.from_exponents(x)
         p4 = Pauli.from_exponents()
 
         assert p1.shape() == p2.shape()
@@ -296,13 +298,13 @@ class TestPauliSumFactories:
             _ = Pauli.from_tableau(tableau)
 
     def test_pauli_str(self):
-        tableau = [0, 1]
-        p = Pauli.from_tableau(tableau)
-        assert f"{p}" == "x0z1"
-
-        tableau = [11, 31]
-        p = Pauli.from_tableau(tableau, 37)
-        assert f"{p}" == "x11z31"
+        for _ in range(10):
+            dimension = random.choices(PRIME_LIST)[0]
+            x = random.randint(0, dimension - 1)
+            z = random.randint(0, dimension - 1)
+            tableau = [x, z]
+            p = Pauli.from_tableau(tableau, dimension)
+            assert f"{p}" == f"x{x}z{z}"
 
     def test_pauli_conversions(self):
         p = Pauli.from_string("x1z5", 7)
