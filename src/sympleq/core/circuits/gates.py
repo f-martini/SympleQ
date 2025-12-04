@@ -230,7 +230,7 @@ class Gate:
             raise ValueError("n_qudits must be greater than or equal to the maximum qudit index.")
         full_symplectic, _ = embed_symplectic(self.symplectic, self.phase_vector, self.qudit_indices, n_qudits)
         return full_symplectic
-    
+
     def __eq__(self, other):
         if not isinstance(other, Gate):
             return False

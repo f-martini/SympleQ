@@ -123,7 +123,7 @@ def heuristic_clifford_symmetry(n_spins: int):
 
     A[0, 1] = 1
     A[1, 0] = 1
-    for i in range(n_spins-2):
+    for i in range(n_spins - 2):
         A[-1 - i, 2 + i] = 1
 
     F = np.block([[A, B], [C, A]])
@@ -135,4 +135,3 @@ def heuristic_clifford_symmetry(n_spins: int):
 if __name__ == "__main__":
 
     print(heuristic_clifford_symmetry(5))
-
