@@ -57,7 +57,7 @@ class TestDecomposition:
 
     # ---------- preconditioner tests----------
 
-    def preconditioner_noop_when_A_invertible_test(self, F, p):
+    def preconditioner_noop_when_A_invertible_test(self, F: np.ndarray, p: int):
         n = F.shape[0] // 2
         from copy import deepcopy
         F0 = deepcopy(F)
@@ -68,29 +68,29 @@ class TestDecomposition:
             F_prime = (C_pre.full_symplectic() @ F) % p
             assert np.array_equal(F_prime, F0 % p)
 
-    def preconditioner_preserves_symplectic_test(self, F, p):
+    def preconditioner_preserves_symplectic_test(self, F: np.ndarray, p: int):
         C_pre = ensure_invertible_A_circuit(F, p)
         F_prime = (C_pre.full_symplectic() @ F) % p
         assert is_symplectic(F_prime, p)
 
-    def A_invertible_after_precondition(self, F, p):
+    def A_invertible_after_precondition(self, F: np.ndarray, p: int):
         n = F.shape[0] // 2
         C_pre = ensure_invertible_A_circuit(F, p)
         F_prime = (C_pre.full_symplectic() @ F) % p
         A = F_prime[:n, :n]
         _ = inv_gfp(A, p)  # should not raise
 
-    def preconditioner_determinism(self, F, p):
+    def preconditioner_determinism(self, F: np.ndarray, p: int):
         C1 = ensure_invertible_A_circuit(F, p)
         C2 = ensure_invertible_A_circuit(F, p)
         assert [g.name for g in C1.gates] == [g.name for g in C2.gates]
         assert [tuple(g.qudit_indices) for g in C1.gates] == [tuple(g.qudit_indices) for g in C2.gates]
 
-    def preconditioner_respects_depth(self, F, p):
+    def preconditioner_respects_depth(self, F: np.ndarray, p: int):
         C_pre = ensure_invertible_A_circuit(F, p, max_depth=4)
         assert len(C_pre.gates) <= 4
 
-    def preconditioner_after_random_conjugation(self, n=4, p=3, depth=10, seed=1):
+    def preconditioner_after_random_conjugation(self, n: int = 4, p: int = 3, depth: int = 10, seed: int = 1):
         rng = np.random.default_rng(seed)
         F = self.random_symplectic(n, p, rng)
         # random circuit (uses only valid gates for dimension p)
@@ -162,7 +162,7 @@ class TestDecomposition:
             ops = _emit_local_ops_for_D(0, u, p)
             F = Circuit([p], ops).composite_gate().symplectic % p
             target = np.array([[u, 0],
-                            [0, pow(int(u), -1, p)]], dtype=int) % p
+                               [0, pow(int(u), -1, p)]], dtype=int) % p
             assert np.array_equal(F, target), f"Failed D({u}) over GF({p})"
 
     def SUM_direction_in_M(self, n: int, p: int, rng: np.random.Generator = np.random.default_rng(42)):
@@ -324,7 +324,7 @@ class TestDecomposition:
             C_sym = self.random_symmetric(n, rng, p)
 
             # compose a ground-truth F = L·M·R
-            F_true = self.build_F_from_LMR(n, A, B_sym, C_sym, p)      # uses the same block builders you already have
+            F_true = self.build_F_from_LMR(n, A, B_sym, C_sym, p)
 
             # Run decomposition
             C = decompose_symplectic_to_circuit(F_true, p, check=True)
@@ -357,7 +357,6 @@ class TestDecomposition:
                 assert np.array_equal(h_in, h_out), f"Fail \nh_in={h_in} \nh_out={h_out}"
             else:
                 # For p=2, Pauli can't move phases mod 4; we can at least assert the
-                # "even part" matches, or that any delta is ≡ 0 (mod 4) if you add Clifford tweaks.
                 assert np.all((h_in - h_out) % 2 == 0), "p=2 residual odd parts cannot be Pauli-corrected"
 
             for _ in range(num_trials):

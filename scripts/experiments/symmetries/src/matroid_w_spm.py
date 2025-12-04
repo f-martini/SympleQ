@@ -370,16 +370,15 @@ def find_clifford_symmetries(
         else:
             raise ValueError("extra_column_invariants must be 'none' or 'hist'.")
 
-    # ---------- NEW: choose the base partition via color_mode ----------
+    # ---------- choose the base partition via color_mode ----------
     base_colors, base_classes = _build_base_partition(
         S, p,
-        coeffs=coeffs,               # OK to seed WL with coeff IDs if you want
+        coeffs=coeffs,
         col_invariants=col_invariants if color_mode == "wl" else None,
         max_rounds=max_wl_rounds,
         color_mode=color_mode,
     )
 
-    # p=2 bitset?
     use_bitset = (p == 2 and (p2_bitset is True or (p2_bitset == "auto" and n <= 256)))
 
     return _full_dfs_complete(

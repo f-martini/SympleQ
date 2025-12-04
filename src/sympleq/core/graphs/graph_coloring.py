@@ -1,11 +1,10 @@
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 
 def _wl_colors_from_S(
     S_mod: np.ndarray,
     p: int,
-    *,
     coeffs: Optional[np.ndarray] = None,
     col_invariants: Optional[np.ndarray] = None,  # shape (n, t) ints; optional extras for seeding
     max_rounds: int = 10
@@ -54,8 +53,8 @@ def _wl_colors_from_S(
     return color
 
 
-def _color_classes(color: np.ndarray) -> Dict[int, List[int]]:
-    classes: Dict[int, List[int]] = {}
+def _color_classes(color: np.ndarray) -> dict[int, list[int]]:
+    classes: dict[int, list[int]] = {}
     for i, c in enumerate(color):
         classes.setdefault(int(c), []).append(i)
     for c in classes:
@@ -66,12 +65,11 @@ def _color_classes(color: np.ndarray) -> Dict[int, List[int]]:
 def _build_base_partition(
     S_mod: np.ndarray,
     p: int,
-    *,
     coeffs: Optional[np.ndarray],
     col_invariants: Optional[np.ndarray],
     max_rounds: int = 10,
     color_mode: str = "wl",      # "wl" | "coeffs_only" | "none"
-) -> Tuple[np.ndarray, Dict[int, List[int]]]:
+) -> tuple[np.ndarray, dict[int, list[int]]]:
     """
     Build the base colors & classes:
       - "wl":          WL-1 on S (optionally seeded with coeffs/invariants)
