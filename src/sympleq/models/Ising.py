@@ -1,4 +1,5 @@
 from sympleq.core.paulis import PauliSum, PauliString
+from sympleq.core.circuits import Gate
 import numpy as np
 
 
@@ -113,3 +114,19 @@ def ising_2d_hamiltonian(n_x: int, n_y: int, J_zz: float, h_x: float, periodic: 
         weights.append(h_x)
 
     return PauliSum.from_pauli_strings(paulis, weights=weights, phases=None)
+
+
+def heuristic_clifford_symmetry(n_spins: int):
+    A = np.zeros((n_spins, n_spins), dtype=int)
+    B = np.ones((n_spins, n_spins), dtype=int)
+    C = np.zeros((n_spins, n_spins), dtype=int)
+
+    A[0, 1] = 1
+    A[1, 0] = 1
+    for i in range(n_spins - 2):
+        A[-1 - i, 2 + i] = 1
+
+    F = np.block([[A, B], [C, A]])
+    F_G = Gate('F', list(range(n_spins)), F, [2] * n_spins, np.concatenate([np.zeros(n_spins, dtype=int),
+                                                                            np.ones(n_spins, dtype=int)]))
+    return F_G
