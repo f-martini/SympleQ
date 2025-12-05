@@ -1,0 +1,77 @@
+name: Linting And Testing
+
+on: pull_request
+
+env:
+  PRJ_NAME: sympleq
+  SETUP_PY: ./
+  SRC_DIR: ./src/sympleq
+  PYTEST_INI: ./scripts/configs/pytest.ini
+  DEV_REQUIREMENTS: ./scripts/configs/dev_requirements.txt
+  FLAKE8_CONFIG: ./scripts/configs/setup.cfg
+  COVERAGE_REPORT_XML: ./docs/tests_results/coverage_report.xml
+  COVERAGE_REPORT_HTML: ./docs/tests_results/coverage_html_report
+  COVERAGE_REPORT_JUNIT: ./docs/tests_results/junit.xml
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  linting:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Linux testing environment
+        uses: ./.github/actions/setup/linux-testing-environment
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          setup-path: ${{ env.SETUP_PY }}
+          dev-requirements: ${{ env.DEV_REQUIREMENTS }}
+          extra-packages: "flake8"
+          checkout: "false"
+
+      - name: Flake8
+        run: |
+          flake8 ${{ env.SRC_DIR }} --config=${{ env.FLAKE8_CONFIG }}
+
+  testing:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Linux testing environment
+        uses: ./.github/actions/setup/linux-testing-environment
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          setup-path: ${{ env.SETUP_PY }}
+          dev-requirements: ${{ env.DEV_REQUIREMENTS }}
+          extra-packages: "pytest pytest-cov"
+          checkout: "false"
+
+      - name: Pytest (No Benchmarking)
+        run: |
+          pytest \
+            --override-ini "pytest.ini=${{ env.PYTEST_INI }}" \
+            --cov=${{ env.PRJ_NAME }} \
+            --cov-report=xml:${{ env.COVERAGE_REPORT_XML }} \
+            --cov-report=html:${{ env.COVERAGE_REPORT_HTML }} \
+            --junitxml=${{ env.COVERAGE_REPORT_JUNIT }} \
+            --disable-warnings \
+            -vv \
+            -m "not system and not stress and not acceptance"
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          with:
+          file: ${{ env.COVERAGE_REPORT_XML }}
+          override_branch: ${{ github.base_ref }}
+          override_commit: ${{ github.event.pull_request.base.sha }}
