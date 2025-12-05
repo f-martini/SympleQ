@@ -261,30 +261,6 @@ def post_process_cliques(A, aaa, k=1):
     return aaa
 
 
-def LDF(A):
-    # Inputs:
-    #     A - (graph) - graph for which partition should be found
-    # Outputs:
-    #     (list{list{int}}) - a list containing cliques which partition A
-    p = A.ord()
-    remaining = set(range(p))
-    N = {}
-    for i in range(p):
-        N[i] = A.neighbors(i)
-    aaa = []
-    while remaining:
-        a = max(remaining, key=lambda x: len(N[x] & remaining))
-        aa0 = set([a])
-        aa1 = N[a] & remaining
-        while aa1:
-            a2 = max(aa1, key=lambda x: len(N[x] & aa1))
-            aa0.add(a2)
-            aa1 &= N[a2]
-        aaa.append(aa0)
-        remaining -= aa0
-    return [sorted(list(aa)) for aa in aaa]
-
-
 def commutation_graph(P: PauliSum):
     # TODO Update with real symplectic product matrix, once mixed species supported
     spm = np.zeros([P.n_paulis(), P.n_paulis()], dtype=int)
