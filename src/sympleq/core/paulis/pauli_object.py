@@ -60,11 +60,14 @@ class PauliObject(ABC):
         if tableau.ndim == 1:
             tableau = tableau.reshape(1, -1)
 
+        if tableau.ndim != 2:
+            raise ValueError(f"Invalid tableau shape ({tableau.shape}). Tableaus should be two dimensional.")
+
         n_pauli_strings = tableau.shape[0]
         n_qudits = tableau.shape[1] // 2
 
         if dimensions is None:
-            dimensions = np.ones(n_qudits) * DEFAULT_QUDIT_DIMENSION
+            dimensions = np.ones(n_qudits, dtype=int) * DEFAULT_QUDIT_DIMENSION
         else:  # Catches int but also list and arrays of length 1
             dimensions = np.asarray(dimensions, dtype=int)
             if dimensions.ndim == 0:
@@ -240,7 +243,7 @@ class PauliObject(ABC):
         return self._weights
 
     @weights.setter
-    def weights(self, new_weights: list[int] | np.ndarray):
+    def weights(self, new_weights: list[complex] | np.ndarray):
         new_weights = np.asarray(new_weights, dtype=complex)
 
         if len(new_weights) != self.n_paulis():
@@ -249,7 +252,7 @@ class PauliObject(ABC):
 
         self._weights = new_weights
 
-    def set_weights(self, new_weights: list[int] | np.ndarray):
+    def set_weights(self, new_weights: list[complex] | np.ndarray):
         """
         Set new weights (coefficients) for the Pauli object.
 
@@ -524,17 +527,17 @@ class PauliObject(ABC):
 
         Examples
         --------
-        >>> ps1 = PauliString.from_string("x1z0 x0z1", [2, 2])
-        >>> ps2 = PauliString.from_string("x0z1 x1z0", [2, 2])
+        >>> ps1 = PauliString.from_string("x0z1 x1z0", [2, 2])
+        >>> ps2 = PauliString.from_string("x1z0 x0z1", [2, 2])
         >>> ps1 > ps2
         True
         """
 
         if self.n_paulis() > 1:
-            raise Exception("A Pauli object with more than one PauliString cannot be ordered.")
+            raise Exception("A Pauli object with more than one Pauli objects cannot be ordered.")
 
-        if np.array_equal(self.dimensions, other_pauli.dimensions):
-            raise Exception("Cannot compare PauliStrings with different dimensions.")
+        if not np.array_equal(self.dimensions, other_pauli.dimensions):
+            raise Exception("Cannot compare Pauli objects with different dimensions.")
 
         # Flatten tableaus to 1D-vectors
         self_tableau = self.tableau.ravel()

@@ -167,8 +167,11 @@ class PauliSum(PauliObject):
         if inherit_phases:
             if phases is not None:
                 warnings.warn("Phases are disregarded if inherit_phases is set to True.")
-            phases = np.hstack([p.phases for p in pauli_string])
-        return cls(tableau, dimensions, weights, phases)
+            phases = np.hstack([p._phases for p in pauli_string])
+        P = cls(tableau, dimensions, weights, phases)
+        P._sanity_check()
+
+        return P
 
     @classmethod
     def from_pauli_objects(cls, pauli_objects: PauliObject | Sequence[PauliObject],
@@ -220,7 +223,7 @@ class PauliSum(PauliObject):
         return P
 
     @classmethod
-    def from_string(cls, pauli_str: str | list[str], dimensions: int | list[int] | np.ndarray,
+    def from_string(cls, pauli_str: str | list[str], dimensions: int | list[int] | np.ndarray | None = None,
                     weights: int | float | complex | list[int | float | complex] | np.ndarray | None = None,
                     phases: int | list[int] | np.ndarray | None = None
                     ) -> PauliSum:
@@ -231,8 +234,12 @@ class PauliSum(PauliObject):
         ----------
         pauli_str : str | list[str]
             The string representation of the Pauli string, where exponents are separated by 'x' and 'z'.
-        dimensions : list[int] | np.ndarray
+        dimensions : list[int] | np.ndarray | None
             The dimensions parameter to be passed to the PauliSum constructor.
+        weights : int | float | complex | list[int | float | complex] | np.ndarray | None
+            The weights parameter to be passed to the PauliSum constructor.
+        phases : int | list[int] | np.ndarray | None
+            The phases parameter to be passed to the PauliSum constructor.
 
         Returns
         -------
@@ -249,7 +256,10 @@ class PauliSum(PauliObject):
             pauli_str = [pauli_str]
 
         pauli_strings = [PauliString.from_string(s, dimensions) for s in pauli_str]
-        return PauliSum.from_pauli_strings(pauli_strings, weights, phases)
+        P = cls.from_pauli_strings(pauli_strings, weights, phases)
+        P._sanity_check()
+
+        return P
 
     @classmethod
     def from_random(cls,
@@ -1200,25 +1210,6 @@ class PauliSum(PauliObject):
         self._weights[index_1], self._weights[index_2] = self.weights[index_2], self.weights[index_1]
         self._phases[index_1], self._phases[index_2] = self.phases[index_2], self.phases[index_1]
         self._tableau[index_1], self._tableau[index_2] = self.tableau[index_2], self.tableau[index_1]
-
-    # def hermitian_conjugate(self):
-    #     conjugate_weights = np.conj(self.weights)
-    #     conjugate_initial_phases = (- self.phases) % (2 * self.lcm)
-    #     acquired_phases = []
-    #     for i in range(self.n_paulis()):
-    #         hermitian_conjugate_phase = 0
-    #         for j in range(self.n_qudits()):
-    #             r = self.x_exp[i, j]
-    #             s = self.z_exp[i, j]
-    #             hermitian_conjugate_phase += (r * s % self.lcm) * self.lcm / self.dimensions[j]
-    #         acquired_phases.append(2 * hermitian_conjugate_phase)
-    #     conjugate_phases = conjugate_initial_phases + np.array(acquired_phases, dtype=int)
-    #     conjugate_dimensions = self.dimensions
-    #     conjugate_pauli_strings = [p.hermitian() for p in self.pauli_strings]
-    #     return PauliSum(conjugate_pauli_strings, conjugate_weights, conjugate_phases, conjugate_dimensions,
-    #                     standardise=False)
-
-    # H = hermitian_conjugate
 
     def dependencies(self) -> tuple[list[int], dict[int, list[tuple[int, int]]]]:
         """

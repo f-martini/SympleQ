@@ -232,6 +232,28 @@ class Pauli(PauliObject):
         """
         return self.as_pauli_sum().to_hilbert_space()
 
+    def _sanity_check(self):
+        """
+        Validate internal consistency of the Pauli.
+        The Pauli has the extra constraint of having n_paulis() == n_qudits() == 1
+
+        Raises
+        ------
+        ValueError
+            If tableau, dimensions, or exponents are inconsistent or invalid,
+            if n_paulis() != 1, or if n_qudits() != 1.
+        """
+
+        if self.n_paulis() != 1:
+            raise ValueError(
+                f"Invalid tableau for PauliString. The number of Pauli strings should be 1 (got {self.n_paulis()}).")
+
+        if self.n_qudits() != 1:
+            raise ValueError(
+                f"Invalid tableau for Pauli. The number of qudits should be 1 (got {self.n_qudits()}).")
+
+        super()._sanity_check()
+
     def __mul__(self, A: str | Pauli) -> Pauli:
         """
         Multiply this Pauli by another Pauli or parseable string.
@@ -252,17 +274,20 @@ class Pauli(PauliObject):
             If operand type is unsupported or dimensions mismatch.
         """
         if isinstance(A, str):
-            return self * Pauli.from_string(A)
+            # When multiplying by a string, we retain the own dimensions,
+            # as otherwise it would only work for the default value.
+            A = Pauli.from_string(A)
+            new_tableau = (self.tableau + A.tableau) % self.lcm
+            return Pauli(new_tableau, dimensions=self.dimensions)
 
         if not isinstance(A, Pauli):
             raise Exception(f"Cannot multiply Pauli with type {type(A)}")
 
         if not np.array_equal(self.dimensions, A.dimensions):
-            raise Exception("To multiply two Paulis, their dimensions"
-                            f" {A.dimensions} and {self.dimensions} must be equal")
+            raise ValueError("To multiply two Paulis, their dimensions"
+                             f" {A.dimensions} and {self.dimensions} must be equal")
 
         new_tableau = (self.tableau + A.tableau) % self.lcm
-
         return Pauli(new_tableau, dimensions=self.dimensions)
 
     def __str__(self) -> str:
