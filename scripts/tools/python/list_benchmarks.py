@@ -6,6 +6,16 @@ ROOT_DIR = Path()
 OUTPUT_FILE_DIR = None
 
 
+def clear_input_buffer():
+    if sys.platform == 'win32':
+        import msvcrt
+        while msvcrt.kbhit():
+            msvcrt.getch()
+    else:
+        import termios
+        termios.tcflush(sys.stdin, termios.TCIFLUSH)
+
+
 def list_benchmark_tests(root_dir: Path, output_file_dir: Path) -> None:
     result = subprocess.run(
         [sys.executable, "-m", "pytest", "--collect-only", "-m", "benchmark", "-q", "--disable-warnings"],
@@ -31,8 +41,10 @@ def list_benchmark_tests(root_dir: Path, output_file_dir: Path) -> None:
             print(f" {i + 1} - {test_func}")
         print("=" * 70)
 
+        clear_input_buffer()
+
         try:
-            selection = int(input("\nEnter the index of the benchmark to run: "))
+            selection = int(input("Enter the index of the benchmark to run: "))
             if selection == 0:
                 print("\nTask terminated.")
                 sys.exit(1)

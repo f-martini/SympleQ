@@ -12,7 +12,7 @@ if not exist "%SRC_VENV%" (
     exit /b 1
 )
 
-call %SRC_VENV%/Scripts/activate
+call %SRC_VENV%/Scripts/activate >nul 2>&1
 
 if not exist "%DEV_REQUIREMENTS%" (
     echo %DEV_REQUIREMENTS% not found.

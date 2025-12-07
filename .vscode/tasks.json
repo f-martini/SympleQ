@@ -84,7 +84,7 @@
             },
             "linux": {
                 "command": "bash ${workspaceFolder}/scripts/tools/shell/run_profiler.sh",
-                "args": ["test_paulisum_amend"]
+                "args": [""]
             },
             "osx": {
                 "command": "echo Profiling not supported on macOS."

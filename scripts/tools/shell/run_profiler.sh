@@ -10,7 +10,7 @@ if [ ! -d "$SRC_VENV" ]; then
     exit 1
 fi
 
-source "$SRC_VENV/bin/activate"
+source "$SRC_VENV/bin/activate" > /dev/null 2>&1
 
 if [ ! -f "$DEV_REQUIREMENTS" ]; then
     echo "$DEV_REQUIREMENTS not found."
