@@ -13,7 +13,6 @@ import warnings
 
 import pytest
 
-@pytest.mark.integration
 class TestAquire:
 
     def andrew_comparison(self, P, psi, correct_commutation_graph, correct_xxx, correct_circuit_list, correct_pdf_list,
@@ -544,7 +543,7 @@ class TestAquire:
         str(model)
         model.info()
         model.info(name="circuits")
-        model.plot()
+        fig, ax = model.plot()
 
 
 

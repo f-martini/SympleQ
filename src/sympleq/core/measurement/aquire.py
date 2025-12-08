@@ -11,7 +11,8 @@ from sympleq.core.measurement.covariance_graph import (graph, quditwise_commutat
 from sympleq.core.measurement.mcmc import bayes_covariance_graph
 from sympleq.core.measurement.aquire_utils import (calculate_mean_estimate, calculate_statistical_variance_estimate,
                                                    calculate_systematic_variance_estimate, true_mean,
-                                                   true_statistical_variance, config_params, aquire_params)
+                                                   true_statistical_variance, config_params, aquire_params,
+                                                   plot_aquire)
 from sympleq.core.circuits import Circuit
 from sympleq.utils import int_to_bases
 from sympleq.core.paulis.utils import make_hermitian, XZ_to_Y
@@ -1086,7 +1087,8 @@ class Aquire:
     # plot
 
     def plot(self, filename: str | None = None):
-        plot_aquire(self, filename)
+        fig, ax, = plot_aquire(self, filename)
+        return fig, ax
 
 
 def simulate_measurement(paulisum: PauliSum, psi: list[float | complex] | list[float] | list[complex] | np.ndarray,
@@ -1098,110 +1100,3 @@ def simulate_measurement(paulisum: PauliSum, psi: list[float | complex] | list[f
     a1 = np.random.choice(np.prod(dims1), p=pdf)
     result = int_to_bases(a1, dims1)
     return result
-
-
-def plot_aquire(model: Aquire, filename: str | None = None):
-    """
-    Plot the estimated mean value and statistical/systematic variance as a function of the number of shots taken.
-
-    Parameters
-    ----------
-    filename : str | None
-        The filename to save the plot to. If None, the plot will not be saved.
-
-    Returns
-    -------
-    None
-
-    Notes
-    -----
-    The plot shows the estimated mean value and statistical/systematic variance as a function of the number of
-    shots taken. The estimated mean value is plotted with error bars representing the statistical/systematic
-    variance. The true mean value and statistical/systematic variance can be plotted as dashed lines if the
-    true_values_flag is True. The plot is saved to the specified filename if it is not None.
-
-    Examples
-    --------
-    >>> acquire.plot('plot.png')
-    """
-    cm = 1 / 2.54
-    fig, ax = plt.subplots(ncols=2, nrows=1, figsize=(23 * cm, 11 * cm))
-    c_stat = '#4FCB8D'
-    c_dev = '#D93035'
-    cs = 1.75               # capsize
-    ct = 1.5                  # cap-thickness
-    ms = 5.5                 # marker size
-    ew = 1.5                  # errorbar linewidth
-    mew = 1.5               # marker edge width
-    ec = c_stat  # bitwise errorbar edge-color
-    mec = '#ffffff'         # marker edge color
-    mfc = c_stat  # bitwise marker face color
-    fmt = 'o'            # bitwise marker type
-    label_fontsize = 14
-
-    M = np.array(model.update_steps)
-    est_mean = np.array(model.estimated_mean)
-    stat_var = np.array(model.statistical_variance)
-    if model.config.enable_diagnostics:
-        sys_var = np.array(model.systematic_variance)
-
-    # Mean Plot
-    if model.config.calculate_true_values:
-        H_mean = model.true_mean_value
-        plot_mean = np.abs(est_mean - H_mean) / np.abs(H_mean)
-        ax[0].plot([M[0], M[-1]], [0, 0], 'k--')
-        ax[0].set_ylabel(r'$|\widetilde{O} - \langle \hat{O} \rangle|$', fontsize=label_fontsize)
-        if model.config.enable_diagnostics:
-            plot_errorbar = np.sqrt(stat_var + sys_var) / np.abs(H_mean)
-        else:
-            plot_errorbar = np.sqrt(stat_var) / np.abs(H_mean)
-    else:
-        plot_mean = est_mean
-        ax[0].set_ylabel(r'$\widetilde{O}$', fontsize=label_fontsize)
-        if model.config.enable_diagnostics:
-            plot_errorbar = np.sqrt(stat_var + sys_var)
-        else:
-            plot_errorbar = np.sqrt(stat_var)
-    ax[0].errorbar(M, plot_mean, yerr=plot_errorbar,
-                   fmt=fmt, ecolor=ec,
-                   capsize=cs, capthick=ct, markersize=ms, elinewidth=ew,
-                   mec=mec, mew=mew, mfc=mfc)
-
-    ax[0].set_xscale('log')
-    ax[0].set_xlabel(r'shots $M$', fontsize=label_fontsize)
-
-    # Error Plot
-    if model.config.calculate_true_values:
-        stat_error = stat_var * M / (H_mean)**2
-        if model.config.enable_diagnostics:
-            phys_error = sys_var * M / (H_mean)**2
-    else:
-        stat_error = stat_var * M
-        if model.config.enable_diagnostics:
-            phys_error = sys_var * M
-
-    r = 1.25  # ~±22% in log10
-    lefts = M / np.sqrt(r)
-    rights = M * np.sqrt(r)
-    widths = rights - lefts
-
-    ax[1].bar(lefts, stat_error, width=widths, align='edge',
-              label='Statistical Variance', color=c_stat)
-    if model.config.enable_diagnostics:
-        ax[1].bar(lefts, phys_error, width=widths, align='edge',
-                  bottom=stat_error, label='Systematic Variance',
-                  color=c_dev)
-
-    if model.config.calculate_true_values:
-        ax[1].plot(M, model.true_statistical_variance_value * M / (H_mean)**2, 'k--', label='True Stat. Variance')
-
-    ax[1].set_xscale('log')
-    ax[1].set_ylabel(r'$M \cdot (\widetilde{\Delta O})^2$', fontsize=label_fontsize)
-    ax[1].set_xlabel(r'shots $M$', fontsize=label_fontsize)
-    ax[1].legend()
-
-    plt.tight_layout(pad=1, w_pad=1, h_pad=1)
-    if filename is not None:
-        plt.savefig(filename, dpi=1200)
-
-    plt.show()
