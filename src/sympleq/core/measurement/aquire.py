@@ -560,6 +560,10 @@ class Aquire:
             shot = [shot]
         graphs = []
         for s in shot:
+            if s in self.update_steps:
+                idx = self.update_steps.index(s)
+                graphs.append(self.covariance_graph_checkpoints[idx])
+                continue
             data = self.data_at_shot(s)
             N, N_max = self.set_mcmc_parameters(s)
             A = bayes_covariance_graph(data,
@@ -576,6 +580,29 @@ class Aquire:
             return graphs[0]
         else:
             return graphs
+
+    def total_error(self):
+        statistical_variance = self.statistical_variance[-1] if len(self.statistical_variance) > 0 else 0
+        systematic_variance = self.systematic_variance[-1] if len(self.systematic_variance) > 0 else 0
+        return np.sqrt(statistical_variance + systematic_variance)
+
+    def total_error_at_shot(self, shot: int | list[int]):
+        if isinstance(shot, (int, np.integer)):
+            shot = [shot]
+        error = []
+        covariance_graph_list = self.covariance_graph_at_shot(shot)
+        data_list = self.data_at_shot(shot)
+        scaling_matrix_list = self.scaling_matrix_at_shot(shot)
+        diagnostic_data_list = self.diagnostic_data_at_shot(shot)
+        for i in range(len(shot)):
+            statistical_variance = calculate_statistical_variance_estimate(covariance_graph_list[i],
+                                                                           scaling_matrix_list[i])
+            systematic_variance = calculate_systematic_variance_estimate(data_list[i], self.H.weights,
+                                                                         diagnostic_data_list[i])
+            error.append(np.sqrt(statistical_variance + systematic_variance))
+        if len(shot) == 1:
+            return error[0]
+        return error
 
     ###################################################################################################################
     # Main experiment methods #########################################################################################
