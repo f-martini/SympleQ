@@ -544,6 +544,7 @@ class TestAquire:
         str(model)
         model.info()
         model.info(name="circuits")
+        model.plot()
 
 
 
