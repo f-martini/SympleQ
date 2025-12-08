@@ -1,8 +1,34 @@
+import sys
+from pathlib import Path
+
 import numpy as np
-from block_decomposition import matmul_mod, mod_p, is_symplectic, block_decompose, ordered_block_sizes, inv_mod_mat
-# =========================
-# Generators & test: scrambled SWAP
-# =========================
+
+if __package__ in (None, ""):
+    # Allow running the script directly by registering the project root for package imports.
+    package_root = Path(__file__).resolve().parents[4]
+    if str(package_root) not in sys.path:
+        sys.path.insert(0, str(package_root))
+    from scripts.experiments.symmetries.src.block_decomposition import (  # noqa: E402
+        matmul_mod,
+        mod_p,
+        is_symplectic,
+        block_decompose,
+        ordered_block_sizes,
+        inv_mod_mat,
+    )
+    # from scripts.experiments.symmetries.src.block_decompose_2 import (  # noqa: E402
+    #     symplectic_basis_from_chains,
+    # )
+else:
+    from .block_decomposition import (  # type: ignore[attr-defined]
+        matmul_mod,
+        mod_p,
+        is_symplectic,
+        block_decompose,
+        ordered_block_sizes,
+        inv_mod_mat,
+    )
+    # from .block_decompose_2 import symplectic_basis_from_chains  # type: ignore[attr-defined]
 
 
 def swap_symplectic(n: int, i: int, j: int, p: int) -> np.ndarray:
@@ -115,8 +141,28 @@ def test_scrambled_swap(p: int = 3, n: int = 6, i: int = 1, j: int = 4, seed: in
     return S, T, F
 
 
+def test_scrambled_swap2(p: int = 3, n: int = 6, i: int = 1, j: int = 4, seed: int = 42):
+    rng = np.random.default_rng(seed)
+    S_true = swap_symplectic(n, i, j, p)
+    R = random_symplectic(n, p, rng=rng, steps=6)
+    F = mod_p(inv_mod_mat(R, p) @ S_true @ R, p)
+
+    # Ask the solver to find the coupling block first
+    S, T = symplectic_basis_from_chains(F, p)
+
+    assert is_symplectic(T, p)
+    assert np.array_equal(S, mod_p(inv_mod_mat(T, p) @ F @ T, p))
+
+    sizes = ordered_block_sizes(S, p)
+    assert max(sizes) == 4, f"Expected max block size 4, got {max(sizes)} ({sizes})"
+    assert sizes[0] == 4, f"Expected first block size 4, got {sizes[0]} ({sizes})"
+
+    return S, T, F
+
+
 if __name__ == "__main__":
-    for _ in range(100):
+    for _ in range(1):
         seed = np.random.randint(0, 2**32)
-        S, T, F = test_scrambled_swap(p=17, n=20, i=4, j=2, seed=seed)
+        S, T, F = test_scrambled_swap(p=2, n=5, i=4, j=2, seed=seed)
+        
     print('passed all tests')

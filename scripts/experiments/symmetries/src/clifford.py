@@ -17,7 +17,7 @@ def clifford_symmetry(pauli_sum: PauliSum,
         rhs = pauli_sum.to_standard_form()
         assert lhs == rhs, f'Symmetry finder failed\n{lhs.__str__()}\n{rhs.__str__()}'
 
-    S, T = block_decompose(g.symplectic, int(pauli_sum.lcm))
+    S, T = block_decompose(g.symplectic, int(pauli_sum.lcm), min_block_size=4)
     h_S, h_T = clifford_phase_decomposition(g.symplectic, g.phase_vector, S, T, int(pauli_sum.lcm))
     S_gate = Gate('S', g.qudit_indices, S, g.dimensions, h_S)
     T_gate = Gate('T', g.qudit_indices, T, g.dimensions, h_T)

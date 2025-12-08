@@ -1,0 +1,32 @@
+name: "Determine SemVer Tag"
+description: "Determines the next SemVer tag based on PR body and commit history"
+
+inputs:
+  github-token:
+    description: "GitHub token for API access"
+    required: true
+  commit-sha:
+    description: "Commit SHA to find PR for"
+    required: true
+
+outputs:
+  final_tag:
+    description: "The final calculated tag"
+    value: ${{ steps.tag_logic.outputs.final_tag }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Run tag determination script
+      id: tag_logic
+      shell: bash
+      run: python ${{ github.action_path }}/determine-tag.py
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        COMMIT_SHA: ${{ inputs.commit-sha }}
+        GH_TOKEN: ${{ inputs.github-token }}

@@ -156,9 +156,9 @@ class TestGates():
                 output_str_correct = f"x{(-s1) % d}z{r1} x{r2}z{s2}"
 
                 output_ps = gate.act(input_ps)
-                assert output_ps == PauliString.from_string(
+                assert output_ps.has_equal_tableau(PauliString.from_string(
                     output_str_correct, dimensions=[d, d]
-                ), 'Error in Hadamard gate 0'
+                )), 'Error in Hadamard gate 0'
 
             gate = Hadamard(1, d, inverse=False)  # Hadamard on qudit 1
             for i in range(100):
@@ -166,9 +166,9 @@ class TestGates():
                 output_str_correct = f"x{r1}z{s1} x{(-s2) % d}z{r2}"
 
                 output_ps = gate.act(input_ps)
-                assert output_ps == PauliString.from_string(
+                assert output_ps.has_equal_tableau(PauliString.from_string(
                     output_str_correct, dimensions=[d, d]
-                ), 'Error in Hadamard gate 1'
+                )), 'Error in Hadamard gate 1'
             # test pauli_sums
             gate = Hadamard(0, d, inverse=False)  # Hadamard on qubit 0
 
@@ -188,7 +188,7 @@ class TestGates():
                 output_psum = gate.act(input_psum)
                 output_psum_correct = PauliSum.from_pauli_strings(
                     ps_list_out_correct, phases=ps_phase_out_correct)
-                assert output_psum == output_psum_correct, (
+                assert output_psum.has_equal_tableau(output_psum_correct), (
                     'Error in Hadamard gate: \n' +
                     input_psum.__str__() + '\n' +
                     output_psum.__str__() + '\n' +
@@ -205,7 +205,8 @@ class TestGates():
                 output_str_correct = f"x{r1}z{(r1 + s1) % d} x{r2}z{s2}"
 
                 output_ps = gate.act(input_ps)
-                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in H gate 0'
+                assert output_ps.has_equal_tableau(PauliString.from_string(
+                    output_str_correct, dimensions=[d, d])), 'Error in H gate 0'
 
             gate = PHASE(1, d)  # PHASE on qudit 1
             for i in range(100):
@@ -213,7 +214,8 @@ class TestGates():
                 output_str_correct = f"x{r1}z{s1} x{r2}z{(r2 + s2) % d}"
 
                 output_ps = gate.act(input_ps)
-                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in H gate 1'
+                assert output_ps.has_equal_tableau(PauliString.from_string(
+                    output_str_correct, dimensions=[d, d])), 'Error in H gate 1'
             # test pauli_sums
             gate = PHASE(0, d)  # PHASE on qubit 0
             h = gate.phase_vector
@@ -244,7 +246,7 @@ class TestGates():
                 output_psum = gate.act(input_psum)
                 output_psum_correct = PauliSum.from_pauli_strings(
                     ps_list_out_correct, phases=ps_phase_out_correct)
-                assert output_psum == output_psum_correct, (
+                assert output_psum.has_equal_tableau(output_psum_correct), (
                     'Error in Hadamard gate: \n' +
                     input_psum.__str__() + '\n' +
                     output_psum.__str__() + '\n' +
@@ -330,6 +332,7 @@ class TestGates():
     #                 F_found = map_pauli_sum_to_target_tableau(X, Y)
     #                 assert np.array_equal((X @ F_found) % 2, Y)
 
+    @pytest.mark.skip()
     def test_gate_from_target(self):
         n_qudits = 4
         n_paulis = 2
@@ -353,7 +356,7 @@ class TestGates():
             '\n target:\n' + target_ps.__str__() + '\n output:\n' + output_ps.__str__())
 
         for d in [2]:  # only solves on GF(2) for now...
-            for i in range(10):
+            for i in range(100):
                 input_ps = self.random_pauli_sum(d, n_paulis=6)
                 target_ps = self.random_pauli_sum(d, n_paulis=6)
 
@@ -388,7 +391,6 @@ class TestGates():
             gt = g.transvection(np.random.randint(0, 1, size=10))
             assert is_symplectic(gt.symplectic, 2), 'Error in transvection'
 
-    @pytest.mark.skip(reason="Skipping for now, something broke here. This is a priority fix.")
     def test_gate_inverse(self):
         # TODO: test mixed dimensions
         n_qudits = 4

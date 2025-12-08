@@ -1,0 +1,36 @@
+name: "Version Injection"
+description: "Replace dynamic version with static version in pyproject.toml"
+inputs:
+  fallback-version:
+    description: "Fallback version if SCM detection fails"
+    required: false
+    default: "0.0.0a0"
+  include-distance:
+    description: "Include distance (aN) in version for non-exact tags"
+    required: false
+    default: "true"
+  is-prerelease:
+    description: "Mark version as prerelease"
+    required: false
+    default: "false"
+
+outputs:
+  version:
+    description: "The injected version"
+    value: ${{ steps.inject.outputs.version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install setuptools-scm
+      shell: bash
+      run: python -m pip install setuptools-scm
+
+    - name: Inject version
+      shell: bash
+      run: |
+        python "${{ github.action_path }}/inject_version.py" \
+          --fallback-version "${{ inputs.fallback-version }}" \
+          --include-distance "${{ inputs.include-distance }}" \
+          --is-prerelease "${{ inputs.is-prerelease }}" \
+          >> $GITHUB_OUTPUT

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 class PauliString(PauliObject):
     @classmethod
-    def from_exponents(cls, x_exp: list[int] | np.ndarray | str | int, z_exp: list[int] | np.ndarray | int,
+    def from_exponents(cls, x_exp: list[int] | np.ndarray | int, z_exp: list[int] | np.ndarray | int,
                        dimensions: list[int] | np.ndarray | int | None = None) -> PauliString:
         """
         Create a PauliString instance from X and Z exponents.
@@ -24,7 +24,6 @@ class PauliString(PauliObject):
         ----------
         x_exp : list[int] | np.ndarray | str | int
             The X exponents used to create the PauliString tableau.
-            If no Z exponents are given, the X exponents can be also given as a parseable string.
             If an integer is provided, it is assumed the PauliString contains a single Pauli.
         z_exp: list[int] | np.ndarray | int
             The Z exponents used to create the PauliString tableau.
@@ -44,13 +43,7 @@ class PauliString(PauliObject):
         ValueError
             If x_exp, z_exp, and dimensions don't have the same length.
         """
-        if isinstance(x_exp, str):
-            if z_exp is not None:
-                raise Warning('If input string is provided, z_exp is unnecessary')
-            xz_exponents = re.split('x|z', x_exp)[1:]
-            z_exp = np.array(xz_exponents[1::2], dtype=int)
-            x_exp = np.array(xz_exponents[0::2], dtype=int)
-        elif isinstance(x_exp, list):
+        if isinstance(x_exp, list):
             x_exp = np.array(x_exp)
         elif isinstance(x_exp, int):
             x_exp = np.array([x_exp], dtype=int)
@@ -137,7 +130,7 @@ class PauliString(PauliObject):
         return P
 
     @classmethod
-    def from_string(cls, pauli_str: str, dimensions: int | list[int] | np.ndarray) -> PauliString:
+    def from_string(cls, pauli_str: str, dimensions: int | list[int] | np.ndarray | None = None) -> PauliString:
         """
         Create a PauliString instance from a string representation.
 
@@ -145,7 +138,7 @@ class PauliString(PauliObject):
         ----------
         pauli_str : str
             The string representation of the Pauli string, where exponents are separated by 'x' and 'z'.
-        dimensions : list[int] | np.ndarray
+        dimensions : list[int] | np.ndarray | None
             The dimensions parameter to be passed to the PauliString constructor.
 
         Returns
@@ -198,18 +191,22 @@ class PauliString(PauliObject):
         tableau = np.concatenate([np.random.randint(dimensions, dtype=int), np.random.randint(dimensions, dtype=int)])
         return cls(tableau, dimensions)
 
-    def __repr__(self) -> str:
+    def _sanity_check(self):
         """
-        Return the string representation of the PauliString.
-        (in a format that is helpful for debugging).
+        Validate internal consistency of the PauliString.
+        The PauliString has the extra constraint of having n_paulis() == 1
 
-        Returns
-        -------
-        str
-            A string in the format "PauliString(tableau=..., dimensions=...)".
+        Raises
+        ------
+        ValueError
+            If tableau, dimensions, or exponents are inconsistent or invalid,
+            or if n_paulis() != 1.
         """
 
-        return f"PauliString(tableau={self.tableau}, dimensions={self.dimensions})"
+        if self.n_paulis() != 1:
+            raise ValueError(
+                f"Invalid tableau for PauliString. The number of Pauli strings should be 1 (got {self.n_paulis()}).")
+        super()._sanity_check()
 
     def __str__(self) -> str:
         """
@@ -341,12 +338,12 @@ class PauliString(PauliObject):
 
         tableau = np.mod(self.tableau + A.tableau, np.tile(self.dimensions, 2))
 
-        w1 = self._weights[:, None]
-        w2 = A._weights[None, :]
+        w1 = self.weights[:, None]
+        w2 = A.weights[None, :]
         new_weights = (w1 * w2).reshape(-1)
 
-        p1 = self._phases[:, None]
-        p2 = A._phases[None, :]
+        p1 = self.phases[:, None]
+        p2 = A.phases[None, :]
 
         # Extract z- and x-parts from tableau
         n1, n2 = self.n_qudits(), A.n_qudits()
@@ -367,7 +364,7 @@ class PauliString(PauliObject):
         x_exp : np.ndarray
         Array of X exponents for each qudit.
         """
-        return self._tableau[0][:self.n_qudits()]
+        return self.tableau[0][:self.n_qudits()]
 
     @property
     def z_exp(self) -> np.ndarray:
@@ -375,31 +372,7 @@ class PauliString(PauliObject):
         z_exp : np.ndarray
         Array of Z exponents for each qudit.
         """
-        return self._tableau[0][self.n_qudits():]
-
-    @property
-    def phases(self) -> np.ndarray:
-        """
-        Returns the phases associated with the PauliString.
-
-        Returns
-        -------
-        np.ndarray
-            The phases as a 1d-vector.
-        """
-        return np.asarray([0], dtype=int)
-
-    @property
-    def weights(self) -> np.ndarray:
-        """
-        Returns the weights associated with the Pauli String.
-
-        Returns
-        -------
-        np.ndarray
-            The weights as a 1d-vector.
-        """
-        return np.asarray([1], dtype=complex)
+        return self.tableau[0][self.n_qudits():]
 
     def as_pauli_sum(self) -> PauliSum:
         """
@@ -412,7 +385,7 @@ class PauliString(PauliObject):
         """
         # FIXME: import at the top. Currently we can't because of circular imports.
         from .pauli_sum import PauliSum
-        return PauliSum(self._tableau, self._dimensions, self._weights, self._phases)
+        return PauliSum(self.tableau, self.dimensions, self.weights, self.phases)
 
     def n_identities(self) -> int:
         """
@@ -685,7 +658,7 @@ class PauliString(PauliObject):
         if isinstance(key, np.ndarray):
             tableau_mask = np.concatenate([key, key + self.n_qudits()])
             return PauliString(
-                self.tableau[tableau_mask], self.dimensions[key], self._weights, self._phases)
+                self.tableau[tableau_mask], self.dimensions[key], self.weights, self.phases)
 
         raise ValueError(f"Cannot get item with key {key}. Key must be aof type int, slice, np.ndarray, or list[int].")
 
@@ -759,7 +732,7 @@ class PauliString(PauliObject):
         """
 
         dimensions = self.dimensions[qudit_indices]
-        tableau = self._tableau[0][qudit_indices]
+        tableau = self.tableau[0][qudit_indices]
 
         return PauliString(tableau, dimensions)
 
