@@ -545,9 +545,3 @@ class TestAquire:
         model.info(name="circuits")
         fig, ax = model.plot()
 
-
-
-
-
-
-
