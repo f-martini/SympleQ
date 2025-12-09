@@ -437,4 +437,3 @@ def XZ_to_Y(PauliSum: PauliSum):
         return P
     else:
         return PauliSum
-
