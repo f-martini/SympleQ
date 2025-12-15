@@ -310,11 +310,3 @@ If Sphinx documentation fails to build:
 2. Verify docstring formatting in source code
 3. Review Sphinx warnings for syntax errors
 4. Ensure the documentation virtual environment is properly configured
-
-See Also
-========
-
-- :ref:`development_environment`: Setting up the development environment
-- :ref:`testing_guide`: Writing and running tests
-- :ref:`documentation_guide`: Contributing to documentation
-- :ref:`profiling_guide`: Performance profiling guidelines

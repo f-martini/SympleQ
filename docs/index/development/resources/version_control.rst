@@ -429,7 +429,6 @@ See Also
 - `Semantic Versioning <https://semver.org/>`_
 - `GitHub Flow Guide <https://guides.github.com/introduction/flow/>`_
 - :ref:`development_tasks`: Automated development tasks
-- :ref:`testing_guide`: Writing and running tests
 
 
 
