@@ -777,7 +777,7 @@ class PauliSum(PauliObject):
             ps1 = self.select_pauli_string(i)
             for j in range(i + 1, self.n_paulis()):
                 ps2 = self.select_pauli_string(j)
-                if ps1 == ps2:
+                if ps1.has_equal_tableau(ps2):
                     # FIXME: can overflow for very large n_paulis.
                     #        One solution could be to normalize it by dividing by the smallest weight.
                     self._weights[i] = self.weights[i] + self.weights[j]
