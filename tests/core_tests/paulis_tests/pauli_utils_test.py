@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 from sympleq.core.paulis import PauliSum
 from sympleq.core.paulis.utils import make_hermitian
 

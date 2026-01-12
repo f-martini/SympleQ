@@ -420,7 +420,7 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
     if not np.any(PauliSum.phases):
         H_new = XZ_to_Y(H_new)
     if not H_new.is_hermitian():
-        H_new = (H_new + H_new.hermitian_conjugate()) * 1/2
+        H_new = (H_new + H_new.hermitian_conjugate()) * (1 / 2)
         H_new.combine_equivalent_paulis()
         H_new.remove_zero_weight_paulis()
     return H_new
