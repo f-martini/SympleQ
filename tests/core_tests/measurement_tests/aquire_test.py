@@ -208,6 +208,7 @@ class TestAquire:
 
             model.simulate_observable(update_steps=update_steps)
 
+    @pytest.mark.system
     def test_aquire_mean_distance(self):
         update_steps = [6,12,25,50,100,200,400,800,1600,3200,6400,12800]
         dim_list = [[2,2,2], [3,3,3], [5,5,5], [2,3,5], [2,2,3,3]]
