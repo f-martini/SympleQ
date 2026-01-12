@@ -100,7 +100,7 @@ class TestAquire:
 
                 # weights
                 if mode == 'rand':
-                    if ps.is_hermitian():
+                    if ps.H().has_equal_tableau(ps):
                         weights.append(np.random.normal(0, 1))
                     else:
                         weights.append(np.random.normal(0, 1) + 1j * np.random.normal(0, 1))
@@ -117,7 +117,7 @@ class TestAquire:
                     phases.append(0)
 
                 selected_paulistring_indexes.append(ps_index)
-                if not ps.is_hermitian():
+                if not ps.H().has_equal_tableau(ps):
                     ps_conj = PauliSum.from_pauli_strings([ps], weights=[weights[-1]], phases=[phases[-1]]).H()
                     ps_conj.set_phases([(ps_conj.phases[0]-phases[-1])%(2*ps.lcm)])
                     ps_conj.phase_to_weight()
