@@ -7,80 +7,6 @@ from itertools import product
 import sympy as sp
 
 
-def ground_state_TMP(P: PauliSum,
-                     only_gs: bool = True
-                     ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Compute eigenvalues/eigenvectors of `P` and (by default) pick
-    the ground-state energy (`only_gs` = `True`).
-
-    Parameters
-    ----------
-    P : PauliSum
-        A PauliSum object representing the Hamiltonian/operator.
-    only_gs : bool, optional
-        If `True` (default), only the ground-state (energy) is kept in `gs` (`en`).
-         If `False`, all eigenvectors (eigenvalues) are kept in `gs` (`en`).
-
-    Returns
-    -------
-    en : float or numpy.ndarray
-        If `only_gs` is `True`, the lowest eigenvalue (ground-state energy).
-        Otherwise, a 1D array of all eigenvalues sorted ascending.
-    gs : numpy.ndarray
-        Eigenvectors sorted to match ``en``.
-
-    Raises
-    ------
-    AssertionError
-        If the (internally normalized) eigenvector(s) do not yield real
-        expectation values matching the corresponding eigenvalue(s) within
-        ``1e-10``.
-
-    Notes
-    -----
-    - Since :func:`numpy.linalg.eig` is used, the input matrix is treated as
-      general (not assumed Hermitian). If the operator is Hermitian, consider
-      using :func:`numpy.linalg.eigh` for improved numerical stability.
-    """
-    # Convert PauliSum to matrix form
-    m = P.to_hilbert_space()
-    m = m.toarray()
-    # Get eigenvalues and eigenvectors
-    val, vec = np.linalg.eig(m)
-    val = np.real(val)
-    vec = np.transpose(vec)
-    # Ordering
-    tmp_index = np.argsort(val)
-    en = val[tmp_index]
-    gs = vec[tmp_index]
-    # Prepare output
-    if only_gs:
-        en = en[0]
-        gs_out = gs[0]
-        gs_out = np.transpose(gs_out)
-        gs_out = gs_out / np.linalg.norm(gs_out)
-    else:
-        gs_out = []
-        for el in gs:
-            el = np.transpose(el)
-            el = el / np.linalg.norm(el)
-            gs_out.append(el)
-        gs_out = np.array(gs_out)
-    # Checks
-    exp_en = []
-    if not only_gs:
-        for el in gs_out:
-            exp_en.append(np.transpose(np.conjugate(el)) @ m @ el)
-        exp_en = np.array(exp_en)
-    else:
-        exp_en = np.transpose(np.conjugate(gs_out)) @ m @ gs_out
-    assert np.max(abs(en - exp_en)) < 10**-10, \
-        "The ground state does not yield a real value <gs | H |gs> = {}".format(exp_en)
-    # Return
-    return en, gs_out
-
-
 def string_to_symplectic(string: str
                          ) -> tuple[np.ndarray, int]:
     """
@@ -137,34 +63,6 @@ def check_mappable_via_clifford(PauliSum: PauliSum,
             PauliSum.symplectic_product_matrix() == target_PauliSum.symplectic_product_matrix()
         )
     )
-
-
-# TODO: correct type hint error
-def concatenate_pauli_sums(pauli_sums: list[PauliSum]
-                           ) -> PauliSum:
-    """
-    Concatenate a list of Pauli sums into a single Pauli sum.
-    """
-    # if len(pauli_sums) == 0:
-    #     raise ValueError("List of Pauli sums is empty")
-    # if not all(isinstance(p, PauliSum) for p in pauli_sums):
-    #     raise ValueError("All elements of the list must be Pauli sums")
-
-    # new_pauli_strings = pauli_sums[0].pauli_strings.copy()
-    # new_dimensions = pauli_sums[0].dimensions.copy()
-    # new_weights = pauli_sums[0].weights.copy()
-    # new_phases = pauli_sums[0].phases.copy()
-    # for p in pauli_sums[1:]:
-    #     new_dimensions = np.concatenate((new_dimensions, p.dimensions))
-    #     new_weights *= p.weights
-    #     new_phases += p.phases
-    #     for i in range(len(new_pauli_strings)):
-    #         new_pauli_strings[i] = new_pauli_strings[i] @ p.pauli_strings[i]
-
-    # concatenated = PauliSum(new_pauli_strings, weights=new_weights, phases=new_phases, dimensions=new_dimensions,
-    #                         standardise=False)
-    # return concatenated
-    raise NotImplementedError()
 
 
 def are_subsets_equal(PauliSum_1: PauliSum,

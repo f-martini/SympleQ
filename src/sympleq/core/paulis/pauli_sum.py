@@ -1183,6 +1183,78 @@ class PauliSum(PauliObject):
             new_phases = (self.phases + np.array(phases)) % (2 * self.lcm)
             self._phases = new_phases
 
+    def ordered_eigenspectrum(self, only_gs: bool = True) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Compute eigenvalues/eigenvectors of the PauliSum and (by default) pick
+        the ground-state energy (`only_gs` = `True`).
+
+        Parameters
+        ----------
+        only_gs : bool, optional
+            If `True` (default), only the ground-state (energy) is kept in `gs` (`en`).
+            If `False`, all eigenvectors (eigenvalues) are kept in `gs` (`en`).
+
+        Returns
+        -------
+        en : float or numpy.ndarray
+            If `only_gs` is `True`, the lowest eigenvalue (ground-state energy).
+            Otherwise, a 1D array of all eigenvalues sorted ascending.
+        gs : numpy.ndarray
+            Eigenvectors sorted to match ``en``.
+
+        Raises
+        ------
+        AssertionError
+            If the (internally normalized) eigenvector(s) do not yield real
+            expectation values matching the corresponding eigenvalue(s) within
+            ``1e-10``.
+
+        """
+
+        if not self.is_hermitian():
+            raise ValueError("Cannot find ground state for non-Hermitian PauliSum.")
+
+        # Convert PauliSum to matrix form
+        P = self.copy()
+        P.phase_to_weight()
+        m = P.to_hilbert_space().toarray()
+
+        # Get eigenvalues and eigenvectors
+        val, vec = np.linalg.eigh(m)
+        vec = np.transpose(vec)
+
+        # Ordering
+        tmp_index = np.argsort(val)
+        en = val[tmp_index]
+        gs = vec[tmp_index]
+        # Prepare output
+        if only_gs:
+            en = en[0]
+            gs_out = gs[0]
+            gs_out = np.transpose(gs_out)
+            gs_out = gs_out / np.linalg.norm(gs_out)
+        else:
+            gs_out = []
+            for el in gs:
+                el = np.transpose(el)
+                el = el / np.linalg.norm(el)
+                gs_out.append(el)
+            gs_out = np.array(gs_out)
+
+        # Since PauliSum is Hermitian, check that ground state energy is real
+        exp_en = []
+        if not only_gs:
+            for el in gs_out:
+                exp_en.append(np.transpose(np.conjugate(el)) @ m @ el)
+            exp_en = np.array(exp_en)
+        else:
+            exp_en = np.transpose(np.conjugate(gs_out)) @ m @ gs_out
+
+        if np.max(abs(en - exp_en)) > 10**-10:
+            raise RuntimeError(f"The ground state does not yield a real value <gs | H |gs> = {exp_en}")
+
+        return en, gs_out
+
     def reorder(self,
                 order: list[int]):
         """
