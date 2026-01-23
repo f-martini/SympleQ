@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from sympleq.core.circuits.gates import Hadamard
+from sympleq.core.circuits.gates import GATES
 from sympleq.core.paulis.pauli_string import PauliString
 from sympleq.core.paulis.pauli_sum import PauliSum
 
@@ -86,11 +86,11 @@ def test_hadamard_paulisum_benchmark(benchmark):
     n_qudits = 100
     dimensions = np.random.randint(2, 8, size=n_qudits)
 
-    gate = Hadamard(0, dimensions[0], inverse=False)
+    gate = GATES.H
 
     ps = PauliSum.from_random(n_paulis, dimensions, rand_weights=True)
 
     def apply_gate():
-        _ = gate.act(ps)
+        _ = gate.act(ps, 0)
 
     benchmark(apply_gate)

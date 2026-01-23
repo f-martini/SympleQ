@@ -136,6 +136,7 @@ def _handle_x_id_or_x_x(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit
     elif x_qubit is not None:
         C, pauli_sum = _apply_h_and_cx(C, pauli_sum, x_qubit, target_qubit, direction='forward')
         z_qubit = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'z')
+        assert z_qubit is not None
         pauli_sum = CX.act(pauli_sum, (target_qubit, z_qubit))
         C.add_gate(CX, target_qubit, z_qubit)
     px = pauli_index_x
@@ -152,6 +153,7 @@ def _handle_z_id_or_z_z(C, pauli_sum, pauli_index_z, target_qubit):
     elif z_qubit is not None:
         C, pauli_sum = _apply_h_and_cx(C, pauli_sum, z_qubit, target_qubit, direction='backward')
         x_qubit = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'x')
+        assert x_qubit is not None
         pauli_sum = CX.act(pauli_sum, (x_qubit, target_qubit))
         C.add_gate(CX, x_qubit, target_qubit)
     px = pauli_index_z
@@ -168,6 +170,7 @@ def _handle_id_z(C, pauli_sum, pauli_index_x, target_qubit):
     elif z_qubit is not None:
         C, pauli_sum = _apply_h_and_cx(C, pauli_sum, z_qubit, target_qubit, direction='backward')
         x_qubit = _find_first_exp(pauli_sum, pauli_index_x, target_qubit, 'x')
+        assert x_qubit is not None
         pauli_sum = CX.act(pauli_sum, (x_qubit, target_qubit))
         C.add_gate(CX, x_qubit, target_qubit)
     px = pauli_index_x
@@ -184,6 +187,7 @@ def _handle_id_x(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit):
     elif x_qubit is not None:
         C, pauli_sum = _apply_h_and_cx(C, pauli_sum, x_qubit, target_qubit, direction='forward')
         z_qubit = _find_first_exp(pauli_sum, pauli_index_x, target_qubit, 'z')
+        assert z_qubit is not None
         pauli_sum = CX.act(pauli_sum, (target_qubit, z_qubit))
         C.add_gate(CX, target_qubit, z_qubit)
     px = pauli_index_z
@@ -205,6 +209,7 @@ def _handle_id_id(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit):
         elif x_qubit_z is not None:
             C, pauli_sum = _apply_h_and_cx(C, pauli_sum, x_qubit_z, target_qubit, direction='forward')
             z_qubit_z = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'z')
+            assert z_qubit_z is not None
             pauli_sum = CX.act(pauli_sum, (target_qubit, z_qubit_z))
             C.add_gate(CX, target_qubit, z_qubit_z)
         px = pauli_index_x
@@ -217,6 +222,7 @@ def _handle_id_id(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit):
         elif z_qubit_z is not None:
             C, pauli_sum = _apply_h_and_cx(C, pauli_sum, z_qubit_z, target_qubit, direction='backward')
             x_qubit_z = _find_first_exp(pauli_sum, pauli_index_z, target_qubit, 'x')
+            assert x_qubit_z is not None
             pauli_sum = CX.act(pauli_sum, (x_qubit_z, target_qubit))
             C.add_gate(CX, x_qubit_z, target_qubit)
         px = pauli_index_z
@@ -343,7 +349,6 @@ def _single_qudit_x(pauli_string, target_index, circuit):
 
 def _multi_qudit_x(pauli_string, target_index, ignore, circuit):
     n_q = pauli_string.n_qudits()
-    dim_target = pauli_string.dimensions[target_index]
     for q in range(n_q - 1, -1, -1):
         if q != target_index and q not in ignore:
             x_exp = pauli_string[q].x_exp
