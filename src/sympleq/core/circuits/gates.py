@@ -2,6 +2,7 @@ from __future__ import annotations
 from abc import ABC
 import numpy as np
 from typing import TypeVar, Self
+import scipy.sparse as sp
 
 from sympleq.core.paulis import PauliObject
 from sympleq.core.circuits.utils import transvection_matrix
@@ -142,6 +143,26 @@ class Gate(ABC):
         return pauli.__class__(tableau=new_tableau, dimensions=pauli.dimensions,
                                weights=pauli.weights, phases=new_phases)
 
+    def unitary(self, dimension: int) -> sp.csr_matrix:
+        """
+        Compute the unitary matrix representation of this gate.
+
+        Parameters
+        ----------
+        dimension : int
+            The local Hilbert space dimension (e.g., 2 for qubits, 3 for qutrits).
+
+        Returns
+        -------
+        np.ndarray
+            The d^n x d^n unitary matrix, where n is the number of qudits the gate acts on.
+        """
+        # Default implementation for generic gates - subclasses should override
+        raise NotImplementedError(
+            f"unitary() not implemented for {self.__class__.__name__}. "
+            "Override in subclass or use a specific gate class."
+        )
+
     def inverse(self) -> Self:
         """Return the inverse of this gate.
 
@@ -185,6 +206,85 @@ class Gate(ABC):
 
         return _GenericGate(new_name, self._symplectic @ T, self._phase_vector.copy())
 
+    @classmethod
+    def from_random(cls, n_qudits: int, dimension: int, num_transvections: int | None = None) -> "Gate":
+        """
+        Generate a random Clifford gate by composing random transvections.
+
+        Parameters
+        ----------
+        n_qudits : int
+            Number of qudits the gate acts on.
+        dimension : int
+            Local Hilbert space dimension (e.g., 2 for qubits).
+        num_transvections : int | None
+            Number of transvections to compose. If None, defaults to 4*n_qudits.
+
+        Returns
+        -------
+        Gate
+            A random Clifford gate with the generated symplectic matrix.
+        """
+        from sympleq.core.circuits.random_symplectic import symplectic_random_transvection
+
+        symplectic = symplectic_random_transvection(n_qudits, dimension, num_transvections)
+        # For random gates, we use zero phase vector (phases depend on specific gate sequence)
+        phase_vector = np.zeros(2 * n_qudits, dtype=int)
+
+        return _GenericGate("random", symplectic, phase_vector)
+
+    @classmethod
+    def solve_from_target(cls, input_tableau: np.ndarray, target_tableau: np.ndarray) -> "Gate":
+        """
+        Find a Clifford gate that maps the input Pauli tableau to the target tableau.
+
+        Uses symplectic transvections to find a symplectic matrix F such that
+        input_tableau @ F = target_tableau (mod 2).
+
+        Parameters
+        ----------
+        input_tableau : np.ndarray
+            Input Pauli tableau of shape (m, 2n) where m is the number of Paulis
+            and n is the number of qudits.
+        target_tableau : np.ndarray
+            Target Pauli tableau of the same shape.
+
+        Returns
+        -------
+        Gate
+            A Clifford gate whose symplectic matrix performs the mapping.
+
+        Raises
+        ------
+        ValueError
+            If the tableaux have different shapes or are not mappable via Clifford.
+
+        Notes
+        -----
+        Currently only works for GF(2) (qubits). The input and target must have
+        matching symplectic product matrices for a Clifford mapping to exist.
+        """
+        from sympleq.core.circuits.find_symplectic import map_pauli_sum_to_target_tableau
+
+        input_tableau = np.asarray(input_tableau, dtype=int)
+        target_tableau = np.asarray(target_tableau, dtype=int)
+
+        if input_tableau.shape != target_tableau.shape:
+            raise ValueError(
+                f"Tableau shapes must match: {input_tableau.shape} vs {target_tableau.shape}"
+            )
+
+        if input_tableau.ndim == 1:
+            input_tableau = input_tableau.reshape(1, -1)
+            target_tableau = target_tableau.reshape(1, -1)
+
+        n_qudits = input_tableau.shape[1] // 2
+
+        symplectic = map_pauli_sum_to_target_tableau(input_tableau, target_tableau)
+        phase_vector = np.zeros(2 * n_qudits, dtype=int)
+
+        return _GenericGate("target", symplectic, phase_vector)
+
 
 class _GenericGate(Gate):
     """
@@ -216,6 +316,13 @@ class _Hadamard(Gate):
 
         super().__init__(name, symplectic)
 
+    def unitary(self, dimension: int) -> sp.csr_matrix:
+        from sympleq.core.circuits.utils import H_mat
+        U = H_mat(dimension)
+        if self._is_inverse:
+            return U.conj().T
+        return U
+
 
 class _PHASE(Gate):
     """Phase gate (S): X -> XZ, Z -> Z. Has special phase vector for qubits."""
@@ -244,6 +351,13 @@ class _PHASE(Gate):
 
         super().__init__(name, symplectic, exceptional_phase_vectors=exceptional)
 
+    def unitary(self, dimension: int) -> sp.csr_matrix:
+        from sympleq.core.circuits.utils import S_mat
+        U = S_mat(dimension).toarray()
+        if self._is_inverse:
+            return U.conj().T
+        return U
+
 
 class _SUM(Gate):
     """SUM (CNOT) gate: X0 -> X0 X1, X1 -> X1, Z0 -> Z0, Z1 -> Z0^{-1} Z1"""
@@ -271,6 +385,22 @@ class _SUM(Gate):
 
         super().__init__(name, symplectic)
 
+    def unitary(self, dimension: int) -> sp.csr_matrix:
+        """SUM acts as |j,k⟩ -> |j, (j+k) mod d⟩ (or |j, (k-j) mod d⟩ for inverse)."""
+        d = dimension
+        D = d * d  # total dimension
+        U = np.zeros((D, D), dtype=complex)
+        for j in range(d):
+            for k in range(d):
+                in_idx = j * d + k  # |j,k⟩
+                if self._is_inverse:
+                    out_k = (k - j) % d
+                else:
+                    out_k = (j + k) % d
+                out_idx = j * d + out_k  # |j, out_k⟩
+                U[out_idx, in_idx] = 1.0
+        return sp.csr_matrix(U)
+
 
 class _SWAP(Gate):
     """SWAP gate: X0 <-> X1, Z0 <-> Z1. Self-inverse."""
@@ -285,6 +415,18 @@ class _SWAP(Gate):
 
         super().__init__("SWAP", symplectic)
 
+    def unitary(self, dimension: int) -> sp.csr_matrix:
+        """SWAP acts as |j,k⟩ -> |k,j⟩."""
+        d = dimension
+        D = d * d
+        U = np.zeros((D, D), dtype=complex)
+        for j in range(d):
+            for k in range(d):
+                in_idx = j * d + k   # |j,k⟩
+                out_idx = k * d + j  # |k,j⟩
+                U[out_idx, in_idx] = 1.0
+        return sp.csr_matrix(U)
+
     def inverse(self) -> _SWAP:
         # SWAP is self-inverse
         return self
@@ -295,13 +437,25 @@ class _CZ(Gate):
 
     def __init__(self):
         symplectic = np.array([
-            [1, 0, 0, 0],  # image of X0:  X0 -> X0
-            [0, 1, 0, 0],  # image of X1:  X1 -> X1
-            [0, 1, 1, 0],  # image of Z0:  Z0 -> X1 Z0
-            [1, 0, 0, 1]   # image of Z1:  Z1 -> X0 Z1
+            [1, 0, 0, 1],  # image of X0:  X0 -> X0 Z1
+            [0, 1, 1, 0],  # image of X1:  X1 -> Z0 X1
+            [0, 0, 1, 0],  # image of Z0:  Z0 -> Z0
+            [0, 0, 0, 1]   # image of Z1:  Z1 -> Z1
         ], dtype=int).T
 
         super().__init__("CZ", symplectic)
+
+    def unitary(self, dimension: int) -> sp.csr_matrix:
+        """CZ adds phase ω^{jk} to |j,k⟩ where ω = exp(2πi/d)."""
+        d = dimension
+        D = d * d
+        omega = np.exp(2j * np.pi / d)
+        U = np.zeros((D, D), dtype=complex)
+        for j in range(d):
+            for k in range(d):
+                idx = j * d + k
+                U[idx, idx] = omega ** (j * k)
+        return sp.csr_matrix(U)
 
     def inverse(self) -> _CZ:
         # CZ is self-inverse
@@ -433,6 +587,19 @@ class PauliGate(Gate):
     def inverse(self) -> PauliGate:
         # Pauli gates are self-inverse (up to phase)
         return self
+
+    def unitary(self, dimension: int | None = None) -> np.ndarray:
+        """
+        Compute the unitary for this PauliGate.
+
+        For PauliGate, dimension is optional since it's determined by the stored PauliString.
+        """
+        from sympleq.core.circuits.utils import pauli_unitary_from_tableau
+        # Use the dimension from the PauliString
+        d = int(self._dimensions[0])  # assumes uniform dimensions
+        x = self.pauli_string.x_exp
+        z = self.pauli_string.z_exp
+        return pauli_unitary_from_tableau(d, x, z, convention="bare").toarray()
 
     def act(self, pauli: P, qudits: int | tuple[int, ...] | None = None) -> P:
         """

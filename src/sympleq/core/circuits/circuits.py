@@ -6,7 +6,9 @@ from sympleq.core.paulis import PauliSum, PauliString, Pauli, PauliObject
 from .utils import embed_symplectic
 import scipy.sparse as sp
 from collections import defaultdict
+from scipy import sparse as sp
 
+from .utils import embed_unitary
 from .gates import Gate, GATES, _GenericGate
 from .utils import embed_symplectic
 from sympleq.core.paulis import PauliSum, PauliString, Pauli, PauliObject
@@ -328,3 +330,55 @@ class Circuit:
     def full_symplectic(self) -> np.ndarray:
         """Returns the full symplectic matrix of the composite gate."""
         return self.composite_gate().symplectic
+
+    def unitary(self) -> sp.csr_matrix:
+        """
+        Compute the unitary matrix of the full circuit.
+
+        Returns a sparse matrix of shape (D, D) where D = prod(dimensions).
+        Gates are applied in sequence, with each gate's unitary embedded
+        into the full Hilbert space.
+
+        For single-qudit gates, the gate's dimension is taken from the target qudit.
+        For multi-qudit gates, all target qudits must have the same dimension.
+
+        Returns
+        -------
+        scipy.sparse.csr_matrix
+            The unitary matrix of the circuit.
+
+        Raises
+        ------
+        ValueError
+            If a multi-qudit gate acts on qudits with different dimensions.
+        """
+
+        D = int(np.prod(self.dimensions))
+        U_total = sp.eye(D, format='csr')
+
+        for gate, qudits in zip(self._gates, self._qudits):
+            # Get the dimension(s) for this gate
+            gate_dims = self.dimensions[list(qudits)]
+
+            if gate.n_qudits == 1:
+                # Single-qudit gate: use that qudit's dimension
+                d = int(gate_dims[0])
+            else:
+                # Multi-qudit gate: all qudits must have the same dimension
+                if not np.all(gate_dims == gate_dims[0]):
+                    raise ValueError(
+                        f"Gate {gate.name} acts on qudits with different dimensions {gate_dims}. "
+                        "Multi-qudit gates require equal dimensions."
+                    )
+                d = int(gate_dims[0])
+
+            # Get the gate's local unitary
+            U_local = gate.unitary(d)
+
+            # Embed into the full Hilbert space
+            U_embedded = embed_unitary(U_local, list(qudits), list(self.dimensions))
+
+            # Compose: circuit is applied left-to-right, so U_total = U_embedded @ U_total
+            U_total = U_embedded @ U_total
+
+        return U_total

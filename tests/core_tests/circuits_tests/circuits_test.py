@@ -1,8 +1,7 @@
 import numpy as np
-import pytest
 from scipy.sparse import issparse
 from sympleq.core.circuits.known_circuits import to_x, to_ix
-from sympleq.core.circuits import Circuit, GATES, PauliGate
+from sympleq.core.circuits import Circuit, GATES
 from sympleq.core.paulis import PauliSum, PauliString
 
 
@@ -170,7 +169,6 @@ class TestCircuits():
             out = C.act(ps)
             assert np.all(out.dimensions == dimensions)
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
     def test_single_hadamard_unitary(self):
         # For a single-qudit circuit with one Hadamard, the circuit unitary
         # should equal the gate's local unitary.
@@ -178,11 +176,10 @@ class TestCircuits():
             circuit = Circuit([d], [GATES.H], [(0,)])
             U_circ = circuit.unitary()
             assert issparse(U_circ)
-            # U_gate = gate.unitary()
-            # assert U_circ.shape == U_gate.shape
-            # assert np.allclose(U_circ.toarray(), U_gate.toarray())
+            U_gate = GATES.H.unitary(d)
+            assert U_circ.shape == U_gate.shape
+            assert np.allclose(U_circ.toarray(), U_gate.toarray())
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
     def test_mixed_qudits_phase_with_unitary(self):
         N = 100
         dimensions = [2, 3, 5]
@@ -197,23 +194,22 @@ class TestCircuits():
             ps_res_m = ps_res.to_hilbert_space()
             phase_symplectic = ps_res.phases[0]
 
-            # FIXME: maybe create a new PauliSum, or add API to assign phases
-            ps_res.set_phases([0])
+            ps_res.reset_phases()
             ps_res_m = ps_res.to_hilbert_space().toarray()
-            ps_m_res = (U @ ps_m @ U.conj().T).toarray()
+            ps_m_res = (U @ ps_m @ U.conj().T)
             mask = (ps_res_m != 0)
             factors = np.unique(np.around(ps_m_res[mask] / ps_res_m[mask], 10))
             assert len(factors) == 1
             factor = factors[0]
             d = P.lcm
             phase_unitary = int(np.around((d * np.angle(factor) / (np.pi)) % (2 * d), 1))
-            assert phase_symplectic == phase_unitary
+            assert np.array_equal(phase_symplectic, phase_unitary)
 
     def test_phase_mixed_species(self):
         def debug_steps(C: Circuit, P: PauliSum):
             print(f"Initial phases: {P.phases} -- exponents: {P.tableau}")
             for i, partial_p in enumerate(C.act_iter(P)):
-                gate, qudits = C[i]
+                gate = C.gates[i]
                 print(f"Phases after {gate.name}: {partial_p.phases} -- exponents: {partial_p.tableau}")
 
         # Test 1: Simple qutrit + qubit
@@ -297,7 +293,6 @@ class TestCircuits():
             strides[k] = strides[k + 1] * dims[k + 1]
         return sum(idxs[k] * strides[k] for k in range(len(dims)))
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
     def test_swap_embedding_on_equal_dims(self):
         # Verify SWAP on qudits (0,1) within a 2-qudit system with equal dimensions.
         dims = [3, 3]
@@ -317,7 +312,6 @@ class TestCircuits():
 
         assert np.allclose(phi, expected), f"Expected:\n{expected}\nGot:\n{phi}"
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
     def test_sum_embedding_on_three_qudits(self):
         # Verify SUM on qudits (1,2) inside a 3-qudit system.
         d = 5
@@ -338,7 +332,6 @@ class TestCircuits():
 
         assert np.allclose(phi, expected)
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
     def test_phase_embedding_on_middle_qudit(self):
         # Verify PHASE acting on middle qudit multiplies amplitude appropriately.
         d0, d1, d2 = 3, 5, 2
@@ -362,7 +355,6 @@ class TestCircuits():
 
         assert np.allclose(phi, expected)
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
     def test_circuit_unitary(self):
         n_tests = 100
         n_paulis = 10
@@ -377,10 +369,9 @@ class TestCircuits():
                 U_c = c.unitary()
                 P_from_conjugation = U_c @ ps.to_hilbert_space() @ U_c.conj().T
                 P_from_act = c.act(ps).to_hilbert_space()
-                diff_m = np.around(P_from_conjugation.toarray() - P_from_act.toarray(), 10)
+                diff_m = np.around(P_from_conjugation - P_from_act.toarray(), 10)
                 assert not np.any(diff_m), f'failed for dim {_, dim, c.__str__()}'
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
     def test_single_gate_circuit_unitary(self):
         pass
 

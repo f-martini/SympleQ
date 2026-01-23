@@ -1,7 +1,6 @@
 import numpy as np
 import random
-import pytest
-from sympleq.core.circuits import GATES, Gate, Circuit, PauliGate
+from sympleq.core.circuits import GATES, PauliGate
 from sympleq.core.circuits.utils import is_symplectic
 from sympleq.core.paulis import PauliSum, PauliString
 from sympleq.core.circuits.random_symplectic import (symplectic_gf2, symplectic_group_size,
@@ -260,34 +259,212 @@ class TestGates():
                         F = symplectic_random_transvection(n, dimension=d)
                     assert is_symplectic(F, d), f"Failed symplectic check: n={n}, test {i}"
 
-    @pytest.mark.skip(reason="Gate.solve_from_target not in new API")
     def test_gate_from_target(self):
-        pass
+        """Test Gate.solve_from_target finds correct symplectic transformation."""
+        from sympleq.core.circuits import Gate
 
-    @pytest.mark.skip(reason="Gate.from_random not in new API")
-    def test_gate_transvection_symplecticity(self):
-        pass
+        # Test single Pauli string mapping
+        # Map X to Z on a single qubit: [1, 0] -> [0, 1]
+        input_tableau = np.array([[1, 0]])
+        target_tableau = np.array([[0, 1]])
+        gate = Gate.solve_from_target(input_tableau, target_tableau)
+        result = (input_tableau @ gate.symplectic) % 2
+        assert np.array_equal(result, target_tableau), f"Single mapping failed: {result} != {target_tableau}"
 
-    @pytest.mark.skip(reason="Gate.from_random not in new API")
-    def test_gate_inverse(self):
-        pass
+        # Test multiple Pauli string mapping (2 qubits)
+        # This requires compatible symplectic product matrices
+        for _ in range(10):
+            n = 2
+            # Generate random input
+            input_tableau = np.random.randint(0, 2, size=(2, 2 * n))
+            # Apply a random symplectic to get a valid target
+            random_gate = Gate.from_random(n, 2)
+            target_tableau = (input_tableau @ random_gate.symplectic) % 2
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
-    def test_phase_table(self):
-        pass
+            gate = Gate.solve_from_target(input_tableau, target_tableau)
+            result = (input_tableau @ gate.symplectic) % 2
+            assert np.array_equal(result, target_tableau), "Multi-Pauli mapping failed"
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
+    def test_gate_from_random_symplecticity(self):
+        """Test that Gate.from_random produces valid symplectic matrices."""
+        from sympleq.core.circuits import Gate
+
+        for d in [2, 3, 5]:
+            for n in [1, 2, 3]:
+                for _ in range(5):
+                    gate = Gate.from_random(n, d)
+                    assert is_symplectic(gate.symplectic, d), (
+                        f"Random gate not symplectic for n={n}, d={d}"
+                    )
+
+    def test_gate_from_random_action(self):
+        """Test that random gates correctly transform Paulis."""
+        from sympleq.core.circuits import Gate
+
+        for d in [2, 3, 5]:
+            for n in [2, 3]:
+                gate = Gate.from_random(n, d)
+
+                # Act on random PauliSum
+                ps = PauliSum.from_random(5, [d] * n)
+                result = gate.act(ps, tuple(range(n)))
+
+                # Result should have same number of Paulis
+                assert result.n_paulis() == ps.n_paulis()
+
+                # Verify symplectic transformation on tableau
+                # act() applies: tableau @ symplectic.T (see gates.py line 127)
+                expected_tableau = (ps.tableau @ gate.symplectic.T) % d
+                assert np.array_equal(result.tableau % d, expected_tableau % d)
+
+    def test_unitary_is_unitary(self):
+        """Test that all gate unitaries are actually unitary matrices."""
+        gates = [GATES.H, GATES.H_inv, GATES.S, GATES.S_inv,
+                 GATES.SUM, GATES.SUM_inv, GATES.SWAP, GATES.CZ]
+        for d in [2, 3, 5]:
+            for gate in gates:
+                U = gate.unitary(d)
+                Id = np.eye(U.shape[0])
+                assert np.allclose(U.conj().T @ U, Id), f"{gate.name}(d={d}) is not unitary"
+                assert np.allclose(U @ U.conj().T, Id), f"{gate.name}(d={d}) is not unitary"
+
+    def test_unitary_inverse(self):
+        """Test that gate inverses have inverse unitaries."""
+        for d in [2, 3, 5]:
+            # H and H_inv
+            H = GATES.H.unitary(d)
+            H_inv = GATES.H_inv.unitary(d)
+            assert np.allclose(H @ H_inv, np.eye(d)), f"H @ H_inv != I for d={d}"
+
+            # S and S_inv
+            S = GATES.S.unitary(d)
+            S_inv = GATES.S_inv.unitary(d)
+            assert np.allclose(S @ S_inv, np.eye(d)), f"S @ S_inv != I for d={d}"
+
+            # SUM and SUM_inv
+            SUM = GATES.SUM.unitary(d)
+            SUM_inv = GATES.SUM_inv.unitary(d)
+            assert np.allclose(SUM @ SUM_inv, np.eye(d * d)), f"SUM @ SUM_inv != I for d={d}"
+
+            # SWAP is self-inverse
+            SWAP = GATES.SWAP.unitary(d)
+            assert np.allclose(SWAP @ SWAP, np.eye(d * d)), f"SWAP @ SWAP != I for d={d}"
+
+            # CZ is self-inverse only for qubits (d=2)
+            CZ = GATES.CZ.unitary(d)
+            if d == 2:
+                assert np.allclose(CZ @ CZ, np.eye(d * d)), f"CZ @ CZ != I for d={d}"
+            else:
+                # For d > 2, CZ^d = I (CZ has order d)
+                CZ_power = np.eye(d * d, dtype=complex)
+                for _ in range(d):
+                    CZ_power = CZ_power @ CZ
+                assert np.allclose(CZ_power, np.eye(d * d)), f"CZ^{d} != I for d={d}"
+
+    def test_one_qudit_unitary_clifford_property(self):
+        """Test that single-qudit unitaries correctly implement symplectic transformation."""
+        from sympleq.core.circuits.utils import pauli_unitary_qudit
+
+        for d in [2, 3, 5]:
+            for gate in [GATES.H, GATES.S]:
+                U = gate.unitary(d)
+
+                # Test on X (x=1, z=0) and Z (x=0, z=1)
+                for x, z in [(1, 0), (0, 1)]:
+                    P = pauli_unitary_qudit(d, x, z).toarray()
+
+                    # Conjugate: U P U† (this code's convention)
+                    P_conj = U @ P @ U.conj().T
+
+                    # Expected from symplectic: F @ [x, z]
+                    v_out = (gate.symplectic @ np.array([x, z])) % d
+                    x_out, z_out = v_out[0], v_out[1]
+                    P_exp = pauli_unitary_qudit(d, x_out, z_out).toarray()
+
+                    # Should match up to a global phase
+                    if np.max(np.abs(P_exp)) > 0:
+                        ratio = P_conj[np.abs(P_exp) > 0.1] / P_exp[np.abs(P_exp) > 0.1]
+                        assert np.allclose(np.abs(ratio), 1.0), (
+                            f"{gate.name}(d={d}) Clifford property failed for x={x}, z={z}"
+                        )
+
+    def test_two_qudit_unitary_clifford_property(self):
+        """Test that two-qudit unitaries correctly implement symplectic transformation."""
+        from sympleq.core.circuits.utils import pauli_unitary_qudit
+
+        for d in [2, 3, 5]:
+            for gate in [GATES.SUM, GATES.SWAP, GATES.CZ]:
+                U = gate.unitary(d)
+
+                # Test on X0, X1, Z0, Z1
+                test_paulis = [
+                    (1, 0, 0, 0),  # X0
+                    (0, 1, 0, 0),  # X1
+                    (0, 0, 1, 0),  # Z0
+                    (0, 0, 0, 1),  # Z1
+                ]
+                for x0, x1, z0, z1 in test_paulis:
+                    # Build input Pauli
+                    P0 = pauli_unitary_qudit(d, x0, z0).toarray()
+                    P1 = pauli_unitary_qudit(d, x1, z1).toarray()
+                    P = np.kron(P0, P1)
+
+                    # Conjugate: U P U† (this code's convention)
+                    P_conj = U @ P @ U.conj().T
+
+                    # Expected from symplectic
+                    v = np.array([x0, x1, z0, z1])
+                    v_out = (gate.symplectic @ v) % d
+                    x0_out, x1_out, z0_out, z1_out = v_out
+
+                    P0_exp = pauli_unitary_qudit(d, x0_out, z0_out).toarray()
+                    P1_exp = pauli_unitary_qudit(d, x1_out, z1_out).toarray()
+                    P_exp = np.kron(P0_exp, P1_exp)
+
+                    # Should match up to a global phase
+                    if np.max(np.abs(P_exp)) > 0:
+                        mask = np.abs(P_exp) > 0.1
+                        ratio = P_conj[mask] / P_exp[mask]
+                        assert np.allclose(np.abs(ratio), 1.0), (
+                            f"{gate.name}(d={d}) Clifford property failed for {(x0, x1, z0, z1)}"
+                        )
+
     def test_SUM_unitary(self):
-        pass
+        """Test SUM gate acts as |j,k⟩ -> |j, j+k mod d⟩."""
+        for d in [2, 3, 5]:
+            U = GATES.SUM.unitary(d)
+            for j in range(d):
+                for k in range(d):
+                    # Input state |j,k⟩
+                    in_state = np.zeros(d * d, dtype=complex)
+                    in_state[j * d + k] = 1.0
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
-    def test_two_qudit_unitary(self):
-        pass
+                    # Apply SUM
+                    out_state = U @ in_state
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
-    def test_one_qudit_unitary(self):
-        pass
+                    # Expected: |j, (j+k) mod d⟩
+                    expected = np.zeros(d * d, dtype=complex)
+                    expected[j * d + (j + k) % d] = 1.0
 
-    @pytest.mark.skip(reason="unitary() not implemented in new API yet")
+                    assert np.allclose(out_state, expected), (
+                        f"SUM(d={d}) failed for |{j},{k}⟩"
+                    )
+
     def test_pauli_gate_unitary(self):
-        pass
+        """Test PauliGate unitary is correct."""
+        from sympleq.core.circuits.utils import pauli_unitary_from_tableau
+
+        for d in [2, 3, 5]:
+            for _ in range(10):
+                # Random Pauli
+                x_exp = np.random.randint(0, d, size=2)
+                z_exp = np.random.randint(0, d, size=2)
+                ps = PauliString.from_exponents(x_exp, z_exp, dimensions=[d, d])
+                pg = PauliGate(ps)
+
+                U = pg.unitary()
+                U_expected = pauli_unitary_from_tableau(d, x_exp, z_exp).toarray()
+
+                assert np.allclose(U, U_expected), (
+                    f"PauliGate unitary mismatch for x={x_exp}, z={z_exp}, d={d}"
+                )
