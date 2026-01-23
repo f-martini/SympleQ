@@ -479,7 +479,7 @@ class TestAquire:
 
     @patch("builtins.input", side_effect=["y", "y"])   # answer to input(), input2()
     @patch("sympleq.core.paulis.utils.make_hermitian")
-    @patch("sympleq.core.measurement.allocation.sort_hamiltonian")
+    @patch("sympleq.applications.measurement.allocation.sort_hamiltonian")
     def test_make_hermitian_fails(self, mock_sort, mock_make_hermitian, mock_input):
         # --- Create a fake P with .is_hermitian() behavior ---
         P_before = MagicMock()               # P returned by sort_hamiltonian
