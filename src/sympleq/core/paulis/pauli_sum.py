@@ -1123,8 +1123,7 @@ class PauliSum(PauliObject):
             Matrix representation of input Pauli.
         """
         if pauli_string_index is not None:
-            ps = PauliSum(self.tableau[pauli_string_index], self.dimensions,
-                          self.weights[pauli_string_index], self.phases[pauli_string_index])
+            ps = self.select_pauli_string(pauli_string_index).as_pauli_sum()
             return ps.to_hilbert_space()
 
         list_of_pauli_matrices = []
