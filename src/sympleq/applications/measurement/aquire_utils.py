@@ -1,7 +1,7 @@
 import numpy as np
-from sympleq.core.measurement.allocation import scale_variances
-from sympleq.core.measurement.covariance_graph import graph
-from sympleq.core.paulis import PauliSum
+from sympleq.applications.measurement.allocation import scale_variances
+from sympleq.applications.measurement.covariance_graph import graph
+from sympleq.core.statistic_utils import true_covariance_graph
 
 
 def calculate_mean_estimate(data: np.ndarray, weights: np.ndarray):
@@ -50,25 +50,6 @@ def calculate_systematic_variance_estimate(data: np.ndarray, weights: np.ndarray
     error_correction = np.sum([weights[i0] * np.sum([xis[beta] * (theta_est[i0, beta] - 1 / d)
                                                      for beta in range(d)]) * w[i0, 0] for i0 in range(p)])
     return np.abs(error_correction)**2
-
-
-def true_mean(H: PauliSum, psi):
-    mu = np.real(np.transpose(np.conjugate(psi)) @ H.to_hilbert_space() @ psi)
-    return mu
-
-
-def true_covariance_graph(H: PauliSum, psi):
-    p = H.n_paulis()
-    mm = [H.to_hilbert_space(i) for i in range(p)]
-    psi_dag = psi.conj().T
-    cc1 = [psi_dag @ mm[i] @ psi for i in range(p)]
-    cc2 = [psi_dag @ mm[i].conj().T @ psi for i in range(p)]
-    cm = np.zeros((p, p), dtype=complex)
-    for i0 in range(p):
-        for i1 in range(p):
-            cov = (psi_dag @ mm[i0].conj().T @ mm[i1] @ psi) - cc2[i0] * cc1[i1]
-            cm[i0, i1] = cov
-    return graph(cm)
 
 
 def true_statistical_variance(H, psi, S):

@@ -1,12 +1,13 @@
 # flake8: noqa
 import numpy as np
-from sympleq.core.measurement.aquire import Aquire, AquireConfig, simulate_measurement
+from sympleq.applications.measurement.aquire import Aquire, AquireConfig, simulate_measurement
 from sympleq.core.paulis import PauliSum, PauliString
 from sympleq.core.paulis.utils import XZ_to_Y
-from sympleq.core.measurement.covariance_graph import commutation_graph, weighted_vertex_covering_maximal_cliques
-from sympleq.core.measurement.allocation import construct_circuit_list
-from sympleq.core.measurement.allocation import sort_hamiltonian
-from sympleq.core.measurement.aquire_utils import true_covariance_graph
+from sympleq.applications.measurement.covariance_graph import (commutation_graph,
+                                                               weighted_vertex_covering_maximal_cliques)
+from sympleq.applications.measurement.allocation import construct_circuit_list
+from sympleq.applications.measurement.allocation import sort_hamiltonian
+from sympleq.applications.measurement.aquire_utils import true_covariance_graph
 import json
 from unittest.mock import patch, MagicMock
 import warnings
@@ -62,7 +63,7 @@ class TestAquire:
         pass
 
     def AEQuO_comparison(self, filename):
-        with open(f'./tests/core_tests/measurement_tests/comparison_json/{filename}'+".json", "r") as f:
+        with open(f'./tests/application_tests/measurement_tests/comparison_json/{filename}'+".json", "r") as f:
             comparison_data = json.load(f)
 
         P = PauliSum.from_string(comparison_data["strings"],

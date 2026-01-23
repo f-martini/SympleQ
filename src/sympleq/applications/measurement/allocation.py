@@ -2,7 +2,7 @@ import numpy as np
 import random
 import itertools
 from sympleq.core.paulis import PauliSum
-from sympleq.core.measurement.covariance_graph import graph
+from sympleq.applications.measurement.covariance_graph import graph
 from sympleq.core.circuits import Circuit
 from sympleq.core.circuits.gates import Hadamard as H, SUM as CX, PHASE as S
 

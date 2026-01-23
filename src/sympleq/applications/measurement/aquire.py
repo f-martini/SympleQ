@@ -1,17 +1,18 @@
 import numpy as np
 from sympleq.core.paulis import PauliSum
-from sympleq.core.measurement.allocation import (sort_hamiltonian, choose_measurement,
-                                                 construct_circuit_list, update_data,
-                                                 construct_diagnostic_circuits, standard_error_function,
-                                                 construct_diagnostic_states,
-                                                 update_diagnostic_data, standard_noise_probability_function,
-                                                 mcmc_number_initial_samples, mcmc_number_max_samples)
-from sympleq.core.measurement.covariance_graph import (graph, quditwise_commutation_graph, commutation_graph,
-                                                       weighted_vertex_covering_maximal_cliques)
-from sympleq.core.measurement.mcmc import bayes_covariance_graph
-from sympleq.core.measurement.aquire_utils import (calculate_mean_estimate, calculate_statistical_variance_estimate,
-                                                   calculate_systematic_variance_estimate, true_mean,
-                                                   true_statistical_variance, config_params, aquire_params)
+from sympleq.applications.measurement.allocation import (sort_hamiltonian, choose_measurement,
+                                                         construct_circuit_list, update_data,
+                                                         construct_diagnostic_circuits, standard_error_function,
+                                                         construct_diagnostic_states,
+                                                         update_diagnostic_data, standard_noise_probability_function,
+                                                         mcmc_number_initial_samples, mcmc_number_max_samples)
+from sympleq.applications.measurement.covariance_graph import (graph, quditwise_commutation_graph, commutation_graph,
+                                                               weighted_vertex_covering_maximal_cliques)
+from sympleq.applications.measurement.mcmc import bayes_covariance_graph
+from sympleq.applications.measurement.aquire_utils import (calculate_mean_estimate,
+                                                           calculate_statistical_variance_estimate,
+                                                           calculate_systematic_variance_estimate, true_mean,
+                                                           true_statistical_variance, config_params, aquire_params)
 from sympleq.core.circuits import Circuit
 from sympleq.utils import int_to_bases
 from sympleq.core.paulis.utils import make_hermitian, XZ_to_Y
