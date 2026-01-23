@@ -431,8 +431,8 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
 
     Notes
     -----
-    This function first makes a copy of the given PauliSum, then tries to add phases to see if the PauliSum can 
-    be made hermitian. If the PauliSum is still not hermitian, it adds the PauliSum to its hermitian conjugate and 
+    This function first makes a copy of the given PauliSum, then tries to add phases to see if the PauliSum can
+    be made hermitian. If the PauliSum is still not hermitian, it adds the PauliSum to its hermitian conjugate and
     divides by 2.
 
     Examples
