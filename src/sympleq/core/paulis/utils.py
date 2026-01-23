@@ -414,6 +414,33 @@ def solve_mod_d(A: np.ndarray,
 
 
 def make_hermitian(PauliSum: PauliSum) -> PauliSum:
+    """
+    Makes a hermitian PauliSum from a given PauliSum.
+
+    A hermitian PauliSum is a PauliSum that is equal to its own hermitian conjugate.
+
+    Parameters
+    ----------
+    self : PauliSum
+        The PauliSum to make hermitian
+
+    Returns
+    -------
+    PauliSum
+        The hermitian PauliSum
+
+    Notes
+    -----
+    This function first makes a copy of the given PauliSum, then tries to add phases to see if the PauliSum can 
+    be made hermitian. If the PauliSum is still not hermitian, it adds the PauliSum to its hermitian conjugate and 
+    divides by 2.
+
+    Examples
+    --------
+    >>> H = PauliSum(['x1z1'], weights=[1], dimensions=[2])
+    >>> H.make_hermitian()
+    PauliSum(['x1z1'], weights=[1], dimensions=[2], phases=[1])
+    """
     if PauliSum.is_hermitian():
         return PauliSum
     H_new = PauliSum.copy()
