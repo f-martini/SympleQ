@@ -11,8 +11,9 @@ from sympleq.applications.measurement.covariance_graph import (graph, quditwise_
 from sympleq.applications.measurement.mcmc import bayes_covariance_graph
 from sympleq.applications.measurement.aquire_utils import (calculate_mean_estimate,
                                                            calculate_statistical_variance_estimate,
-                                                           calculate_systematic_variance_estimate, true_mean,
+                                                           calculate_systematic_variance_estimate,
                                                            true_statistical_variance, config_params, aquire_params)
+from sympleq.core.statistic_utils import true_mean
 from sympleq.core.circuits import Circuit
 from sympleq.utils import int_to_bases
 from sympleq.core.paulis.utils import make_hermitian, XZ_to_Y
