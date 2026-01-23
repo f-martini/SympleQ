@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Generator, overload, TypeVar, TypeAlias, Unpack
+from typing import Generator, overload, TypeVar, TypeAlias
 import numpy as np
 from .gates import Gate, Hadamard as H, PHASE as S, SUM as CX, SWAP, CNOT, PauliGate
 from sympleq.core.paulis import PauliSum, PauliString, Pauli, PauliObject
@@ -11,9 +11,6 @@ from .gates import Gate, GATES, _GenericGate
 from .utils import embed_symplectic
 from sympleq.core.paulis import PauliSum, PauliString, Pauli, PauliObject
 
-
-# Type alias for gate + qudit indices tuple (used internally)
-GateTuple: TypeAlias = tuple[Gate, tuple[int, ...]]
 
 # Type alias for from_tuples input: (Gate, qudit_idx1, qudit_idx2, ...)
 GateSpec: TypeAlias = tuple[Gate, *tuple[int, ...]]
@@ -220,10 +217,6 @@ class Circuit:
             if self._qudits[i] != other._qudits[i]:
                 return False
         return True
-
-    def __getitem__(self, index: int) -> GateTuple:
-        """Returns (gate, qudits) tuple at the given index."""
-        return (self._gates[index], self._qudits[index])
 
     def __len__(self) -> int:
         return len(self._gates)
