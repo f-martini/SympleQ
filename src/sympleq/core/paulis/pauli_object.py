@@ -314,6 +314,7 @@ class PauliObject(ABC):
     def is_close(self, other_pauli: Self, threshold: int = 10, literal: bool = True) -> bool:
         """
         Check whether two Pauli objects are approximately equal.
+
         Parameters
         ----------
         other_pauli : PauliObject
@@ -330,7 +331,6 @@ class PauliObject(ABC):
             True if all tableau entries, weights, phases, and dimensions
             match within tolerance; False otherwise.
         """
-
         if not isinstance(other_pauli, self.__class__):
             return False
 
