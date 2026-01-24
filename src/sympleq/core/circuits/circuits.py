@@ -1,12 +1,8 @@
 from __future__ import annotations
 from typing import Generator, overload, TypeVar, TypeAlias
 import numpy as np
-from .gates import Gate, Hadamard as H, PHASE as S, SUM as CX, SWAP, CNOT, PauliGate
-from sympleq.core.paulis import PauliSum, PauliString, Pauli, PauliObject
-from .utils import embed_symplectic
 import scipy.sparse as sp
 from collections import defaultdict
-from scipy import sparse as sp
 
 from .utils import embed_unitary
 from .gates import Gate, GATES, _GenericGate

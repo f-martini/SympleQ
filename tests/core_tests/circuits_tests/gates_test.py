@@ -323,7 +323,7 @@ class TestGates():
                  GATES.SUM, GATES.SUM_inv, GATES.SWAP, GATES.CZ]
         for d in [2, 3, 5]:
             for gate in gates:
-                U = gate.unitary(d)
+                U = gate.unitary(d).toarray()
                 Id = np.eye(U.shape[0])
                 assert np.allclose(U.conj().T @ U, Id), f"{gate.name}(d={d}) is not unitary"
                 assert np.allclose(U @ U.conj().T, Id), f"{gate.name}(d={d}) is not unitary"
@@ -332,34 +332,34 @@ class TestGates():
         """Test that gate inverses have inverse unitaries."""
         for d in [2, 3, 5]:
             # H and H_inv
-            H = GATES.H.unitary(d)
-            H_inv = GATES.H_inv.unitary(d)
-            assert np.allclose(H @ H_inv, np.eye(d)), f"H @ H_inv != I for d={d}"
+            U_H = GATES.H.unitary(d).toarray()
+            U_H_inv = GATES.H_inv.unitary(d).toarray()
+            assert np.allclose(U_H @ U_H_inv, np.eye(d)), f"H @ H_inv != I for d={d}"
 
             # S and S_inv
-            S = GATES.S.unitary(d)
-            S_inv = GATES.S_inv.unitary(d)
-            assert np.allclose(S @ S_inv, np.eye(d)), f"S @ S_inv != I for d={d}"
+            U_S = GATES.S.unitary(d).toarray()
+            U_S_inv = GATES.S_inv.unitary(d).toarray()
+            assert np.allclose(U_S @ U_S_inv, np.eye(d)), f"S @ S_inv != I for d={d}"
 
             # SUM and SUM_inv
-            SUM = GATES.SUM.unitary(d)
-            SUM_inv = GATES.SUM_inv.unitary(d)
-            assert np.allclose(SUM @ SUM_inv, np.eye(d * d)), f"SUM @ SUM_inv != I for d={d}"
+            U_SUM = GATES.SUM.unitary(d).toarray()
+            U_SUM_inv = GATES.SUM_inv.unitary(d).toarray()
+            assert np.allclose(U_SUM @ U_SUM_inv, np.eye(d * d)), f"SUM @ SUM_inv != I for d={d}"
 
             # SWAP is self-inverse
-            SWAP = GATES.SWAP.unitary(d)
+            SWAP = GATES.SWAP.unitary(d).toarray()
             assert np.allclose(SWAP @ SWAP, np.eye(d * d)), f"SWAP @ SWAP != I for d={d}"
 
             # CZ is self-inverse only for qubits (d=2)
-            CZ = GATES.CZ.unitary(d)
+            U_CZ = GATES.CZ.unitary(d).toarray()
             if d == 2:
-                assert np.allclose(CZ @ CZ, np.eye(d * d)), f"CZ @ CZ != I for d={d}"
+                assert np.allclose(U_CZ @ U_CZ, np.eye(d * d)), f"CZ @ CZ != I for d={d}"
             else:
                 # For d > 2, CZ^d = I (CZ has order d)
-                CZ_power = np.eye(d * d, dtype=complex)
+                U_CZ_power = np.eye(d * d, dtype=complex)
                 for _ in range(d):
-                    CZ_power = CZ_power @ CZ
-                assert np.allclose(CZ_power, np.eye(d * d)), f"CZ^{d} != I for d={d}"
+                    U_CZ_power = U_CZ_power @ U_CZ
+                assert np.allclose(U_CZ_power, np.eye(d * d)), f"CZ^{d} != I for d={d}"
 
     def test_one_qudit_unitary_clifford_property(self):
         """Test that single-qudit unitaries correctly implement symplectic transformation."""

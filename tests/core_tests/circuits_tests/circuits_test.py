@@ -336,8 +336,8 @@ class TestCircuits():
         # Verify PHASE acting on middle qudit multiplies amplitude appropriately.
         d0, d1, d2 = 3, 5, 2
         dims = [d0, d1, d2]
-        c = Circuit(dims, [GATES.S], [(1,)])
-        U = c.unitary()
+        c = Circuit.from_tuples(dims, (GATES.S, 1))
+        U = c.unitary().toarray()
 
         # Basis |i,j,k> = |2,3,1>
         i, j, k = 2, 3, 1

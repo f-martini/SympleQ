@@ -353,7 +353,7 @@ class _PHASE(Gate):
 
     def unitary(self, dimension: int) -> sp.csr_matrix:
         from sympleq.core.circuits.utils import S_mat
-        U = S_mat(dimension).toarray()
+        U = S_mat(dimension)
         if self._is_inverse:
             return U.conj().T
         return U
