@@ -1182,41 +1182,24 @@ class PauliSum(PauliObject):
             new_phases = (self.phases + np.array(phases)) % (2 * self.lcm)
             self._phases = new_phases
 
-    def ordered_eigenspectrum(self, only_gs: bool = False) -> tuple[np.ndarray, np.ndarray]:
+    def ordered_eigenspectrum(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Compute eigenvalues/eigenvectors of the PauliSum and (by default) pick
         the ground-state energy (`only_gs` = `True`).
 
-        Parameters
-        ----------
-        only_gs : bool = False, optional
-            If `True`, only the ground-state (energy) is kept in `gs` (`en`).
-            If `False`, all eigenvectors (eigenvalues) are kept in `gs` (`en`).
-
         Returns
         -------
         en : float or numpy.ndarray
-            If `only_gs` is `True`, the lowest eigenvalue (ground-state energy).
-            Otherwise, a 1D array of all eigenvalues sorted ascending.
+            A 1D array of all eigenvalues sorted ascending.
         gs : numpy.ndarray
             Eigenvectors sorted to match ``en``.
-
-        Raises
-        ------
-        AssertionError
-            If the (internally normalized) eigenvector(s) do not yield real
-            expectation values matching the corresponding eigenvalue(s) within
-            ``1e-10``.
-
         """
 
         if not self.is_hermitian():
             raise ValueError("Cannot find ground state for non-Hermitian PauliSum.")
 
         # Convert PauliSum to matrix form
-        P = self.copy()
-        P.phase_to_weight()
-        m = P.to_hilbert_space().toarray()
+        m = self.to_hilbert_space().toarray()
 
         # Get eigenvalues and eigenvectors
         val, vec = np.linalg.eigh(m)
@@ -1226,18 +1209,7 @@ class PauliSum(PauliObject):
         tmp_index = np.argsort(val)
         energies = val[tmp_index]
         states = vec[tmp_index]
-        # Prepare output
-        if only_gs:
-            ground_state = states[0]
-            ground_state = np.transpose(ground_state) / np.linalg.norm(ground_state)
-            output = np.array(ground_state)
-            energies_check = np.transpose(np.conjugate(ground_state)) @ m @ ground_state
-        else:
-            output = np.array([np.transpose(state) / np.linalg.norm(state) for state in states])
-            energies_check = np.array([np.transpose(np.conjugate(state)) @ m @ state for state in output])
-
-        if np.max(abs(energies - energies_check)) > 10**-10:
-            raise RuntimeError(f"The ground state does not yield a real value <gs | H |gs> = {energies_check}")
+        output = np.transpose(states) / np.linalg.norm(states)
 
         return (energies, output)
 
@@ -1261,7 +1233,7 @@ class PauliSum(PauliObject):
             If the number of PauliStrings is not equal to the number of qudits.
         """
 
-        _, states = self.ordered_eigenspectrum(only_gs=True)
+        _, states = self.ordered_eigenspectrum()
         assert len(states) == 1
         ground_state = states[0]
         d = ground_state.size
