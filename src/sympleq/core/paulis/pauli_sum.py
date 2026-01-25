@@ -9,7 +9,6 @@ from pathlib import Path
 
 from sympleq.utils import int_to_bases
 from sympleq.core.finite_field_solvers import get_linear_dependencies
-
 from .pauli_object import PauliObject
 from .pauli_string import PauliString
 from .pauli import Pauli
@@ -1183,15 +1182,15 @@ class PauliSum(PauliObject):
             new_phases = (self.phases + np.array(phases)) % (2 * self.lcm)
             self._phases = new_phases
 
-    def ordered_eigenspectrum(self, only_gs: bool = True) -> tuple[np.ndarray, np.ndarray]:
+    def ordered_eigenspectrum(self, only_gs: bool = False) -> tuple[np.ndarray, np.ndarray]:
         """
         Compute eigenvalues/eigenvectors of the PauliSum and (by default) pick
         the ground-state energy (`only_gs` = `True`).
 
         Parameters
         ----------
-        only_gs : bool, optional
-            If `True` (default), only the ground-state (energy) is kept in `gs` (`en`).
+        only_gs : bool = False, optional
+            If `True`, only the ground-state (energy) is kept in `gs` (`en`).
             If `False`, all eigenvectors (eigenvalues) are kept in `gs` (`en`).
 
         Returns
@@ -1225,35 +1224,49 @@ class PauliSum(PauliObject):
 
         # Ordering
         tmp_index = np.argsort(val)
-        en = val[tmp_index]
-        gs = vec[tmp_index]
+        energies = val[tmp_index]
+        states = vec[tmp_index]
         # Prepare output
         if only_gs:
-            en = en[0]
-            gs_out = gs[0]
-            gs_out = np.transpose(gs_out)
-            gs_out = gs_out / np.linalg.norm(gs_out)
+            ground_state = states[0]
+            ground_state = np.transpose(ground_state) / np.linalg.norm(ground_state)
+            output = np.array(ground_state)
+            energies_check = np.transpose(np.conjugate(ground_state)) @ m @ ground_state
         else:
-            gs_out = []
-            for el in gs:
-                el = np.transpose(el)
-                el = el / np.linalg.norm(el)
-                gs_out.append(el)
-            gs_out = np.array(gs_out)
+            output = np.array([np.transpose(state) / np.linalg.norm(state) for state in states])
+            energies_check = np.array([np.transpose(np.conjugate(state)) @ m @ state for state in output])
 
-        # Since PauliSum is Hermitian, check that ground state energy is real
-        exp_en = []
-        if not only_gs:
-            for el in gs_out:
-                exp_en.append(np.transpose(np.conjugate(el)) @ m @ el)
-            exp_en = np.array(exp_en)
-        else:
-            exp_en = np.transpose(np.conjugate(gs_out)) @ m @ gs_out
+        if np.max(abs(energies - energies_check)) > 10**-10:
+            raise RuntimeError(f"The ground state does not yield a real value <gs | H |gs> = {energies_check}")
 
-        if np.max(abs(en - exp_en)) > 10**-10:
-            raise RuntimeError(f"The ground state does not yield a real value <gs | H |gs> = {exp_en}")
+        return (energies, output)
 
-        return en, gs_out
+    def stabilizer_to_hilbert_space(self) -> sp.csr_matrix:
+        """
+        Yield a sparse vector in the Hilbert space representation of the given stabilizer state written as a PauliSum.
+
+        Returns
+        -------
+        sparse csr vector representing the stabilizer state.
+
+        Raises
+        ------
+        AssertionError
+            If all weights of the PauliSum are not one.
+
+        AssertionError
+            If the PauliStrings in the PauliSum are not all-to-all commuting.
+
+        Warning
+            If the number of PauliStrings is not equal to the number of qudits.
+        """
+
+        _, states = self.ordered_eigenspectrum(only_gs=True)
+        assert len(states) == 1
+        ground_state = states[0]
+        d = ground_state.size
+
+        return np.kron(ground_state.conj(), ground_state).reshape(d, d)
 
     def reorder(self,
                 order: list[int]):
