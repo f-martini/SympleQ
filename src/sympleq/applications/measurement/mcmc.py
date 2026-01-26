@@ -6,7 +6,7 @@ from numba import jit, prange
 
 
 @jit(nopython=True)
-def xi(a, d) -> complex:
+def xi(a: int, d: int) -> complex:
     """
     Computes the a-th eigenvalue of a pauli with dimension d.
 
@@ -21,7 +21,7 @@ def xi(a, d) -> complex:
 
 
 @jit(nopython=True)
-def rand_state(d) -> np.ndarray:
+def rand_state(d: int) -> np.ndarray:
     """
     Generate a random quantum state vector for a system of dimension d^2.
 
@@ -38,7 +38,7 @@ def rand_state(d) -> np.ndarray:
 
 
 @jit(nopython=True)
-def truncated_exponential_sample(b, loc, scale) -> float:
+def truncated_exponential_sample(b: float, loc: float, scale: float) -> float:
     """
     Sample a random number from a truncated exponential distribution.
 
@@ -55,7 +55,7 @@ def truncated_exponential_sample(b, loc, scale) -> float:
 
 
 @jit(nopython=True)
-def get_p_matrix(d) -> np.ndarray:
+def get_p_matrix(d: int) -> np.ndarray:
     """
     Generate a matrix A to simplify the calculation of probabilities p from the state vector psi.
 
@@ -85,7 +85,7 @@ def get_p_matrix(d) -> np.ndarray:
 
 
 @jit(nopython=True)
-def get_psi(p) -> np.ndarray:
+def get_psi(p: np.ndarray) -> np.ndarray:
     """
     Calculate the state vector psi from the probability vector p.
 
@@ -106,7 +106,7 @@ def get_psi(p) -> np.ndarray:
 
 
 @jit(nopython=True)
-def get_p(psi, A) -> np.ndarray:
+def get_p(psi: np.ndarray, A: np.ndarray) -> np.ndarray:
     """
     Calculate the probabilities p from the state vector psi using matrix A.
 
@@ -122,7 +122,7 @@ def get_p(psi, A) -> np.ndarray:
 
 
 @jit(nopython=True)
-def mcmc_starting_point(d, c, A) -> tuple[np.ndarray, np.ndarray]:
+def mcmc_starting_point(d: int, c: np.ndarray, A: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Find a suitable starting point for the Monte Carlo chain.
 
@@ -148,7 +148,7 @@ def mcmc_starting_point(d, c, A) -> tuple[np.ndarray, np.ndarray]:
 # MONTE-CARLO INTEGRATION
 
 @jit(nopython=True)
-def psi_sample(psi, alpha, d) -> np.ndarray:
+def psi_sample(psi: np.ndarray, alpha: float, d: int) -> np.ndarray:
     """
     Sample a new quantum state for Monte Carlo integration.
 
@@ -167,7 +167,7 @@ def psi_sample(psi, alpha, d) -> np.ndarray:
 
 
 @jit(nopython=True)
-def log_posterior_ratio(p1, p2, c) -> float:
+def log_posterior_ratio(p1: np.ndarray, p2: np.ndarray, c: np.ndarray) -> float:
     """
     Calculate the logarithm of the ratio of the posterior for two samples given data c.
 
@@ -183,7 +183,7 @@ def log_posterior_ratio(p1, p2, c) -> float:
 
 
 @jit(nopython=True)
-def mcmc_covariance_estimate(grid, d) -> float:
+def mcmc_covariance_estimate(grid: np.ndarray, d: int) -> complex:
     """
     Estimate the covariance of the Paulis from the Monte Carlo grid.
 
@@ -198,12 +198,12 @@ def mcmc_covariance_estimate(grid, d) -> float:
     PiPj_est = np.sum(np.array([[xi(-i, d) * xi(j, d) * np.mean(grid[:, i] * grid[:, j + d])
                       for i in range(d)] for j in range(d)]))
     cov = Pk_est - PiPj_est
-    return cov
+    return complex(cov)
 
 
 # Geweke criterion for checking convergence of Monte Carlo chains
 @jit(nopython=True)
-def geweke_test(grid) -> bool:
+def geweke_test(grid: np.ndarray) -> bool:
     """
     Apply the Geweke criterion to check the convergence of the Monte Carlo chains.
 
@@ -230,7 +230,7 @@ def geweke_test(grid) -> bool:
 
 # Gelman-Rubin criterion for checking convergence of Monte Carlo chains
 @jit(nopython=True)
-def gelman_rubin_test(grid) -> bool:
+def gelman_rubin_test(grid: np.ndarray) -> bool:
     """
     Apply the Gelman-Rubin criterion to check the convergence of the Monte Carlo chains.
 
@@ -260,7 +260,8 @@ def gelman_rubin_test(grid) -> bool:
 
 
 @jit(nopython=True)
-def update_chain(p, psi, c, alpha, d, A) -> tuple[np.ndarray, np.ndarray, float]:
+def update_chain(p: np.ndarray, psi: np.ndarray, c: np.ndarray,
+                 alpha: float, d: int, A: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
     """
     Update a single chain of the Monte Carlo Markov Chain.
 
@@ -286,7 +287,8 @@ def update_chain(p, psi, c, alpha, d, A) -> tuple[np.ndarray, np.ndarray, float]
 
 
 @jit(nopython=True)
-def mcmc_integration(N, psi_list, p_list, alpha, d, c, A, N_max=10000) -> tuple[np.ndarray, int]:
+def mcmc_integration(N: int, psi_list: list[np.ndarray], p_list: list[np.ndarray], alpha: float,
+                     d: int, c: np.ndarray, A: np.ndarray, N_max=10000) -> tuple[np.ndarray, int]:
     """
     Perform Monte Carlo integration.
 
@@ -329,7 +331,8 @@ def mcmc_integration(N, psi_list, p_list, alpha, d, c, A, N_max=10000) -> tuple[
 
 
 @jit(nopython=True)
-def get_alpha(p_list, psi_list, d, A, c, N_chain, Q_alpha_test=True, target_accept=0.25,
+def get_alpha(p_list: list[np.ndarray], psi_list: list[np.ndarray], d: int, A: np.ndarray,
+              c: np.ndarray, N_chain: int, Q_alpha_test=True, target_accept=0.25,
               N_accepts=30, b=10, run_max=1000) -> tuple[list[np.ndarray], list[np.ndarray], float]:
     # initial guess for alpha
     """
@@ -386,7 +389,7 @@ def get_alpha(p_list, psi_list, d, A, c, N_chain, Q_alpha_test=True, target_acce
 
 
 @jit(nopython=True)
-def bayes_Var_estimate(xDict) -> float:
+def bayes_Var_estimate(xDict: np.ndarray) -> float:
     """
     Estimate the Bayesian variance of the mean for a single Pauli.
 
@@ -415,7 +418,8 @@ def bayes_Var_estimate(xDict) -> float:
 
 
 @jit(nopython=True)
-def bayes_covariance_estimation(xy, x, y, d, N_chain=8, N=100, N_max=100000, Q_alpha_test=True) -> float:
+def bayes_covariance_estimation(xy: np.ndarray, x: np.ndarray, y: np.ndarray, d: int,
+                                N_chain=8, N=100, N_max=100000, Q_alpha_test=True) -> complex:
     """
     Estimate the covariance of two Paulis using Bayesian estimation and Monte Carlo integration.
 
@@ -428,7 +432,7 @@ def bayes_covariance_estimation(xy, x, y, d, N_chain=8, N=100, N_max=100000, Q_a
         N_max (int): Maximum number of iterations.
 
     Returns:
-        float: Estimated covariance of the Paulis.
+        complex: Estimated covariance of the Paulis.
     """
     # general parameters
     A = get_p_matrix(d)
@@ -457,7 +461,8 @@ def bayes_covariance_estimation(xy, x, y, d, N_chain=8, N=100, N_max=100000, Q_a
 
 
 @jit(nopython=True, parallel=True, nogil=True)
-def bayes_covariance_graph(X, cc, CG, p, size_list, d, N_chain=8, N=100, N_max=801) -> np.ndarray:
+def bayes_covariance_graph(X: np.ndarray, cc: np.ndarray, CG: np.ndarray, p: int, size_list: np.ndarray, d: int,
+                           N_chain=8, N=100, N_max=801) -> np.ndarray:
     """
     Estimate the Bayesian covariance matrix for a set of observables in a Hamiltonian.
 

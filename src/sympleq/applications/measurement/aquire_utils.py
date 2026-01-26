@@ -1,4 +1,5 @@
 import numpy as np
+from sympleq.core.paulis import PauliSum
 from sympleq.applications.measurement.allocation import scale_variances
 from sympleq.applications.measurement.covariance_graph import graph
 from sympleq.core.statistic_utils import true_covariance_graph
@@ -104,7 +105,7 @@ def calculate_systematic_variance_estimate(data: np.ndarray, weights: np.ndarray
     return np.abs(error_correction)**2
 
 
-def true_statistical_variance(H, psi, S) -> float:
+def true_statistical_variance(H: PauliSum, psi: np.ndarray, S: np.ndarray) -> float:
     """
     Calculate the true statistical variance of the Hamiltonian/observable given the number of times each clique has been
     measured.

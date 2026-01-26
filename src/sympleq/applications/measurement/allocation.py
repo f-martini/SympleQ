@@ -104,7 +104,7 @@ def sort_hamiltonian(P: PauliSum) -> tuple[PauliSum, np.ndarray]:
     return P1, np.array(pauli_block_sizes)
 
 
-def choose_measurement(S, V, aaa, allocation_mode) -> list[int]:
+def choose_measurement(S: np.ndarray, V: np.ndarray, aaa, allocation_mode: str) -> list[int]:
     """
     Choose a set of Pauli operators (based on the covariance graph) to measure in order to reduce the estimation error
     for the observable.
@@ -151,7 +151,7 @@ def choose_measurement(S, V, aaa, allocation_mode) -> list[int]:
     return aa
 
 
-def construct_circuit_list(P, xxx, D) -> tuple[list[Circuit], dict]:
+def construct_circuit_list(P: PauliSum, xxx: list[list[int]], D: dict) -> tuple[list[Circuit], dict]:
     """
     Constructs a list of circuits which diagonalize the cliques of the given Hamiltonian.
 
@@ -175,7 +175,7 @@ def construct_circuit_list(P, xxx, D) -> tuple[list[Circuit], dict]:
     return circuit_list, D
 
 
-def construct_diagonalization_circuit(P: PauliSum, aa, D={}) -> tuple[Circuit, dict]:
+def construct_diagonalization_circuit(P: PauliSum, aa: list[int], D={}) -> tuple[Circuit, dict]:
     """
     Constructs a circuit which diagonalizes the singular given clique of a Hamiltonian.
 
@@ -283,7 +283,7 @@ def diagonalize(P: PauliSum) -> Circuit:
     return C
 
 
-def diagonalize_iter_(P, C, aa) -> Circuit:
+def diagonalize_iter_(P: PauliSum, C: Circuit, aa: list[int]) -> Circuit:
     """
     Diagonalize the given PauliSum on the given qudit indices.
 
@@ -406,7 +406,7 @@ def is_diagonalizing_circuit(P: PauliSum, C: Circuit, aa: list[int]) -> bool:
     return P1.is_z()
 
 
-def update_data(xxx, rr, X, D) -> np.ndarray:
+def update_data(xxx: list[list[int]], rr: list[np.ndarray], X: np.ndarray, D: dict) -> np.ndarray:
     """
     Updates the given data matrix with the given measurement results, PauliSums and dictionaries.
 
@@ -441,7 +441,8 @@ def update_data(xxx, rr, X, D) -> np.ndarray:
     return X
 
 
-def update_diagnostic_data(cliques, diagnostic_results, diagnostic_data, mode='zero') -> np.ndarray:
+def update_diagnostic_data(cliques: list[list[int]], diagnostic_results: list[np.ndarray],
+                           diagnostic_data: np.ndarray, mode: str = 'zero') -> np.ndarray:
     """
     Updates the given diagnostic data matrix with the given measurement results and PauliSums.
 
@@ -474,7 +475,7 @@ def update_diagnostic_data(cliques, diagnostic_results, diagnostic_data, mode='z
     return diagnostic_data
 
 
-def scale_variances(A, S) -> graph:
+def scale_variances(A: graph, S: np.ndarray) -> graph:
     # Inputs:
     #     A - (graph)       - variance matrix
     #     S - (numpy.array) - array for tracking number of measurements
@@ -500,7 +501,7 @@ def scale_variances(A, S) -> graph:
     return graph(S1 * A.adj * s1 * s1[:, None])
 
 
-def construct_diagnostic_circuits(circuit_list) -> list[Circuit]:
+def construct_diagnostic_circuits(circuit_list: list[Circuit]) -> list[Circuit]:
     """
     Constructs a list of diagnostic circuits (for hardware error measurements) from a given list of circuits.
 
@@ -528,7 +529,7 @@ def construct_diagnostic_circuits(circuit_list) -> list[Circuit]:
 
 
 def construct_diagnostic_states(diagnostic_circuits: list[Circuit],
-                                mode='zero') -> tuple[list[np.ndarray], list[Circuit]]:
+                                mode: str = 'zero') -> tuple[list[np.ndarray], list[Circuit]]:
     """
     Constructs a list of diagnostic states (for hardware error measurements) from a given list of diagnostic circuits.
 
@@ -559,7 +560,7 @@ def construct_diagnostic_states(diagnostic_circuits: list[Circuit],
         raise Exception('Diagnostic state mode not recognized')
 
 
-def standard_noise_probability_function(circuit, p_entangling=0.03,
+def standard_noise_probability_function(circuit: Circuit, p_entangling=0.03,
                                         p_local=0.001, p_measurement=0.001) -> float:
     """
     Standard example function to calculate the probability of a noise event occurring in a given circuit.
@@ -591,7 +592,7 @@ def standard_noise_probability_function(circuit, p_entangling=0.03,
     return noise_prob
 
 
-def standard_error_function(result, dimensions) -> np.ndarray:
+def standard_error_function(result: np.ndarray, dimensions: list[int]) -> np.ndarray:
     """
     Standard example function to simulate the statistical error of a given result.
 
@@ -610,7 +611,7 @@ def standard_error_function(result, dimensions) -> np.ndarray:
     return np.array([np.random.randint(dimensions[j]) for j in range(len(dimensions))])
 
 
-def extract_phase(weight, dimension) -> tuple[int, float]:
+def extract_phase(weight: complex, dimension: int) -> tuple[int, float]:
     """
     Extracts the phase and remainder of a given weight with respect to a given dimension.
 

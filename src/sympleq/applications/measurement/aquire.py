@@ -429,9 +429,6 @@ class AquireConfig:
 
 
 class Aquire:
-    # TODO: info method like config class
-    # TODO: add docstrings everywhere
-    # TODO: add typings everywhere
     # TODO: add rollback method to go back to previous update
     # TODO: make working save and load methods
     # TODO: make summary method (also for config class) that only shows the most important information
@@ -581,7 +578,7 @@ class Aquire:
         """
         return self.total_shots() - self.update_steps[-1] if self.update_steps else self.total_shots()
 
-    def cliques_since_last_update(self) -> list[Circuit]:
+    def cliques_since_last_update(self) -> list[list[int]]:
         """
         Get the list of cliques measured since the last covariance graph update.
 
@@ -639,7 +636,7 @@ class Aquire:
         return (self.diagnostic_state_preparation_circuits[len(self.diagnostic_results):].copy()
                 if self.update_steps else self.diagnostic_state_preparation_circuits.copy())
 
-    def data_at_shot(self, shot: int | list[int]) -> list[np.ndarray] | np.ndarray:
+    def data_at_shot(self, shot: int | list[int]) -> list[np.ndarray]:
         """
         Return the data at a given shot or shots.
 
@@ -657,7 +654,7 @@ class Aquire:
         data = np.zeros((self.H.n_paulis(), self.H.n_paulis(), int(self.H.lcm)))
         if isinstance(shot, (int, np.integer)):
             data = update_data(self.cliques[:shot], self.measurement_results[:shot], data, self.circuit_dictionary)
-            return data
+            return [data]
         else:
             # technically one can use that data to build up the next one, but this is simpler
             data_list = []
@@ -748,7 +745,7 @@ class Aquire:
                 idx = self.update_steps.index(s)
                 graphs.append(self.covariance_graph_checkpoints[idx])
                 continue
-            data = self.data_at_shot(s)
+            data = self.data_at_shot(s)[0]
             N, N_max = self.set_mcmc_parameters(s)
             A = bayes_covariance_graph(data,
                                        self.H.weights,
@@ -789,7 +786,7 @@ class Aquire:
     # Main experiment methods #########################################################################################
     ###################################################################################################################
 
-    def allocate_measurements(self, shots) -> list[Circuit]:
+    def allocate_measurements(self, shots: int) -> list[Circuit]:
         """
         Choose new cliques to measure according to the allocation mode and
         construct new circuits to measure the cliques.
@@ -906,11 +903,11 @@ class Aquire:
             self.covariance_graph, self.scaling_matrix))
         if self.config.enable_debug_checks:
             self.check_results()
-        if self.config.calculate_true_values:
+        if self.config.calculate_true_values and self.config.psi is not None:
             self.true_statistical_variance_value.append(true_statistical_variance(
                 self.H, self.config.psi, self.scaling_matrix))
 
-    def input_measurement_data(self, measurement_results: list):
+    def input_measurement_data(self, measurement_results: list[np.ndarray]):
         """
         Input new measurement data.
 
@@ -953,7 +950,7 @@ class Aquire:
         if self.config.auto_update_covariance_graph:
             self.update_covariance_graph()
 
-    def input_diagnostic_data(self, diagnostic_results: list):
+    def input_diagnostic_data(self, diagnostic_results: list[np.ndarray]):
         """
         Input new diagnostic data.
 
