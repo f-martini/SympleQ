@@ -31,7 +31,7 @@ class TestAquire:
             for j, g in enumerate(c.gates):
                 assert g.name == comp_c[j][0] and np.all(g.qudit_indices == comp_c[j][1]), f"Circuit {i} does not match"
 
-        true_cov_graph = true_covariance_graph(P, psi).adj * com_graph.adj
+        true_cov_graph = true_covariance_graph(P, psi) * com_graph.adj
         assert np.allclose(true_cov_graph, true_variance_graph, atol=10**(-6)), "true covariance graphs do not match"
 
         for i, aa in enumerate(xxx):

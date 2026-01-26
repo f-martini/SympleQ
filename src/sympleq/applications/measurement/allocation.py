@@ -7,16 +7,15 @@ from sympleq.core.circuits import Circuit
 from sympleq.core.circuits.gates import Hadamard as H, SUM as CX, PHASE as S
 
 
-def mcmc_number_initial_samples(shots: int, n_0: int = 500, scaling_factor: float = 1 / 10000):
+def mcmc_number_initial_samples(shots: int, n_0: int = 500, scaling_factor: float = 1 / 10000) -> int:
     return int(shots * scaling_factor) + n_0
 
 
-def mcmc_number_max_samples(shots: int, n_0: int = 2001, scaling_factor: float = 1 / 10000):
+def mcmc_number_max_samples(shots: int, n_0: int = 2001, scaling_factor: float = 1 / 10000) -> int:
     return 4 * int(shots * scaling_factor) + n_0
 
 
-def sort_hamiltonian(P: PauliSum):
-    # TODO: remove identity (is now not done anymore because of reorder method)
+def sort_hamiltonian(P: PauliSum) -> tuple[PauliSum, np.ndarray]:
     """
     Sorts the Hamiltonian's Pauli operators based on hermiticity, with hermitian ones first and then pairs of
     Paulis and their hermitian conjugate. !!! Also removes identity !!!
@@ -83,7 +82,7 @@ def sort_hamiltonian(P: PauliSum):
     return P1, np.array(pauli_block_sizes)
 
 
-def choose_measurement(S, V, aaa, allocation_mode):
+def choose_measurement(S, V, aaa, allocation_mode) -> list[int]:
     p = S.shape[0]
     Ones = [np.ones((i, i), dtype=int) for i in range(p + 1)]
     index_set = set(range(p))
@@ -105,7 +104,7 @@ def choose_measurement(S, V, aaa, allocation_mode):
     return aa
 
 
-def construct_circuit_list(P, xxx, D):
+def construct_circuit_list(P, xxx, D) -> tuple[list[Circuit], dict]:
     circuit_list = []
     for aa in xxx:
         C, D = construct_diagonalization_circuit(P, aa, D=D)
@@ -115,7 +114,7 @@ def construct_circuit_list(P, xxx, D):
     return circuit_list, D
 
 
-def construct_diagonalization_circuit(P: PauliSum, aa, D={}):
+def construct_diagonalization_circuit(P: PauliSum, aa, D={}) -> tuple[Circuit, dict]:
     if str(aa) in D:
         P1, C, k_dict = D[str(aa)]
     else:
@@ -151,7 +150,7 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}):
 
 
 # TODO: Make this part of the core function
-def diagonalize(P: PauliSum):
+def diagonalize(P: PauliSum) -> Circuit:
     # Inputs:
     #     P - (pauli) - Pauli to be diagonalized
     # Outputs:
@@ -193,7 +192,7 @@ def diagonalize(P: PauliSum):
     return C
 
 
-def diagonalize_iter_(P, C, aa):
+def diagonalize_iter_(P, C, aa) -> Circuit:
     p = P.n_paulis()
     P = C.act(P)
     a = aa.pop(0)
@@ -238,7 +237,7 @@ def diagonalize_iter_(P, C, aa):
     return C
 
 
-def diagonalize_iter_quditwise_(P: PauliSum, C: Circuit, aa: list[int]):
+def diagonalize_iter_quditwise_(P: PauliSum, C: Circuit, aa: list[int]) -> Circuit:
     p = P.n_paulis()
     P = C.act(P)
     a = aa.pop(0)
@@ -258,14 +257,14 @@ def diagonalize_iter_quditwise_(P: PauliSum, C: Circuit, aa: list[int]):
     return C
 
 
-def is_diagonalizing_circuit(P: PauliSum, C: Circuit, aa: list[int]):
+def is_diagonalizing_circuit(P: PauliSum, C: Circuit, aa: list[int]) -> bool:
     P1 = P.copy()
     P1._delete_paulis([i for i in range(P.n_paulis()) if i not in aa])
     P1 = C.act(P1)
     return P1.is_z()
 
 
-def update_data(xxx, rr, X, D):
+def update_data(xxx, rr, X, D) -> np.ndarray:
     d = len(X[0, 0])
     for i, aa in enumerate(xxx):
         (P1, _, k_dict) = D[str(aa)]
@@ -281,7 +280,7 @@ def update_data(xxx, rr, X, D):
     return X
 
 
-def update_diagnostic_data(cliques, diagnostic_results, diagnostic_data, mode='zero'):
+def update_diagnostic_data(cliques, diagnostic_results, diagnostic_data, mode='zero') -> np.ndarray:
     if mode == 'zero':
         for i in range(len(diagnostic_results)):
             if np.any(diagnostic_results[i]):
@@ -295,7 +294,7 @@ def update_diagnostic_data(cliques, diagnostic_results, diagnostic_data, mode='z
     return diagnostic_data
 
 
-def scale_variances(A, S):
+def scale_variances(A, S) -> graph:
     # Inputs:
     #     A - (graph)       - variance matrix
     #     S - (numpy.array) - array for tracking number of measurements
@@ -306,7 +305,7 @@ def scale_variances(A, S):
     return graph(S1 * A.adj * s1 * s1[:, None])
 
 
-def construct_diagnostic_circuits(circuit_list):
+def construct_diagnostic_circuits(circuit_list) -> list[Circuit]:
     diagnostic_circuits = []
     for circ in circuit_list:
         C_diag = Circuit(dimensions=circ.dimensions)
@@ -320,10 +319,12 @@ def construct_diagnostic_circuits(circuit_list):
     return diagnostic_circuits
 
 
-def construct_diagnostic_states(diagnostic_circuits: list[Circuit], mode='zero'):
+def construct_diagnostic_states(diagnostic_circuits: list[Circuit],
+                                mode='zero') -> tuple[list[np.ndarray], list[Circuit]]:
     if mode == 'zero':
         state = [0] * np.prod(diagnostic_circuits[0].dimensions)
         state[0] = 1
+        state = np.array(state)
         state_preparation_circuits = [Circuit(diagnostic_circuits[0].dimensions)] * len(diagnostic_circuits)
         return ([state] * len(diagnostic_circuits), state_preparation_circuits)
     elif mode == 'random':
@@ -332,7 +333,8 @@ def construct_diagnostic_states(diagnostic_circuits: list[Circuit], mode='zero')
         raise Exception('Diagnostic state mode not recognized')
 
 
-def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.001, p_measurement=0.001):
+def standard_noise_probability_function(circuit, p_entangling=0.03,
+                                        p_local=0.001, p_measurement=0.001) -> float:
     n_local = 0
     n_entangling = 0
     for g in circuit.gates:
@@ -344,11 +346,11 @@ def standard_noise_probability_function(circuit, p_entangling=0.03, p_local=0.00
     return noise_prob
 
 
-def standard_error_function(result, dimensions):
+def standard_error_function(result, dimensions) -> np.ndarray:
     return np.array([np.random.randint(dimensions[j]) for j in range(len(dimensions))])
 
 
-def extract_phase(weight, dimension):
+def extract_phase(weight, dimension) -> tuple[int, float]:
     phase = np.floor(dimension * np.angle(weight) / (2 * np.pi))
     remainder = np.angle(weight) - phase * 2 * np.pi / dimension
     return phase, remainder

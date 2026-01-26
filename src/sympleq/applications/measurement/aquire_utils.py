@@ -4,7 +4,7 @@ from sympleq.applications.measurement.covariance_graph import graph
 from sympleq.core.statistic_utils import true_covariance_graph
 
 
-def calculate_mean_estimate(data: np.ndarray, weights: np.ndarray):
+def calculate_mean_estimate(data: np.ndarray, weights: np.ndarray) -> float:
     p = data.shape[0]
     d = data.shape[2]
     mean = 0
@@ -21,13 +21,13 @@ def calculate_mean_estimate(data: np.ndarray, weights: np.ndarray):
     return mean
 
 
-def calculate_statistical_variance_estimate(covariance_graph: graph, scaling_matrix: np.ndarray):
+def calculate_statistical_variance_estimate(covariance_graph: graph, scaling_matrix: np.ndarray) -> float:
     scaled_variance_graph = scale_variances(covariance_graph, scaling_matrix)
     stat_variance_estimate = np.sum(scaled_variance_graph.adj).real
     return stat_variance_estimate
 
 
-def calculate_systematic_variance_estimate(data: np.ndarray, weights: np.ndarray, diagnostic_data: np.ndarray):
+def calculate_systematic_variance_estimate(data: np.ndarray, weights: np.ndarray, diagnostic_data: np.ndarray) -> float:
     p = data.shape[0]
     d = data.shape[2]
     # estimate w_i
@@ -52,12 +52,12 @@ def calculate_systematic_variance_estimate(data: np.ndarray, weights: np.ndarray
     return np.abs(error_correction)**2
 
 
-def true_statistical_variance(H, psi, S):
-    sigma = np.sum(scale_variances(true_covariance_graph(H, psi), S).adj).real
+def true_statistical_variance(H, psi, S) -> float:
+    sigma = np.sum(scale_variances(graph(true_covariance_graph(H, psi)), S).adj).real
     return sigma
 
 
-def config_params():
+def config_params() -> dict:
     param_info = {
         "Hamiltonian": {
             "type": "PauliSum",
@@ -246,7 +246,7 @@ def config_params():
     return param_info
 
 
-def aquire_params():
+def aquire_params() -> dict:
     param_info = {
         "config": {
             "type": "AquireConfig",

@@ -247,7 +247,7 @@ class AquireConfig:
                         pass
         self.validate_parameters()
 
-    def __str__(self):
+    def __str__(self) -> str:
         config_string = ''
         config_string += 'Configuration class for AQUIRE experiment on observable: \n'
         config_string += str(self.Hamiltonian)
@@ -412,14 +412,14 @@ class Aquire:
         return self._H
 
     @property
-    def pauli_block_sizes(self):
+    def pauli_block_sizes(self) -> np.ndarray:
         return self._pauli_block_sizes
 
     ###################################################################################################################
     # Attribute-like Methods ##########################################################################################
     ###################################################################################################################
 
-    def total_shots(self):
+    def total_shots(self) -> int:
         """
         Get the total number of shots allocated so far.
 
@@ -430,7 +430,7 @@ class Aquire:
         """
         return len(self.cliques)
 
-    def shots_since_last_update(self):
+    def shots_since_last_update(self) -> int:
         """
         Get the number of shots allocated since the last covariance graph update.
 
@@ -441,7 +441,7 @@ class Aquire:
         """
         return self.total_shots() - self.update_steps[-1] if self.update_steps else self.total_shots()
 
-    def cliques_since_last_update(self):
+    def cliques_since_last_update(self) -> list[Circuit]:
         """
         Get the list of cliques measured since the last covariance graph update.
 
@@ -452,7 +452,7 @@ class Aquire:
         """
         return self.cliques[self.update_steps[-1]:].copy() if self.update_steps else self.cliques.copy()
 
-    def measurement_circuits_since_last_update(self):
+    def measurement_circuits_since_last_update(self) -> list[Circuit]:
         """
         Get the list of measurement circuits used since the last covariance graph update.
 
@@ -463,7 +463,7 @@ class Aquire:
         """
         return self.circuits[self.update_steps[-1]:].copy() if self.update_steps else self.circuits.copy()
 
-    def diagnostic_circuits_since_last_update(self):
+    def diagnostic_circuits_since_last_update(self) -> list[Circuit]:
         """
         Get the list of diagnostic circuits constructed since the last covariance graph update.
 
@@ -475,7 +475,7 @@ class Aquire:
         return (self.diagnostic_circuits[len(self.diagnostic_results):].copy()
                 if self.update_steps else self.diagnostic_circuits.copy())
 
-    def diagnostic_states_since_last_update(self):
+    def diagnostic_states_since_last_update(self) -> list[Circuit]:
         """
         Get the list of diagnostic states constructed since the last covariance graph update.
 
@@ -487,7 +487,7 @@ class Aquire:
         return (self.diagnostic_states[len(self.diagnostic_results):].copy()
                 if self.update_steps else self.diagnostic_states.copy())
 
-    def diagnostic_state_preparation_circuits_since_last_update(self):
+    def diagnostic_state_preparation_circuits_since_last_update(self) -> list[Circuit]:
         """
         Get the list of diagnostic state preparation circuits constructed since the last covariance graph update.
 
@@ -499,7 +499,7 @@ class Aquire:
         return (self.diagnostic_state_preparation_circuits[len(self.diagnostic_results):].copy()
                 if self.update_steps else self.diagnostic_state_preparation_circuits.copy())
 
-    def data_at_shot(self, shot: int | list[int]):
+    def data_at_shot(self, shot: int | list[int]) -> list[np.ndarray] | np.ndarray:
         data = np.zeros((self.H.n_paulis(), self.H.n_paulis(), int(self.H.lcm)))
         if isinstance(shot, (int, np.integer)):
             data = update_data(self.cliques[:shot], self.measurement_results[:shot], data, self.circuit_dictionary)
@@ -512,7 +512,7 @@ class Aquire:
                 data_list.append(data)
             return data_list
 
-    def scaling_matrix_at_shot(self, shot: int | list[int]):
+    def scaling_matrix_at_shot(self, shot: int | list[int]) -> list[np.ndarray] | np.ndarray:
         if isinstance(shot, (int, np.integer)):
             shot = [shot]
         scaling_matrices = []
@@ -528,7 +528,7 @@ class Aquire:
         else:
             return scaling_matrices
 
-    def diagnostic_data_at_shot(self, shot: int | list[int]):
+    def diagnostic_data_at_shot(self, shot: int | list[int]) -> np.ndarray:
         data = np.zeros((self.H.n_paulis(), 2))
         if isinstance(shot, int):
             shot = [shot]
@@ -543,7 +543,7 @@ class Aquire:
         else:
             return data
 
-    def set_mcmc_parameters(self, shots: int):
+    def set_mcmc_parameters(self, shots: int) -> tuple[int, int]:
         if isinstance(self.config.mcmc_initial_samples_per_chain, int):
             N = self.config.mcmc_initial_samples_per_chain
         else:
@@ -557,7 +557,7 @@ class Aquire:
             raise ValueError("Initial MCMC samples per chain cannot be greater than maximum MCMC samples per chain.")
         return N, N_max
 
-    def covariance_graph_at_shot(self, shot: int | list[int]):
+    def covariance_graph_at_shot(self, shot: int | list[int]) -> list[graph]:
         if isinstance(shot, int):
             shot = [shot]
         graphs = []
@@ -578,17 +578,14 @@ class Aquire:
                                        N=N,
                                        N_max=N_max)
             graphs.append(graph(A))
-        if len(shot) == 1:
-            return graphs[0]
-        else:
-            return graphs
+        return graphs
 
-    def total_error(self):
+    def total_error(self) -> float:
         statistical_variance = self.statistical_variance[-1] if len(self.statistical_variance) > 0 else 0
         systematic_variance = self.systematic_variance[-1] if len(self.systematic_variance) > 0 else 0
         return np.sqrt(statistical_variance + systematic_variance)
 
-    def total_error_at_shot(self, shot: int | list[int]):
+    def total_error_at_shot(self, shot: int | list[int]) -> float | list[float]:
         if isinstance(shot, (int, np.integer)):
             shot = [shot]
         error = []
@@ -610,7 +607,7 @@ class Aquire:
     # Main experiment methods #########################################################################################
     ###################################################################################################################
 
-    def allocate_measurements(self, shots):
+    def allocate_measurements(self, shots) -> list[Circuit]:
         """
         Choose new cliques to measure according to the allocation mode and
         construct new circuits to measure the cliques.
@@ -650,7 +647,7 @@ class Aquire:
         self.circuits += circuit_list
         return circuit_list
 
-    def construct_diagnostic_circuits(self):
+    def construct_diagnostic_circuits(self) -> tuple[list[Circuit], list[Circuit]]:
         """
         Construct diagnostic circuits based on the last allocated circuits.
 
@@ -986,10 +983,9 @@ class Aquire:
         --------
         >>> acquire.save_results('results.pkl')
         """
-        results = {
-            'estimated_mean': self.estimated_mean,
-            'statistical_variance': self.statistical_variance
-        }
+        results = {}
+        results['estimated_mean'] = self.estimated_mean
+        results['statistical_variance'] = self.statistical_variance
         if self.config.enable_diagnostics:
             results['systematic_variance'] = self.systematic_variance
         if self.config.calculate_true_values:
@@ -1093,7 +1089,7 @@ class Aquire:
 
 
 def simulate_measurement(paulisum: PauliSum, psi: list[float | complex] | list[float] | list[complex] | np.ndarray,
-                         circuit: Circuit):
+                         circuit: Circuit) -> np.ndarray:
     # Simulate measurement
     psi_diag = circuit.unitary() @ psi
     pdf = np.abs(psi_diag * psi_diag.conj())
@@ -1196,7 +1192,8 @@ def plot_aquire(model: Aquire, filename: str | None = None):
                   color=c_dev)
 
     if model.config.calculate_true_values:
-        ax[1].plot(M, model.true_statistical_variance_value * M / (H_mean)**2, 'k--', label='True Stat. Variance')
+        ax[1].plot(M, np.array(model.true_statistical_variance_value) * M / (H_mean)**2, 'k--',
+                   label='True Stat. Variance')
 
     ax[1].set_xscale('log')
     ax[1].set_ylabel(r'$M \cdot (\widetilde{\Delta O})^2$', fontsize=label_fontsize)
