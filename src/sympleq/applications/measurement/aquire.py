@@ -105,7 +105,19 @@ class AquireConfig:
         self.validate_parameters()
 
     def validate_parameters(self):
-        # check psi
+        """
+        Checks the validity of the parameters provided to the AQUIRE experiment.
+
+        Checks if the provided state psi has the correct dimensions and is normalized.
+        Checks if the provided commutation mode is valid.
+        Checks if the provided allocation mode is valid.
+        Checks if the provided diagnostic mode is valid.
+        Checks if the provided calculate_true_values setting is valid.
+        Checks if the provided MCMC settings are valid.
+        Checks if the provided noise and error functions are valid.
+
+        Raises ValueError if any of the parameters are invalid.
+        """
         if self.psi is not None:
             # check that psi has the correct dimensions
             if np.prod(self.Hamiltonian.dimensions) != len(self.psi):
@@ -142,6 +154,15 @@ class AquireConfig:
         pass
 
     def update_all(self):
+        """
+        Updates all dependent parameters of the AquireConfig object.
+
+        This function will update the commutation graph, clique covering and
+        other dependent parameters of the AquireConfig object.
+
+        Warning: This function will print a warning if verbose is True.
+        """
+
         if self.verbose:
             warnings.warn("Updating all dependent parameters ...", UserWarning)
         if self.commutation_mode == "general":
@@ -156,6 +177,27 @@ class AquireConfig:
                                                                         k=3)
 
     def test_mcmc_settings(self):
+        """
+        Tests the MCMC settings of the AQUIRE experiment.
+
+        This function will check if the MCMC initial samples per chain and maximum samples per chain
+        are valid. If the initial samples per chain or maximum samples per chain are not
+        integers or callable functions, a ValueError will be raised.
+
+        If the initial samples per chain or maximum samples per chain are not positive integers, a
+        ValueError will be raised.
+
+        If the initial samples per chain exceeds the maximum samples per chain for a given number
+        of shots, a UserWarning will be issued.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
         shot_tests = [100, 1000, 10000, 100000, 1000000]
         for shots in shot_tests:
             if isinstance(self.mcmc_initial_samples_per_chain, (int, np.integer)):
@@ -183,6 +225,23 @@ class AquireConfig:
                                  f"must be positive integers.")
 
     def test_noise_and_error_function(self):
+        """
+        Tests if the noise probability function and the error function give erroneous values.
+
+        For the noise probability function, it is tested if it gives values outside the range [0, 1].
+
+        For the error function, it is tested if it gives values outside the range [0, qudit dimension] or if it does
+        not return integers.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+
         for i in range(10):
             test_circuit = Circuit.from_random(n_gates=np.random.randint(1, 6),
                                                dimensions=self.Hamiltonian.dimensions)
@@ -231,6 +290,19 @@ class AquireConfig:
                     pass
 
     def set_params(self, **kwargs):
+        """
+        Sets multiple parameters of the AQUIRE configuration simultaneously.
+
+        Parameters
+        ----------
+        **kwargs
+            Parameters to be set. Must be a valid attribute of the AQUIRE configuration.
+
+        Raises
+        ------
+        AttributeError
+            If a given parameter is not a valid attribute of the AQUIRE configuration.
+        """
         for key, value in kwargs.items():
             if not hasattr(self, key):
                 raise AttributeError(f"Unknown parameter '{key}'")
@@ -248,6 +320,37 @@ class AquireConfig:
         self.validate_parameters()
 
     def __str__(self) -> str:
+        """
+        Returns a string representation of the AQUIRE configuration.
+
+        The string includes the following information:
+        - Observable for the experiment
+        - State vector provided for the experiment (if any)
+        - Commutation mode
+        - Allocation mode
+        - Diagnostic mode
+        - Enable simulated hardware noise
+        - Calculate true values
+        - Enable diagnostics
+        - Auto update covariance graph
+        - Verbose
+        - Auto update settings
+        - Enable debug checks
+        - MCMC number of chains
+        - MCMC initial samples per chain
+        - MCMC max samples per chain
+        - Noise probability function
+        - Noise probability function arguments
+        - Noise probability function keyword arguments
+        - Error function
+        - Error function arguments
+        - Error function keyword arguments
+
+        Returns
+        -------
+        str
+            A string representation of the AQUIRE configuration.
+        """
         config_string = ''
         config_string += 'Configuration class for AQUIRE experiment on observable: \n'
         config_string += str(self.Hamiltonian)
@@ -292,6 +395,26 @@ class AquireConfig:
         return config_string
 
     def info(self, name=None):
+        """
+        Print information about the configuration parameters and methods.
+
+        Parameters
+        ----------
+        name : str or None
+            If None, print all available configuration parameters and methods.
+            If a string, print detailed information about the configuration parameter with the given name.
+
+        Warnings
+        -------
+        UserWarning
+            If the given name is not found in the configuration parameters.
+
+        Examples
+        --------
+        >>> config.info()
+        >>> config.info(name='parameter_name')
+        """
+
         if name is None:
             print("Available configuration parameters and methods:\n")
             for key in self.param_info:
@@ -409,10 +532,27 @@ class Aquire:
 
     @property
     def H(self) -> PauliSum:
+        """
+        The Hamiltonian of the system.
+
+        Returns
+        -------
+        PauliSum
+            The Hamiltonian of the system.
+        """
+
         return self._H
 
     @property
     def pauli_block_sizes(self) -> np.ndarray:
+        """
+        The block sizes of the Pauli operators in the Hamiltonian.
+
+        Returns
+        -------
+        np.ndarray
+            The block sizes of the Pauli operators in the Hamiltonian.
+        """
         return self._pauli_block_sizes
 
     ###################################################################################################################
@@ -500,6 +640,20 @@ class Aquire:
                 if self.update_steps else self.diagnostic_state_preparation_circuits.copy())
 
     def data_at_shot(self, shot: int | list[int]) -> list[np.ndarray] | np.ndarray:
+        """
+        Return the data at a given shot or shots.
+
+        Parameters
+        ----------
+        shot : int | list[int]
+            The shot(s) for which to retrieve the data.
+
+        Returns
+        -------
+        list[np.ndarray] | np.ndarray
+            The data at the given shot(s). If shot is a single integer, returns a single numpy array.
+            If shot is a list of integers, returns a list of numpy arrays.
+        """
         data = np.zeros((self.H.n_paulis(), self.H.n_paulis(), int(self.H.lcm)))
         if isinstance(shot, (int, np.integer)):
             data = update_data(self.cliques[:shot], self.measurement_results[:shot], data, self.circuit_dictionary)
@@ -513,6 +667,20 @@ class Aquire:
             return data_list
 
     def scaling_matrix_at_shot(self, shot: int | list[int]) -> list[np.ndarray] | np.ndarray:
+        """
+        Return the scaling matrix at a given shot or shots.
+
+        Parameters
+        ----------
+        shot : int | list[int]
+            The shot(s) for which to retrieve the scaling matrix.
+
+        Returns
+        -------
+        list[np.ndarray] | np.ndarray
+            The scaling matrix at the given shot(s). If shot is a single integer, returns a single numpy array.
+            If shot is a list of integers, returns a list of numpy arrays.
+        """
         if isinstance(shot, (int, np.integer)):
             shot = [shot]
         scaling_matrices = []
@@ -529,6 +697,20 @@ class Aquire:
             return scaling_matrices
 
     def diagnostic_data_at_shot(self, shot: int | list[int]) -> np.ndarray:
+        """
+        Return the diagnostic data at a given shot or shots.
+
+        Parameters
+        ----------
+        shot : int | list[int]
+            The shot(s) for which to retrieve the diagnostic data.
+
+        Returns
+        -------
+        np.ndarray
+            The diagnostic data at the given shot(s). If shot is a single integer, returns a single numpy array.
+            If shot is a list of integers, returns a single numpy array.
+        """
         data = np.zeros((self.H.n_paulis(), 2))
         if isinstance(shot, int):
             shot = [shot]
@@ -995,6 +1177,25 @@ class Aquire:
             pickle.dump(results, f)
 
     def __str__(self) -> str:
+        """
+        Return a string representation of the Aquire object.
+
+        The string representation includes the observable, state vector psi, general settings,
+        MCMC settings, and results of the experiment.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        str
+            A string representation of the Aquire object.
+
+        Examples
+        --------
+        >>> str(acquire)
+        """
         aquire_str = "AQUIRE experiment for observable:\n"
         aquire_str += str(self.H) + "\n"
         if self.config.psi is not None:
@@ -1045,6 +1246,25 @@ class Aquire:
         return aquire_str
 
     def info(self, name=None):
+        """
+        Print information about the available attributes and methods of AQUIRE.
+
+        Parameters
+        ----------
+        name : str or None
+            If None, print all available attributes and methods of AQUIRE.
+            If a string, print detailed information about the attribute or method with the given name.
+
+        Warnings
+        -------
+        UserWarning
+            If the given name is not found in the available attributes and methods of AQUIRE.
+
+        Examples
+        --------
+        >>> acquire.info()
+        >>> acquire.info(name='parameter_name')
+        """
         if name is None:
             print("Available attributes and methods of AQUIRE:\n")
             for key in self.aquire_params:
@@ -1062,12 +1282,28 @@ class Aquire:
     ###################################################################
 
     def check_measurement_data(self):
+        """
+        Check if there are negative values in the measurement data.
+
+        Raises
+        ------
+        UserWarning
+            If there are negative values in the measurement data.
+        """
         for i in range(self.H.n_paulis()):
             for j in range(self.H.n_paulis()):
                 if np.any(self.data[i, j, :] < 0):
                     warnings.warn("Negative value in data.", UserWarning)
 
     def check_diagnostic_data(self):
+        """
+        Check if there are negative values or abnormally high error rate in the diagnostic data.
+
+        Raises
+        ------
+        UserWarning
+            If there are negative values in the diagnostic data or abnormally high error rate.
+        """
         for j in range(self.H.n_paulis()):
             if self.diagnostic_data[j, 0] < 0:
                 warnings.warn("Negative value in diagnostic data.", UserWarning)
@@ -1078,6 +1314,14 @@ class Aquire:
                     warnings.warn("Abnormally high error rate.", UserWarning)
 
     def check_results(self):
+        """
+        Check if the estimated statistical variance is negative.
+
+        Raises
+        ------
+        UserWarning
+            If the estimated statistical variance is negative.
+        """
         if self.statistical_variance[-1] < 0:
             warnings.warn("Negative statistical variance estimate.", UserWarning)
 

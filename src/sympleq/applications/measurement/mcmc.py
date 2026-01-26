@@ -86,6 +86,15 @@ def get_p_matrix(d) -> np.ndarray:
 
 @jit(nopython=True)
 def get_psi(p) -> np.ndarray:
+    """
+    Calculate the state vector psi from the probability vector p.
+
+    Parameters:
+        p (np.ndarray): A probability vector of length 3*d.
+
+    Returns:
+        np.ndarray: The state vector psi of size d^2.
+    """
     d = int(len(p) / 3)
     two_qudit_probabilities = np.zeros(d**2, dtype=np.complex128)
     for i in range(d):
@@ -252,6 +261,20 @@ def gelman_rubin_test(grid) -> bool:
 
 @jit(nopython=True)
 def update_chain(p, psi, c, alpha, d, A) -> tuple[np.ndarray, np.ndarray, float]:
+    """
+    Update a single chain of the Monte Carlo Markov Chain.
+
+    Parameters:
+        p (np.ndarray): The current parameters of the chain.
+        psi (np.ndarray): The current state of the chain.
+        c (float): The current value of the objective function.
+        alpha (float): The step size of the chain.
+        d (int): The dimensionality of the parameters.
+        A (np.ndarray): The linear transformation matrix of the parameters.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, float]: The updated parameters, state and acceptance probability of the chain.
+    """
     psi_prime = psi_sample(psi, alpha, d)
     p_prime = get_p(psi_prime, A)
     ratio = log_posterior_ratio(p_prime, p, c)
@@ -309,6 +332,26 @@ def mcmc_integration(N, psi_list, p_list, alpha, d, c, A, N_max=10000) -> tuple[
 def get_alpha(p_list, psi_list, d, A, c, N_chain, Q_alpha_test=True, target_accept=0.25,
               N_accepts=30, b=10, run_max=1000) -> tuple[list[np.ndarray], list[np.ndarray], float]:
     # initial guess for alpha
+    """
+    Tuning function for the Metropolis-Hastings Monte Carlo algorithm. Tunes the alpha parameter for better
+    acceptance rate.
+
+    Parameters:
+        p_list (list): List of probability distributions.
+        psi_list (list): List of psi quantum states.
+        d (int): Dimension of the quantum system.
+        A (np.ndarray): Transformation matrix.
+        c (np.ndarray): Data.
+        N_chain (int): Number of chains.
+        Q_alpha_test (bool): Whether to perform the alpha tuning.
+        target_accept (float): Target acceptance rate.
+        N_accepts (int): Number of acceptance rate samples.
+        b (float): Scale of the exponential distribution for alpha sampling.
+        run_max (int): Maximum number of iterations for alpha tuning.
+
+    Returns:
+        tuple: Lists of probability distributions, lists of psi quantum states, and the optimal alpha value.
+    """
     ns = np.concatenate((c[0:d], c[d:2 * d], c[2 * d:3 * d]))
     alpha = 1 - 1 / np.min(ns[:3]) if np.min(ns) != 0 else 0
     alpha_list = np.array([alpha] * N_chain)

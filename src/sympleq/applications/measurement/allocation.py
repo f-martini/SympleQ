@@ -8,10 +8,32 @@ from sympleq.core.circuits.gates import Hadamard as H, SUM as CX, PHASE as S
 
 
 def mcmc_number_initial_samples(shots: int, n_0: int = 500, scaling_factor: float = 1 / 10000) -> int:
+    """
+    Standard method to calculate the number of initial samples for the MCMC algorithm.
+
+    Parameters:
+        shots (int): The number of shots to be taken in the experiment.
+        n_0 (int): The base number of initial samples to be taken.
+        scaling_factor (float): A factor to scale the number of initial samples by.
+
+    Returns:
+        int: The total number of initial samples to be taken.
+    """
     return int(shots * scaling_factor) + n_0
 
 
 def mcmc_number_max_samples(shots: int, n_0: int = 2001, scaling_factor: float = 1 / 10000) -> int:
+    """
+    Standard method to calculate the maximum number of samples for the MCMC algorithm.
+
+    Parameters:
+        shots (int): The number of shots to be taken in the experiment.
+        n_0 (int): The base number of maximum samples to be taken.
+        scaling_factor (float): A factor to scale the number of maximum samples by.
+
+    Returns:
+        int: The total number of maximum samples to be taken.
+    """
     return 4 * int(shots * scaling_factor) + n_0
 
 
@@ -83,6 +105,31 @@ def sort_hamiltonian(P: PauliSum) -> tuple[PauliSum, np.ndarray]:
 
 
 def choose_measurement(S, V, aaa, allocation_mode) -> list[int]:
+    """
+    Choose a set of Pauli operators (based on the covariance graph) to measure in order to reduce the estimation error
+    for the observable.
+
+    Parameters
+    ----------
+    S : np.ndarray
+        Covariance matrix of the Pauli operators.
+    V : np.ndarray
+        The covariance graph.
+    aaa : list
+        A list of sets of Pauli operators.
+    allocation_mode : str
+        The allocation mode. Can be either 'set' or 'rand'.
+
+    Returns
+    -------
+    list
+        A list of indices of the chosen Pauli operators.
+
+    Raises
+    ------
+    ValueError
+        If the allocation mode is not implemented.
+    """
     p = S.shape[0]
     Ones = [np.ones((i, i), dtype=int) for i in range(p + 1)]
     index_set = set(range(p))
@@ -105,6 +152,20 @@ def choose_measurement(S, V, aaa, allocation_mode) -> list[int]:
 
 
 def construct_circuit_list(P, xxx, D) -> tuple[list[Circuit], dict]:
+    """
+    Constructs a list of circuits which diagonalize the cliques of the given Hamiltonian.
+
+    Parameters:
+        P (PauliSum): The Hamiltonian to be diagonalized.
+        xxx (list): A list of sets of Pauli operators to be diagonalized.
+        D (dict): A dictionary mapping the string representation of a clique to a diagonalization circuit.
+
+    Returns:
+        tuple: A list of circuits which diagonalize the given Hamiltonian and the updated dictionary.
+
+    Raises:
+        ValueError: If a circuit is not diagonalizing.
+    """
     circuit_list = []
     for aa in xxx:
         C, D = construct_diagonalization_circuit(P, aa, D=D)
@@ -115,6 +176,20 @@ def construct_circuit_list(P, xxx, D) -> tuple[list[Circuit], dict]:
 
 
 def construct_diagonalization_circuit(P: PauliSum, aa, D={}) -> tuple[Circuit, dict]:
+    """
+    Constructs a circuit which diagonalizes the singular given clique of a Hamiltonian.
+
+    Parameters:
+        P (PauliSum): The Hamiltonian to be diagonalized.
+        aa (list): A list of indices of Pauli operators to be diagonalized.
+        D (dict): A dictionary mapping the string representation of a clique to a diagonalization circuit.
+
+    Returns:
+        tuple: A circuit which diagonalizes the given clique and the updated dictionary.
+
+    Raises:
+        ValueError: If a circuit is not diagonalizing.
+    """
     if str(aa) in D:
         P1, C, k_dict = D[str(aa)]
     else:
@@ -151,10 +226,26 @@ def construct_diagonalization_circuit(P: PauliSum, aa, D={}) -> tuple[Circuit, d
 
 # TODO: Make this part of the core function
 def diagonalize(P: PauliSum) -> Circuit:
-    # Inputs:
-    #     P - (pauli) - Pauli to be diagonalized
-    # Outputs:
-    #     (circuit) - circuit which diagonalizes P
+    """
+    Diagonalize a PauliSum.
+
+    This function takes a PauliSum P and returns a Circuit C such that C.act(P) is diagonal.
+    If the PauliSum is already diagonal, it simply returns the input Circuit.
+
+    If the PauliSum is not diagonal but is quditwise commuting, it diagonalizes the PauliSum by
+    calling diagonalize_iter_quditwise_ on the qudits of the same dimension.
+
+    If the PauliSum is not diagonal and is not quditwise commuting, it diagonalizes the PauliSum by
+    calling diagonalize_iter_ on the qudits of the same dimension.
+
+    Finally, it applies H gates to make any X qudits Z.
+
+    Parameters:
+        P (PauliSum): The PauliSum to be diagonalized.
+
+    Returns:
+        Circuit: The diagonalizing circuit.
+    """
     dims = P.dimensions
     q = P.n_qudits()
 
@@ -193,6 +284,23 @@ def diagonalize(P: PauliSum) -> Circuit:
 
 
 def diagonalize_iter_(P, C, aa) -> Circuit:
+    """
+    Diagonalize the given PauliSum on the given qudit indices.
+
+    Parameters
+    ----------
+    P : PauliSum
+        The PauliSum to be diagonalized.
+    C : Circuit
+        The circuit to be modified in place.
+    aa : list[int]
+        The qudit indices to be diagonalized.
+
+    Returns
+    -------
+    Circuit
+        The modified circuit.
+    """
     p = P.n_paulis()
     P = C.act(P)
     a = aa.pop(0)
@@ -238,6 +346,23 @@ def diagonalize_iter_(P, C, aa) -> Circuit:
 
 
 def diagonalize_iter_quditwise_(P: PauliSum, C: Circuit, aa: list[int]) -> Circuit:
+    """
+    Diagonalize the given PauliSum on the given qudit indices in a quditwise manner.
+
+    Parameters
+    ----------
+    P : PauliSum
+        The PauliSum to be diagonalized.
+    C : Circuit
+        The circuit to be modified in place.
+    aa : list[int]
+        The qudit indices to be diagonalized.
+
+    Returns
+    -------
+    Circuit
+        The modified circuit.
+    """
     p = P.n_paulis()
     P = C.act(P)
     a = aa.pop(0)
@@ -258,6 +383,23 @@ def diagonalize_iter_quditwise_(P: PauliSum, C: Circuit, aa: list[int]) -> Circu
 
 
 def is_diagonalizing_circuit(P: PauliSum, C: Circuit, aa: list[int]) -> bool:
+    """
+    Checks whether the given circuit diagonalizes the given PauliSum on the given qudit indices.
+
+    Parameters
+    ----------
+    P : PauliSum
+        The PauliSum to be checked.
+    C : Circuit
+        The circuit to be checked.
+    aa : list[int]
+        The qudit indices to be checked.
+
+    Returns
+    -------
+    bool
+        Whether the circuit diagonalizes the PauliSum on the given qudit indices.
+    """
     P1 = P.copy()
     P1._delete_paulis([i for i in range(P.n_paulis()) if i not in aa])
     P1 = C.act(P1)
@@ -265,6 +407,25 @@ def is_diagonalizing_circuit(P: PauliSum, C: Circuit, aa: list[int]) -> bool:
 
 
 def update_data(xxx, rr, X, D) -> np.ndarray:
+    """
+    Updates the given data matrix with the given measurement results, PauliSums and dictionaries.
+
+    Parameters
+    ----------
+    xxx : list[str]
+        The list of PauliSum keys to be updated.
+    rr : list[np.ndarray]
+        The list of measurement results to be updated.
+    X : np.ndarray
+        The data matrix to be updated.
+    D : dict
+        The dictionary of PauliSums and dictionaries to be updated.
+
+    Returns
+    -------
+    np.ndarray
+        The updated data matrix.
+    """
     d = len(X[0, 0])
     for i, aa in enumerate(xxx):
         (P1, _, k_dict) = D[str(aa)]
@@ -281,6 +442,25 @@ def update_data(xxx, rr, X, D) -> np.ndarray:
 
 
 def update_diagnostic_data(cliques, diagnostic_results, diagnostic_data, mode='zero') -> np.ndarray:
+    """
+    Updates the given diagnostic data matrix with the given measurement results and PauliSums.
+
+    Parameters
+    ----------
+    cliques : list[int]
+        The list of PauliSum keys to be updated.
+    diagnostic_results : list[np.ndarray]
+        The list of measurement results to be updated.
+    diagnostic_data : np.ndarray
+        The diagnostic data matrix to be updated.
+    mode : str, default='zero'
+        The mode of updating the diagnostic data matrix. Options are 'zero' and 'random'.
+
+    Returns
+    -------
+    np.ndarray
+        The updated diagnostic data matrix.
+    """
     if mode == 'zero':
         for i in range(len(diagnostic_results)):
             if np.any(diagnostic_results[i]):
@@ -298,6 +478,21 @@ def scale_variances(A, S) -> graph:
     # Inputs:
     #     A - (graph)       - variance matrix
     #     S - (numpy.array) - array for tracking number of measurements
+    """
+    Scales the variance matrix by the number of measurements.
+
+    Parameters
+    ----------
+    A : graph
+        The variance matrix to be scaled.
+    S : numpy.array
+        The array for tracking the number of measurements.
+
+    Returns
+    -------
+    graph
+        The scaled variance matrix.
+    """
     p = A.ord()
     S1 = S.copy()
     S1[range(p), range(p)] = [a if a != 0 else 1 for a in S1.diagonal()]
@@ -306,6 +501,19 @@ def scale_variances(A, S) -> graph:
 
 
 def construct_diagnostic_circuits(circuit_list) -> list[Circuit]:
+    """
+    Constructs a list of diagnostic circuits (for hardware error measurements) from a given list of circuits.
+
+    Parameters
+    ----------
+    circuit_list : list[Circuit]
+        The list of circuits to be converted into diagnostic circuits.
+
+    Returns
+    -------
+    list[Circuit]
+        The list of constructed diagnostic circuits.
+    """
     diagnostic_circuits = []
     for circ in circuit_list:
         C_diag = Circuit(dimensions=circ.dimensions)
@@ -321,6 +529,24 @@ def construct_diagnostic_circuits(circuit_list) -> list[Circuit]:
 
 def construct_diagnostic_states(diagnostic_circuits: list[Circuit],
                                 mode='zero') -> tuple[list[np.ndarray], list[Circuit]]:
+    """
+    Constructs a list of diagnostic states (for hardware error measurements) from a given list of diagnostic circuits.
+
+    Parameters
+    ----------
+    diagnostic_circuits : list[Circuit]
+        The list of diagnostic circuits to be used for constructing the diagnostic states.
+    mode : str, optional
+        The mode of constructing the diagnostic states. Can be either 'zero' or 'random'. If 'zero', the diagnostic
+        states are the computational basis states. If 'random', the diagnostic states are random states
+        (not yet implemented). Defaults to 'zero'.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the list of constructed diagnostic states and the list of constructed state preparation
+        circuits.
+    """
     if mode == 'zero':
         state = [0] * np.prod(diagnostic_circuits[0].dimensions)
         state[0] = 1
@@ -335,6 +561,25 @@ def construct_diagnostic_states(diagnostic_circuits: list[Circuit],
 
 def standard_noise_probability_function(circuit, p_entangling=0.03,
                                         p_local=0.001, p_measurement=0.001) -> float:
+    """
+    Standard example function to calculate the probability of a noise event occurring in a given circuit.
+
+    Parameters
+    ----------
+    circuit : Circuit
+        The circuit for which the noise probability is to be calculated.
+    p_entangling : float, optional
+        The probability of an entangling gate causing a noise event. Defaults to 0.03.
+    p_local : float, optional
+        The probability of a local gate causing a noise event. Defaults to 0.001.
+    p_measurement : float, optional
+        The probability of a measurement gate causing a noise event. Defaults to 0.001.
+
+    Returns
+    -------
+    float
+        The calculated probability of a noise event occurring in the given circuit.
+    """
     n_local = 0
     n_entangling = 0
     for g in circuit.gates:
@@ -347,10 +592,40 @@ def standard_noise_probability_function(circuit, p_entangling=0.03,
 
 
 def standard_error_function(result, dimensions) -> np.ndarray:
+    """
+    Standard example function to simulate the statistical error of a given result.
+
+    Parameters
+    ----------
+    result : np.ndarray
+        The result for which the statistical error is to be simulated.
+    dimensions : list
+        The dimensions of the result.
+
+    Returns
+    -------
+    np.ndarray
+        The calculated statistical error of the given result.
+    """
     return np.array([np.random.randint(dimensions[j]) for j in range(len(dimensions))])
 
 
 def extract_phase(weight, dimension) -> tuple[int, float]:
+    """
+    Extracts the phase and remainder of a given weight with respect to a given dimension.
+
+    Parameters
+    ----------
+    weight : complex
+        The weight for which the phase and remainder are to be extracted.
+    dimension : int
+        The dimension with respect to which the phase and remainder are to be extracted.
+
+    Returns
+    -------
+    tuple[int, float]
+        A tuple containing the extracted phase and remainder.
+    """
     phase = np.floor(dimension * np.angle(weight) / (2 * np.pi))
     remainder = np.angle(weight) - phase * 2 * np.pi / dimension
     return phase, remainder
