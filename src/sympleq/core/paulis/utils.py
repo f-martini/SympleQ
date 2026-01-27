@@ -431,10 +431,9 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
 
     Notes
     -----
-    This function first makes a copy of the given PauliSum, then combines equivalent paulis and finally iterates
-    over the paulis to find their hermitian conjugates. If it finds a symplectic that matches the hermitian
-    conjugate it will make sure that the weights and phases are correct, if not it will add phases to make
-    everything hermitian. Finally, if no hermitian conjugate is found it will be added to the PauliSum.
+    This function first makes a copy of the given PauliSum, then tries to add phases to see if the PauliSum can
+    be made hermitian. If the PauliSum is still not hermitian, it adds the PauliSum to its hermitian conjugate and
+    divides by 2.
 
     Examples
     --------
@@ -442,42 +441,16 @@ def make_hermitian(PauliSum: PauliSum) -> PauliSum:
     >>> H.make_hermitian()
     PauliSum(['x1z1'], weights=[1], dimensions=[2], phases=[1])
     """
-    H = PauliSum.copy()
-    H.combine_equivalent_paulis()
-    index_list = [i for i in range(H.n_paulis())]
-    for i in range(H.n_paulis()):
-        if i in index_list:
-            index_list.remove(i)
-            pauli_string = H[i].copy()
-            pauli_string.phases[0] = 0
-            H.phases[i] = 0
-            hermitian_pauli_string = pauli_string.hermitian_conjugate()
-            hermitian_found = False
-            for j in range(H.n_paulis()):
-                if H[j] == hermitian_pauli_string:
-                    hermitian_found = True
-                    if i == j:
-                        if not pauli_string.is_hermitian():
-                            H.weights[i] = np.abs(H.weights[i])
-                            H.phases[i] = int(np.sum(H.x_exp[i, :] * H.z_exp[i, :])) * H.lcm / 2
-                            break
-                        else:
-                            break
-                    else:
-                        index_list.remove(j)
-                        if abs(np.conj(H.weights[i]) *
-                               np.exp(2 * np.pi * 1j * hermitian_pauli_string.phases[0] / (2 * H.lcm)) -
-                                H.weights[j] * np.exp(2 * np.pi * 1j * H.phases[j] / (2 * H.lcm))) > 10**-10:
-                            # Step 1: Weight
-                            H._weights[j] = np.conj(H.weights[i])
-                            # Step 2: Phase
-                            H._phases[j] = hermitian_pauli_string.phases[0]
-                            break
-                        else:
-                            break
-            if not hermitian_found:
-                H = H + hermitian_pauli_string
-    return H
+    if PauliSum.is_hermitian():
+        return PauliSum
+    H_new = PauliSum.copy()
+    if not np.any(PauliSum.phases):
+        H_new = XZ_to_Y(H_new)
+    if not H_new.is_hermitian():
+        H_new = (H_new + H_new.hermitian_conjugate()) * (1 / 2)
+        H_new.combine_equivalent_paulis()
+        H_new.remove_zero_weight_paulis()
+    return H_new
 
 
 def XZ_to_Y(PauliSum: PauliSum):
@@ -491,16 +464,3 @@ def XZ_to_Y(PauliSum: PauliSum):
         return P
     else:
         return PauliSum
-
-
-def isclose(PauliSum1: PauliSum, PauliSum2: PauliSum, tol=10**-10) -> bool:
-    weights1 = PauliSum1.weights
-    weights2 = PauliSum2.weights
-    phases1 = PauliSum1.phases
-    phases2 = PauliSum2.phases
-    coef1 = weights1 * np.exp(2 * np.pi * 1j * phases1 / (2 * PauliSum1.lcm))
-    coef2 = weights2 * np.exp(2 * np.pi * 1j * phases2 / (2 * PauliSum2.lcm))
-    t1 = np.all(PauliSum1.tableau == PauliSum2.tableau)
-    t2 = np.isclose(coef1, coef2, atol=tol)
-    t3 = np.all(PauliSum1.dimensions == PauliSum2.dimensions)
-    return bool(t1 and t2 and t3)

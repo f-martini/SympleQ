@@ -770,13 +770,14 @@ class PauliSum(PauliObject):
         Combines equivalent Pauli operators in the sum by summing their coefficients and deleting duplicates.
         """
         # self.standardise()  # makes sure all phases are 0
+        self.phase_to_weight()
         # combine equivalent Paulis
         to_delete = []
         for i in reversed(range(self.n_paulis())):
             ps1 = self.select_pauli_string(i)
             for j in range(i + 1, self.n_paulis()):
                 ps2 = self.select_pauli_string(j)
-                if ps1 == ps2:
+                if ps1.has_equal_tableau(ps2):
                     # FIXME: can overflow for very large n_paulis.
                     #        One solution could be to normalize it by dividing by the smallest weight.
                     self._weights[i] = self.weights[i] + self.weights[j]
@@ -1122,7 +1123,7 @@ class PauliSum(PauliObject):
             Matrix representation of input Pauli.
         """
         if pauli_string_index is not None:
-            ps = self.select_pauli_string(pauli_string_index)
+            ps = self.select_pauli_string(pauli_string_index).as_pauli_sum()
             return ps.to_hilbert_space()
 
         list_of_pauli_matrices = []
