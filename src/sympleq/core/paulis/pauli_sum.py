@@ -1209,9 +1209,12 @@ class PauliSum(PauliObject):
         tmp_index = np.argsort(val)
         energies = val[tmp_index]
         states = vec[tmp_index]
-        output = np.transpose(states) / np.linalg.norm(states)
+        normalized_states = (states / np.linalg.norm(states, axis=1, keepdims=True))
 
-        return (energies, output)
+        # Check normalization
+        assert np.allclose(np.linalg.norm(normalized_states, axis=0), 1.0)
+
+        return (energies, normalized_states)
 
     def stabilizer_to_hilbert_space(self) -> sp.csr_matrix:
         """
@@ -1239,6 +1242,65 @@ class PauliSum(PauliObject):
         d = ground_state.size
 
         return np.kron(ground_state.conj(), ground_state).reshape(d, d)
+
+    def make_hermitian(self, in_place: bool = False) -> PauliSum:
+        """
+        Makes a hermitian PauliSum from a given PauliSum.
+
+        A hermitian PauliSum is a PauliSum that is equal to its own hermitian conjugate.
+
+        Returns
+        -------
+        PauliSum
+            The hermitian PauliSum
+
+        Notes
+        -----
+        This function first makes a copy of the given PauliSum, then combines equivalent paulis and finally iterates
+        over the paulis to find their hermitian conjugates. If it finds a symplectic that matches the hermitian
+        conjugate it will make sure that the weights and phases are correct, if not it will add phases to make
+        everything hermitian. Finally, if no hermitian conjugate is found it will be added to the PauliSum.
+
+        Examples
+        --------
+        >>> H = PauliSum(['x1z1'], weights=[1], dimensions=[2])
+        >>> H.make_hermitian()
+        PauliSum(['x1z1'], weights=[1], dimensions=[2], phases=[1])
+        """
+
+        if in_place:
+            P = self
+        else:
+            P = self.copy()
+
+        if P.is_hermitian():
+            return P
+
+        # Try simple strategy to make it Hermitian of convertig XZs to Ys.
+        if not np.any(self.phases):
+            P.XZ_to_Y(in_place=True)
+
+        if not P.is_hermitian():
+            P = 0.5 * (P + P.hermitian_conjugate())
+            P.combine_equivalent_paulis()
+            P.remove_zero_weight_paulis()
+
+        return P
+
+    def XZ_to_Y(self, in_place: bool = False) -> PauliSum:
+        if in_place:
+            P = self
+        else:
+            P = self.copy()
+
+        if DEFAULT_QUDIT_DIMENSION in self.dimensions:
+            two_ind = [i for i in range(self.n_qudits()) if self.dimensions[i] == DEFAULT_QUDIT_DIMENSION]
+            for i in range(self.n_paulis()):
+                for j in two_ind:
+                    if self[i].x_exp[j] != 0 and self[i].z_exp[j] != 0:
+                        P._phases[i] += int(self.lcm / DEFAULT_QUDIT_DIMENSION)
+
+        return P
 
     def reorder(self,
                 order: list[int]):

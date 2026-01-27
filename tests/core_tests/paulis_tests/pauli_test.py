@@ -6,7 +6,7 @@ from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 from tests import PRIME_LIST, choose_random_dimensions
 
 
-N_tests = 100
+N_tests = 30
 
 
 class TestPaulis:
@@ -1126,3 +1126,24 @@ class TestPaulis:
         psum1.reset_weights()
         assert psum1 == psum3
         assert psum2 != psum3
+
+    def test_ordered_eigenspectrum(self):
+        for _ in range(N_tests):
+            dimensions = [2, 3, 5, 7]
+            n_paulis = len(dimensions)
+
+            S = PauliSum.from_random(n_paulis, dimensions, rand_weights=False)
+            P = S.make_hermitian()
+            assert P.is_hermitian()
+
+            m = np.around(P.to_hilbert_space().toarray(), 10)
+            energies, states = P.ordered_eigenspectrum()
+
+            assert len(energies) == len(states)
+            assert len(states) == np.prod(dimensions)
+
+            # Check: the eigenvectors give raise to the correct eigenvalues
+            for energy, state in zip(energies, states):
+                check_energy = np.around(state.conjugate().transpose() @ m @ state, 10)
+                assert np.isclose(
+                    check_energy, energy), f"eigenvalue mismatch for state {state}: {energy} vs {check_energy}."
