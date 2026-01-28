@@ -1,6 +1,8 @@
 import numpy as np
+import scipy.sparse as sp
 import random
 import pytest
+from sympleq.core.circuits.circuits import Circuit
 from sympleq.core.paulis import PauliSum, PauliString, Pauli
 from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 from tests import PRIME_LIST, choose_random_dimensions
@@ -1157,8 +1159,7 @@ class TestPaulis:
             dimensions = [2, 3, 5, 7]
             n_paulis = len(dimensions)
 
-            S = PauliSum.from_random(n_paulis, dimensions, rand_weights=False)
-            P = S.make_hermitian()
+            P = PauliSum.from_random(n_paulis, dimensions, rand_weights=False).make_hermitian()
             assert P.is_hermitian()
 
             m = np.around(P.to_hilbert_space().toarray(), 10)
@@ -1172,3 +1173,60 @@ class TestPaulis:
                 check_energy = np.around(state.conjugate().transpose() @ m @ state, 10)
                 assert np.isclose(
                     check_energy, energy), f"eigenvalue mismatch for state {state}: {energy} vs {check_energy}."
+
+    @pytest.mark.skip()
+    def test_stabilizer_to_hilbert_space(self):
+        for _ in range(N_tests):
+            dimensions = [2] * 5
+            n_qubits = len(dimensions)
+
+            # P = PauliSum.from_random(n_paulis, dimensions, rand_weights=False).make_hermitian()
+            # P.reset_weights()
+            # assert P.is_hermitian()
+
+            # Test both less and equal number of paulis than qudits
+            n_paulis = np.random.randint(1, n_qubits)
+
+            # Create a stabilizer IIIZ, IIZI, IZII, leaving identities at the beginning if n_paulis < n_qubits
+            tableau = np.zeros((n_paulis, 2 * n_qubits), dtype=int)
+            tableau[:, n_qubits:] = np.eye(n_paulis, n_qubits, dtype=int)
+
+            # Create stabilizer in PauliSum form
+            stabilizer = PauliSum.from_tableau(tableau,
+                                               weights=np.ones(n_paulis),
+                                               dimensions=dimensions)
+
+            # Initialize stabilizer to random computational state
+            phases = [2 * np.random.randint(0, stabilizer.lcm - 1) for _ in range(n_paulis)]
+            stabilizer.set_phases(phases)
+
+            # Random Clifford circuit
+            n_gates = 10 * n_paulis**2
+            C = Circuit.from_random(n_gates, dimensions)
+
+            # Act with Clifford on stabilizer
+            stabilizer_shuffled = C.act(stabilizer)
+            # Get hilbert space representations
+            stabilizer_shuffled_hilbert = stabilizer_shuffled.stabilizer_to_hilbert_space()
+
+            # Ensure the state stabilizes all PauliStrings in the shuffled stabilizer
+            for idx in range(stabilizer_shuffled.n_paulis()):
+
+                phases = stabilizer_shuffled.phases.copy()
+                phases[idx] = 0
+                phase_to_test: int = stabilizer_shuffled.phases[idx]
+
+                ps = stabilizer_shuffled[[idx]]
+                ps_hilbert = ps.to_hilbert_space()
+
+                lhs = np.exp(
+                    (1j * 2 * np.pi * phase_to_test) / (2 * stabilizer.lcm)
+                )
+
+                rhs = (
+                    stabilizer_shuffled_hilbert @ ps_hilbert @ stabilizer_shuffled_hilbert.T
+                ).trace()
+
+                print(np.around(lhs - rhs, 10))
+
+                assert np.around(lhs - rhs, 10) == 0
