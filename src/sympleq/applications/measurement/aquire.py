@@ -16,7 +16,6 @@ from sympleq.applications.measurement.aquire_utils import (calculate_mean_estima
 from sympleq.core.statistic_utils import true_mean
 from sympleq.core.circuits import Circuit
 from sympleq.utils import int_to_bases
-from sympleq.core.paulis.utils import make_hermitian, XZ_to_Y
 from typing import Callable
 import pickle
 import matplotlib.pyplot as plt
@@ -462,7 +461,7 @@ class Aquire:
                           "the phases necessary to turn XZ into Y.", UserWarning)
             answer = input("Do you want to apply the phase correction via the XZ_to_Y method? (y/n)")
             if answer.lower() in ['y', 'yes', 'ye', '1']:
-                P = XZ_to_Y(P)
+                P = P.XZ_to_Y()
                 if not P.is_hermitian():
                     warnings.warn(
                         "Hamiltonian is still not Hermitian after XZ_to_Y method, most likely pointing at larger "
@@ -471,7 +470,7 @@ class Aquire:
                         "Do you want to apply the make_hermitian method (likely significantly altering the "
                         "Hamiltonian)? (y/n)")
                     if answer2.lower() in ['y', 'yes', 'ye', '1']:
-                        P = make_hermitian(P)
+                        P = P.make_hermitian()
                         if not P.is_hermitian():
                             raise Exception("Hamiltonian is still not Hermitian after make_hermitian method, pointing "
                                             "to a bug in the make_hermitian method.")
