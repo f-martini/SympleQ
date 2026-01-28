@@ -1237,12 +1237,27 @@ class PauliSum(PauliObject):
             If the number of PauliStrings is not equal to the number of qudits.
         """
 
+        # Sanity check 1: weights must be one
+        if not np.allclose(self.weights, np.ones_like(self.weights), atol=1e-10):
+            raise AssertionError("Not all weights of the stabilizer state are one.")
+
+        # Sanity check 2: PauliStrings must be all-to-all commuting
+        if not self.is_commuting():
+            raise AssertionError("The PauliStrings in the PauliSum are not all-to-all commuting.")
+
+        # Sanity check 3: number of PauliStrings may be equal to number of qudits
+        if self.n_paulis() != self.n_qudits():
+            Warning("The number of PauliStrings is not equal to the number of qudits.")
+            if self.n_paulis() < self.n_qudits():
+                Warning("The stabilizer state is not uniquely defined, " +
+                        f"as the number of PauliStrings {self.n_paulis()} is less than the number " +
+                        f"of qudits {self.n_qudits()}.")
+
         _, states = self.ordered_eigenspectrum()
-        assert len(states) == 1
         ground_state = states[0]
         d = ground_state.size
 
-        return np.kron(ground_state.conj(), ground_state).reshape(d, d)
+        return sp.csr_matrix(np.kron(ground_state.conj(), ground_state).reshape(d, d))
 
     def make_hermitian(self, in_place: bool = False) -> PauliSum:
         """
