@@ -3,11 +3,11 @@ import numpy as np
 from sympleq.applications.measurement.aquire import Aquire, AquireConfig, simulate_measurement
 from sympleq.core.paulis import PauliSum, PauliString
 from sympleq.core.paulis.utils import XZ_to_Y
-from sympleq.applications.measurement.covariance_graph import (commutation_graph,
+from sympleq.applications.measurement.covariance_graph import (commutation_graph, all_maximal_cliques,
                                                                weighted_vertex_covering_maximal_cliques)
 from sympleq.applications.measurement.allocation import construct_circuit_list
 from sympleq.applications.measurement.allocation import sort_hamiltonian
-from sympleq.applications.measurement.aquire_utils import true_covariance_graph
+from sympleq.core.statistic_utils import true_covariance_graph
 import json
 from unittest.mock import patch, MagicMock
 import warnings
@@ -16,13 +16,14 @@ import pytest
 
 class TestAquire:
 
-    def andrew_comparison(self, P, psi, correct_commutation_graph, correct_xxx, correct_circuit_list, correct_pdf_list,
-                          simulated_measurement_results, correct_results, true_variance_graph):
+    def compare_loaded_file(self, P, psi, correct_commutation_graph, correct_xxx, correct_circuit_list,
+                            correct_pdf_list, simulated_measurement_results, correct_results, true_variance_graph):
         assert P.is_hermitian(), "P not hermitian"
         assert np.abs(np.linalg.norm(psi) - 1) < 10**(-6), "psi not normalized"
         com_graph = commutation_graph(P)
         assert np.all(com_graph.adj == correct_commutation_graph), "commutation graphs do not match"
-        clique_covering = weighted_vertex_covering_maximal_cliques(com_graph, cc=P.weights, k=500)
+        clique_covering_unsorted = list(all_maximal_cliques(com_graph))
+        clique_covering = [sorted(clique) for clique in clique_covering_unsorted]
         xxx = sorted(clique_covering)
         assert xxx == correct_xxx, "Clique coverings do not match"
         circuit_list, circuit_dictionary = construct_circuit_list(P, xxx, {})
@@ -63,6 +64,7 @@ class TestAquire:
         pass
 
     def AEQuO_comparison(self, filename):
+        # comparison is with respect to code written by Andrew J. Jena Plinsky
         with open(f'./tests/application_tests/measurement_tests/comparison_json/{filename}'+".json", "r") as f:
             comparison_data = json.load(f)
 
@@ -82,10 +84,8 @@ class TestAquire:
         true_variance_graph = np.array(comparison_data["true_variance_graph_real"]) + \
             1j * np.array(comparison_data["true_variance_graph_imag"])
 
-        self.andrew_comparison(P, psi, correct_commutation_graph,
-                               correct_xxx, correct_circuit_list,
-                               correct_pdf_list, simulated_measurement_results,
-                               correct_results, true_variance_graph)
+        self.compare_loaded_file(P, psi, correct_commutation_graph, correct_xxx, correct_circuit_list,
+                                 correct_pdf_list, simulated_measurement_results, correct_results, true_variance_graph)
 
     def random_comparison_hamiltonian(self, num_paulis, dimensions, mode='rand'):
         paulistrings = []
@@ -232,6 +232,7 @@ class TestAquire:
             distance_in_sigma = mean_distance / np.sqrt(model.statistical_variance[-1])
             assert distance_in_sigma < 5, f"Mean estimate too far from true value for dims {dims}"
 
+    @pytest.mark.system
     def test_aquire_mean_distance_with_noise(self):
         update_steps = [6,12,25,50,100,200,400,800,1600]
         dim_list = [[2,2,2], [2,2,3],[3,3,3]]
