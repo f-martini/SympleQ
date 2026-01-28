@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.sparse as sp
 import random
 import pytest
 from sympleq.core.circuits.circuits import Circuit
@@ -205,9 +204,9 @@ class TestPaulis:
             expected_tableau = np.array([[random.randint(0, dim - 1), random.randint(0, dim - 1)]])
             pauli_list = [f'x{expected_tableau[0, 0]}z{expected_tableau[0, 1]}']
             weights = np.array([1.])
-            sp = PauliSum.from_string(pauli_list, dimensions=[dim], weights=weights)
+            ps = PauliSum.from_string(pauli_list, dimensions=[dim], weights=weights)
 
-            np.testing.assert_array_equal(sp.tableau, expected_tableau)
+            np.testing.assert_array_equal(ps.tableau, expected_tableau)
 
     def test_symplectic_matrix_multiple_paulis(self):
         for _ in range(N_tests):
@@ -230,9 +229,9 @@ class TestPaulis:
             # randomly generate weights
             weights = np.array([random.normalvariate(0, 1) for _ in range(n_paulis)])
             # PauliSum
-            sp = PauliSum.from_string(pauli_list, dimensions=dimensions, weights=weights)
+            ps = PauliSum.from_string(pauli_list, dimensions=dimensions, weights=weights)
 
-            np.testing.assert_array_equal(sp.tableau, expected_tableau)
+            np.testing.assert_array_equal(ps.tableau, expected_tableau)
 
     def test_basic_pauli_relations(self):
         for d in PRIME_LIST:
@@ -1173,6 +1172,18 @@ class TestPaulis:
                 check_energy = np.around(state.conjugate().transpose() @ m @ state, 10)
                 assert np.isclose(
                     check_energy, energy), f"eigenvalue mismatch for state {state}: {energy} vs {check_energy}."
+
+    def test_ordered_eigenspectrum_raise_non_hermitian(self):
+        for _ in range(N_tests):
+            dimensions = [2, 3, 5, 7]
+            n_paulis = len(dimensions)
+
+            P = PauliSum.from_random(n_paulis, dimensions)
+            if P.is_hermitian():
+                continue
+
+            with pytest.raises(ValueError):
+                _, _ = P.ordered_eigenspectrum()
 
     @pytest.mark.skip()
     def test_stabilizer_to_hilbert_space(self):
