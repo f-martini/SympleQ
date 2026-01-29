@@ -8,7 +8,7 @@ import numpy as np
 class TestSymmetryFinder:
 
     def test_random_SWAP_symmetry(self):
-        n_tests = 3
+        n_tests = 30
         p = 2
         n_qudits = 10
         n_paulis = 58
@@ -164,8 +164,8 @@ class TestSymmetryFinder:
 
         n_tests = 20
         p = 2
-        n_qudits = 5
-        n_paulis = 12
+        n_qudits = 15
+        n_paulis = 40
 
         for _ in range(n_tests):
             sym = Circuit.from_random(10, [p] * n_qudits)  #
