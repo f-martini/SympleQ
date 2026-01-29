@@ -138,35 +138,35 @@ class TestSymmetryFinder:
     #         assert qudit_cost(S) == 3
 
     def test_generate_symmetric_hamiltonian(self):
-        n_qudits = 2
-        n_paulis = 4
+        n_qudits = 5
+        n_paulis = 12
         p = 2
-        sym = Circuit.from_random(10, [p] * n_qudits)  #
-        sym = sym.composite_gate()
-        # sym = SWAP(0, 1, p)
-        # unscrambled H
-        H = random_gate_symmetric_hamiltonian(sym, n_qudits, n_paulis, scrambled=False)
-        # print(H.tableau)
-        # H = H.to_standard_form()
-        # print(H.to_standard_form().tableau)
-        assert H.is_close(sym.act(H), literal=False), "Hamiltonian not symmetric. \n H: \n" + \
-            str(H.to_standard_form().tableau) + "\n sym: \n" + str(sym.act(H).to_standard_form().tableau)
-        C = Circuit.from_random(100, H.dimensions).composite_gate()  # scrambling circuit
-        H = C.act(H)
-        H.weight_to_phase()
-        H.weights = np.round(H.weights, 2)
-        scrambled_sym = Circuit(H.dimensions, [C.inv(), sym, C]).composite_gate()
-        assert H.is_close(scrambled_sym.act(H), literal=False), "Scrambled Hamiltonian not symmetric."
+        n_tests = 100
+        for _ in range(n_tests):
+            sym = Circuit.from_random(10, [p] * n_qudits)  #
+            sym = sym.composite_gate()
+            # sym = SWAP(0, 1, p)
+            # unscrambled H
+            H = random_gate_symmetric_hamiltonian(sym, n_qudits, n_paulis, scrambled=False)
+            # print(H.tableau)
+            # H = H.to_standard_form()
+            # print(H.to_standard_form().tableau)
+            assert H.is_close(sym.act(H), literal=False), "Hamiltonian not symmetric. \n H: \n" + \
+                str(H.to_standard_form().tableau) + "\n sym: \n" + str(sym.act(H).to_standard_form().tableau)
+            C = Circuit.from_random(100, H.dimensions).composite_gate()  # scrambling circuit
+            H = C.act(H)
+            H.weight_to_phase()
+            H.weights = np.round(H.weights, 2)
+            scrambled_sym = Circuit(H.dimensions, [C.inv(), sym, C]).composite_gate()
+            assert H.is_close(scrambled_sym.act(H), literal=False), "Scrambled Hamiltonian not symmetric."
 
     def test_random_arbitrary_symmetry(self):
 
-        n_tests = 5
+        n_tests = 20
         p = 2
-        n_qudits = 3
+        n_qudits = 5
         n_paulis = 12
 
-        n_tests_passed = 0
-        n_skipped = 0
         for _ in range(n_tests):
             sym = Circuit.from_random(10, [p] * n_qudits)  #
             sym = sym.composite_gate()
@@ -178,32 +178,27 @@ class TestSymmetryFinder:
             H.weights = np.round(H.weights, 2)
             scrambled_sym = Circuit(H.dimensions, [C.inv(), sym, C]).composite_gate()
             # , f"\n{H.to_standard_form().__str__()}\n{sym.act(H).to_standard_form().__str__()}"
-            if not H.to_standard_form() == scrambled_sym.act(H).to_standard_form():
-                # Symmetry generation failed, skipping test
-                n_skipped += 1
+            assert H.is_close(scrambled_sym.act(H), literal=False), "Scrambled Hamiltonian not symmetric."
+
+            known_F = scrambled_sym.symplectic
+            if np.array_equal(known_F, np.eye(known_F.shape[0], dtype=known_F.dtype)) or H.n_paulis() <= 2 * n_qudits:
+                # Trivial symmetry, or incomplete basis, skipping test
                 continue
             else:
-                known_F = scrambled_sym.symplectic
-                if np.array_equal(known_F, np.eye(known_F.shape[0], dtype=known_F.dtype)) or H.n_paulis() <= 2 * n_qudits:
-                    # Trivial symmetry, or incomplete basis, skipping test
-                    continue
-                else:
-                    circ = find_clifford_symmetries(H)
+                circ = find_clifford_symmetries(H)
 
-                    assert len(
-                        circ) != 0, f"No symmetries found for run {_} \n F:{known_F} \n H:\n{H.tableau}\nHF:\n{scrambled_sym.act(H).tableau}"
+                assert len(
+                    circ) != 0, (f"No symmetries found for run {_} \n F:{known_F}"
+                                 " \n H:\n{H.tableau}\nHF:\n{scrambled_sym.act(H).tableau}")
 
-                    for c in circ:
-                        # print('symplectiic _', np.all(c.symplectic == known_F))
-                        # print('phase vector _', np.all(c.phase_vector == scrambled_sym.phase_vector))
-                        H_s = H.to_standard_form()
-                        H_out = c.act(H).to_standard_form()
-                        H_s.weight_to_phase()
-                        H_out.weight_to_phase()
-                        assert np.all(H_s.tableau == H_out.tableau)
-                        assert np.all(H_s.phases == H_out.phases)
-                        assert np.all(H_s.weights == H_out.weights)
+                for c in circ:
 
-                        assert c.act(H).to_standard_form() == H.to_standard_form()
-                n_tests_passed += 1
-        assert n_tests_passed >= 1, f"({n_skipped}) due to failure to generate symmetry."
+                    H_s = H.to_standard_form()
+                    H_out = c.act(H).to_standard_form()
+                    H_s.weight_to_phase()
+                    H_out.weight_to_phase()
+                    assert np.all(H_s.tableau == H_out.tableau)
+                    assert np.all(H_s.phases == H_out.phases)
+                    assert np.all(H_s.weights == H_out.weights)
+
+                    assert c.act(H).to_standard_form() == H.to_standard_form()
