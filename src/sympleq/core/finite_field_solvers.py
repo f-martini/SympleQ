@@ -4,7 +4,6 @@ import numpy as np
 from math import gcd
 import galois
 from collections import defaultdict
-# TODO: Move tests to test suite (and write more!)
 
 
 def solve_linear_system_over_gf(A: np.ndarray, b: np.ndarray, GF: type | int) -> np.ndarray:
@@ -291,115 +290,183 @@ def _get_deps_single_prime(
 
 class _IncrementalElim:
     """
-    Incremental row-space basis with ability to:
-      - test if a row increases rank
-      - add a row (update RREF-like basis)
-      - solve coefficients expressing a row in span(basis) if dependent
+    Incremental row-space basis over GF(p) for prime p.
 
-    For p=2 we store rows as uint8 and use XOR.
-    For odd prime we store int64 and do modular arithmetic.
+    Stores:
+      - piv_col_to_row[piv]   : the reduced basis row with pivot at column piv (pivot value = 1)
+      - piv_col_to_combo[piv] : dict mapping ORIGINAL pivot-row ids -> coefficients,
+                               such that (basis row) = sum coeff * V[row_id]  (mod p)
+
+    Then for a dependent row `v`, solve_in_span(v) returns a dict combo with
+        v = sum combo[row_id] * V[row_id]  (mod p)
     """
 
     def __init__(self, mod: int, ncols: int):
         self.p = int(mod)
         self.ncols = int(ncols)
+
         self.piv_col_to_row: dict[int, np.ndarray] = {}
-        self.piv_col_to_combo: dict[int, dict[int, int]] = {}  # pivotcol -> {basis_row_index: coeff}
-        self.pivot_cols: list[int] = []
+        self.piv_col_to_combo: dict[int, dict[int, int]] = {}
+        self.pivot_cols: list[int] = []  # keep sorted for deterministic reduction order
 
     def would_increase_rank(self, row: np.ndarray) -> bool:
-        r = self._reduce(row, want_combo=False)[0]
+        r = self._reduce_vec_only(row)
         return self._first_nonzero_col(r) is not None
 
     def add_row(self, row: np.ndarray, row_id: int, track_combo: bool):
-        r, combo = self._reduce(row, want_combo=track_combo)
-
-        piv = self._first_nonzero_col(r)
-        if piv is None:
-            return  # dependent; ignore as basis row
-
-        if self.p == 2:
-            # make pivot 1 already guaranteed in GF(2)
-            self.piv_col_to_row[piv] = r.copy()
-            if track_combo:
-                combo[row_id] = 1
-                self.piv_col_to_combo[piv] = combo
-        else:
-            inv = pow(int(r[piv]), -1, self.p)
-            r = (r * inv) % self.p
-            self.piv_col_to_row[piv] = r.copy()
-            if track_combo:
-                combo[row_id] = (combo.get(row_id, 0) + inv) % self.p
-                self.piv_col_to_combo[piv] = combo
-
-        self.pivot_cols.append(piv)
-
-        # eliminate this pivot from existing basis rows to keep something close to RREF
-        for pc in list(self.piv_col_to_row.keys()):
-            if pc == piv:
-                continue
-            basis_row = self.piv_col_to_row[pc]
-            factor = basis_row[piv] & 1 if self.p == 2 else (basis_row[piv] % self.p)
-            if factor:
-                if self.p == 2:
-                    self.piv_col_to_row[pc] = basis_row ^ r
-                    if track_combo:
-                        c = self.piv_col_to_combo[pc]
-                        for k, v in combo.items():
-                            c[k] = c.get(k, 0) ^ v
-                        self.piv_col_to_combo[pc] = c
-                else:
-                    self.piv_col_to_row[pc] = (basis_row - factor * r) % self.p
-                    if track_combo:
-                        c = self.piv_col_to_combo[pc]
-                        for k, v in combo.items():
-                            c[k] = (c.get(k, 0) - factor * v) % self.p
-                        self.piv_col_to_combo[pc] = c
-
-    def solve_in_span(self, row: np.ndarray) -> Optional[dict[int, int]]:
         """
-        Return coefficients expressing `row` as a combination of basis rows (by their original row_id),
-        or None if not in span (should only happen if span test failed).
-        """
-        r, combo = self._reduce(row, want_combo=True)
-        if self._first_nonzero_col(r) is not None:
-            return None
-        return combo
+        Add `row` to the basis if independent.
 
-    def _reduce(self, row: np.ndarray, want_combo: bool) -> tuple[np.ndarray, dict[int, int]]:
+        If track_combo=True, maintain combinations in terms of pivot-row IDs.
+        """
         if self.p == 2:
             r = (row & 1).astype(np.uint8, copy=True)
         else:
             r = (row % self.p).astype(np.int64, copy=True)
 
-        combo: dict[int, int] = {} if want_combo else {}
+        combo: dict[int, int] | None
+        if track_combo:
+            combo = {int(row_id): 1 if self.p != 2 else 1}
+        else:
+            combo = None
 
-        # reduce using existing pivot rows
+        # Reduce using existing basis; for basis-building we update combo with SUBTRACTION
         for piv in self.pivot_cols:
-            coeff = r[piv] & 1 if self.p == 2 else (r[piv] % self.p)
+            coeff = (r[piv] & 1) if self.p == 2 else int(r[piv] % self.p)
             if not coeff:
                 continue
             prow = self.piv_col_to_row[piv]
             if self.p == 2:
                 r ^= prow
-                if want_combo:
+                if combo is not None:
                     pc = self.piv_col_to_combo[piv]
+                    # combo := combo - coeff*pc ; in GF(2), "-" == "+"
                     for k, v in pc.items():
-                        combo[k] = combo.get(k, 0) ^ v
+                        combo[k] = combo.get(k, 0) ^ (v & 1)
             else:
                 r = (r - coeff * prow) % self.p
-                if want_combo:
+                if combo is not None:
                     pc = self.piv_col_to_combo[piv]
                     for k, v in pc.items():
-                        combo[k] = (combo.get(k, 0) + coeff * v) % self.p
+                        combo[k] = (combo.get(k, 0) - coeff * v) % self.p
 
-        return r, combo
+        piv_new = self._first_nonzero_col(r)
+        if piv_new is None:
+            # dependent row; nothing to add
+            return
+
+        # Normalize new pivot row so pivot entry is 1, and scale combo accordingly
+        if self.p != 2:
+            inv = pow(int(r[piv_new]), -1, self.p)
+            r = (r * inv) % self.p
+            if combo is not None:
+                for k in list(combo.keys()):
+                    combo[k] = (combo[k] * inv) % self.p
+        # p==2 already normalized
+
+        # Insert pivot col into sorted pivot list (deterministic reduction order)
+        insert_at = np.searchsorted(self.pivot_cols, piv_new)
+        self.pivot_cols.insert(int(insert_at), int(piv_new))
+
+        # Store new basis row
+        self.piv_col_to_row[int(piv_new)] = r.copy()
+        if track_combo:
+            assert combo is not None
+            # ensure mod p
+            if self.p != 2:
+                combo = {k: (v % self.p) for k, v in combo.items() if (v % self.p) != 0}
+            else:
+                combo = {k: (v & 1) for k, v in combo.items() if (v & 1) != 0}
+            self.piv_col_to_combo[int(piv_new)] = combo
+
+        # Eliminate this pivot from the other basis rows to keep RREF-like form,
+        # and apply same ops to combos.
+        for pc in list(self.piv_col_to_row.keys()):
+            if pc == piv_new:
+                continue
+            basis_row = self.piv_col_to_row[pc]
+            factor = (basis_row[piv_new] & 1) if self.p == 2 else int(basis_row[piv_new] % self.p)
+            if not factor:
+                continue
+
+            if self.p == 2:
+                self.piv_col_to_row[pc] = basis_row ^ r
+                if track_combo:
+                    c = self.piv_col_to_combo[pc]
+                    newc = dict(c)
+                    # c := c - factor*combo ; in GF(2) subtraction is XOR
+                    for k, v in self.piv_col_to_combo[piv_new].items():
+                        newc[k] = newc.get(k, 0) ^ (v & 1)
+                    # cleanup
+                    newc = {k: (v & 1) for k, v in newc.items() if (v & 1) != 0}
+                    self.piv_col_to_combo[pc] = newc
+            else:
+                self.piv_col_to_row[pc] = (basis_row - factor * r) % self.p
+                if track_combo:
+                    c = self.piv_col_to_combo[pc]
+                    newc = dict(c)
+                    for k, v in self.piv_col_to_combo[piv_new].items():
+                        newc[k] = (newc.get(k, 0) - factor * v) % self.p
+                    newc = {k: (v % self.p) for k, v in newc.items() if (v % self.p) != 0}
+                    self.piv_col_to_combo[pc] = newc
+
+    def solve_in_span(self, row: np.ndarray) -> Optional[dict[int, int]]:
+        """
+        If row is in span(basis), return coefficients on pivot-row IDs:
+            row = sum combo[row_id] * V[row_id]  (mod p)
+        """
+        if self.p == 2:
+            r = (row & 1).astype(np.uint8, copy=True)
+        else:
+            r = (row % self.p).astype(np.int64, copy=True)
+
+        combo: dict[int, int] = {}
+
+        # Reduce; for solving, we update combo with ADDITION
+        for piv in self.pivot_cols:
+            coeff = (r[piv] & 1) if self.p == 2 else int(r[piv] % self.p)
+            if not coeff:
+                continue
+            prow = self.piv_col_to_row[piv]
+            if self.p == 2:
+                r ^= prow
+                pc = self.piv_col_to_combo[piv]
+                for k, v in pc.items():
+                    combo[k] = combo.get(k, 0) ^ (v & 1)
+            else:
+                r = (r - coeff * prow) % self.p
+                pc = self.piv_col_to_combo[piv]
+                for k, v in pc.items():
+                    combo[k] = (combo.get(k, 0) + coeff * v) % self.p
+
+        if self._first_nonzero_col(r) is not None:
+            return None
+
+        # cleanup zeros
+        if self.p == 2:
+            combo = {k: (v & 1) for k, v in combo.items() if (v & 1) != 0}
+        else:
+            combo = {k: (v % self.p) for k, v in combo.items() if (v % self.p) != 0}
+        return combo
+
+    def _reduce_vec_only(self, row: np.ndarray) -> np.ndarray:
+        """Reduce a row using basis rows, without tracking combos."""
+        if self.p == 2:
+            r = (row & 1).astype(np.uint8, copy=True)
+            for piv in self.pivot_cols:
+                if r[piv] & 1:
+                    r ^= self.piv_col_to_row[piv]
+            return r
+        else:
+            r = (row % self.p).astype(np.int64, copy=True)
+            for piv in self.pivot_cols:
+                coeff = int(r[piv] % self.p)
+                if coeff:
+                    r = (r - coeff * self.piv_col_to_row[piv]) % self.p
+            return r
 
     def _first_nonzero_col(self, r: np.ndarray) -> Optional[int]:
-        if self.p == 2:
-            nz = np.flatnonzero(r)
-        else:
-            nz = np.flatnonzero(r % self.p)
+        nz = np.flatnonzero(r) if self.p == 2 else np.flatnonzero(r % self.p)
         return int(nz[0]) if nz.size else None
 
 
