@@ -196,7 +196,7 @@ class TestCircuits():
 
             ps_res.reset_phases()
             ps_res_m = ps_res.to_hilbert_space().toarray()
-            ps_m_res = (U @ ps_m @ U.conj().T)
+            ps_m_res = (U @ ps_m @ U.conj().T).toarray()
             mask = (ps_res_m != 0)
             factors = np.unique(np.around(ps_m_res[mask] / ps_res_m[mask], 10))
             assert len(factors) == 1
@@ -347,9 +347,9 @@ class TestCircuits():
 
         phi = U @ psi
 
-        # PHASE unitary is diag(zeta^{j^2}) on that qudit, with zeta = exp(2πi/(2d)).
-        zeta = np.exp(1j * 2 * np.pi / (2 * d1))
-        factor = zeta ** (j * j)
+        # PHASE unitary is diag(omega^{j(j-1)/2}) on that qudit, with omega = exp(2πi/d).
+        omega = np.exp(1j * 2 * np.pi / d1)
+        factor = omega ** (j * (j - 1) / 2)
         expected = np.zeros(D, dtype=complex)
         expected[self._linear_index(dims, [i, j, k])] = factor
 

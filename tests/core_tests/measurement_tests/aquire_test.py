@@ -103,7 +103,7 @@ class TestAquire:
         for i, c in enumerate(circuit_list):
             comp_c = correct_circuit_list[i]
             for j, g in enumerate(c.gates):
-                assert g.name == comp_c[j][0] and np.all(g.qudit_indices == comp_c[j][1])
+                assert g.name == comp_c[j][0] and list(c.qudits[j]) == comp_c[j][1]
 
         correct_pdf_list = [np.array([0.02542707, 0.12897405, 0.08068772, 0.05845028, 0.36295372, 0.1421931,
                                       0.05060223, 0.15071182]),
@@ -295,7 +295,7 @@ class TestAquire:
         for i,c in enumerate(circuit_list):
             comp_c = correct_ciruit_list[i]
             for j, g in enumerate(c.gates):
-                assert g.name == comp_c[j][0] and np.all(g.qudit_indices == comp_c[j][1])
+                assert g.name == comp_c[j][0] and list(c.qudits[j]) == comp_c[j][1]
 
         correct_pdf_list = [np.array([6.59161444e-02, 8.02150363e-02, 6.36243965e-02, 2.17680172e-02, 3.29055261e-03, 1.87546042e-02, 7.74362539e-03, 6.53314911e-03, 9.75691566e-05, 3.65793915e-02, 8.17840670e-02, 1.90521408e-01, 8.62538668e-03, 4.91780968e-03, 1.51418111e-03, 4.74498174e-04, 2.90909439e-03, 1.76982765e-02, 1.17257790e-01, 7.33296223e-02, 1.08717592e-01, 5.81814011e-03, 7.10622581e-03, 1.12549611e-02, 2.39404690e-03, 6.09294875e-02, 2.24925503e-04]),
                             np.array([0.0135236, 0.02287538, 0.07313852, 0.04144613, 0.0231289, 0.01759941, 0.01723905, 0.04422607, 0.0018397, 0.02358743, 0.06587151, 0.08546266, 0.03688045,
@@ -502,7 +502,7 @@ class TestAquire:
         for i,c in enumerate(circuit_list):
             comp_c = correct_ciruit_list[i]
             for j, g in enumerate(c.gates):
-                assert g.name == comp_c[j][0] and np.all(g.qudit_indices == comp_c[j][1])
+                assert g.name == comp_c[j][0] and list(c.qudits[j]) == comp_c[j][1]
 
         correct_pdf_list = [np.array([0.03088027, 0.0778431 , 0.09524126, 0.05664266, 0.03303774, 0.00358182, 0.08149876, 0.07792758, 0.02915606, 0.0220013 , 0.09453924, 0.00347217, 0.11070641, 0.04113357, 0.08810741, 0.05053518, 0.05389007, 0.04980541]),
                             np.array([0.08199209, 0.00346635, 0.00761564, 0.21656557, 0.00913186, 0.00411407, 0.10786129, 0.0381335 , 0.01692888,
