@@ -1,7 +1,6 @@
-import pytest
-
-from sympleq.core.circuits import Gate, Circuit, GATES
 import numpy as np
+
+from sympleq.core.circuits import Circuit, GATES
 from sympleq.core.circuits.utils import is_symplectic
 from sympleq.core.circuits.gate_decomposition_to_circuit import (inv_gfp, mod_p, ensure_invertible_A_circuit, blocks,
                                                                  zeros, identity, _is_invertible_mod,
@@ -15,7 +14,7 @@ from sympleq.core.circuits.gate_decomposition_to_circuit import (inv_gfp, mod_p,
 from sympleq.core.paulis import PauliSum
 
 # Convenience aliases for singleton gates
-SUM = GATES.SUM
+CX = GATES.CX
 S = GATES.S
 
 
@@ -90,7 +89,7 @@ class TestDecomposition:
         C1 = ensure_invertible_A_circuit(F, p)
         C2 = ensure_invertible_A_circuit(F, p)
         assert [g.name for g in C1.gates] == [g.name for g in C2.gates]
-        assert C1.qudits == C2.qudits
+        assert C1.qudit_indices == C2.qudit_indices
 
     def preconditioner_respects_depth(self, F: np.ndarray, p: int):
         C_pre = ensure_invertible_A_circuit(F, p, max_depth=4)
@@ -185,7 +184,7 @@ class TestDecomposition:
                                [0, pow(int(u), -1, p)]], dtype=int) % p
             assert np.array_equal(F, target), f"Failed D({u}) over GF({p})"
 
-    def SUM_direction_in_M(self, n: int, p: int, rng: np.random.Generator = np.random.default_rng(42)):
+    def CX_direction_in_M(self, n: int, p: int, rng: np.random.Generator = np.random.default_rng(42)):
         # Try a few random (i, c, f) with i != c
         for _ in range(20):
             i = int(rng.integers(0, n))
@@ -201,7 +200,7 @@ class TestDecomposition:
             FM_exp = self.check_linear_from_A(n, p, A_exp)
 
             assert np.array_equal(FM, FM_exp), (
-                f"Wrong SUM mapping for (i={i}, c={c}, f={f}) over GF({p})\n"
+                f"Wrong CX mapping for (i={i}, c={c}, f={f}) over GF({p})\n"
                 f"A_exp=\n{A_exp}\nGot=\n{FM}\nExp=\n{FM_exp}"
             )
 
@@ -244,7 +243,7 @@ class TestDecomposition:
         A_exp[:, i] = (A_exp[:, i] + f * A_exp[:, c]) % p  # col_i += f col_c
 
         # Build M ops for just that step:
-        ops: GateOpList = [(SUM, (i, c))] * (f % p)
+        ops: GateOpList = [(CX, (i, c))] * (f % p)
         gates = [op[0] for op in ops]
         qudits = [op[1] for op in ops]
         FM = Circuit([p] * n, gates, qudits).composite_gate().symplectic % p
@@ -259,12 +258,12 @@ class TestDecomposition:
             self.local_Du_synthesis(p)
             # test_SUM_direction_and_sign(n, p)
 
-            # Expect A = [[1,1],[0,1]] for SUM acting on (0, 1)
-            A = self.A_block_of(SUM, (0, 1), p)
+            # Expect A = [[1,1],[0,1]] for CX acting on (0, 1)
+            A = self.A_block_of(CX, (0, 1), p)
             assert np.array_equal(A, np.array([[1, 0], [1, 1]])), A
 
             for _ in range(num_trials):
-                self.SUM_direction_in_M(n, p, rng)
+                self.CX_direction_in_M(n, p, rng)
                 self.M_block_only(n, p, rng)
                 self.one_col_add_in_M(n, p)
 

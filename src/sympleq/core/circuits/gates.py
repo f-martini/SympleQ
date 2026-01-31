@@ -359,13 +359,13 @@ class _PHASE(Gate):
         return U
 
 
-class _SUM(Gate):
-    """SUM (CNOT) gate: X0 -> X0 X1, X1 -> X1, Z0 -> Z0, Z1 -> Z0^{-1} Z1"""
+class _CX(Gate):
+    """CX gate: X0 -> X0 X1, X1 -> X1, Z0 -> Z0, Z1 -> Z0^{-1} Z1"""
 
     def __init__(self, is_inverse: bool = False):
         self._is_inverse = is_inverse
 
-        # SUM is self-inverse for qubits, but not in general
+        # CX is self-inverse for qubits, but not in general
         if is_inverse:
             symplectic = np.array([
                 [1, -1, 0, 0],   # image of X0:  X0 -> X0 X1^{-1}
@@ -373,7 +373,7 @@ class _SUM(Gate):
                 [0, 0, 1, 0],    # image of Z0:  Z0 -> Z0
                 [0, 0, 1, 1]     # image of Z1:  Z1 -> Z0 Z1
             ], dtype=int).T
-            name = "SUM_inv"
+            name = "CX_inv"
         else:
             symplectic = np.array([
                 [1, 1, 0, 0],    # image of X0:  X0 -> X0 X1
@@ -381,12 +381,12 @@ class _SUM(Gate):
                 [0, 0, 1, 0],    # image of Z0:  Z0 -> Z0
                 [0, 0, -1, 1]    # image of Z1:  Z1 -> Z0^{-1} Z1
             ], dtype=int).T
-            name = "SUM"
+            name = "CX"
 
         super().__init__(name, symplectic)
 
     def unitary(self, dimension: int) -> sp.csr_matrix:
-        """SUM acts as |j,k⟩ -> |j, (j+k) mod d⟩ (or |j, (k-j) mod d⟩ for inverse)."""
+        """CX acts as |j,k⟩ -> |j, (j+k) mod d⟩ (or |j, (k-j) mod d⟩ for inverse)."""
         d = dimension
         D = d * d  # total dimension
         U = np.zeros((D, D), dtype=complex)
@@ -466,7 +466,7 @@ class _Gates:
     """
     Singleton container for pre-instantiated gates.
 
-    Gates are accessed as properties, e.g., GATES.H, GATES.S, GATES.SUM.
+    Gates are accessed as properties, e.g., GATES.H, GATES.S, GATES.CX.
     Inverse gates are linked so that gate.inverse() returns the inverse singleton.
     """
 
@@ -483,10 +483,10 @@ class _Gates:
         self._S_inv._inverse = self._S
 
         # Two-qudit gates
-        self._SUM = _SUM(is_inverse=False)
-        self._SUM_inv = _SUM(is_inverse=True)
-        self._SUM._inverse = self._SUM_inv
-        self._SUM_inv._inverse = self._SUM
+        self._CX = _CX(is_inverse=False)
+        self._CX_inv = _CX(is_inverse=True)
+        self._CX._inverse = self._CX_inv
+        self._CX_inv._inverse = self._CX
 
         self._SWAP = _SWAP()
         # SWAP is self-inverse, already handled in the class
@@ -520,22 +520,14 @@ class _Gates:
     def phase(self) -> _PHASE:
         return self._S
 
-    # SUM / CNOT / CX
+    # CX (controlled-X / CNOT)
     @property
-    def SUM(self) -> _SUM:
-        return self._SUM
+    def CX(self) -> _CX:
+        return self._CX
 
     @property
-    def SUM_inv(self) -> _SUM:
-        return self._SUM_inv
-
-    @property
-    def CNOT(self) -> _SUM:
-        return self._SUM
-
-    @property
-    def CX(self) -> _SUM:
-        return self._SUM
+    def CX_inv(self) -> _CX:
+        return self._CX_inv
 
     # SWAP
     @property
@@ -617,6 +609,6 @@ class PauliGate(Gate):
 # These are the gate classes, not instances
 Hadamard = _Hadamard
 PHASE = _PHASE
-SUM = _SUM
+CX = _CX
 SWAP = _SWAP
 CZ = _CZ

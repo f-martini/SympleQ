@@ -6,7 +6,7 @@ from sympleq.core.paulis import PauliString, PauliSum
 # Convenience aliases
 H = GATES.H
 S = GATES.S
-CX = GATES.SUM
+CX = GATES.CX
 
 
 def add_phase(xz_pauli_sum: PauliSum, qudit_index: int, qudit_index_2: int, phase_key: str) -> Circuit:

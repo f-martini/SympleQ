@@ -8,7 +8,7 @@ from sympleq.core.circuits.gates import GATES
 
 # Convenience aliases
 H = GATES.H
-CX = GATES.SUM
+CX = GATES.CX
 S = GATES.S
 
 
@@ -259,7 +259,7 @@ def diagonalize(P: PauliSum) -> Circuit:
         if not P.is_commuting():
             raise Exception("Paulis must be pairwise commuting to be diagonalized")
     P1 = P.copy()
-    C = Circuit(dims)
+    C = Circuit.empty(dims)
 
     if P.is_quditwise_commuting():
         # for each dimension, call diagonalize_iter_quditwise_ on the qudits of the same dimension
@@ -278,7 +278,7 @@ def diagonalize(P: PauliSum) -> Circuit:
 
     # if any qudits are X rather than Z, apply H to make them Z
     if [i for i in range(q) if any(P1.x_exp[:, i])]:
-        C1 = Circuit(dims)
+        C1 = Circuit.empty(dims)
         for i in range(q):
             if any(P1.x_exp[:, i]):
                 C.add_gate(H, i)
@@ -318,7 +318,7 @@ def diagonalize_iter_(P: PauliSum, C: Circuit, aa: list[int]) -> Circuit:
 
     # add CNOT gates to cancel out all non-zero X-parts on Pauli a1, qudits in aa
     while any(P.x_exp[a1, i] for i in aa):
-        C1 = Circuit(P.dimensions)
+        C1 = Circuit.empty(P.dimensions)
         for i in aa:
             if P.x_exp[a1, i]:
                 C.add_gate(CX, a, i)
@@ -517,8 +517,8 @@ def construct_diagnostic_circuits(circuit_list: list[Circuit]) -> list[Circuit]:
     """
     diagnostic_circuits = []
     for circ in circuit_list:
-        C_diag = Circuit(dimensions=circ.dimensions)
-        for gate, qudits in zip(circ.gates, circ.qudits):
+        C_diag = Circuit.empty(dimensions=circ.dimensions)
+        for gate, qudits in zip(circ.gates, circ.qudit_indices):
             C_diag.add_gate(gate, *qudits)
             if gate.name == 'H':
                 C_diag.add_gate(gate, *qudits)
@@ -552,7 +552,7 @@ def construct_diagnostic_states(diagnostic_circuits: list[Circuit],
         state = [0] * np.prod(diagnostic_circuits[0].dimensions)
         state[0] = 1
         state = np.array(state)
-        state_preparation_circuits = [Circuit(diagnostic_circuits[0].dimensions)] * len(diagnostic_circuits)
+        state_preparation_circuits = [Circuit.empty(diagnostic_circuits[0].dimensions)] * len(diagnostic_circuits)
         return ([state] * len(diagnostic_circuits), state_preparation_circuits)
     elif mode == 'random':
         raise Exception('Random diagnostic states not yet implemented')
@@ -584,7 +584,7 @@ def standard_noise_probability_function(circuit: Circuit, p_entangling=0.03,
     n_local = 0
     n_entangling = 0
     for gate in circuit.gates:
-        if gate.name == 'SUM':
+        if gate.name == 'CX':
             n_entangling += 1
         else:
             n_local += 1

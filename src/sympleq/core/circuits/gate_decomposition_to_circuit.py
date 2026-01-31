@@ -10,7 +10,7 @@ H = GATES.H
 H_inv = GATES.H_inv
 S = GATES.S
 S_inv = GATES.S_inv
-SUM = GATES.SUM
+CX = GATES.CX
 SWAP = GATES.SWAP
 
 
@@ -120,7 +120,7 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
 
     A, _, _, _ = blocks(F, p)
     if _is_invertible_mod(A, p):
-        return Circuit([p] * n)
+        return Circuit.empty([p] * n)
 
     if max_depth is None:
         max_depth = max(1, 3 * n)
@@ -134,9 +134,9 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
     for i in range(n):
         for j in range(i + 1, n):
             candidates.append((SWAP, (i, j)))
-            # Both directions of SUM are useful during search
-            candidates.append((SUM, (i, j)))
-            candidates.append((SUM, (j, i)))
+            # Both directions of CX are useful during search
+            candidates.append((CX, (i, j)))
+            candidates.append((CX, (j, i)))
 
     def apply_left_once(F_mat: np.ndarray, op: GateOp) -> np.ndarray:
         if isinstance(op[0], str):
@@ -170,7 +170,7 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
             Anew, _, _, _ = blocks(F_new, p)
             if _is_invertible_mod(Anew, p):
                 # Build the concrete Circuit with expanded PHASE_INV
-                C_pre = Circuit([p] * n)
+                C_pre = Circuit.empty([p] * n)
                 for op in new_ops:
                     if isinstance(op[0], str):
                         assert op[0] == "PHASE_INV"
@@ -289,7 +289,7 @@ def synth_linear_A_to_gates(n: int, A: np.ndarray, p: int) -> GateOpList:
       • Scale row c by λ on A^T           -> scale column c by λ^{-1} on the RIGHT
                                             BUT since we normalized A^T by inv(λ), we must apply D(λ) on A.  # see below
       • Row add: row i ← row i − f*row c  -> col i ← col i − f*col c (RIGHT)
-                                            -> use SUM(src=c, dst=i) repeated (-f) mod p times.
+                                            -> use CX(src=c, dst=i) repeated (-f) mod p times.
     """
     A = (A % p).copy()
     At = A.T.copy()
@@ -338,7 +338,7 @@ def synth_linear_A_to_gates(n: int, A: np.ndarray, p: int) -> GateOpList:
                 At[i, :] = (At[i, :] - f * At[c, :]) % p
                 reps = (f) % p
                 for _ in range(reps):
-                    ops.append((SUM, (i, c)))
+                    ops.append((CX, (i, c)))
 
     return ops
 
@@ -389,7 +389,7 @@ def _gens_2q(i: int, j: int) -> list[GateOpList]:
         [(S, (i,))], [(S, (j,))],
         [(H, (i,))], [(H_inv, (i,))],
         [(H, (j,))], [(H_inv, (j,))],
-        [(SUM, (i, j))], [(SUM, (j, i))],
+        [(CX, (i, j))], [(CX, (j, i))],
         [(SWAP, (i, j))],
     ]
 
@@ -523,14 +523,14 @@ def decompose_symplectic_to_circuit(F: np.ndarray, p: int, *, check: bool = True
 
     # 4) Assemble with your circuit accumulation rule (left-multiply stack),
     #    but aiming for F = C_pre^{-1} · L · M · R  => append [R, M, L, C_pre^{-1}]
-    C_tot = Circuit([p] * n)
+    C_tot = Circuit.empty([p] * n)
     _add_ops_to_circuit(C_tot, ops_R)
     _add_ops_to_circuit(C_tot, ops_M)
     _add_ops_to_circuit(C_tot, ops_L)
 
     # Add inverse of preconditioner
     C_pre_inv = C_pre.inverse()
-    for gate, qudits in zip(C_pre_inv.gates, C_pre_inv.qudits):
+    for gate, qudits in zip(C_pre_inv.gates, C_pre_inv.qudit_indices):
         C_tot.add_gate(gate, *qudits)
 
     if check:
@@ -682,7 +682,7 @@ def pauli_correction_gate(F: np.ndarray,
 def gate_to_circuit(big_gate: "Gate", dimensions: list[int] | np.ndarray) -> "Circuit":
     """
     Decompose a single Gate (F, h) into a Circuit of Clifford generators
-    (Hadamard/PHASE/SUM/SWAP/…) followed by a final PauliGate that fixes the
+    (Hadamard/PHASE/CX/SWAP/…) followed by a final PauliGate that fixes the
     phase vector under the right-multiplication convention p' = p @ F^T.
 
     For odd p, the resulting circuit reproduces both F and h exactly.

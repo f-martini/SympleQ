@@ -25,15 +25,15 @@ class Circuit:
     The circuit stores:
     - dimensions: the dimension of each qudit (e.g., [2, 2, 2] for 3 qubits)
     - gates: list of Gate objects (dimension-independent)
-    - qudits: list of tuples indicating which qudits each gate acts on
+    - qudit_indices: list of tuples indicating which qudits each gate acts on
 
-    Gates and qudits are stored separately because gates are now dimension-independent
+    Gates and qudit indices are stored separately because gates are now dimension-independent
     singletons that don't store their target qudits.
     """
 
     def __init__(self, dimensions: list[int] | np.ndarray,
-                 gates: list[Gate] | None = None,
-                 qudits: list[tuple[int, ...]] | None = None):
+                 gates: list[Gate],
+                 qudit_indices: list[tuple[int, ...]]):
         """
         Initialize the Circuit.
 
@@ -49,17 +49,12 @@ class Circuit:
         """
         self.dimensions = np.asarray(dimensions, dtype=int)
 
-        if gates is None:
-            gates = []
-        if qudits is None:
-            qudits = []
-
-        if len(gates) != len(qudits):
-            raise ValueError(f"gates and qudits must have the same length, "
-                             f"got {len(gates)} gates and {len(qudits)} qudit tuples.")
+        if len(gates) != len(qudit_indices):
+            raise ValueError(f"gates and qudit_indices must have the same length, "
+                             f"got {len(gates)} gates and {len(qudit_indices)} qudit tuples.")
 
         self._gates = gates
-        self._qudits = list(qudits)
+        self._qudit_indices = list(qudit_indices)
 
     @property
     def gates(self) -> list[Gate]:
@@ -67,9 +62,13 @@ class Circuit:
         return self._gates
 
     @property
-    def qudits(self) -> list[tuple[int, ...]]:
+    def qudit_indices(self) -> list[tuple[int, ...]]:
         """List of qudit index tuples for each gate."""
-        return self._qudits
+        return self._qudit_indices
+
+    @classmethod
+    def empty(cls, dimensions: list[int] | np.ndarray) -> Circuit:
+        return cls(dimensions, [], [])
 
     @classmethod
     def from_random(cls, n_gates: int,
@@ -103,10 +102,10 @@ class Circuit:
         n_dims = len(index_sets)
 
         single_qudit_gates = [GATES.H, GATES.S]
-        two_qudit_gates = [GATES.SUM, GATES.SWAP]
+        two_qudit_gates = [GATES.CX, GATES.SWAP]
 
         gates = []
-        qudits = []
+        qudit_indices = []
 
         for _ in range(n_gates):
             set_idx = np.random.randint(n_dims)
@@ -114,14 +113,14 @@ class Circuit:
                 indices = tuple(np.random.choice(index_sets[set_idx], 2, replace=False))
                 gate = np.random.choice(two_qudit_gates)
                 gates.append(gate)
-                qudits.append(indices)
+                qudit_indices.append(indices)
             else:
                 index = int(np.random.choice(index_sets[set_idx]))
                 gate = np.random.choice(single_qudit_gates)
                 gates.append(gate)
-                qudits.append((index,))
+                qudit_indices.append((index,))
 
-        return cls(dimensions, gates, qudits)
+        return cls(dimensions, gates, qudit_indices)
 
     @classmethod
     def from_tuples(cls, dimensions: list[int] | np.ndarray,
@@ -143,7 +142,7 @@ class Circuit:
 
         Example
         -------
-        >>> Circuit.from_tuples([2, 2], [(GATES.H, 0), (GATES.SUM, 0, 1)])
+        >>> Circuit.from_tuples([2, 2], [(GATES.H, 0), (GATES.CX, 0, 1)])
         """
         if isinstance(data, tuple) and isinstance(data[0], Gate):
             data = [data]
@@ -151,8 +150,8 @@ class Circuit:
         assert isinstance(data, list)
 
         gates = [d[0] for d in data]
-        qudits = [d[1:] for d in data]
-        return cls(dimensions, gates, qudits)
+        qudit_indices = [d[1:] for d in data]
+        return cls(dimensions, gates, qudit_indices)
 
     def add_gate(self, gate: Gate, *qudit_indices: int):
         """
@@ -174,12 +173,12 @@ class Circuit:
                 raise IndexError(f"Qudit index {idx} out of range for circuit with {len(self.dimensions)} qudits.")
 
         self._gates.append(gate)
-        self._qudits.append(tuple(qudit_indices))
+        self._qudit_indices.append(tuple(qudit_indices))
 
     def remove_gate(self, index: int):
         """Removes the gate at the specified index."""
         self._gates.pop(index)
-        self._qudits.pop(index)
+        self._qudit_indices.pop(index)
 
     def n_qudits(self) -> int:
         """Returns the number of qudits in the circuit."""
@@ -199,7 +198,7 @@ class Circuit:
             raise ValueError("Cannot concatenate circuits with different dimensions.")
 
         new_gates = self._gates + other._gates
-        new_qudits = self._qudits + other._qudits
+        new_qudits = self._qudit_indices + other._qudit_indices
         return Circuit(self.dimensions, new_gates, new_qudits)
 
     def __eq__(self, other: Circuit) -> bool:
@@ -212,7 +211,7 @@ class Circuit:
         for i in range(len(self._gates)):
             if self._gates[i] is not other._gates[i]:  # Compare by identity for singletons
                 return False
-            if self._qudits[i] != other._qudits[i]:
+            if self._qudit_indices[i] != other._qudit_indices[i]:
                 return False
         return True
 
@@ -221,7 +220,7 @@ class Circuit:
 
     def __str__(self) -> str:
         lines = [f"Circuit on {self.n_qudits()} qudits (dims={list(self.dimensions)}):"]
-        for gate, qudits in zip(self._gates, self._qudits):
+        for gate, qudits in zip(self._gates, self._qudit_indices):
             lines.append(f"  {gate.name} {qudits}")
         return "\n".join(lines)
 
@@ -242,7 +241,7 @@ class Circuit:
 
     def act(self, pauli: P) -> P:
         """Apply all gates in the circuit to a Pauli object."""
-        for gate, qudits in zip(self._gates, self._qudits):
+        for gate, qudits in zip(self._gates, self._qudit_indices):
             pauli = gate.act(pauli, qudits)
         return pauli
 
@@ -260,13 +259,13 @@ class Circuit:
 
     def act_iter(self, pauli: P) -> Generator[P, None, None]:
         """Yields the Pauli object after each gate application."""
-        for gate, qudits in zip(self._gates, self._qudits):
+        for gate, qudits in zip(self._gates, self._qudit_indices):
             pauli = gate.act(pauli, qudits)
             yield pauli
 
     def copy(self) -> 'Circuit':
         """Returns a shallow copy of the circuit."""
-        return Circuit(self.dimensions.copy(), self._gates.copy(), self._qudits.copy())
+        return Circuit(self.dimensions.copy(), self._gates.copy(), self._qudit_indices.copy())
 
     def _composite_phase_vector(self, F_1: np.ndarray, F_2: np.ndarray, h_2: np.ndarray) -> np.ndarray:
         """
@@ -296,7 +295,7 @@ class Circuit:
         lcm = self.lcm
         total_phase_vector = np.zeros(2 * n_qudits, dtype=int)
 
-        for i, (gate, qudits) in enumerate(zip(self._gates, self._qudits)):
+        for i, (gate, qudits) in enumerate(zip(self._gates, self._qudit_indices)):
             # Get the phase vector for the relevant dimension
             relevant_dim = int(np.lcm.reduce(self.dimensions[list(qudits)]))
             phase_vec = gate.phase_vector(relevant_dim)
@@ -320,7 +319,7 @@ class Circuit:
     def inverse(self) -> Circuit:
         """Returns the inverse circuit (gates in reverse order, each inverted)."""
         inv_gates = [g.inverse() for g in reversed(self._gates)]
-        inv_qudits = list(reversed(self._qudits))
+        inv_qudits = list(reversed(self._qudit_indices))
         return Circuit(self.dimensions, inv_gates, inv_qudits)
 
     def full_symplectic(self) -> np.ndarray:
@@ -352,7 +351,7 @@ class Circuit:
         D = int(np.prod(self.dimensions))
         U_total = sp.eye(D, format='csr')
 
-        for gate, qudits in zip(self._gates, self._qudits):
+        for gate, qudits in zip(self._gates, self._qudit_indices):
             # Get the dimension(s) for this gate
             gate_dims = self.dimensions[list(qudits)]
 

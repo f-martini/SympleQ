@@ -38,8 +38,8 @@ class TestGates():
         s2 = np.random.randint(0, dim)
         return PauliString.from_string(f'x{r1}z{s1} x{r2}z{s2}', dimensions=[dim, dim]), r1, r2, s1, s2
 
-    def test_SUM(self):
-        # acts the SUM gate on a bunch of random pauli strings and pauli sums
+    def test_CX(self):
+        # acts the CX gate on a bunch of random pauli strings and pauli sums
         for d in [2, 5, 11]:
             # test pauli_strings
             for i in range(1000):
@@ -52,8 +52,8 @@ class TestGates():
                 output_str_correct = f"x{r1}z{(s1 - s2) % d} x{(r2 + r1) % d}z{s2}"
 
                 input_ps = PauliString.from_string(input_str, dimensions=[d, d])
-                output_ps = GATES.SUM.act(input_ps, (0, 1))
-                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in SUM gate'
+                output_ps = GATES.CX.act(input_ps, (0, 1))
+                assert output_ps == PauliString.from_string(output_str_correct, dimensions=[d, d]), 'Error in CX gate'
 
             # test pauli_sums
             for i in range(10):
@@ -78,9 +78,9 @@ class TestGates():
                 input_psum = PauliSum.from_pauli_strings(ps_list_in)
                 output_psum_correct = PauliSum.from_pauli_strings(ps_list_out_correct, phases=ps_phase_out_correct)
 
-                output_psum = GATES.SUM.act(input_psum, (0, 1))
+                output_psum = GATES.CX.act(input_psum, (0, 1))
                 assert output_psum == output_psum_correct, (
-                    'Error in SUM gate: \n' +
+                    'Error in CX gate: \n' +
                     output_psum.__str__() + '\n' +
                     output_psum_correct.__str__()
                 )
@@ -205,7 +205,7 @@ class TestGates():
 
         # Test for dim = 2 with all combinations
         gates_and_qudits = [
-            (GATES.SUM, (0, 1)), (GATES.SUM, (1, 0)),
+            (GATES.CX, (0, 1)), (GATES.CX, (1, 0)),
             (GATES.SWAP, (0, 1)),
             (GATES.H, 0), (GATES.H, 1),
             (GATES.S, 0), (GATES.S, 1)
@@ -238,7 +238,7 @@ class TestGates():
 
     def test_is_symplectic(self):
         # Tests if the symplectic matrix of the gate is symplectic
-        gates = [GATES.SUM, GATES.SWAP, GATES.H, GATES.S]
+        gates = [GATES.CX, GATES.SWAP, GATES.H, GATES.S]
         for gate in gates:
             assert is_symplectic(gate.symplectic, 2), (
                 f"Gate {gate.name} is not symplectic. \n" +
@@ -320,7 +320,7 @@ class TestGates():
     def test_unitary_is_unitary(self):
         """Test that all gate unitaries are actually unitary matrices."""
         gates = [GATES.H, GATES.H_inv, GATES.S, GATES.S_inv,
-                 GATES.SUM, GATES.SUM_inv, GATES.SWAP, GATES.CZ]
+                 GATES.CX, GATES.CX_inv, GATES.SWAP, GATES.CZ]
         for d in [2, 3, 5]:
             for gate in gates:
                 U = gate.unitary(d).toarray()
@@ -341,10 +341,10 @@ class TestGates():
             U_S_inv = GATES.S_inv.unitary(d).toarray()
             assert np.allclose(U_S @ U_S_inv, np.eye(d)), f"S @ S_inv != I for d={d}"
 
-            # SUM and SUM_inv
-            U_SUM = GATES.SUM.unitary(d).toarray()
-            U_SUM_inv = GATES.SUM_inv.unitary(d).toarray()
-            assert np.allclose(U_SUM @ U_SUM_inv, np.eye(d * d)), f"SUM @ SUM_inv != I for d={d}"
+            # CX and CX_inv
+            U_CX = GATES.CX.unitary(d).toarray()
+            U_CX_inv = GATES.CX_inv.unitary(d).toarray()
+            assert np.allclose(U_CX @ U_CX_inv, np.eye(d * d)), f"CX @ CX_inv != I for d={d}"
 
             # SWAP is self-inverse
             SWAP = GATES.SWAP.unitary(d).toarray()
@@ -393,7 +393,7 @@ class TestGates():
         from sympleq.core.circuits.utils import pauli_unitary_qudit
 
         for d in [2, 3, 5]:
-            for gate in [GATES.SUM, GATES.SWAP, GATES.CZ]:
+            for gate in [GATES.CX, GATES.SWAP, GATES.CZ]:
                 U = gate.unitary(d)
 
                 # Test on X0, X1, Z0, Z1
@@ -429,17 +429,17 @@ class TestGates():
                             f"{gate.name}(d={d}) Clifford property failed for {(x0, x1, z0, z1)}"
                         )
 
-    def test_SUM_unitary(self):
-        """Test SUM gate acts as |j,k⟩ -> |j, j+k mod d⟩."""
+    def test_CX_unitary(self):
+        """Test CX gate acts as |j,k⟩ -> |j, j+k mod d⟩."""
         for d in [2, 3, 5]:
-            U = GATES.SUM.unitary(d)
+            U = GATES.CX.unitary(d)
             for j in range(d):
                 for k in range(d):
                     # Input state |j,k⟩
                     in_state = np.zeros(d * d, dtype=complex)
                     in_state[j * d + k] = 1.0
 
-                    # Apply SUM
+                    # Apply CX
                     out_state = U @ in_state
 
                     # Expected: |j, (j+k) mod d⟩
@@ -447,7 +447,7 @@ class TestGates():
                     expected[j * d + (j + k) % d] = 1.0
 
                     assert np.allclose(out_state, expected), (
-                        f"SUM(d={d}) failed for |{j},{k}⟩"
+                        f"CX(d={d}) failed for |{j},{k}⟩"
                     )
 
     def test_pauli_gate_unitary(self):
