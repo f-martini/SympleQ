@@ -5,7 +5,7 @@ from typing import TypeVar, Self
 import scipy.sparse as sp
 
 from sympleq.core.paulis import PauliObject
-from sympleq.core.circuits.utils import transvection_matrix
+from sympleq.core.circuits.utils import embed_symplectic, transvection_matrix
 
 # We define a type using TypeVar to let the type checker know that
 # the input and output of the `act` function share the same type.
@@ -60,6 +60,85 @@ class Gate(ABC):
 
         # Will be set by _Gates to link to inverse gate
         self._inverse: Self | None = None
+
+    @classmethod
+    def from_random(cls, n_qudits: int, dimension: int, num_transvections: int | None = None) -> "Gate":
+        """
+        Generate a random Clifford gate by composing random transvections.
+
+        Parameters
+        ----------
+        n_qudits : int
+            Number of qudits the gate acts on.
+        dimension : int
+            Local Hilbert space dimension (e.g., 2 for qubits).
+        num_transvections : int | None
+            Number of transvections to compose. If None, defaults to 4*n_qudits.
+
+        Returns
+        -------
+        Gate
+            A random Clifford gate with the generated symplectic matrix.
+        """
+        from sympleq.core.circuits.random_symplectic import symplectic_random_transvection
+
+        symplectic = symplectic_random_transvection(n_qudits, dimension, num_transvections)
+        # For random gates, we use zero phase vector (phases depend on specific gate sequence)
+        phase_vector = np.zeros(2 * n_qudits, dtype=int)
+
+        return _GenericGate("random", symplectic, phase_vector)
+
+    @classmethod
+    def solve_from_target(cls, input_tableau: np.ndarray, target_tableau: np.ndarray) -> "Gate":
+        """
+        Find a Clifford gate that maps the input Pauli tableau to the target tableau.
+
+        Uses symplectic transvections to find a symplectic matrix F such that
+        input_tableau @ F = target_tableau (mod 2).
+
+        Parameters
+        ----------
+        input_tableau : np.ndarray
+            Input Pauli tableau of shape (m, 2n) where m is the number of Paulis
+            and n is the number of qudits.
+        target_tableau : np.ndarray
+            Target Pauli tableau of the same shape.
+
+        Returns
+        -------
+        Gate
+            A Clifford gate whose symplectic matrix performs the mapping.
+
+        Raises
+        ------
+        ValueError
+            If the tableaus have different shapes or are not mappable via Clifford.
+
+        Notes
+        -----
+        Currently only works for GF(2) (qubits). The input and target must have
+        matching symplectic product matrices for a Clifford mapping to exist.
+        """
+        from sympleq.core.circuits.find_symplectic import map_pauli_sum_to_target_tableau
+
+        input_tableau = np.asarray(input_tableau, dtype=int)
+        target_tableau = np.asarray(target_tableau, dtype=int)
+
+        if input_tableau.shape != target_tableau.shape:
+            raise ValueError(
+                f"Tableau shapes must match: {input_tableau.shape} vs {target_tableau.shape}"
+            )
+
+        if input_tableau.ndim == 1:
+            input_tableau = input_tableau.reshape(1, -1)
+            target_tableau = target_tableau.reshape(1, -1)
+
+        n_qudits = input_tableau.shape[1] // 2
+
+        symplectic = map_pauli_sum_to_target_tableau(input_tableau, target_tableau)
+        phase_vector = np.zeros(2 * n_qudits, dtype=int)
+
+        return _GenericGate("target", symplectic, phase_vector)
 
     @property
     def name(self) -> str:
@@ -206,84 +285,28 @@ class Gate(ABC):
 
         return _GenericGate(new_name, self._symplectic @ T, self._phase_vector.copy())
 
-    @classmethod
-    def from_random(cls, n_qudits: int, dimension: int, num_transvections: int | None = None) -> "Gate":
+    def full_symplectic(self, qudits: tuple[int, ...] | int, n_qudits: int, p: int) -> np.ndarray:
         """
-        Generate a random Clifford gate by composing random transvections.
+        Get the full 2n x 2n symplectic matrix for a gate acting on specific qudits.
 
         Parameters
         ----------
+        qudits : tuple[int, ...] | int
+            The qudit index(es) the gate acts on
         n_qudits : int
-            Number of qudits the gate acts on.
-        dimension : int
-            Local Hilbert space dimension (e.g., 2 for qubits).
-        num_transvections : int | None
-            Number of transvections to compose. If None, defaults to 4*n_qudits.
+            Total number of qudits in the system
+        p : int
+            The prime dimension for modular arithmetic
 
         Returns
         -------
-        Gate
-            A random Clifford gate with the generated symplectic matrix.
+        np.ndarray
+            The full 2n x 2n symplectic matrix mod p
         """
-        from sympleq.core.circuits.random_symplectic import symplectic_random_transvection
-
-        symplectic = symplectic_random_transvection(n_qudits, dimension, num_transvections)
-        # For random gates, we use zero phase vector (phases depend on specific gate sequence)
-        phase_vector = np.zeros(2 * n_qudits, dtype=int)
-
-        return _GenericGate("random", symplectic, phase_vector)
-
-    @classmethod
-    def solve_from_target(cls, input_tableau: np.ndarray, target_tableau: np.ndarray) -> "Gate":
-        """
-        Find a Clifford gate that maps the input Pauli tableau to the target tableau.
-
-        Uses symplectic transvections to find a symplectic matrix F such that
-        input_tableau @ F = target_tableau (mod 2).
-
-        Parameters
-        ----------
-        input_tableau : np.ndarray
-            Input Pauli tableau of shape (m, 2n) where m is the number of Paulis
-            and n is the number of qudits.
-        target_tableau : np.ndarray
-            Target Pauli tableau of the same shape.
-
-        Returns
-        -------
-        Gate
-            A Clifford gate whose symplectic matrix performs the mapping.
-
-        Raises
-        ------
-        ValueError
-            If the tableaus have different shapes or are not mappable via Clifford.
-
-        Notes
-        -----
-        Currently only works for GF(2) (qubits). The input and target must have
-        matching symplectic product matrices for a Clifford mapping to exist.
-        """
-        from sympleq.core.circuits.find_symplectic import map_pauli_sum_to_target_tableau
-
-        input_tableau = np.asarray(input_tableau, dtype=int)
-        target_tableau = np.asarray(target_tableau, dtype=int)
-
-        if input_tableau.shape != target_tableau.shape:
-            raise ValueError(
-                f"Tableau shapes must match: {input_tableau.shape} vs {target_tableau.shape}"
-            )
-
-        if input_tableau.ndim == 1:
-            input_tableau = input_tableau.reshape(1, -1)
-            target_tableau = target_tableau.reshape(1, -1)
-
-        n_qudits = input_tableau.shape[1] // 2
-
-        symplectic = map_pauli_sum_to_target_tableau(input_tableau, target_tableau)
-        phase_vector = np.zeros(2 * n_qudits, dtype=int)
-
-        return _GenericGate("target", symplectic, phase_vector)
+        if isinstance(qudits, int):
+            qudits = (qudits,)
+        F, _ = embed_symplectic(self.symplectic, self.phase_vector(p), qudits, n_qudits)
+        return F % p
 
 
 class _GenericGate(Gate):

@@ -1,6 +1,6 @@
 import numpy as np
 from sympleq.core.circuits import Circuit
-from sympleq.core.circuits.utils import symplectic_form, is_symplectic, embed_symplectic
+from sympleq.core.circuits.utils import symplectic_form, is_symplectic
 from sympleq.core.circuits.gates import GATES, Gate, PauliGate
 from sympleq.core.paulis import PauliString
 from collections import deque
@@ -12,32 +12,6 @@ S = GATES.S
 S_inv = GATES.S_inv
 CX = GATES.CX
 SWAP = GATES.SWAP
-
-
-def full_gate_symplectic(gate: Gate, qudits: tuple[int, ...] | int, n_qudits: int, p: int) -> np.ndarray:
-    """
-    Get the full 2n x 2n symplectic matrix for a gate acting on specific qudits.
-
-    Parameters
-    ----------
-    gate : Gate
-        The gate (singleton from GATES or other Gate instance)
-    qudits : tuple[int, ...] | int
-        The qudit index(es) the gate acts on
-    n_qudits : int
-        Total number of qudits in the system
-    p : int
-        The prime dimension for modular arithmetic
-
-    Returns
-    -------
-    np.ndarray
-        The full 2n x 2n symplectic matrix mod p
-    """
-    if isinstance(qudits, int):
-        qudits = (qudits,)
-    F, _ = embed_symplectic(gate.symplectic, gate.phase_vector(p), qudits, n_qudits)
-    return F % p
 
 # ---------- GF(p) helpers - should remove most and put in better place ----------
 
@@ -143,12 +117,12 @@ def ensure_invertible_A_circuit(F: np.ndarray, p: int, max_depth: int | None = N
             assert op[0] == "PHASE_INV"
             i = op[1]
             for _ in range((p - 1) % p):
-                F_mat = (full_gate_symplectic(S, i, n, p) @ F_mat) % p
+                F_mat = (S.full_symplectic(i, n, p) @ F_mat) % p
             return F_mat
 
         gate, qudits = op
         assert isinstance(gate, Gate)
-        return (full_gate_symplectic(gate, qudits, n, p) @ F_mat) % p
+        return (gate.full_symplectic(qudits, n, p) @ F_mat) % p
 
     # BFS with an index (no deque) for clarity and determinism
     seen = {tuple(F.flatten())}

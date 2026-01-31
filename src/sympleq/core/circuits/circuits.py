@@ -271,6 +271,7 @@ class Circuit:
         qudit_indices : int
             The indices of the qudits the gate acts on.
         """
+
         if len(qudit_indices) != gate.n_qudits:
             raise ValueError(f"Gate {gate.name} acts on {gate.n_qudits} qudits, "
                              f"but {len(qudit_indices)} indices provided.")
@@ -278,6 +279,10 @@ class Circuit:
         for idx in qudit_indices:
             if idx < 0 or idx >= len(self.dimensions):
                 raise IndexError(f"Qudit index {idx} out of range for circuit with {len(self.dimensions)} qudits.")
+
+        affected_dimensions = [self.dimensions[i] for i in qudit_indices]
+        if len(set(affected_dimensions)) != 1:
+            raise ValueError(f"Gate must act on qudits with the same dimensions (found {set(affected_dimensions)}).")
 
         self._gates.append(gate)
         self._qudit_indices.append(tuple(qudit_indices))
