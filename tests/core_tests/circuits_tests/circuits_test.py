@@ -123,7 +123,7 @@ class TestCircuits():
         # For a single-qudit circuit with one Hadamard, the circuit unitary
         # should equal the gate's local unitary.
         for d in [2, 3, 5, 11]:
-            circuit = Circuit([d], [GATES.H], [(0,)])
+            circuit = Circuit.from_gates_and_qudits([d], [GATES.H], [(0,)])
             U_circ = circuit.unitary()
             assert issparse(U_circ)
             U_gate = GATES.H.unitary(d)
@@ -244,7 +244,7 @@ class TestCircuits():
     def test_swap_embedding_on_equal_dims(self):
         # Verify SWAP on qudits (0,1) within a 2-qudit system with equal dimensions.
         dims = [3, 3]
-        c = Circuit(dims, [GATES.SWAP], [(0, 1)])
+        c = Circuit.from_gates_and_qudits(dims, [GATES.SWAP], [(0, 1)])
         U = c.unitary()
 
         # Start in |i,j> with i=1, j=2
@@ -264,7 +264,7 @@ class TestCircuits():
         # Verify CX on qudits (1,2) inside a 3-qudit system.
         d = 5
         dims = [d, d, d]
-        c = Circuit(dims, [GATES.CX], [(1, 2)])
+        c = Circuit.from_gates_and_qudits(dims, [GATES.CX], [(1, 2)])
         U = c.unitary()
 
         # Start in |i,j,k> = |3,1,4>

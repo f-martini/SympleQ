@@ -44,24 +44,28 @@ def add_phase(xz_pauli_sum: PauliSum, qudit_index: int, qudit_index_2: int, phas
     q1, q2 = qudit_index, qudit_index_2
 
     if phase_key == 'SSSS':
-        return Circuit(dimensions=dims)
+        return Circuit.empty(dimensions=dims)
     elif phase_key == 'DDSS':
-        return Circuit(dims, [CX, S, H, S, CX], [(q1, q2), (q2,), (q2,), (q2,), (q1, q2)])
+        return Circuit.from_gates_and_qudits(dims, [CX, S, H, S, CX], [(q1, q2), (q2,), (q2,), (q2,), (q1, q2)])
     elif phase_key == 'DSDS':
-        return Circuit(dims, [CX, S, CX, H, CX, S], [(q1, q2), (q2,), (q1, q2), (q2,), (q1, q2), (q1,)])
+        return Circuit.from_gates_and_qudits(dims,
+                                             [CX, S, CX, H, CX, S], [(q1, q2), (q2,), (q1, q2), (q2,), (q1, q2), (q1,)])
     elif phase_key == 'DSSD':
-        return Circuit(dims, [S, CX, S, H, S, CX], [(q2,), (q1, q2), (q2,), (q2,), (q2,), (q1, q2)])
+        return Circuit.from_gates_and_qudits(dims,
+                                             [S, CX, S, H, S, CX], [(q2,), (q1, q2), (q2,), (q2,), (q2,), (q1, q2)])
     elif phase_key == 'SDDS':
-        return Circuit(dims, [S, H, CX, S, CX, H, CX, S],
-                       [(q2,), (q2,), (q2, q1), (q1,), (q2, q1), (q2,), (q1, q2), (q1,)])
+        return Circuit.from_gates_and_qudits(dims, [S, H, CX, S, CX, H, CX, S],
+                                             [(q2,), (q2,), (q2, q1), (q1,), (q2, q1), (q2,), (q1, q2), (q1,)])
     elif phase_key == 'SDSD':
-        return Circuit(dims, [CX, S, CX, H, CX, S], [(q2, q1), (q1,), (q2, q1), (q2,), (q1, q2), (q1,)])
+        return Circuit.from_gates_and_qudits(dims,
+                                             [CX, S, CX, H, CX, S], [(q2, q1), (q1,), (q2, q1), (q2,), (q1, q2), (q1,)])
     elif phase_key == 'SSDD':
-        return Circuit(dims, [H, CX, S, CX, H, CX, S],
-                       [(q2,), (q2, q1), (q1,), (q2, q1), (q2,), (q1, q2), (q1,)])
+        return Circuit.from_gates_and_qudits(dims, [H, CX, S, CX, H, CX, S],
+                                             [(q2,), (q2, q1), (q1,), (q2, q1), (q2,), (q1, q2), (q1,)])
     elif phase_key == 'DDDD':
-        return Circuit(dims, [CX, S, CX, H, CX, S, CX, S, H, S, CX],
-                       [(q2, q1), (q1,), (q2, q1), (q2,), (q1, q2), (q1,), (q1, q2), (q2,), (q2,), (q2,), (q1, q2)])
+        gates = [CX, S, CX, H, CX, S, CX, S, H, S, CX]
+        qudit_indices = [(q2, q1), (q1,), (q2, q1), (q2,), (q1, q2), (q1,), (q1, q2), (q2,), (q2,), (q2,), (q1, q2)]
+        return Circuit.from_gates_and_qudits(dims, gates, qudit_indices)
     else:
         raise ValueError(
             "Invalid phase key. Must be one of 'SSSS', 'DDSS', 'DSDS', 'DSSD', 'SDDS', 'SDSD', 'SSDD', 'DDDD'"
@@ -74,7 +78,7 @@ def add_s2(pauli_sum: PauliSum, qudit_index_1: int, qudit_index_2: int) -> Circu
     """
     dims = [2 for i in range(pauli_sum.n_qudits())]
     q1, q2 = qudit_index_1, qudit_index_2
-    return Circuit(dims, [CX, H, CX, S, H], [(q1, q2), (q2,), (q2, q1), (q2,), (q2,)])
+    return Circuit.from_gates_and_qudits(dims, [CX, H, CX, S, H], [(q1, q2), (q2,), (q2, q1), (q2,), (q2,)])
 
 
 def add_r2(pauli_sum: PauliSum, qudit_index_1: int, qudit_index_2: int) -> Circuit:
@@ -83,7 +87,7 @@ def add_r2(pauli_sum: PauliSum, qudit_index_1: int, qudit_index_2: int) -> Circu
     """
     dims = [2 for i in range(pauli_sum.n_qudits())]
     q1, q2 = qudit_index_1, qudit_index_2
-    return Circuit(dims, [S, CX, S], [(q1,), (q2, q1), (q1,)])
+    return Circuit.from_gates_and_qudits(dims, [S, CX, S], [(q1,), (q2, q1), (q1,)])
 
 
 def add_r2s2(pauli_sum: PauliSum, qudit_index_1: int, qudit_index_2: int) -> Circuit:
@@ -92,7 +96,7 @@ def add_r2s2(pauli_sum: PauliSum, qudit_index_1: int, qudit_index_2: int) -> Cir
     """
     dims = [2 for i in range(pauli_sum.n_qudits())]
     q1, q2 = qudit_index_1, qudit_index_2
-    return Circuit(dims, [S, CX, H, CX, S, H], [(q2,), (q1, q2), (q2,), (q2, q1), (q2,), (q2,)])
+    return Circuit.from_gates_and_qudits(dims, [S, CX, H, CX, S, H], [(q2,), (q1, q2), (q2,), (q2, q1), (q2,), (q2,)])
 
 
 def _find_first_exp(pauli_sum, pauli_index, target_qubit, exp_type):
@@ -245,7 +249,7 @@ def ensure_zx_components(pauli_sum: PauliSum, pauli_index_x: int,
         raise ValueError(("ensure_zx_components requires anti-commutation"
                           " between pauli_index_x and pauli_index_z beyond target_qubit"))
 
-    C = Circuit(dimensions=pauli_sum.dimensions)
+    C = Circuit.empty(dimensions=pauli_sum.dimensions)
     px = _handle_xz_case(C, pauli_sum, pauli_index_x, pauli_index_z, target_qubit)
     if px is not None:
         pass
@@ -371,7 +375,7 @@ def to_x(pauli_string: PauliString,
     if len(set(pauli_string.dimensions)) != 1:
         raise ValueError(f"All dimensions of pauli_string must be equal, while got {pauli_string.dimensions}")
     ignore, target_index = _validate_inputs(pauli_string, target_index, ignore)
-    circuit = Circuit(dimensions=pauli_string.dimensions)
+    circuit = Circuit.empty(dimensions=pauli_string.dimensions)
     result = _single_qudit_x(pauli_string, target_index, circuit)
     if result is not None:
         return result

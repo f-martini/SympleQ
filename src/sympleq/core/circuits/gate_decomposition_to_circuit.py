@@ -206,7 +206,7 @@ def _compose_1q_word_as_matrix(p: int, word0: list[str]) -> np.ndarray:
     gate_map = {'S': S, 'H': H, 'H_inv': H_inv}
     gates = [gate_map[name] for name in word0]
     qudits = [(0,)] * len(gates)
-    return Circuit([p], gates, qudits).composite_gate().symplectic % p
+    return Circuit.from_gates_and_qudits([p], gates, qudits).composite_gate().symplectic % p
 
 
 def _all_Du_targets_1q(p: int) -> dict[int, np.ndarray]:
@@ -379,7 +379,7 @@ def _compose_symp(n: int, p: int, ops: GateOpList) -> np.ndarray:
     """Compose a list of (gate, qudits) tuples into full symplectic matrix."""
     gates = [op[0] for op in ops]
     qudits = [op[1] for op in ops]
-    F = Circuit([p] * n, gates, qudits).composite_gate().symplectic
+    F = Circuit.from_gates_and_qudits([p] * n, gates, qudits).composite_gate().symplectic
     return _as_int_mod(F, p)
 
 

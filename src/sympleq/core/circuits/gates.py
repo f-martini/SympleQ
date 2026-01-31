@@ -257,7 +257,7 @@ class Gate(ABC):
         Raises
         ------
         ValueError
-            If the tableaux have different shapes or are not mappable via Clifford.
+            If the tableaus have different shapes or are not mappable via Clifford.
 
         Notes
         -----

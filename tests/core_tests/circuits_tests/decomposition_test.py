@@ -159,7 +159,7 @@ class TestDecomposition:
         """Compose a GateOpList into full symplectic matrix."""
         gates = [op[0] for op in ops]
         qudits = [op[1] for op in ops]
-        return Circuit([p] * n, gates, qudits).composite_gate().symplectic % p
+        return Circuit.from_gates_and_qudits([p] * n, gates, qudits).composite_gate().symplectic % p
 
     def check_linear_from_A(self, n, p, A):
         A = mod_p(A, p)
@@ -179,7 +179,7 @@ class TestDecomposition:
             ops = _emit_local_ops_for_D(0, u, p)
             gates = [op[0] for op in ops]
             qudits = [op[1] for op in ops]
-            F = Circuit([p], gates, qudits).composite_gate().symplectic % p
+            F = Circuit.from_gates_and_qudits([p], gates, qudits).composite_gate().symplectic % p
             target = np.array([[u, 0],
                                [0, pow(int(u), -1, p)]], dtype=int) % p
             assert np.array_equal(F, target), f"Failed D({u}) over GF({p})"
@@ -209,7 +209,7 @@ class TestDecomposition:
         ops = _emit_local_ops_for_D(0, 1, p)
         gates = [op[0] for op in ops]
         qudits = [op[1] for op in ops]
-        M = Circuit([p], gates, qudits).composite_gate().symplectic % p
+        M = Circuit.from_gates_and_qudits([p], gates, qudits).composite_gate().symplectic % p
         assert np.array_equal(M, np.eye(2, dtype=int) % p)
 
         # all nontrivial u
@@ -217,7 +217,7 @@ class TestDecomposition:
             ops = _emit_local_ops_for_D(0, u, p)
             gates = [op[0] for op in ops]
             qudits = [op[1] for op in ops]
-            M = Circuit([p], gates, qudits).composite_gate().symplectic % p
+            M = Circuit.from_gates_and_qudits([p], gates, qudits).composite_gate().symplectic % p
             inv_u = pow(u, -1, p)
             target = np.array([[u, 0], [0, inv_u]], dtype=int) % p
             assert np.array_equal(M, target), f"Failed D({u}) over GF({p})"
@@ -234,7 +234,7 @@ class TestDecomposition:
 
     def A_block_of(self, gate, qudits, p):
         """Get the A block of the symplectic matrix for a gate acting on qudits."""
-        F = Circuit([p, p], [gate], [qudits]).composite_gate().symplectic % p
+        F = Circuit.from_gates_and_qudits([p, p], [gate], [qudits]).composite_gate().symplectic % p
         return F[:2, :2]
 
     def one_col_add_in_M(self, n=3, p=5, c=0, i=2, f=1):
@@ -246,7 +246,7 @@ class TestDecomposition:
         ops: GateOpList = [(CX, (i, c))] * (f % p)
         gates = [op[0] for op in ops]
         qudits = [op[1] for op in ops]
-        FM = Circuit([p] * n, gates, qudits).composite_gate().symplectic % p
+        FM = Circuit.from_gates_and_qudits([p] * n, gates, qudits).composite_gate().symplectic % p
         assert np.array_equal(FM[:n, :n], A_exp)
 
     def test_m_block(self, rng=np.random.default_rng()):
