@@ -318,7 +318,7 @@ class _GenericGate(Gate):
     pass
 
 
-class _Hadamard(Gate):
+class _HADAMARD(Gate):
     """Hadamard gate: X -> -Z, Z -> X (or inverse: X -> Z, Z -> -X)"""
 
     def __init__(self, is_inverse: bool = False):
@@ -495,8 +495,8 @@ class _Gates:
 
     def __init__(self):
         # Single-qudit gates
-        self._H = _Hadamard(is_inverse=False)
-        self._H_inv = _Hadamard(is_inverse=True)
+        self._H = _HADAMARD(is_inverse=False)
+        self._H_inv = _HADAMARD(is_inverse=True)
         self._H._inverse = self._H_inv
         self._H_inv._inverse = self._H
 
@@ -519,16 +519,12 @@ class _Gates:
 
     # Hadamard
     @property
-    def H(self) -> _Hadamard:
+    def H(self) -> _HADAMARD:
         return self._H
 
     @property
-    def H_inv(self) -> _Hadamard:
+    def H_inv(self) -> _HADAMARD:
         return self._H_inv
-
-    @property
-    def hadamard(self) -> _Hadamard:
-        return self._H
 
     # Phase (S)
     @property
@@ -538,10 +534,6 @@ class _Gates:
     @property
     def S_inv(self) -> _PHASE:
         return self._S_inv
-
-    @property
-    def phase(self) -> _PHASE:
-        return self._S
 
     # CX (controlled-X / CNOT)
     @property
@@ -630,7 +622,7 @@ class PauliGate(Gate):
 
 # Convenience aliases for backward compatibility
 # These are the gate classes, not instances
-Hadamard = _Hadamard
+HADAMARD = _HADAMARD
 PHASE = _PHASE
 CX = _CX
 SWAP = _SWAP
