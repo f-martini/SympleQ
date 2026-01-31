@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+import tempfile
 import numpy as np
 import pytest
 from scipy.sparse import issparse
@@ -322,6 +325,125 @@ class TestCircuits():
 
     def test_single_gate_circuit_unitary(self):
         pass
+
+    def test_to_string_basic(self):
+        """Test basic to_string functionality."""
+        dimensions = [2] * 3
+        circuit = Circuit.from_tuples(dimensions, [(GATES.H, 0), (GATES.CX, 0, 1)])
+        s = circuit.to_string()
+        data = json.loads(s)
+
+        assert data["dimensions"] == dimensions
+        assert data["data"] == [["H", [0]], ["CX", [0, 1]]]
+
+    def test_from_string_basic(self):
+        """Test basic from_string functionality."""
+        s = '{"dimensions": [2, 2], "data": [["H", [0]], ["CX", [0, 1]]]}'
+        circuit = Circuit.from_string(s)
+
+        assert len(circuit.gates) == 2
+        assert circuit.gates[0] is GATES.H
+        assert circuit.gates[1] is GATES.CX
+        assert circuit.qudit_indices[0] == (0,)
+        assert circuit.qudit_indices[1] == (0, 1)
+
+    def test_roundtrip_simple(self):
+        """Test that to_string -> from_string produces equivalent circuit."""
+        dimensions = [2] * 3
+        original = Circuit.from_tuples(dimensions, [(GATES.H, 0), (GATES.S, 1), (GATES.CX, 0, 1), (GATES.SWAP, 1, 2)])
+        s = original.to_string()
+        restored = Circuit.from_string(s)
+
+        assert original == restored
+
+    def test_roundtrip_all_gates(self):
+        """Test roundtrip with all supported gate types."""
+        dimensions = [2] * 3
+        original = Circuit.from_tuples(
+            dimensions,
+            [
+                (GATES.H, 0),
+                (GATES.H_inv, 1),
+                (GATES.S, 0),
+                (GATES.S_inv, 1),
+                (GATES.CX, 0, 1),
+                (GATES.CX_inv, 1, 0),
+                (GATES.SWAP, 0, 1),
+                (GATES.CZ, 0, 1),
+            ]
+        )
+        s = original.to_string()
+        restored = Circuit.from_string(s)
+
+        assert original == restored
+
+    def test_roundtrip_mixed_dimensions(self):
+        """Test roundtrip with mixed qudit dimensions."""
+        dimensions = [2] * 3
+        original = Circuit.from_tuples(
+            dimensions,
+            [(GATES.H, 0), (GATES.S, 1), (GATES.H, 2)]
+        )
+        s = original.to_string()
+        restored = Circuit.from_string(s)
+
+        assert original == restored
+
+    def test_roundtrip_empty_circuit(self):
+        """Test roundtrip with empty circuit."""
+        dimensions = [2] * 3
+        original = Circuit.empty(dimensions)
+        s = original.to_string()
+        restored = Circuit.from_string(s)
+
+        assert original == restored
+        assert len(restored.gates) == 0
+
+    def test_file_roundtrip(self):
+        """Test save_to_file and from_file."""
+        dimensions = [2] * 3
+        original = Circuit.from_tuples(dimensions, [(GATES.H, 0), (GATES.S, 1), (GATES.CX, 0, 1)])
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            temp_path = Path(f.name)
+
+        try:
+            original.save_to_file(temp_path)
+            restored = Circuit.from_file(temp_path)
+            assert original == restored
+        finally:
+            temp_path.unlink()
+
+    def test_from_string_unknown_gate_raises(self):
+        """Test that unknown gate names raise ValueError."""
+        s = '{"dimensions": [2], "data": [["UNKNOWN_GATE", [0]]]}'
+        with pytest.raises(ValueError, match="Unknown gate name"):
+            Circuit.from_string(s)
+
+    def test_roundtrip_random_circuits(self):
+        """Test roundtrip with random circuits."""
+        for _ in range(50):
+            n_gates = np.random.randint(0, 20)
+            n_qudits = np.random.randint(2, 10)
+            dimensions = np.random.choice([2, 3, 5], size=n_qudits)
+            original = Circuit.from_random(n_gates, dimensions)
+
+            s = original.to_string()
+            restored = Circuit.from_string(s)
+
+            assert original == restored
+
+    def test_roundtrip_preserves_behavior(self):
+        """Test that restored circuit produces same results when acting on Paulis."""
+        dimensions = [2, 3, 5]
+        original = Circuit.from_random(10, dimensions)
+        restored = Circuit.from_string(original.to_string())
+
+        pauli_sum = PauliSum.from_random(5, dimensions)
+        original_result = original.act(pauli_sum)
+        restored_result = restored.act(pauli_sum)
+
+        assert original_result == restored_result
 
 
 if __name__ == '__main__':

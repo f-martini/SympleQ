@@ -1,7 +1,9 @@
 from __future__ import annotations
 from typing import Generator, overload, TypeVar, TypeAlias
+import json
 import numpy as np
 import scipy.sparse as sp
+from pathlib import Path
 from collections import defaultdict
 
 from .utils import embed_unitary
@@ -184,6 +186,79 @@ class Circuit:
             raise ValueError("Gates and qudit indices must have the same length.")
 
         return cls(dimensions, gates, qudit_indices)
+
+    @classmethod
+    def from_string(cls, s: str) -> Circuit:
+        """
+        Create a Circuit from a JSON string.
+
+        The string should be a JSON object with:
+        - "data": list of gate operations, each as [gate_name, [qudit_indices]]
+
+        Parameters
+        ----------
+        s : str
+            JSON string representing the circuit.
+
+        Returns
+        -------
+        Circuit
+            The deserialized circuit.
+
+        Example
+        -------
+        >>> s = '{"data": [["H", [0]], ["CX", [0, 1]]]}'
+        >>> circuit = Circuit.from_string(s)
+        """
+        data = json.loads(s)
+        dimensions = data["dimensions"]
+        gate_data = data["data"]
+
+        # Map gate names to gate singletons
+        gate_map = {
+            "H": GATES.H,
+            "H_inv": GATES.H_inv,
+            "S": GATES.S,
+            "S_inv": GATES.S_inv,
+            "CX": GATES.CX,
+            "CX_inv": GATES.CX_inv,
+            "SWAP": GATES.SWAP,
+            "CZ": GATES.CZ,
+        }
+
+        gates = []
+        qudit_indices = []
+
+        for gate_spec in gate_data:
+            gate_name = gate_spec[0]
+            indices = tuple(gate_spec[1])
+
+            if gate_name not in gate_map:
+                raise ValueError(f"Unknown gate name: {gate_name}")
+
+            gates.append(gate_map[gate_name])
+            qudit_indices.append(indices)
+
+        return cls(dimensions, gates, qudit_indices)
+
+    @classmethod
+    def from_file(cls, file_path: str | Path) -> Circuit:
+        """
+        Create a Circuit from a JSON file.
+
+        Parameters
+        ----------
+        file_path : str | Path
+            Path to the JSON file.
+
+        Returns
+        -------
+        Circuit
+            The deserialized circuit.
+        """
+        file_path = Path(file_path)
+        with open(file_path, 'r') as f:
+            return cls.from_string(f.read())
 
     def add_gate(self, gate: Gate, *qudit_indices: int):
         """
@@ -409,3 +484,41 @@ class Circuit:
             U_total = U_embedded @ U_total
 
         return U_total
+
+    def to_string(self) -> str:
+        """
+        Serialize the circuit to a JSON string.
+
+        Returns
+        -------
+        str
+            JSON string representation of the circuit.
+
+        Example
+        -------
+        >>> circuit = Circuit.from_tuples([(GATES.H, 0), (GATES.CX, 0, 1)])
+        >>> circuit.to_string()
+        '{"dimensions": [2, 3], "data": [["H", [0]], ["CX", [0, 1]]]}'
+        """
+        gate_data = []
+        for gate, qudits in zip(self._gates, self._qudit_indices):
+            gate_data.append([gate.name, [int(q) for q in qudits]])
+        return json.dumps({"dimensions": [int(d) for d in self.dimensions], "data": gate_data})
+
+    def save_to_file(self, file_path: str | Path) -> None:
+        """
+        Save the circuit to a JSON file.
+
+        Parameters
+        ----------
+        file_path : str | Path
+            Path to the output file.
+
+        Example
+        -------
+        >>> circuit = Circuit.from_tuples([(GATES.H, 0)])
+        >>> circuit.save_to_file("my_circuit.json")
+        """
+        file_path = Path(file_path)
+        with open(file_path, 'w') as f:
+            f.write(self.to_string())
