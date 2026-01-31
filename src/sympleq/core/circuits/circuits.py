@@ -41,13 +41,14 @@ class Circuit:
         ----------
         dimensions : list[int] | np.ndarray
             The dimension of each qudit in the circuit.
-        gates : list[Gate] | None
-            List of Gate objects. If None, creates an empty circuit.
-        qudits : list[tuple[int, ...]] | None
+        gates : list[Gate]
+            List of Gate objects.
+        qudit_indices : list[tuple[int, ...]]
             List of tuples indicating which qudits each gate acts on.
             Must have the same length as gates.
         """
         self.dimensions = np.asarray(dimensions, dtype=int)
+        self.dimensions.setflags(write=False)
 
         if len(gates) != len(qudit_indices):
             raise ValueError(f"gates and qudit_indices must have the same length, "
@@ -151,6 +152,37 @@ class Circuit:
 
         gates = [d[0] for d in data]
         qudit_indices = [d[1:] for d in data]
+        return cls(dimensions, gates, qudit_indices)
+
+    @classmethod
+    def from_gates_and_qudits(cls, dimensions: list[int] | np.ndarray,
+                              gates: list[Gate], qudit_indices: list[tuple[int, ...]]) -> Circuit:
+        """
+        Creates a circuit from a list of (gate, qudit_indices...) tuples.
+
+        Parameters
+        ----------
+        dimensions : list[int] | np.ndarray
+            The dimension of each qudit.
+        gates : list[Gate]
+            List of Gate objects.
+        qudit_indices : list[tuple[int, ...]]
+            List of tuples indicating which qudits each gate acts on.
+            Must have the same length as gates.
+
+        Returns
+        -------
+        Circuit
+            A new Circuit.
+
+        Example
+        -------
+        >>> Circuit.from_gates_and_qudits([2, 2], [GATES.H], [(0,)])
+        """
+
+        if len(gates) != len(qudit_indices):
+            raise ValueError("Gates and qudit indices must have the same length.")
+
         return cls(dimensions, gates, qudit_indices)
 
     def add_gate(self, gate: Gate, *qudit_indices: int):
@@ -263,9 +295,9 @@ class Circuit:
             pauli = gate.act(pauli, qudits)
             yield pauli
 
-    def copy(self) -> 'Circuit':
+    def copy(self) -> Circuit:
         """Returns a shallow copy of the circuit."""
-        return Circuit(self.dimensions.copy(), self._gates.copy(), self._qudit_indices.copy())
+        return Circuit(self.dimensions, self._gates.copy(), self._qudit_indices.copy())
 
     def _composite_phase_vector(self, F_1: np.ndarray, F_2: np.ndarray, h_2: np.ndarray) -> np.ndarray:
         """
