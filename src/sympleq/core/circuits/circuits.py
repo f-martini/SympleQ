@@ -289,13 +289,13 @@ class Circuit:
                      with_qudit_indices: bool = False,
                      with_input: PauliSum | None = None,
                      with_output: PauliSum | None = None,
+                     wires: str | list[str] | None = None,
                      wrap: bool = True) -> str:
         """
         Returns a visual circuit diagram of the RMB.
 
         Renders the circuit as ASCII art with gates displayed as boxes
-        connected by wires. When a PauliSum is provided, shows the input
-        and output phases and colors wires green (unchanged) or red (changed).
+        connected by wires.
 
         Parameters
         ----------
@@ -304,6 +304,8 @@ class Circuit:
         with_pauli_sum : PauliSum | None, default None
             If provided, display input phases on the left, output phases
             on the right, and color wires based on phase preservation.
+        wires : str | list[str] | None, default None
+            If provided, overrides default wires strin. If a list is provided, its length must match circuit n_qudits.
         wrap : bool, default True
             If True, wrap the output to fit the terminal width by splitting
             at gate boundaries.
@@ -314,12 +316,6 @@ class Circuit:
             A string representation of the circuit diagram.
         """
 
-        def green(s):
-            return f"\033[92m{s}\033[0m"
-
-        def red(s):
-            return f"\033[91m{s}\033[0m"
-
         def gate_name(gate: Gate) -> str:
             return gate.name.replace("-inv", "*")[:gate_name_len].center(gate_name_len)
 
@@ -327,11 +323,12 @@ class Circuit:
         lines: list[str] = ["" for _ in range(3 * n_qudits)]
         gate_num: list[int] = [0 for _ in range(n_qudits)]
 
-        if with_input is not None and with_output is not None:
-            wires = [green("=") if with_input.phases[l_idx] == with_output.phases[l_idx]
-                     else red("=") for l_idx in range(n_qudits)]
-        else:
+        if wires is None:
             wires = ["="] * n_qudits
+        elif isinstance(wires, str):
+            wires = wires * n_qudits
+        elif len(wires) != n_qudits:
+            raise ValueError("Wires list length must match the circuit number of qudits.")
 
         gate_name_len = 5
         gate_len = gate_name_len + 4
