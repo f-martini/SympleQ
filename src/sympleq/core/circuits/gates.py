@@ -595,7 +595,7 @@ class PauliGate(Gate):
         # Pauli gates are self-inverse (up to phase)
         return self
 
-    def unitary(self, dimension: int | None = None) -> np.ndarray:
+    def unitary(self, dimension: int | None = None) -> sp.csr_matrix:
         """
         Compute the unitary for this PauliGate.
 
@@ -606,7 +606,7 @@ class PauliGate(Gate):
         d = int(self._dimensions[0])  # assumes uniform dimensions
         x = self.pauli_string.x_exp
         z = self.pauli_string.z_exp
-        return pauli_unitary_from_tableau(d, x, z, convention="bare").toarray()
+        return pauli_unitary_from_tableau(d, x, z, convention="bare")
 
     def act(self, pauli: P, qudits: int | tuple[int, ...] | None = None) -> P:
         """

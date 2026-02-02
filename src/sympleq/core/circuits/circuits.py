@@ -467,23 +467,19 @@ class Circuit:
             # Get the dimension(s) for this gate
             gate_dims = self.dimensions[list(qudits)]
 
-            if gate.n_qudits == 1:
-                # Single-qudit gate: use that qudit's dimension
-                d = int(gate_dims[0])
-            else:
+            if gate.n_qudits > 1:
                 # Multi-qudit gate: all qudits must have the same dimension
                 if not np.all(gate_dims == gate_dims[0]):
                     raise ValueError(
                         f"Gate {gate.name} acts on qudits with different dimensions {gate_dims}. "
                         "Multi-qudit gates require equal dimensions."
                     )
-                d = int(gate_dims[0])
 
-            # Get the gate's local unitary
+            d = int(gate_dims[0])
             U_local = gate.unitary(d)
 
             # Embed into the full Hilbert space
-            U_embedded = embed_unitary(U_local, list(qudits), list(self.dimensions))
+            U_embedded = embed_unitary(U_local, list(qudits), self.dimensions)
 
             # Compose: circuit is applied left-to-right, so U_total = U_embedded @ U_total
             U_total = U_embedded @ U_total
