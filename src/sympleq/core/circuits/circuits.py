@@ -301,9 +301,10 @@ class Circuit:
         ----------
         with_qudit_indices : bool, default False
             If True, display qudit indices on the left of each wire.
-        with_pauli_sum : PauliSum | None, default None
-            If provided, display input phases on the left, output phases
-            on the right, and color wires based on phase preservation.
+        with_input : PauliSum | None, default None
+            If provided, display input phases on the left.
+        with_output : PauliSum | None, default None
+            If provided, display output phases on the right.
         wires : str | list[str] | None, default None
             If provided, overrides default wires strin. If a list is provided, its length must match circuit n_qudits.
         wrap : bool, default True
