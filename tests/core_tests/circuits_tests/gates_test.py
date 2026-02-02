@@ -20,17 +20,6 @@ class TestGates():
                                       'x1z1 x1z0 x0z0'], dimensions=[dim, dim, dim])
         return ps1, ps2, ps3, ps4, ps5, p_sum
 
-    def random_pauli_sum(self, dim, n_paulis=10):
-        ps_list = []
-        element_list = [(0, 0, 0, 0)]
-        for _ in range(n_paulis):
-            ps, r1, r2, s1, s2 = self.random_pauli_string(dim)
-            element_list.append((r1, r2, s1, s2))
-            while (r1, r2, s1, s2) in element_list:
-                ps, r1, r2, s1, s2 = self.random_pauli_string(dim)
-            ps_list.append(ps)
-        return PauliSum.from_pauli_strings(ps_list)
-
     def random_pauli_string(self, dim):
         r1 = np.random.randint(0, dim)
         r2 = np.random.randint(0, dim)
@@ -230,8 +219,8 @@ class TestGates():
         for dim in [3, 5, 7, 15]:
             for gate, qudits in gates_and_qudits:
                 for _ in range(100):
-                    p1 = self.random_pauli_sum(dim, n_paulis=1)
-                    p2 = self.random_pauli_sum(dim, n_paulis=1)
+                    p1 = PauliSum.from_random(1, dim)
+                    p2 = PauliSum.from_random(1, dim)
                     lhs = gate.act(p1, qudits) * gate.act(p2, qudits)
                     rhs = gate.act(p1 * p2, qudits)
                     assert lhs == rhs, f"Failed for {gate.name} on {qudits} dim={dim}"
@@ -462,7 +451,7 @@ class TestGates():
                 ps = PauliString.from_exponents(x_exp, z_exp, dimensions=[d, d])
                 pg = PauliGate(ps)
 
-                U = pg.unitary()
+                U = pg.unitary().toarray()
                 U_expected = pauli_unitary_from_tableau(d, x_exp, z_exp).toarray()
 
                 assert np.allclose(U, U_expected), (
