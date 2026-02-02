@@ -306,25 +306,21 @@ class TestCircuits():
 
         assert np.allclose(phi, expected)
 
-    def test_circuit_unitary(self):
+    @pytest.mark.parametrize("dimension", [2, 3, 5])
+    @pytest.mark.parametrize("n_qudits", [2, 3, 4])
+    @pytest.mark.parametrize("c_depth", [1, 3, 5])
+    def test_circuit_unitary(self, dimension: int, n_qudits: int, c_depth: int):
         n_tests = 100
         n_paulis = 10
-        n_qudits = 3
-        c_depth = 1
-        dims = [2, 3, 5]
-        for dim in dims:
-            dimensions = [dim] * n_qudits
-            for _ in range(n_tests):
-                ps = PauliSum.from_random(n_paulis, dimensions, False)
-                c = Circuit.from_random(c_depth, dimensions)
-                U_c = c.unitary()
-                P_from_conjugation = U_c @ ps.to_hilbert_space() @ U_c.conj().T
-                P_from_act = c.act(ps).to_hilbert_space()
-                diff_m = np.around(P_from_conjugation - P_from_act.toarray(), 10)
-                assert not np.any(diff_m), f'failed for dim {_, dim, c.__str__()}'
-
-    def test_single_gate_circuit_unitary(self):
-        pass
+        dimensions = [dimension] * n_qudits
+        for _ in range(n_tests):
+            ps = PauliSum.from_random(n_paulis, dimensions, False)
+            c = Circuit.from_random(c_depth, dimensions)
+            U_c = c.unitary()
+            P_from_conjugation = U_c @ ps.to_hilbert_space() @ U_c.conj().T
+            P_from_act = c.act(ps).to_hilbert_space()
+            diff_m = np.around(P_from_conjugation - P_from_act.toarray(), 10)
+            assert not np.any(diff_m), f'failed for dimension {_, dimension, c.__str__()}'
 
     def test_to_string_basic(self):
         """Test basic to_string functionality."""
