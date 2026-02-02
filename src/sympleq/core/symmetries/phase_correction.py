@@ -212,7 +212,6 @@ def solve_linear_system_mod_prime(A: np.ndarray, b: np.ndarray, p: int) -> Optio
     return x
 
 
-
 def clifford_phase_decomposition(F: np.ndarray, h_F: np.ndarray,
                                  S: np.ndarray, T: np.ndarray, d: int,
                                  l_T: np.ndarray | None = None):
