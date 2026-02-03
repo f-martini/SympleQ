@@ -6,6 +6,9 @@ import scipy.sparse as sp
 
 from sympleq.core.paulis import PauliObject
 from sympleq.core.circuits.utils import embed_symplectic, transvection_matrix
+from sympleq.core.circuits.random_symplectic import symplectic_random_transvection
+from sympleq.core.circuits.find_symplectic import map_pauli_sum_to_target_tableau
+
 
 # We define a type using TypeVar to let the type checker know that
 # the input and output of the `act` function share the same type.
@@ -80,7 +83,6 @@ class Gate(ABC):
         Gate
             A random Clifford gate with the generated symplectic matrix.
         """
-        from sympleq.core.circuits.random_symplectic import symplectic_random_transvection
 
         symplectic = symplectic_random_transvection(n_qudits, dimension, num_transvections)
         # For random gates, we use zero phase vector (phases depend on specific gate sequence)
@@ -119,7 +121,6 @@ class Gate(ABC):
         Currently only works for GF(2) (qubits). The input and target must have
         matching symplectic product matrices for a Clifford mapping to exist.
         """
-        from sympleq.core.circuits.find_symplectic import map_pauli_sum_to_target_tableau
 
         input_tableau = np.asarray(input_tableau, dtype=int)
         target_tableau = np.asarray(target_tableau, dtype=int)
@@ -346,6 +347,8 @@ class _HADAMARD(Gate):
             return U.conj().T
         return U
 
+    to_hilbert_space = unitary
+
 
 class _PHASE(Gate):
     """Phase gate (S): X -> XZ, Z -> Z. Has special phase vector for qubits."""
@@ -380,6 +383,8 @@ class _PHASE(Gate):
         if self._is_inverse:
             return U.conj().T
         return U
+
+    to_hilbert_space = unitary
 
 
 class _CX(Gate):
@@ -424,6 +429,8 @@ class _CX(Gate):
                 U[out_idx, in_idx] = 1.0
         return sp.csr_matrix(U)
 
+    to_hilbert_space = unitary
+
 
 class _SWAP(Gate):
     """SWAP gate: X0 <-> X1, Z0 <-> Z1. Self-inverse."""
@@ -449,6 +456,8 @@ class _SWAP(Gate):
                 out_idx = k * d + j  # |k,j⟩
                 U[out_idx, in_idx] = 1.0
         return sp.csr_matrix(U)
+
+    to_hilbert_space = unitary
 
     def inverse(self) -> _SWAP:
         # SWAP is self-inverse
@@ -479,6 +488,8 @@ class _CZ(Gate):
                 idx = j * d + k
                 U[idx, idx] = omega ** (j * k)
         return sp.csr_matrix(U)
+
+    to_hilbert_space = unitary
 
     def inverse(self) -> _CZ:
         # CZ is self-inverse
@@ -607,6 +618,8 @@ class PauliGate(Gate):
         x = self.pauli_string.x_exp
         z = self.pauli_string.z_exp
         return pauli_unitary_from_tableau(d, x, z, convention="bare")
+
+    to_hilbert_space = unitary
 
     def act(self, pauli: P, qudits: int | tuple[int, ...] | None = None) -> P:
         """

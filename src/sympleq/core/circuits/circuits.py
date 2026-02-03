@@ -538,6 +538,8 @@ class Circuit:
 
         return U_total
 
+    to_hilbert_space = unitary
+
     def to_string(self) -> str:
         """
         Serialize the circuit to a JSON string.
