@@ -6,6 +6,8 @@ import scipy.sparse as sp
 from pathlib import Path
 from collections import defaultdict
 
+from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
+
 from .utils import embed_unitary
 from .gates import Gate, GATES, _GenericGate
 from .utils import embed_symplectic
@@ -52,10 +54,6 @@ class Circuit:
         self.dimensions = np.asarray(dimensions, dtype=int)
         self.dimensions.setflags(write=False)
 
-        if len(gates) != len(qudit_indices):
-            raise ValueError(f"gates and qudit_indices must have the same length, "
-                             f"got {len(gates)} gates and {len(qudit_indices)} qudit tuples.")
-
         self._gates = gates
         self._qudit_indices = list(qudit_indices)
 
@@ -71,7 +69,10 @@ class Circuit:
 
     @classmethod
     def empty(cls, dimensions: list[int] | np.ndarray) -> Circuit:
-        return cls(dimensions, [], [])
+        C = cls(dimensions, [], [])
+        C._sanity_check()
+
+        return C
 
     @classmethod
     def from_random(cls, n_gates: int,
@@ -123,7 +124,10 @@ class Circuit:
                 gates.append(gate)
                 qudit_indices.append((index,))
 
-        return cls(dimensions, gates, qudit_indices)
+        C = cls(dimensions, gates, qudit_indices)
+        C._sanity_check()
+
+        return C
 
     @classmethod
     def from_tuples(cls, dimensions: list[int] | np.ndarray,
@@ -154,7 +158,11 @@ class Circuit:
 
         gates = [d[0] for d in data]
         qudit_indices = [d[1:] for d in data]
-        return cls(dimensions, gates, qudit_indices)
+
+        C = cls(dimensions, gates, qudit_indices)
+        C._sanity_check()
+
+        return C
 
     @classmethod
     def from_gates_and_qudits(cls, dimensions: list[int] | np.ndarray,
@@ -185,7 +193,10 @@ class Circuit:
         if len(gates) != len(qudit_indices):
             raise ValueError("Gates and qudit indices must have the same length.")
 
-        return cls(dimensions, gates, qudit_indices)
+        C = cls(dimensions, gates, qudit_indices)
+        C._sanity_check()
+
+        return C
 
     @classmethod
     def from_string(cls, s: str) -> Circuit:
@@ -239,7 +250,10 @@ class Circuit:
             gates.append(gate_map[gate_name])
             qudit_indices.append(indices)
 
-        return cls(dimensions, gates, qudit_indices)
+        C = cls(dimensions, gates, qudit_indices)
+        C._sanity_check()
+
+        return C
 
     @classmethod
     def from_file(cls, file_path: str | Path) -> Circuit:
@@ -259,6 +273,38 @@ class Circuit:
         file_path = Path(file_path)
         with open(file_path, 'r') as f:
             return cls.from_string(f.read())
+
+    def _sanity_check(self):
+        """
+        Validate internal consistency of the Circuitt.
+
+        Raises
+        ------
+        ValueError
+            If gates and qudit indices are not consistent.
+        """
+        if len(self._gates) != len(self._qudit_indices):
+            raise ValueError(f"gates and qudit_indices must have the same length, "
+                             f"got {len(self._gates)} gates and {len(self._qudit_indices)} qudit tuples.")
+
+        if np.any(self.dimensions < DEFAULT_QUDIT_DIMENSION):
+            bad_dims = self.dimensions[self.dimensions < DEFAULT_QUDIT_DIMENSION]
+            raise ValueError(f"Dimensions {bad_dims} are less than {DEFAULT_QUDIT_DIMENSION}")
+
+        for gate, idxs in zip(self._gates, self._qudit_indices):
+            if len(idxs) == 0:
+                raise ValueError("Gate cannot act on no qudit.")
+
+            if len(idxs) != gate.n_qudits:
+                raise ValueError(f"Gate and qudit indices do not match. Gate acts on {gate.n_qudits} qudits, "
+                                 f"but {len(idxs)} qudit indices were provided.")
+
+            if len(idxs) != len(set(idxs)):
+                raise ValueError(f"Qudit indices must all differ, got {idxs}.")
+
+            relevant_dimensions = self.dimensions[list(idxs)]
+            if not np.all(relevant_dimensions == relevant_dimensions[0]):
+                raise ValueError("Gate cannot act on qudits with different dimensions.")
 
     def add_gate(self, gate: Gate, *qudit_indices: int):
         """
@@ -607,9 +653,9 @@ class Circuit:
                 lines[3 * l_idx + 1] += f"{with_input.phases[l_idx]:<2}" + wires[l_idx] * 2
                 lines[3 * l_idx + 2] += " " * 4
 
-        for gate in self.gates:
+        for gate, qudit_indices in zip(self.gates, self.qudit_indices):
             if gate.n_qudits == 1:
-                l_idx = gate.qudit_indices[0]
+                l_idx = qudit_indices[0]
                 gate_num[l_idx] += 1
 
                 lines[3 * l_idx + 0] += " ┌" + "─" * gate_name_len + "┐ "
@@ -619,9 +665,9 @@ class Circuit:
             else:
                 # Get max line length of affected qudits
                 max_num_gate_affected_qudits = max(
-                    [gate_num[idx] for idx in gate.qudit_indices])
+                    [gate_num[idx] for idx in qudit_indices])
 
-                for l_idx in gate.qudit_indices:
+                for l_idx in qudit_indices:
                     while gate_num[l_idx] < max_num_gate_affected_qudits:
                         gate_num[l_idx] += 1
                         lines[3 * l_idx + 0] += " " * gate_len
@@ -630,8 +676,8 @@ class Circuit:
 
                     gate_num[l_idx] += 1
 
-                    is_top_qudit = l_idx == min(gate.qudit_indices)
-                    is_btm_qudit = l_idx == max(gate.qudit_indices)
+                    is_top_qudit = l_idx == min(qudit_indices)
+                    is_btm_qudit = l_idx == max(qudit_indices)
 
                     if is_top_qudit:
                         lines[3 * l_idx + 0] += " ┌" + "─" * gate_name_len + "┐ "

@@ -465,6 +465,30 @@ class TestCircuits():
         with pytest.raises(ValueError):
             _ = circuit.gates_layout(wires=["x"] * (circuit.n_qudits() + 1))
 
+    def test_circuit_sanity_checks_exception(self):
+        # Inconsistent dimensions
+        dimensions = [2, 3, 3, 1]
+        with pytest.raises(ValueError):
+            _ = Circuit.from_random(4, dimensions)
+
+        # Inconsistent dimensions for CX
+        dimensions = [2, 3, 3, 5]
+        with pytest.raises(ValueError):
+            _ = Circuit.from_gates_and_qudits(dimensions, [GATES.CX, GATES.H], [(0, 1), (2,)])
+
+        with pytest.raises(ValueError):
+            _ = Circuit.from_gates_and_qudits(dimensions, [GATES.CX, GATES.H], [(0,), (2,)])
+
+        with pytest.raises(ValueError):
+            _ = Circuit.from_gates_and_qudits(dimensions, [GATES.CX, GATES.H], [(0, 0), (2,)])
+
+        # Inconsistent gates and qudit indices
+        dimensions = [2, 3, 3, 5]
+        with pytest.raises(ValueError):
+            _ = Circuit.from_gates_and_qudits(dimensions, [GATES.CX, GATES.H], [(0, 1), (2,), (1,)])
+        with pytest.raises(ValueError):
+            _ = Circuit.from_gates_and_qudits(dimensions, [GATES.CX, GATES.H, GATES.S], [(0, 1), (2,)])
+
 
 if __name__ == '__main__':
     TestCircuits().test_circuit_composition()
