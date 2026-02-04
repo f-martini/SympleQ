@@ -122,16 +122,16 @@ class TestCircuits():
             out = C.act(ps)
             assert np.all(out.dimensions == dimensions)
 
-    def test_single_hadamard_unitary(self):
+    @pytest.mark.parametrize("d", [2, 3, 5, 11])
+    def test_single_hadamard_unitary(self, d: int):
         # For a single-qudit circuit with one Hadamard, the circuit unitary
         # should equal the gate's local unitary.
-        for d in [2, 3, 5, 11]:
-            circuit = Circuit.from_gates_and_qudits([d], [GATES.H], [(0,)])
-            U_circ = circuit.unitary()
-            assert issparse(U_circ)
-            U_gate = GATES.H.unitary(d)
-            assert U_circ.shape == U_gate.shape
-            assert np.allclose(U_circ.toarray(), U_gate.toarray())
+        circuit = Circuit.from_gates_and_qudits([d], [GATES.H], [(0,)])
+        U_circ = circuit.unitary()
+        assert issparse(U_circ)
+        U_gate = GATES.H.local_unitary(d)
+        assert U_circ.shape == U_gate.shape
+        assert np.allclose(U_circ.toarray(), U_gate.toarray())
 
     def test_mixed_qudits_phase_with_unitary(self):
         N = 100

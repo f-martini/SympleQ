@@ -8,6 +8,7 @@ from sympleq.core.paulis import PauliObject
 from sympleq.core.circuits.utils import embed_symplectic, transvection_matrix
 from sympleq.core.circuits.random_symplectic import symplectic_random_transvection
 from sympleq.core.circuits.find_symplectic import map_pauli_sum_to_target_tableau
+from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
 
 
 # We define a type using TypeVar to let the type checker know that
@@ -223,7 +224,7 @@ class Gate(ABC):
         return pauli.__class__(tableau=new_tableau, dimensions=pauli.dimensions,
                                weights=pauli.weights, phases=new_phases)
 
-    def unitary(self, dimension: int) -> sp.csr_matrix:
+    def local_unitary(self, dimension: int | None = None) -> sp.csr_matrix:
         """
         Compute the unitary matrix representation of this gate.
 
@@ -340,14 +341,16 @@ class _HADAMARD(Gate):
 
         super().__init__(name, symplectic)
 
-    def unitary(self, dimension: int) -> sp.csr_matrix:
+    def local_unitary(self, dimension: int | None = None) -> sp.csr_matrix:
         from sympleq.core.circuits.utils import H_mat
+        if dimension is None:
+            dimension = DEFAULT_QUDIT_DIMENSION
         U = H_mat(dimension)
         if self._is_inverse:
             return U.conj().T
         return U
 
-    to_hilbert_space = unitary
+    to_local_hilbert_space = local_unitary
 
 
 class _PHASE(Gate):
@@ -377,14 +380,16 @@ class _PHASE(Gate):
 
         super().__init__(name, symplectic, exceptional_phase_vectors=exceptional)
 
-    def unitary(self, dimension: int) -> sp.csr_matrix:
+    def local_unitary(self, dimension: int | None = None) -> sp.csr_matrix:
         from sympleq.core.circuits.utils import S_mat
+        if dimension is None:
+            dimension = DEFAULT_QUDIT_DIMENSION
         U = S_mat(dimension)
         if self._is_inverse:
             return U.conj().T
         return U
 
-    to_hilbert_space = unitary
+    to_local_hilbert_space = local_unitary
 
 
 class _CX(Gate):
@@ -413,8 +418,11 @@ class _CX(Gate):
 
         super().__init__(name, symplectic)
 
-    def unitary(self, dimension: int) -> sp.csr_matrix:
+    def local_unitary(self, dimension: int | None = None) -> sp.csr_matrix:
         """CX acts as |j,k⟩ -> |j, (j+k) mod d⟩ (or |j, (k-j) mod d⟩ for inverse)."""
+
+        if dimension is None:
+            dimension = DEFAULT_QUDIT_DIMENSION
         d = dimension
         D = d * d  # total dimension
         U = np.zeros((D, D), dtype=complex)
@@ -429,7 +437,7 @@ class _CX(Gate):
                 U[out_idx, in_idx] = 1.0
         return sp.csr_matrix(U)
 
-    to_hilbert_space = unitary
+    to_local_hilbert_space = local_unitary
 
 
 class _SWAP(Gate):
@@ -445,8 +453,10 @@ class _SWAP(Gate):
 
         super().__init__("SWAP", symplectic)
 
-    def unitary(self, dimension: int) -> sp.csr_matrix:
+    def local_unitary(self, dimension: int | None = None) -> sp.csr_matrix:
         """SWAP acts as |j,k⟩ -> |k,j⟩."""
+        if dimension is None:
+            dimension = DEFAULT_QUDIT_DIMENSION
         d = dimension
         D = d * d
         U = np.zeros((D, D), dtype=complex)
@@ -457,7 +467,7 @@ class _SWAP(Gate):
                 U[out_idx, in_idx] = 1.0
         return sp.csr_matrix(U)
 
-    to_hilbert_space = unitary
+    to_local_hilbert_space = local_unitary
 
     def inverse(self) -> _SWAP:
         # SWAP is self-inverse
@@ -477,8 +487,10 @@ class _CZ(Gate):
 
         super().__init__("CZ", symplectic)
 
-    def unitary(self, dimension: int) -> sp.csr_matrix:
+    def local_unitary(self, dimension: int | None = None) -> sp.csr_matrix:
         """CZ adds phase ω^{jk} to |j,k⟩ where ω = exp(2πi/d)."""
+        if dimension is None:
+            dimension = DEFAULT_QUDIT_DIMENSION
         d = dimension
         D = d * d
         omega = np.exp(2j * np.pi / d)
@@ -489,7 +501,7 @@ class _CZ(Gate):
                 U[idx, idx] = omega ** (j * k)
         return sp.csr_matrix(U)
 
-    to_hilbert_space = unitary
+    to_local_hilbert_space = local_unitary
 
     def inverse(self) -> _CZ:
         # CZ is self-inverse
@@ -606,7 +618,7 @@ class PauliGate(Gate):
         # Pauli gates are self-inverse (up to phase)
         return self
 
-    def unitary(self, dimension: int | None = None) -> sp.csr_matrix:
+    def local_unitary(self, dimension: int | None = None) -> sp.csr_matrix:
         """
         Compute the unitary for this PauliGate.
 
@@ -619,7 +631,7 @@ class PauliGate(Gate):
         z = self.pauli_string.z_exp
         return pauli_unitary_from_tableau(d, x, z, convention="bare")
 
-    to_hilbert_space = unitary
+    to_local_hilbert_space = local_unitary
 
     def act(self, pauli: P, qudits: int | tuple[int, ...] | None = None) -> P:
         """
