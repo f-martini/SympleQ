@@ -528,7 +528,7 @@ class Circuit:
                     )
 
             d = int(gate_dims[0])
-            U_local = gate.unitary(d)
+            U_local = gate.local_unitary(d)
 
             # Embed into the full Hilbert space
             U_embedded = embed_unitary(U_local, list(qudits), self.dimensions)
