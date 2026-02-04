@@ -433,18 +433,55 @@ class Circuit:
 
     def _composite_phase_vector(self, F_1: np.ndarray, F_2: np.ndarray, h_2: np.ndarray) -> np.ndarray:
         """
-        Computes the phase vector contribution when composing two symplectics.
-        See Eq.(8) in PHYSICAL REVIEW A 71, 042315 (2005).
+        Faster equivalent of:
+            U = [[0,0],[I,0]]
+            Uc = F2.T @ U @ F2
+            p2 = diag(F1 @ ( (2*triu(Uc)-diag(diag(Uc))) @ F1.T ))
+        Uses:
+            p2 = sum( (F1 @ Q) * F1, axis=1 )   (one matmul)
+        and block construction of Uc.
         """
-        n = self.n_qudits()
-        U = np.zeros((2 * n, 2 * n), dtype=int)
-        U[n:, :n] = np.eye(n, dtype=int)
+        F1 = np.ascontiguousarray(F_1, dtype=int)
+        F2 = np.ascontiguousarray(F_2, dtype=int)
+        h2 = np.asarray(h_2, dtype=int)
 
-        U_conjugated = F_2.T @ U @ F_2
+        n2 = F1.shape[0]
+        assert n2 % 2 == 0 and F1.shape == (n2, n2) and F2.shape == (n2, n2)
+        n = n2 // 2
 
-        p1 = np.dot(F_1, h_2)
-        p2 = np.diag(np.dot(F_1, np.dot((2 * np.triu(U_conjugated) - np.diag(np.diag(U_conjugated))), F_1.T)))
-        p3 = np.dot(F_1, np.diag(U_conjugated))
+        # ---- Build U_conjugated = F2^T U F2 using blocks (A,B,C,D) ----
+        A = F2[:n, :n]
+        B = F2[:n, n:]
+        C = F2[n:, :n]
+        D = F2[n:, n:]
+
+        # Uc = [[C^T A, C^T B],
+        #       [D^T A, D^T B]]
+        Uc = np.empty((n2, n2), dtype=int)
+        Uc[:n, :n] = C.T @ A
+        Uc[:n, n:] = C.T @ B
+        Uc[n:, :n] = D.T @ A
+        Uc[n:, n:] = D.T @ B
+
+        # diag(Uc) without forming np.diag(Uc)
+        diag_uc = np.empty(n2, dtype=int)
+        diag_uc[:n] = np.sum(C * A, axis=0)
+        diag_uc[n:] = np.sum(D * B, axis=0)
+
+        # ---- p1 and p3 ----
+        p1 = F1 @ h2
+        p3 = F1 @ diag_uc
+
+        # ---- Build Q = 2*triu(Uc) - diag(diag(Uc)) ----
+        # After this, Uc == Q
+        tril_i, tril_j = np.tril_indices(n2, -1)
+        Uc[tril_i, tril_j] = 0          # keep only upper triangle + diag
+        Uc *= 2                         # doubles diag too (we will restore)
+        np.fill_diagonal(Uc, diag_uc)   # restore diagonal to original (not doubled)
+
+        # ---- p2 with ONE matmul ----
+        F1Q = F1 @ Uc                   # only one matmul
+        p2 = np.sum(F1Q * F1, axis=1)   # diag(F1 Q F1^T)
 
         return p1 + p2 - p3
 
