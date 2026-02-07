@@ -7,18 +7,20 @@ if TYPE_CHECKING:
     from .pauli_sum import PauliSum
 
 from .constants import DEFAULT_QUDIT_DIMENSION
+from .typing import ScalarType, IntNDArray, IntArrayVariant, ComplexArrayVariant
+from .formatters import PauliNumpyFormatter
 
 P = TypeVar("P", bound="PauliObject")
-
-ScalarType = Union[float, complex, int]
 PauliOrScalarType = Union['PauliObject', ScalarType]
 
 
 @functools.total_ordering
 class PauliObject(ABC):
-    def __init__(self, tableau: np.ndarray, dimensions: int | list[int] | np.ndarray | None = None,
-                 weights: int | float | complex | list[int] | list[float] | list[complex] | np.ndarray | None = None,
-                 phases: int | list[int] | np.ndarray | None = None):
+    def __init__(self,
+                 tableau: IntNDArray,
+                 dimensions: IntArrayVariant | None = None,
+                 weights: ComplexArrayVariant | None = None,
+                 phases: IntArrayVariant | None = None):
         """
         Initialize a PauliObject represented in symplectic tableau form.
 
@@ -56,45 +58,21 @@ class PauliObject(ABC):
         lcm : int
             Least common multiple of all qudit dimensions.
         """
+        sanitized_tableau = PauliNumpyFormatter.get_tableau(tableau)
 
-        if tableau.ndim == 1:
-            tableau = tableau.reshape(1, -1)
+        n_qudits = sanitized_tableau.shape[1] // 2
+        n_pauli_strings = sanitized_tableau.shape[0]
 
-        if tableau.ndim != 2:
-            raise ValueError(f"Invalid tableau shape ({tableau.shape}). Tableaus should be two dimensional.")
+        self._dimensions = PauliNumpyFormatter.get_dimensions(dimensions, n_qudits)
+        self._dimensions.setflags(write=False)  # Dimensions is read-only, so any type of assignment will fail.
 
-        n_pauli_strings = tableau.shape[0]
-        n_qudits = tableau.shape[1] // 2
+        self._tableau = sanitized_tableau % np.tile(self._dimensions, 2)
 
-        if dimensions is None:
-            dimensions = np.ones(n_qudits, dtype=int) * DEFAULT_QUDIT_DIMENSION
-        else:  # Catches int but also list and arrays of length 1
-            dimensions = np.asarray(dimensions, dtype=int)
-            if dimensions.ndim == 0:
-                dimensions = np.full(n_qudits, dimensions.item(), dtype=int)
+        self._weights = PauliNumpyFormatter.get_weights(weights, n_pauli_strings)
 
-        self._dimensions = dimensions
-        # Dimensions is read-only, so any type of assignment will fail.
-        self._dimensions.setflags(write=False)
         self._lcm = int(np.lcm.reduce(self.dimensions))
 
-        self._tableau = tableau % np.tile(self.dimensions, 2)
-
-        if weights is None:
-            weights = np.ones(n_pauli_strings, dtype=complex)
-        else:  # Catches scalars but also list and arrays of length 1
-            weights = np.asarray(weights, dtype=complex)
-            if weights.ndim == 0:
-                weights = np.full(n_pauli_strings, weights.item(), dtype=complex)
-        self._weights = weights
-
-        if phases is None:
-            phases = np.zeros(n_pauli_strings, dtype=int)
-        else:  # Catches scalars but also list and arrays of length 1
-            phases = np.asarray(phases, dtype=int)
-            if phases.ndim == 0:
-                phases = np.full(n_pauli_strings, phases.item(), dtype=int)
-        self._phases = phases % (2 * self.lcm)
+        self._phases = PauliNumpyFormatter.get_phases(phases, self._lcm, n_pauli_strings)
 
     @property
     def tableau(self) -> np.ndarray:
