@@ -118,7 +118,6 @@ class _LeafContext:
     basis_order: list[int]
     labels: list[int]
     pauli_sum: PauliSum
-    pauli_weighted: PauliSum
     ref_tableau: np.ndarray
     ref_phases: np.ndarray
     ref_weights: np.ndarray
@@ -150,11 +149,12 @@ def _check_leaf(pi: np.ndarray, ctx: _LeafContext) -> Gate | None:
     F, h0, _, _ = find_map_to_target_pauli_sum(H_basis_src, H_basis_tgt)
 
     nq = ctx.n_qudits
-    pauli_weighted = ctx.pauli_weighted
+    # Canonical coefficient-form Hamiltonian (phases separated, weights normalized)
+    pauli = ctx.pauli_sum
 
     SG_F = Gate('Symmetry', list(range(nq)), F.T, ctx.pauli_sum.dimensions, np.asarray(h0, dtype=int))
-    H_full_tg = pauli_weighted.copy()[pi]
-    H_full_F = SG_F.act(pauli_weighted)
+    H_full_tg = pauli.copy()[pi]
+    H_full_F = SG_F.act(pauli)
 
     delta = (H_full_tg.phases - H_full_F.phases) % (2 * int(ctx.pauli_sum.lcm))
 
@@ -167,7 +167,7 @@ def _check_leaf(pi: np.ndarray, ctx: _LeafContext) -> Gate | None:
         h0_alt = np.concatenate([hx0, hz0]).astype(int)
 
         SG_F_alt = Gate('Symmetry', list(range(nq)), F.T, ctx.pauli_sum.dimensions, h0_alt)
-        H_full_Fa = SG_F_alt.act(pauli_weighted)
+        H_full_Fa = SG_F_alt.act(pauli)
         delta_alt = (H_full_tg.phases - H_full_Fa.phases) % 4
         if (delta_alt % 2).sum() < (delta % 2).sum():
             h0, SG_F, H_full_F, delta = h0_alt, SG_F_alt, H_full_Fa, delta_alt
@@ -182,7 +182,7 @@ def _check_leaf(pi: np.ndarray, ctx: _LeafContext) -> Gate | None:
     h_tot = (h0_mod + h_lin_mod) % ctx.two_lcm
     SG = Gate('Symmetry', list(range(nq)), F.T, ctx.pauli_sum.dimensions, h_tot)
 
-    H_out_cf = SG.act(pauli_weighted).to_standard_form()
+    H_out_cf = SG.act(pauli).to_standard_form()
     H_out_cf.weight_to_phase()
 
     if not np.array_equal(H_out_cf.tableau, ctx.ref_tableau):
@@ -216,16 +216,21 @@ def clifford_graph_automorphism_search(
     """
 
     # ---- preprocessing that depends only on pauli_sum ----
-    independent_labels, dependencies = get_linear_dependencies(pauli_sum.tableau, 2)
-    labels = sorted(set(independent_labels) | set(dependencies.keys()))
-    S_mod = pauli_sum.symplectic_product_matrix()
-    G, basis_order = pauli_sum.matroid()
-    coeffs = pauli_sum.weights
+    # Use one canonical representation for *everything* (coloring, basis mapping, leaf checks),
+    # so permutations and the induced symplectic map are computed in a consistent coefficient convention.
+    pauli = pauli_sum.copy()
+    pauli.weight_to_phase()
 
-    if not np.all([pauli_sum.dimensions[i] == pauli_sum.dimensions[0] for i in range(1, len(pauli_sum.dimensions))]):
+    independent_labels, dependencies = get_linear_dependencies(pauli.tableau, 2)
+    labels = sorted(set(independent_labels) | set(dependencies.keys()))
+    S_mod = pauli.symplectic_product_matrix()
+    G, basis_order = pauli.matroid()
+    coeffs = pauli.weights
+
+    if not np.all([pauli.dimensions[i] == pauli.dimensions[0] for i in range(1, len(pauli.dimensions))]):
         raise ValueError("All qubits must have same dimension for now. The key things to fix are: "
                          "_gf_solve_one_solution, and the symplectic_solver for F.")
-    p = int(pauli_sum.lcm)
+    p = int(pauli.lcm)
     n = len(labels)
 
     col_invariants = None
@@ -261,20 +266,18 @@ def clifford_graph_automorphism_search(
     domain_order = [i for c in base_order for i in base_classes[c]]
 
     # Prepare references for the leaf checks so they dont have to be computed every time
-    pauli_weighted = pauli_sum.copy()
-    pauli_weighted.weight_to_phase()
-    pauli_standard = pauli_weighted.to_standard_form()
+    pauli_standard = pauli.to_standard_form()
     pauli_standard.weight_to_phase()
     ref_tableau = pauli_standard.tableau.astype(int, copy=False)
     ref_phases = np.asarray(pauli_standard.phases, dtype=int)
     ref_weights = np.asarray(pauli_standard.weights)
-    base_tableau = pauli_sum.tableau.astype(int, copy=False)
-    base_weights = np.asarray(pauli_sum.weights)
-    base_phases = np.asarray(pauli_sum.phases, dtype=int)
+    base_tableau = pauli.tableau.astype(int, copy=False)
+    base_weights = np.asarray(pauli.weights)
+    base_phases = np.asarray(pauli.phases, dtype=int)
     basis_indices = np.asarray(independent_labels, dtype=int)
-    basis_source_ps = pauli_sum[basis_indices]
+    basis_source_ps = pauli[basis_indices]
 
-    dims_array = np.asarray(pauli_sum.dimensions, dtype=int)
+    dims_array = np.asarray(pauli.dimensions, dtype=int)
     row_basis_cache: dict[str, np.ndarray] = {}
     if dims_array.size and np.all(dims_array == dims_array[0]):
         p_uni = int(dims_array[0])
@@ -285,7 +288,7 @@ def clifford_graph_automorphism_search(
 
     phi = -np.ones(n, dtype=np.int64)
     used = np.zeros(n, dtype=bool)
-    identity_perm = np.arange(pauli_sum.n_paulis(), dtype=np.int64)
+    identity_perm = np.arange(pauli.n_paulis(), dtype=np.int64)
 
     steps = 0
     cur_colors = base_colors.copy()
@@ -306,15 +309,14 @@ def clifford_graph_automorphism_search(
 
     leaf_ctx = _LeafContext(
         p=p,
-        two_lcm=2 * int(pauli_sum.lcm),
-        n_qudits=pauli_sum.n_qudits(),
+        two_lcm=2 * int(pauli.lcm),
+        n_qudits=pauli.n_qudits(),
         identity_perm=identity_perm,
         S_mod=S_mod,
         G=G,
         basis_order=basis_order,
         labels=labels,
-        pauli_sum=pauli_sum,
-        pauli_weighted=pauli_weighted,
+        pauli_sum=pauli,
         ref_tableau=ref_tableau,
         ref_phases=ref_phases,
         ref_weights=ref_weights,
