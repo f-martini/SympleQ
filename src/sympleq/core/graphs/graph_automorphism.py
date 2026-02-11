@@ -281,10 +281,11 @@ def clifford_graph_automorphism_search(
     row_basis_cache: dict[str, np.ndarray] = {}
     if dims_array.size and np.all(dims_array == dims_array[0]):
         p_uni = int(dims_array[0])
+        cache = _select_row_basis_indices(base_tableau % p_uni, p_uni, base_tableau.shape[1])
         if p_uni == 2:
-            row_basis_cache["gf2"] = _select_row_basis_indices(base_tableau % 2, 2, base_tableau.shape[1])
+            row_basis_cache["gf2"] = cache
         else:
-            row_basis_cache["gfp"] = _select_row_basis_indices(base_tableau % p_uni, p_uni, base_tableau.shape[1])
+            row_basis_cache["gfp"] = cache
 
     phi = -np.ones(n, dtype=np.int64)
     used = np.zeros(n, dtype=bool)
@@ -309,8 +310,8 @@ def clifford_graph_automorphism_search(
 
     leaf_ctx = _LeafContext(
         p=p,
-        two_lcm=2 * int(pauli.lcm),
-        n_qudits=pauli.n_qudits(),
+        two_lcm=2 * pauli_sum.lcm,
+        n_qudits=pauli_sum.n_qudits(),
         identity_perm=identity_perm,
         S_mod=S_mod,
         G=G,
