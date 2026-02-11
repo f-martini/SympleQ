@@ -306,7 +306,7 @@ def clifford_graph_automorphism_search(
 
     leaf_ctx = _LeafContext(
         p=p,
-        two_lcm=2 * int(pauli_sum.lcm),
+        two_lcm=2 * pauli_sum.lcm,
         n_qudits=pauli_sum.n_qudits(),
         identity_perm=identity_perm,
         S_mod=S_mod,
