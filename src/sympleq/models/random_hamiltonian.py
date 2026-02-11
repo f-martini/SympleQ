@@ -188,8 +188,9 @@ def random_pauli_symmetry_hamiltonian(n_qudits: int, n_paulis: int, n_redundant=
 
 
 def random_gate_symmetric_hamiltonian(G: Gate,
-                                      dimensions: list[int] | np.ndarray,
+                                      dimension: int,
                                       qudit_indices: tuple[int, ...] | list[int],
+                                      n_qudits: int,
                                       n_paulis: int | None = None,
                                       weight_mode: str = 'uniform',
                                       scrambled: bool = False):
@@ -219,18 +220,14 @@ def random_gate_symmetric_hamiltonian(G: Gate,
     places and Pauli strings with zero weight are removed.
     """
 
-    n_qudits = len(dimensions)
     if n_paulis is None:
         n_paulis = 2 * n_qudits
 
     if isinstance(qudit_indices, list):
         qudit_indices = tuple(qudit_indices)
 
-    gate_dims = np.asarray(dimensions, dtype=int)
-
     # Build full dimensions for the Hamiltonian, embedding the gate dimensions on the target indices.
-    dims = np.full(n_qudits, gate_dims[0], dtype=int)
-    dims[qudit_indices] = gate_dims
+    dims = np.full(n_qudits, dimension, dtype=int)
 
     rng = np.random.default_rng()
 
