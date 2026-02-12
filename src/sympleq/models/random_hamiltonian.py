@@ -251,22 +251,48 @@ def random_gate_symmetric_hamiltonian(G: Gate,
             term = G.act(term, qudit_indices).to_standard_form()
         return orbit_terms
 
-    # Accumulate orbit-closed terms until we reach (or slightly exceed) n_paulis.
-    tableaus = []
-    weights = []
-    phases = []
-    while len(tableaus) < n_paulis:
+    # Accumulate orbit-closed terms until we have at least n_paulis *non-zero* unique tableau rows.
+    # We combine coefficients on-the-fly to avoid producing an empty Hamiltonian due to cancellations.
+    coeff_by_row: dict[bytes, complex] = {}
+    row_by_key: dict[bytes, np.ndarray] = {}
+
+    def _add_coeff(row: np.ndarray, coeff: complex) -> None:
+        k = np.asarray(row, dtype=int).tobytes()
+        prev = coeff_by_row.get(k)
+        if prev is None:
+            coeff_by_row[k] = complex(coeff)
+            row_by_key[k] = np.asarray(row, dtype=int).copy()
+            return
+        new = prev + complex(coeff)
+        if abs(new) <= 1e-14:
+            # Exact (or near) cancellation; drop the term to keep the Hamiltonian compact.
+            coeff_by_row.pop(k, None)
+            row_by_key.pop(k, None)
+        else:
+            coeff_by_row[k] = new
+
+    max_attempts = 1000
+    attempts = 0
+    while len(coeff_by_row) < n_paulis:
+        attempts += 1
+        if attempts > max_attempts:
+            raise RuntimeError(
+                f"Failed to generate a non-trivial symmetric Hamiltonian after {max_attempts} attempts "
+                f"(have {len(coeff_by_row)} unique terms, want {n_paulis})."
+            )
+
         seed = PauliSum.from_random(1, dims, rand_weights=False, rand_phases=False)
         seed.weights = np.array([_new_weight()], dtype=complex)
         seed = seed.to_standard_form()
 
         for term in _orbit(seed):
-            tableaus.append(term.tableau[0])
-            weights.append(term.weights[0])
-            phases.append(term.phases[0])
+            _add_coeff(term.tableau[0], term.weights[0])
 
-    P_sym = PauliSum.from_tableau(np.vstack(tableaus), dimensions=dims, weights=weights, phases=phases)
-    P_sym.combine_equivalent_paulis()
+    tableaus = np.vstack(list(row_by_key.values()))
+    weights = np.array(list(coeff_by_row.values()), dtype=np.complex128)
+    phases = np.zeros(weights.shape[0], dtype=int)
+
+    P_sym = PauliSum.from_tableau(tableaus, dimensions=dims, weights=weights, phases=phases)
     P_sym.standardise()
     P_sym.set_weights(np.around(P_sym.weights, decimals=10))
     P_sym.remove_zero_weight_paulis()

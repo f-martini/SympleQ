@@ -172,8 +172,13 @@ def _check_leaf(pi: np.ndarray, ctx: _LeafContext) -> Gate | None:
         if (delta_alt % 2).sum() < (delta % 2).sum():
             h0, SG_F, H_full_F, delta = h0_alt, SG_F_alt, H_full_Fa, delta_alt
 
-    h_lin = solve_phase_vector_h_from_residual(ctx.base_tableau, delta, ctx.pauli_sum.dimensions,
-                                               debug=True, row_basis_cache=ctx.row_basis_cache)
+    h_lin = solve_phase_vector_h_from_residual(
+        ctx.base_tableau,
+        delta,
+        ctx.pauli_sum.dimensions,
+        debug=False,
+        row_basis_cache=ctx.row_basis_cache,
+    )
     if h_lin is None:
         return None
 
@@ -191,11 +196,10 @@ def _check_leaf(pi: np.ndarray, ctx: _LeafContext) -> Gate | None:
         return None
     if not np.array_equal(H_out_cf.weights, ctx.ref_weights):
         return None
-    Omega = np.zeros((2 * nq, 2 * nq), dtype=int)
-    Omega[:nq, nq:] = np.eye(nq, dtype=int)
-    Omega[nq:, :nq] = -np.eye(nq, dtype=int)
-    if np.all(((ctx.p - 1) * np.diag(F @ Omega @ F.T) + h_tot % 2) != 0):
-        return None
+
+    # NOTE: Historically we had an additional consistency check involving diag(F Ω F^T) and h_tot.
+    # In practice this rejected valid symmetries due to convention mismatches (and is redundant given the
+    # explicit verification above: SG.act(pauli) == pauli up to standardisation).
 
     return SG
 

@@ -9,6 +9,7 @@ from sympleq.core.circuits.utils import embed_symplectic, transvection_matrix
 from sympleq.core.circuits.random_symplectic import symplectic_random_transvection
 from sympleq.core.circuits.find_symplectic import map_pauli_sum_to_target_tableau
 from sympleq.core.paulis.constants import DEFAULT_QUDIT_DIMENSION
+from sympleq.core.circuits.target import get_phase_vector
 
 
 # We define a type using TypeVar to let the type checker know that
@@ -87,7 +88,7 @@ class Gate(ABC):
 
         symplectic = symplectic_random_transvection(n_qudits, dimension, num_transvections)
         # For random gates, we use zero phase vector (phases depend on specific gate sequence)
-        phase_vector = np.zeros(2 * n_qudits, dtype=int)
+        phase_vector = get_phase_vector(symplectic, dimension)
 
         return _GenericGate("random", symplectic, phase_vector)
 
