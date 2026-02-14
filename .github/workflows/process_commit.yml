@@ -1,8 +1,5 @@
 name: Process Commit
 
-permissions:
-  contents: write
-
 on:
   push:
     branches: [dev]
@@ -13,6 +10,9 @@ env:
 jobs:
   tag:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
