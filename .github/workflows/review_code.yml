@@ -7,7 +7,6 @@ env:
   SETUP_PY: ./
   SRC_DIR: ./src/sympleq
   PYTEST_INI: ./scripts/configs/pytest.ini
-  SONARQUBE_INI: ./scripts/configs/sonar-project.properties
   DEV_REQUIREMENTS: ./scripts/configs/dev_requirements.txt
   FLAKE8_CONFIG: ./scripts/configs/setup.cfg
   COVERAGE_REPORT_XML: ./docs/tests_results/coverage_report.xml
@@ -37,22 +36,6 @@ jobs:
       - name: Flake8
         run: |
           flake8 ${{ env.SRC_DIR }} --config=${{ env.FLAKE8_CONFIG }}
-
-  analyzing:
-    name: SonarQube
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6
-        with:
-          args: >
-            -Dproject.settings=${{ env.SONARQUBE_INI }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   testing:
     runs-on: ubuntu-latest

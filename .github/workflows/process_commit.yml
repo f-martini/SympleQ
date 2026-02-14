@@ -1,4 +1,4 @@
-name: SemVer Tagging
+name: Process Commit
 
 permissions:
   contents: write
@@ -6,6 +6,9 @@ permissions:
 on:
   push:
     branches: [dev]
+
+env:
+  SONARQUBE_INI: ./scripts/configs/sonar-project.properties
 
 jobs:
   tag:
@@ -31,3 +34,19 @@ jobs:
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           git tag ${{ steps.tag_logic.outputs.final_tag }}
           git push origin ${{ steps.tag_logic.outputs.final_tag }}
+
+  analyze:
+    name: SonarQube
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        with:
+          args: >
+            -Dproject.settings=${{ env.SONARQUBE_INI }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
